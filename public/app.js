@@ -1,4 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
+if (new URLSearchParams(location.search).get("embedded") === "1") {
+  document.body.classList.add("embedded");
+}
 const labels = { front: "正面（原图）", left: "左面", right: "右面", back: "背面" };
 let session = JSON.parse(localStorage.getItem("image3d-session") || "null");
 let state = null;

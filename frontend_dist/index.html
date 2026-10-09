@@ -1,4 +1,63 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="theme-color" content="#2F6B57"/><link rel="icon" type="image/svg+xml" href="/branding/favicon.svg"/><meta name="application-name" content="灵界"/><title>灵界 · 工艺设计工作台</title>  <script type="module" crossorigin src="/assets/index-DRoc9wD_.js"></script>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#2F6B57"/>
+  <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg"/>
+  <meta name="application-name" content="灵界"/>
+  <title>灵界 · 工艺设计工作台</title>
+  <script type="module" crossorigin src="/assets/index-DRoc9wD_.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-9DdLma_o.css">
-</head><body><div id="root"></div><div class="cloud-compatibility" role="status">云端兼容模式：旧桌面数据与功能暂未接入</div><a class="image3d-entry" href="/image-to-3d" aria-label="打开图生 3D 工作台"><span>新功能</span>图生 3D</a><style>.cloud-compatibility{position:fixed;left:18px;bottom:18px;z-index:2147483646;max-width:min(460px,calc(100vw - 180px));padding:9px 12px;border:1px solid #e3d29a;border-radius:10px;background:#fff8dc;color:#6b5522;font:600 12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(59,50,27,.12)}.image3d-entry{position:fixed;right:22px;bottom:22px;z-index:2147483647;display:flex;align-items:center;gap:9px;padding:12px 17px;border:1px solid rgba(255,255,255,.28);border-radius:14px;background:#2f6b57;color:#fff;text-decoration:none;font:700 14px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 12px 32px rgba(20,58,46,.28);transition:transform .16s ease,box-shadow .16s ease}.image3d-entry:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(20,58,46,.34)}.image3d-entry span{padding:3px 6px;border-radius:6px;background:#f1c75b;color:#263a31;font-size:10px;letter-spacing:.06em}@media(max-width:640px){.cloud-compatibility{left:12px;bottom:70px;max-width:calc(100vw - 24px)}.image3d-entry{right:12px;bottom:12px}}</style></body></html>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="image3d-modal" class="image3d-modal" role="dialog" aria-modal="true" aria-labelledby="image3d-title" hidden>
+    <div class="image3d-window">
+      <header class="image3d-toolbar">
+        <div><small>灵界工作台</small><strong id="image3d-title">图生 3D</strong></div>
+        <button id="image3d-close" type="button" aria-label="关闭图生 3D">×</button>
+      </header>
+      <iframe id="image3d-frame" title="灵界图生 3D" loading="lazy"></iframe>
+    </div>
+  </div>
+  <style>
+    .image3d-nav-entry{width:calc(100% - 20px);margin:10px;display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:11px 13px;border:1px solid rgba(47,107,87,.24);border-radius:12px;background:#eaf2ee;color:#245443;font:700 14px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}.image3d-nav-entry:hover{background:#dcebe4}.image3d-nav-entry span{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#2f6b57;color:white;font-size:13px}.image3d-nav-entry em{margin-left:auto;padding:3px 6px;border-radius:6px;background:#f1c75b;color:#514216;font:800 9px/1 system-ui;font-style:normal;letter-spacing:.06em}.image3d-modal[hidden]{display:none}.image3d-modal{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:20px;background:rgba(20,35,28,.52);backdrop-filter:blur(8px)}.image3d-window{width:min(1180px,100%);height:min(900px,calc(100vh - 40px));display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid rgba(47,107,87,.22);border-radius:18px;background:#f2f5f1;box-shadow:0 28px 90px rgba(12,35,26,.32)}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{width:34px;height:34px;padding:0;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:500 24px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-window iframe{width:100%;height:100%;border:0;background:#f2f5f1}@media(max-width:720px){.image3d-modal{padding:0}.image3d-window{width:100%;height:100vh;border:0;border-radius:0}.image3d-nav-entry{width:calc(100% - 12px);margin:6px}}
+  </style>
+  <script>
+    (() => {
+      const modal = document.getElementById('image3d-modal');
+      const frame = document.getElementById('image3d-frame');
+      const close = document.getElementById('image3d-close');
+      const open = () => {
+        if (!frame.dataset.loaded) {
+          frame.src = '/image-to-3d?embedded=1';
+          frame.dataset.loaded = '1';
+        }
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        close.focus();
+      };
+      const dismiss = () => {
+        modal.hidden = true;
+        document.body.style.overflow = '';
+        entry.focus();
+      };
+      const entry = document.createElement('button');
+      entry.type = 'button';
+      entry.className = 'image3d-nav-entry';
+      entry.innerHTML = '<span>3D</span>图生 3D<em>NEW</em>';
+      entry.addEventListener('click', open);
+      const attach = () => {
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && !entry.isConnected) sidebar.appendChild(entry);
+      };
+      new MutationObserver(attach).observe(document.getElementById('root'), {childList:true, subtree:true});
+      attach();
+      close.addEventListener('click', dismiss);
+      modal.addEventListener('click', event => { if (event.target === modal) dismiss(); });
+      document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) dismiss(); });
+    })();
+  </script>
+</body>
+</html>
