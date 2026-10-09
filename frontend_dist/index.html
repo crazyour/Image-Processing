@@ -22,7 +22,7 @@
     </div>
   </div>
   <style>
-    .image3d-nav-entry{width:calc(100% - 20px);margin:10px;display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:11px 13px;border:1px solid rgba(47,107,87,.24);border-radius:12px;background:#eaf2ee;color:#245443;font:700 14px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}.image3d-nav-entry:hover{background:#dcebe4}.image3d-nav-entry span{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#2f6b57;color:white;font-size:13px}.image3d-nav-entry em{margin-left:auto;padding:3px 6px;border-radius:6px;background:#f1c75b;color:#514216;font:800 9px/1 system-ui;font-style:normal;letter-spacing:.06em}.image3d-modal[hidden]{display:none}.image3d-modal{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:20px;background:rgba(20,35,28,.52);backdrop-filter:blur(8px)}.image3d-window{width:min(1180px,100%);height:min(900px,calc(100vh - 40px));display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid rgba(47,107,87,.22);border-radius:18px;background:#f2f5f1;box-shadow:0 28px 90px rgba(12,35,26,.32)}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{width:34px;height:34px;padding:0;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:500 24px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-window iframe{width:100%;height:100%;border:0;background:#f2f5f1}@media(max-width:720px){.image3d-modal{padding:0}.image3d-window{width:100%;height:100vh;border:0;border-radius:0}.image3d-nav-entry{width:calc(100% - 12px);margin:6px}}
+    .image3d-nav-entry b{background:#f1c75b;color:#514216}.image3d-modal[hidden]{display:none}.image3d-modal{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:20px;background:rgba(20,35,28,.52);backdrop-filter:blur(8px)}.image3d-window{width:min(1180px,100%);height:min(900px,calc(100vh - 40px));display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid rgba(47,107,87,.22);border-radius:18px;background:#f2f5f1;box-shadow:0 28px 90px rgba(12,35,26,.32)}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{width:34px;height:34px;padding:0;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:500 24px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-window iframe{width:100%;height:100%;border:0;background:#f2f5f1}@media(max-width:720px){.image3d-modal{padding:0}.image3d-window{width:100%;height:100vh;border:0;border-radius:0}}
   </style>
   <script>
     (() => {
@@ -46,11 +46,11 @@
       const entry = document.createElement('button');
       entry.type = 'button';
       entry.className = 'image3d-nav-entry';
-      entry.innerHTML = '<span>3D</span>图生 3D<em>NEW</em>';
+      entry.innerHTML = '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.3 7.7 7.7 4.4 7.7-4.4M12 12v9"/></svg><span>图生 3D</span><b>NEW</b>';
       entry.addEventListener('click', open);
       const attach = () => {
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar && !entry.isConnected) sidebar.appendChild(entry);
+        const navigation = document.querySelector('aside.sidebar > nav');
+        if (navigation && !entry.isConnected) navigation.appendChild(entry);
       };
       new MutationObserver(attach).observe(document.getElementById('root'), {childList:true, subtree:true});
       attach();

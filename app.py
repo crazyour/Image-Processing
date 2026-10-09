@@ -484,12 +484,18 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
 
 @app.get("/image-to-3d", include_in_schema=False)
 def image_to_3d_page():
-    return FileResponse(ROOT / "public" / "index.html")
+    return FileResponse(
+        ROOT / "public" / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/", include_in_schema=False)
 def index():
-    return FileResponse(ORIGINAL_FRONTEND / "index.html")
+    return FileResponse(
+        ORIGINAL_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 app.mount("/assets", StaticFiles(directory=ORIGINAL_FRONTEND / "assets"), name="original-assets")
