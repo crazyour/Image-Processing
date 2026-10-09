@@ -31,15 +31,15 @@ class Settings(BaseSettings):
     private_workspace: bool = False
     bootstrap_token: str = ""
     openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_vision_model: str = "gpt-4.1-mini"
-    openai_image_model: str = "gpt-image-2.5-flare"
-    openai_image_quality: str = "medium"
+    openai_base_url: str
+    openai_vision_model: str
+    openai_image_model: str
+    openai_image_quality: str
     meshy_api_key: str = ""
     meshy_base_url: str = "https://api.meshy.ai"
     hunyuan_api_key: str = ""
-    hunyuan_base_url: str = "https://tokenhub.tencentmaas.com/v1"
-    hunyuan_3d_model: str = "hy-3d-3.1"
+    hunyuan_base_url: str
+    hunyuan_3d_model: str
     public_base_url: str = ""
     image_to_3d_asset_signing_key: str = ""
     image_to_3d_asset_url_ttl_seconds: int = 86400

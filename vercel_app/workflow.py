@@ -5,12 +5,13 @@ import base64
 import hashlib
 import io
 import json
-import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+from vercel_app.settings import SettingsError, hunyuan_settings, openai_settings
 
 
 VIEW_TYPES = ("front", "left", "right", "back")
@@ -57,11 +58,18 @@ class WorkflowError(RuntimeError):
         super().__init__(message)
 
 
-def _required_env(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise WorkflowError("NOT_CONFIGURED", f"尚未配置 {name}", 503)
-    return value
+def _openai_config():
+    try:
+        return openai_settings()
+    except SettingsError as exc:
+        raise WorkflowError("NOT_CONFIGURED", str(exc), 503) from exc
+
+
+def _hunyuan_config():
+    try:
+        return hunyuan_settings()
+    except SettingsError as exc:
+        raise WorkflowError("NOT_CONFIGURED", str(exc), 503) from exc
 
 
 def normalize_image(data: bytes, declared_type: str | None) -> tuple[bytes, dict]:
@@ -125,7 +133,7 @@ def _extract_output_text(body: dict) -> str:
 
 
 def analyze_image(image: bytes, user_prompt: str) -> dict:
-    key = _required_env("OPENAI_API_KEY")
+    config = _openai_config()
     instruction = (
         "你正在为单图转多视图再转3D分析输入图片。请使用中文，只描述可见证据，将遮挡区域"
         "与不可见面的推测分开。分析主体、几何、材质、颜色、反光、透明、裁切和背景风险。"
@@ -134,7 +142,7 @@ def analyze_image(image: bytes, user_prompt: str) -> dict:
         + (user_prompt.strip() or "忠实还原主体，制作通用3D资产")
     )
     payload = {
-        "model": os.getenv("OPENAI_VISION_MODEL", "gpt-6-luna"),
+        "model": config.vision_model,
         "reasoning": {"effort": "none"},
         "input": [{"role": "user", "content": [
             {"type": "input_text", "text": instruction},
@@ -147,8 +155,8 @@ def analyze_image(image: bytes, user_prompt: str) -> dict:
         "max_output_tokens": 1600,
     }
     try:
-        with httpx.Client(base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"), timeout=90) as client:
-            response = client.post("/responses", headers={"Authorization": f"Bearer {key}"}, json=payload)
+        with httpx.Client(base_url=config.base_url, timeout=90) as client:
+            response = client.post("/responses", headers={"Authorization": f"Bearer {config.api_key}"}, json=payload)
     except httpx.RequestError as exc:
         raise WorkflowError("OPENAI_UNAVAILABLE", f"OpenAI 连接失败：{exc}", 502) from exc
     if response.status_code >= 400:
@@ -187,12 +195,12 @@ def _validate_generated_image(encoded: str) -> bytes:
 
 
 def generate_view(reference_images: list[bytes], prompt: str) -> tuple[bytes, dict]:
-    key = _required_env("OPENAI_API_KEY")
+    config = _openai_config()
     payload = {
-        "model": os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2.5-flare"),
+        "model": config.image_model,
         "images": [{"image_url": data_uri(image)} for image in reference_images[:16]],
         "prompt": prompt,
-        "quality": os.getenv("OPENAI_IMAGE_QUALITY", "medium"),
+        "quality": config.image_quality,
         "size": "1024x1024",
         "background": "opaque",
         "output_format": "png",
@@ -200,8 +208,8 @@ def generate_view(reference_images: list[bytes], prompt: str) -> tuple[bytes, di
         "n": 1,
     }
     try:
-        with httpx.Client(base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"), timeout=280) as client:
-            response = client.post("/images/edits", headers={"Authorization": f"Bearer {key}"}, json=payload)
+        with httpx.Client(base_url=config.base_url, timeout=280) as client:
+            response = client.post("/images/edits", headers={"Authorization": f"Bearer {config.api_key}"}, json=payload)
     except httpx.RequestError as exc:
         raise WorkflowError("OPENAI_UNAVAILABLE", f"OpenAI 图片生成连接失败：{exc}", 502) from exc
     if response.status_code >= 400:
@@ -231,10 +239,10 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
     return b"".join(chunks)
 
 
-def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict) -> dict:
-    key = _required_env("HUNYUAN_API_KEY")
+def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict) -> tuple[dict, str]:
+    config = _hunyuan_config()
     payload = {
-        "model": os.getenv("HUNYUAN_3D_MODEL", "hy-3d-3.1"),
+        "model": config.model,
         "image_url": front_url,
         "multi_view_images": [
             {"view_type": view, "view_image_url": view_urls[view]}
@@ -248,26 +256,26 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict) -> 
     if options.get("result_format"):
         payload["result_format"] = options["result_format"]
     try:
-        with httpx.Client(base_url=os.getenv("HUNYUAN_BASE_URL", "https://tokenhub.tencentmaas.com/v1"), timeout=120) as client:
+        with httpx.Client(base_url=config.base_url, timeout=120) as client:
             response = client.post("/api/3d/submit", headers={
-                "Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json",
             }, json=payload)
     except httpx.RequestError as exc:
         raise WorkflowError("HUNYUAN_UNAVAILABLE", f"腾讯混元连接失败：{exc}", 502) from exc
     if response.status_code >= 400:
         raise _provider_error("腾讯混元", response)
     try:
-        return response.json()
+        return response.json(), config.model
     except ValueError:
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元返回内容无法解析", 502)
 
 
 def query_hunyuan(task_id: str, model: str) -> dict:
-    key = _required_env("HUNYUAN_API_KEY")
+    config = _hunyuan_config()
     try:
-        with httpx.Client(base_url=os.getenv("HUNYUAN_BASE_URL", "https://tokenhub.tencentmaas.com/v1"), timeout=120) as client:
+        with httpx.Client(base_url=config.base_url, timeout=120) as client:
             response = client.post("/api/3d/query", headers={
-                "Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json",
             }, json={"model": model, "id": task_id})
     except httpx.RequestError as exc:
         raise WorkflowError("HUNYUAN_UNAVAILABLE", f"腾讯混元连接失败：{exc}", 502) from exc

@@ -60,12 +60,14 @@ BLOB_READ_WRITE_TOKEN=Vercel自动提供
 DATABASE_URL=PostgreSQL连接字符串
 ```
 
+模型名、图片质量和供应商端点没有代码内默认值，运行时只从环境变量读取。以后更换模型只需修改 Vercel Environment Variables 或本地 `.env`，不需要同步修改 Python 全局常量。缺少必要值时接口会返回 `NOT_CONFIGURED`，而不会静默使用过期模型。
+
 ## 部署到 Vercel
 
 1. 将本目录提交到 GitHub，并在 Vercel 中导入仓库。
 2. 在 Vercel 项目的 Storage 页面创建一个 **Public Blob**，Vercel 会自动写入 `BLOB_READ_WRITE_TOKEN`。
 3. 通过 Vercel Marketplace 连接 Neon、Supabase 或其他 PostgreSQL，并设置 `DATABASE_URL`。
-4. 在项目的 Environment Variables 中添加 `OPENAI_API_KEY` 和 `HUNYUAN_API_KEY`。
+4. 按 `.env.example` 在项目的 Environment Variables 中配置 OpenAI/混元端点、模型、图片质量和 API Key；`BLOB_READ_WRITE_TOKEN` 与 `DATABASE_URL` 由对应存储集成提供。
 5. 重新部署。首次创建会话时会自动建立 `image3d_sessions` 数据表。
 
 本地运行：
@@ -93,6 +95,6 @@ GET   /api/sessions/{id}
 
 浏览器会把会话访问令牌保存在 `localStorage`，后续请求通过 `X-Session-Token` 发送。服务器数据库只保存令牌哈希。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。
 
-默认使用 `gpt-6-luna` 做低成本图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成三个补充视角。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可以把 `OPENAI_IMAGE_MODEL` 改为 `gpt-image-2.5-sunburst`。
+`.env.example` 的示例配置使用 `gpt-6-luna` 做低成本图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成三个补充视角。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可以把 `OPENAI_IMAGE_MODEL` 改为 `gpt-image-2.5-sunburst`。
 
 确认与提交是两个独立操作。只有当前提示词版本对应的四个视角齐全时才能确认；确认后才能调用 `generate`。用户提示词始终保存为中文，系统在后台追加跨视角一致性约束。由于混元普通多视图生成不接收同时提交的文字提示词，提示词负责约束 GPT 多视图生成，混元阶段只读取最终确认的四张图片。

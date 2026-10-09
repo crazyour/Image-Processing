@@ -143,8 +143,8 @@ def health():
     return {
         "status": "ok",
         "workflow": "gpt-multiview-to-hunyuan-3d",
-        "openai_image_model": os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2.5-flare"),
-        "hunyuan_model": os.getenv("HUNYUAN_3D_MODEL", "hy-3d-3.1"),
+        "openai_image_model": os.getenv("OPENAI_IMAGE_MODEL"),
+        "hunyuan_model": os.getenv("HUNYUAN_3D_MODEL"),
     }
 
 
@@ -348,7 +348,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
     try:
-        created = submit_hunyuan(
+        created, hunyuan_model = submit_hunyuan(
             snapshot["views"]["front"]["url"],
             {view: snapshot["views"][view]["url"] for view in GENERATED_VIEWS},
             options,
@@ -369,7 +369,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元没有返回任务编号", 502)
     state["hunyuan_task"] = {
         "id": task_id,
-        "model": os.getenv("HUNYUAN_3D_MODEL", "hy-3d-3.1"),
+        "model": hunyuan_model,
         "status": str(created.get("status", "queued")),
         "request_id": created.get("request_id"),
         "request": options,
