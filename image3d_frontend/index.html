@@ -12,19 +12,30 @@
       <a class="back-link" href="/">← 返回灵界工作台</a>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
-      <p>上传一张正面图，自动生成左、右、背面图，确认后再提交生成 3D 模型。</p>
+      <p>上传一张正面图，可自动生成或自行上传左、右、背面图，确认后生成 STL 模型。</p>
     </header>
 
     <div id="notice" class="notice hidden" role="status"></div>
 
     <section id="upload-step" class="panel">
-      <div class="step-title"><span>01</span><div><h2>上传正面图</h2><p>上传后会直接生成其余三个视角。</p></div></div>
+      <div class="step-title"><span>01</span><div><h2>上传正面图</h2><p>选择由 AI 生成三视图，或自行上传三张视图。</p></div></div>
       <form id="upload-form" class="stack">
         <label class="dropzone" for="image-input">
           <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
           <img id="upload-preview" class="hidden" alt="上传预览">
           <span id="drop-copy">选择 PNG、JPEG 或 WebP 图片</span>
         </label>
+        <label>三视图来源
+          <select id="view-source">
+            <option value="generated">AI 自动生成</option>
+            <option value="uploaded">我自己上传</option>
+          </select>
+        </label>
+        <div id="manual-views" class="manual-views hidden">
+          <label>左视图<input id="left-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <label>右视图<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <label>背视图<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        </div>
         <label>补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
@@ -53,7 +64,7 @@
           </div>
           <p class="settings-note">设置仅保存在当前浏览器，新建会话时锁定；API Key 仍由 Vercel 环境变量保管。</p>
         </details>
-        <button class="primary" type="submit">生成三视图</button>
+        <button id="upload-submit" class="primary" type="submit">生成三视图</button>
       </form>
     </section>
 
@@ -72,7 +83,7 @@
     </details>
 
     <section id="views-step" class="panel hidden">
-      <div class="step-title"><span>02</span><div><h2>确认三视图</h2><p>检查左、右、背三张生成图；原图仅作为正面参考。</p></div></div>
+      <div class="step-title"><span>02</span><div><h2>确认三视图</h2><p>检查左、右、背三张图片；原图仅作为正面参考。</p></div></div>
       <div id="views-grid" class="views-grid"></div>
       <div class="actions">
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
@@ -81,7 +92,7 @@
     </section>
 
     <section id="generate-step" class="panel hidden">
-      <div class="step-title"><span>03</span><div><h2>生成 3D</h2><p>确认后才提交腾讯混元。</p></div></div>
+      <div class="step-title"><span>03</span><div><h2>生成 STL</h2><p>确认后提交腾讯混元，最终只保留 STL 模型。</p></div></div>
       <div class="options">
         <label>类型
           <select id="generate-type"><option value="Normal">完整模型与纹理</option><option value="Geometry">仅几何白模</option></select>

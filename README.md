@@ -35,15 +35,14 @@
 
 ## 图生 3D 流程
 
-Vercel 应用采用自动多视图生成、提交 3D 前人工确认的流程：
+Vercel 应用支持 AI 生成或用户上传三视图，并在提交 3D 前人工确认：
 
 1. 上传正面图片，安全解码并统一为 PNG；
-2. GPT 分析主体、几何、材质、颜色、遮挡区域和不可见面假设，在后台生成中文提示词；
-3. GPT Image 立即根据正面图和中文提示词生成左、右、后三个视角；
-4. 用户预览多视图，可用中文指令单独微调，也可在“高级调整”中修改提示词后重新生成；
-5. 用户确认后锁定提示词与四张图片的版本；
-6. 将 Vercel Blob 的公网图片地址提交给腾讯 TokenHub `hy-3d-3.1`；
-7. 查询异步任务，并在成功后把 GLB/OBJ 等临时结果转存到 Vercel Blob。
+2. 选择 AI 模式时，GPT 分析图片并由 GPT Image 生成左、右、背三个视角；选择手动模式时，用户直接上传这三张图片且不会调用 GPT；
+3. 用户检查三视图；AI 模式还可用中文指令单独微调或修改提示词后重新生成；
+4. 用户确认后锁定正面参考图与三视图的版本；
+5. 将 Vercel Blob 的公网图片地址提交给腾讯 TokenHub `hy-3d-3.1`；
+6. 固定请求 STL，查询异步任务，并在成功后把 STL 文件转存到 Vercel Blob。
 
 复制 `.env.example` 为 `.env` 并配置：
 
@@ -90,6 +89,7 @@ uvicorn app:app --reload
 POST  /api/sessions
 PATCH /api/sessions/{id}/prompt
 POST  /api/sessions/{id}/views
+POST  /api/sessions/{id}/views/{view}/upload
 POST  /api/sessions/{id}/views/{view}/refine
 POST  /api/sessions/{id}/confirm
 POST  /api/sessions/{id}/generate
@@ -101,4 +101,4 @@ GET   /api/sessions/{id}
 
 网页默认使用 `gpt-6-luna` 做图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成三个补充视角，并使用 `hy-3d-3.1` 生成 3D。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可在网页把多视图生成模型改为 `gpt-image-2.5-sunburst`。
 
-确认与提交是两个独立操作。只有当前提示词版本对应的左、右、背三张生成视图齐全时才能确认；确认后才能调用 `generate`。用户提示词始终保存为中文，系统在后台追加跨视角一致性约束。界面只把这三张生成图称为“三视图”；上传原图不属于生成结果，但会作为正面主参考，与三视图一起提交给混元。
+确认与提交是两个独立操作。左、右、背三视图既可由 GPT 自动生成，也可由用户逐张上传；手动上传模式不会调用 GPT 分析或图片生成。三张视图齐全并确认后才能调用 `generate`。上传原图不属于三视图结果，但会作为正面主参考，与三视图一起提交给混元。混元任务固定请求 STL，应用也只保存和展示 STL 输出。

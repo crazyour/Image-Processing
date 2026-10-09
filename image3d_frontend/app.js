@@ -105,7 +105,7 @@ function renderViews(views = {}) {
   $("#views-grid").innerHTML = ["left", "right", "back"].map((view) => {
     const item = views[view];
     if (!item) return `<article class="view-card"><h3>${labels[view]}</h3><p>尚未生成</p></article>`;
-    const refinement = `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>`;
+    const refinement = state?.view_source === "uploaded" ? "" : `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>`;
     return `<article class="view-card"><h3>${labels[view]}</h3><img src="${item.url}" alt="${labels[view]}">${refinement}</article>`;
   }).join("");
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
@@ -113,7 +113,7 @@ function renderViews(views = {}) {
 
 function render(next) {
   state = next;
-  $("#prompt-step").classList.toggle("hidden", !state);
+  $("#prompt-step").classList.toggle("hidden", !state || state.view_source === "uploaded");
   if (!state) return;
   renderAnalysis(state.analysis);
   $("#prompt-editor").value = state.user_prompt || "";
@@ -121,6 +121,7 @@ function render(next) {
   $("#prompt-step").open = !hasGenerated && ["PROMPT_REVIEW", "VIEWS_REVIEW"].includes(state.status);
   $("#views-step").classList.toggle("hidden", !hasGenerated);
   if (hasGenerated) renderViews(state.views);
+  $("#regenerate-views").classList.toggle("hidden", state.view_source === "uploaded");
   const canGenerate = ["CONFIRMED", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED"].includes(state.status);
   $("#generate-step").classList.toggle("hidden", !canGenerate);
   $("#confirm-views").disabled = state.views_stale || state.status !== "VIEWS_REVIEW";
@@ -164,17 +165,31 @@ $("#image-input").addEventListener("change", (event) => {
   $("#drop-copy").classList.add("hidden");
 });
 
+function updateViewSource() {
+  const uploaded = $("#view-source").value === "uploaded";
+  $("#manual-views").classList.toggle("hidden", !uploaded);
+  $("#upload-submit").textContent = uploaded ? "上传三视图" : "生成三视图";
+}
+
+$("#view-source").addEventListener("change", updateViewSource);
+
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.submitter;
   try {
-    setBusy(button, true, "GPT 正在分析…");
+    const viewSource = $("#view-source").value;
+    const uploadedViews = Object.fromEntries(["left", "right", "back"].map((view) => [view, $(`#${view}-input`).files?.[0]]));
+    if (viewSource === "uploaded" && Object.values(uploadedViews).some((file) => !file)) {
+      throw new Error("请分别选择左视图、右视图和背视图");
+    }
+    setBusy(button, true, viewSource === "uploaded" ? "正在上传三视图…" : "GPT 正在分析…");
     const source = $("#image-input").files?.[0];
     if (!source) throw new Error("请选择图片");
     const file = await compressedFile(source);
     const form = new FormData();
     form.set("image", file);
     form.set("prompt", $("#initial-prompt").value.trim());
+    form.set("view_source", viewSource);
     const models = readModelSettings();
     if (!models.vision_model || !models.image_model || !models.hunyuan_model) {
       throw new Error("请填写完整的模型设置");
@@ -185,12 +200,22 @@ $("#upload-form").addEventListener("submit", async (event) => {
     session = { id: result.session_id, token: result.access_token };
     localStorage.setItem("image3d-session", JSON.stringify(session));
     render(result);
-    button.textContent = "正在生成三个视角…";
-    render(await api(`/api/sessions/${session.id}/views`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ views: ["left", "right", "back"] }),
-    }));
-    notify("左、右、背面图已生成");
+    if (viewSource === "uploaded") {
+      for (const view of ["left", "right", "back"]) {
+        button.textContent = `正在上传${labels[view]}…`;
+        const body = new FormData();
+        body.set("image", await compressedFile(uploadedViews[view]));
+        render(await api(`/api/sessions/${session.id}/views/${view}/upload`, { method: "POST", body }));
+      }
+      notify("左、右、背三视图已上传");
+    } else {
+      button.textContent = "正在生成三个视角…";
+      render(await api(`/api/sessions/${session.id}/views`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ views: ["left", "right", "back"] }),
+      }));
+      notify("左、右、背三视图已生成");
+    }
     $("#views-step").scrollIntoView({ behavior: "smooth" });
   } catch (error) { notify(error.message, true); await refresh(); }
   finally { setBusy(button, false); }
@@ -256,11 +281,12 @@ $("#generate-3d").addEventListener("click", async (event) => {
     setBusy(event.currentTarget, true, "正在提交…");
     render(await api(`/api/sessions/${session.id}/generate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked }),
+      body: JSON.stringify({ generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked, result_format: "stl" }),
     }));
   } catch (error) { notify(error.message, true); await refresh(); }
   finally { setBusy(event.currentTarget, false); }
 });
 
 initializeModelSettings();
+updateViewSource();
 refresh();

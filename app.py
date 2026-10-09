@@ -8,6 +8,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -28,7 +29,6 @@ from vercel_app.store import (
 from vercel_app.workflow import (
     GENERATED_VIEWS,
     GENERATE_TYPES,
-    RESULT_FORMATS,
     WorkflowError,
     analyze_image,
     effective_prompt,
@@ -72,7 +72,7 @@ class Generate3DRequest(BaseModel):
     generate_type: str = "Normal"
     enable_pbr: bool = False
     face_count: int | None = Field(default=None, ge=3000, le=1500000)
-    result_format: str = ""
+    result_format: Literal["stl"] = "stl"
 
 
 @app.exception_handler(WorkflowError)
@@ -132,6 +132,7 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
         "model_settings": state.get("model_settings"),
+        "view_source": state.get("view_source", "generated"),
     }
     if token:
         result["access_token"] = token
@@ -232,6 +233,7 @@ def legacy_budget():
 def new_session(
     image: UploadFile = File(...),
     prompt: str = Form("", max_length=4000),
+    view_source: Literal["generated", "uploaded"] = Form("generated"),
     vision_model: str = Form(..., max_length=128),
     image_model: str = Form(..., max_length=128),
     image_quality: str = Form(..., max_length=16),
@@ -239,8 +241,10 @@ def new_session(
 ):
     models = _model_settings(vision_model, image_model, image_quality, hunyuan_model)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
-    analysis = analyze_image(normalized, prompt, models["vision_model"])
+    analysis = analyze_image(normalized, prompt, models["vision_model"]) if view_source == "generated" else {}
     user_prompt = prompt.strip() or analysis.get("suggested_prompt_zh", "").strip()
+    if view_source == "uploaded" and not user_prompt:
+        user_prompt = "保持用户提交的各视图主体、结构、比例、材质和颜色一致"
     if not user_prompt:
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "没有生成可编辑提示词", 502)
 
@@ -270,11 +274,49 @@ def new_session(
         "hunyuan_task": None,
         "last_error": None,
         "model_settings": models,
+        "view_source": view_source,
         "created_at": now,
         "updated_at": now,
     }
     create_session(session_id, token, state)
     return _response(state, token=token)
+
+
+@app.post("/api/sessions/{session_id}/views/{view}/upload")
+def upload_view(session_id: str, view: str, image: UploadFile = File(...),
+                x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    if state.get("view_source") != "uploaded":
+        raise WorkflowError("UPLOAD_MODE_REQUIRED", "当前会话使用 AI 生成三视图", 409)
+    if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"}:
+        raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能上传三视图", 409)
+    if view not in GENERATED_VIEWS:
+        raise WorkflowError("INVALID_VIEW", "可上传视角为 left、right、back", 422)
+
+    normalized, image_info = normalize_image(image.file.read(), image.content_type)
+    previous = state["views"].get(view, {})
+    revision = int(previous.get("revision", 0)) + 1
+    url = PublicBlobStore().put(
+        f"image3d/{session_id}/views/{view}-r{revision}.png",
+        normalized,
+        "image/png",
+    )
+    state["views"][view] = {
+        "url": url,
+        "sha256": hashlib.sha256(normalized).hexdigest(),
+        "revision": revision,
+        "prompt_revision": state["prompt_revision"],
+        "generated": False,
+        "uploaded": True,
+        "source_image": image_info,
+    }
+    state["status"] = "VIEWS_REVIEW"
+    state["views_stale"] = not _views_current(state)
+    state["confirmed_snapshot"] = None
+    state["hunyuan_task"] = None
+    state["last_error"] = None
+    _save(state, version)
+    return _response(state)
 
 
 @app.get("/api/sessions/{session_id}")
@@ -434,9 +476,6 @@ def generate_3d(session_id: str, data: Generate3DRequest,
         raise WorkflowError("NOT_CONFIRMED", "请先确认左、右、背三视图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
-    if data.result_format not in RESULT_FORMATS:
-        raise WorkflowError("INVALID_OPTION", "输出格式只能为空、stl、usdz 或 fbx", 422)
-
     options = data.model_dump()
     state["status"] = "SUBMITTING_3D"
     state["last_error"] = None
@@ -512,6 +551,8 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
         for item in result.get("data") or []:
             model_type = str(item.get("type", "")).lower()
             source_url = item.get("url")
+            if model_type != "stl":
+                continue
             if not model_type or not isinstance(source_url, str) or not source_url.startswith("https://"):
                 continue
             if task["models"].get(model_type, {}).get("url"):
