@@ -46,11 +46,14 @@
       const entry = document.createElement('button');
       entry.type = 'button';
       entry.className = 'image3d-nav-entry';
+      entry.dataset.image3dEntry = 'true';
       entry.innerHTML = '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.3 7.7 7.7 4.4 7.7-4.4M12 12v9"/></svg><span>图生 3D</span><b>NEW</b>';
       entry.addEventListener('click', open);
       const attach = () => {
         const navigation = document.querySelector('aside.sidebar > nav');
-        if (navigation && !entry.isConnected) navigation.appendChild(entry);
+        if (navigation && !entry.isConnected) {
+          navigation.insertBefore(entry, navigation.children[1] || null);
+        }
       };
       new MutationObserver(attach).observe(document.getElementById('root'), {childList:true, subtree:true});
       attach();
