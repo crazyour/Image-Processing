@@ -148,6 +148,59 @@ def health():
     }
 
 
+@app.get("/api/bootstrap/status", include_in_schema=False)
+def legacy_bootstrap_status():
+    return {"required": False, "desktop": False, "compatibility_mode": True}
+
+
+@app.get("/api/me", include_in_schema=False)
+def legacy_cloud_workspace():
+    return {
+        "user": {"id": "cloud-user", "name": "云端访客", "role": "member"},
+        "desktop": False,
+        "workspace": {
+            "id": "cloud-workspace",
+            "name": "灵界云端工作台",
+            "learning_enabled": False,
+            "personalization_enabled": False,
+            "review_position": 0,
+            "learned_position": 0,
+            "active_snapshot_id": None,
+        },
+        "assistant": {"id": "cloud-assistant", "name": "灵界助手"},
+        "private_workspace": True,
+        "key_bound": False,
+        "api_setup_required": True,
+        "free_services": {},
+        "provider": "mock",
+        "mode": "CLOUD_COMPATIBILITY",
+        "budget_scope": "LOCAL",
+        "live_enabled": False,
+        "styles": [],
+        "compatibility_mode": True,
+    }
+
+
+@app.get("/api/assets", include_in_schema=False)
+@app.get("/api/jobs", include_in_schema=False)
+@app.get("/api/masters", include_in_schema=False)
+@app.get("/api/reviews", include_in_schema=False)
+def legacy_empty_collections():
+    return []
+
+
+@app.get("/api/budget", include_in_schema=False)
+def legacy_budget():
+    return {
+        "quota_source": "CLOUD_COMPATIBILITY",
+        "limit_micros": 0,
+        "held_micros": 0,
+        "spent_micros": 0,
+        "available_micros": 0,
+        "pools": [],
+    }
+
+
 @app.post("/api/sessions")
 def new_session(image: UploadFile = File(...), prompt: str = Form("", max_length=4000)):
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
