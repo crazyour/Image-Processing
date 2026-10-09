@@ -1,8 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "fastapi",
   "functions": {
     "app.py": {
       "maxDuration": 300,
+      "includeFiles": "{frontend_dist/**,image3d_frontend/**}",
       "excludeFiles": "{backend/**,desktop/**,recovery_evidence/**,COMPILE_ERRORS.txt,**/__pycache__/**,**/*.pyc}"
     }
   }
