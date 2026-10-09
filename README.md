@@ -49,12 +49,10 @@ Vercel 应用采用自动多视图生成、提交 3D 前人工确认的流程：
 
 ```dotenv
 OPENAI_API_KEY=你的OpenAI密钥
-OPENAI_VISION_MODEL=gpt-6-luna
-OPENAI_IMAGE_MODEL=gpt-image-2.5-flare
-OPENAI_IMAGE_QUALITY=medium
+OPENAI_BASE_URL=https://api.openai.com/v1
 
 HUNYUAN_API_KEY=你的TokenHub密钥
-HUNYUAN_3D_MODEL=hy-3d-3.1
+HUNYUAN_BASE_URL=https://tokenhub.tencentmaas.com/v1
 
 BLOB_READ_WRITE_TOKEN=Vercel自动提供
 DATABASE_URL=PostgreSQL连接字符串
@@ -66,14 +64,14 @@ LOCAL_DATA_DIR=可选的本地数据目录（默认为项目下的 var）
 `.gitignore` 排除。本地图片可用于界面预览和 GPT 多视图流程，但腾讯混元 3D 需要公网可访问的图片 URL，
 因此提交 3D 任务前仍需配置 Public Vercel Blob。
 
-模型名、图片质量和供应商端点没有代码内默认值，运行时只从环境变量读取。以后更换模型只需修改 Vercel Environment Variables 或本地 `.env`，不需要同步修改 Python 全局常量。缺少必要值时接口会返回 `NOT_CONFIGURED`，而不会静默使用过期模型。
+供应商 API Key 和端点只从环境变量读取，不会发送到浏览器。图片理解、多视图生成和 3D 生成的模型名称以及图片质量在网页“模型设置”中配置，保存在当前浏览器并在新建会话时锁定。缺少 API Key 或端点时接口会返回 `NOT_CONFIGURED`。
 
 ## 部署到 Vercel
 
 1. 将本目录提交到 GitHub，并在 Vercel 中导入仓库。
 2. 在 Vercel 项目的 Storage 页面创建一个 **Public Blob**，Vercel 会自动写入 `BLOB_READ_WRITE_TOKEN`。
 3. 通过 Vercel Marketplace 连接 Neon、Supabase 或其他 PostgreSQL，并设置 `DATABASE_URL`。
-4. 按 `.env.example` 在项目的 Environment Variables 中配置 OpenAI/混元端点、模型、图片质量和 API Key；`BLOB_READ_WRITE_TOKEN` 与 `DATABASE_URL` 由对应存储集成提供。
+4. 按 `.env.example` 在项目的 Environment Variables 中配置 OpenAI/混元端点和 API Key；`BLOB_READ_WRITE_TOKEN` 与 `DATABASE_URL` 由对应存储集成提供。
 5. 重新部署。首次创建会话时会自动建立 `image3d_sessions` 数据表。
 
 本地运行：
@@ -101,6 +99,6 @@ GET   /api/sessions/{id}
 
 浏览器会把会话访问令牌保存在 `localStorage`，后续请求通过 `X-Session-Token` 发送。服务器数据库只保存令牌哈希。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。
 
-`.env.example` 的示例配置使用 `gpt-6-luna` 做低成本图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成三个补充视角。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可以把 `OPENAI_IMAGE_MODEL` 改为 `gpt-image-2.5-sunburst`。
+网页默认使用 `gpt-6-luna` 做图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成三个补充视角，并使用 `hy-3d-3.1` 生成 3D。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可在网页把多视图生成模型改为 `gpt-image-2.5-sunburst`。
 
 确认与提交是两个独立操作。只有当前提示词版本对应的四个视角齐全时才能确认；确认后才能调用 `generate`。用户提示词始终保存为中文，系统在后台追加跨视角一致性约束。由于混元普通多视图生成不接收同时提交的文字提示词，提示词负责约束 GPT 多视图生成，混元阶段只读取最终确认的四张图片。

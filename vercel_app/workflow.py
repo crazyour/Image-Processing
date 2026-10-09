@@ -132,7 +132,7 @@ def _extract_output_text(body: dict) -> str:
     raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回图片分析结果", 502)
 
 
-def analyze_image(image: bytes, user_prompt: str) -> dict:
+def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
     config = _openai_config()
     instruction = (
         "你正在为单图转多视图再转3D分析输入图片。请使用中文，只描述可见证据，将遮挡区域"
@@ -142,7 +142,7 @@ def analyze_image(image: bytes, user_prompt: str) -> dict:
         + (user_prompt.strip() or "忠实还原主体，制作通用3D资产")
     )
     payload = {
-        "model": config.vision_model,
+        "model": model,
         "reasoning": {"effort": "none"},
         "input": [{"role": "user", "content": [
             {"type": "input_text", "text": instruction},
@@ -194,13 +194,13 @@ def _validate_generated_image(encoded: str) -> bytes:
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 返回的多视图图片无效", 502)
 
 
-def generate_view(reference_images: list[bytes], prompt: str) -> tuple[bytes, dict]:
+def generate_view(reference_images: list[bytes], prompt: str, model: str, quality: str) -> tuple[bytes, dict]:
     config = _openai_config()
     payload = {
-        "model": config.image_model,
+        "model": model,
         "images": [{"image_url": data_uri(image)} for image in reference_images[:16]],
         "prompt": prompt,
-        "quality": config.image_quality,
+        "quality": quality,
         "size": "1024x1024",
         "background": "opaque",
         "output_format": "png",
@@ -252,10 +252,10 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
     return b"".join(chunks)
 
 
-def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict) -> tuple[dict, str]:
+def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, model: str) -> tuple[dict, str]:
     config = _hunyuan_config()
     payload = {
-        "model": config.model,
+        "model": model,
         "image_url": front_url,
         "multi_view_images": [
             {"view_type": view, "view_image_url": view_urls[view]}
@@ -278,7 +278,7 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict) -> 
     if response.status_code >= 400:
         raise _provider_error("腾讯混元", response)
     try:
-        return response.json(), config.model
+        return response.json(), model
     except ValueError:
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元返回内容无法解析", 502)
 

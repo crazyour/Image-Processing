@@ -28,6 +28,31 @@
         <label>补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
+        <details class="inline-settings">
+          <summary>模型设置</summary>
+          <div class="settings-grid">
+            <label>图片理解模型
+              <input id="vision-model" type="text" maxlength="128" required>
+            </label>
+            <label>多视图生成模型
+              <input id="image-model" type="text" maxlength="128" required>
+            </label>
+            <label>生成质量
+              <select id="image-quality">
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="xhigh">xhigh</option>
+                <option value="max">max</option>
+                <option value="auto">auto</option>
+              </select>
+            </label>
+            <label>3D 生成模型
+              <input id="hunyuan-model" type="text" maxlength="128" required>
+            </label>
+          </div>
+          <p class="settings-note">设置仅保存在当前浏览器，新建会话时锁定；API Key 仍由 Vercel 环境变量保管。</p>
+        </details>
         <button class="primary" type="submit">生成三视图</button>
       </form>
     </section>

@@ -3,9 +3,45 @@ if (new URLSearchParams(location.search).get("embedded") === "1") {
   document.body.classList.add("embedded");
 }
 const labels = { front: "正面（原图）", left: "左面", right: "右面", back: "背面" };
+const defaultModelSettings = {
+  vision_model: "gpt-6-luna",
+  image_model: "gpt-image-2.5-flare",
+  image_quality: "medium",
+  hunyuan_model: "hy-3d-3.1",
+};
 let session = JSON.parse(localStorage.getItem("image3d-session") || "null");
 let state = null;
 let polling = null;
+
+function loadModelSettings() {
+  try {
+    return { ...defaultModelSettings, ...JSON.parse(localStorage.getItem("image3d-model-settings") || "{}") };
+  } catch (_) {
+    return { ...defaultModelSettings };
+  }
+}
+
+function readModelSettings() {
+  return {
+    vision_model: $("#vision-model").value.trim(),
+    image_model: $("#image-model").value.trim(),
+    image_quality: $("#image-quality").value,
+    hunyuan_model: $("#hunyuan-model").value.trim(),
+  };
+}
+
+function initializeModelSettings() {
+  const models = loadModelSettings();
+  $("#vision-model").value = models.vision_model;
+  $("#image-model").value = models.image_model;
+  $("#image-quality").value = models.image_quality;
+  $("#hunyuan-model").value = models.hunyuan_model;
+  ["#vision-model", "#image-model", "#image-quality", "#hunyuan-model"].forEach((selector) => {
+    $(selector).addEventListener("change", () => {
+      localStorage.setItem("image3d-model-settings", JSON.stringify(readModelSettings()));
+    });
+  });
+}
 
 function notify(message, error = false) {
   const box = $("#notice");
@@ -139,6 +175,12 @@ $("#upload-form").addEventListener("submit", async (event) => {
     const form = new FormData();
     form.set("image", file);
     form.set("prompt", $("#initial-prompt").value.trim());
+    const models = readModelSettings();
+    if (!models.vision_model || !models.image_model || !models.hunyuan_model) {
+      throw new Error("请填写完整的模型设置");
+    }
+    Object.entries(models).forEach(([name, value]) => form.set(name, value));
+    localStorage.setItem("image3d-model-settings", JSON.stringify(models));
     const result = await api("/api/sessions", { method: "POST", body: form });
     session = { id: result.session_id, token: result.access_token };
     localStorage.setItem("image3d-session", JSON.stringify(session));
@@ -220,4 +262,5 @@ $("#generate-3d").addEventListener("click", async (event) => {
   finally { setBusy(event.currentTarget, false); }
 });
 
+initializeModelSettings();
 refresh();

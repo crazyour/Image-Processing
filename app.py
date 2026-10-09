@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 import secrets
 import time
@@ -46,6 +45,8 @@ from vercel_app.workflow import (
 ROOT = Path(__file__).resolve().parent
 ORIGINAL_FRONTEND = ROOT / "frontend_dist"
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
 VALID_STATES = {
     "PROMPT_REVIEW", "GENERATING_VIEWS", "VIEWS_REVIEW", "CONFIRMED",
     "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED",
@@ -129,6 +130,7 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "last_error": state.get("last_error"),
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
+        "model_settings": state.get("model_settings"),
     }
     if token:
         result["access_token"] = token
@@ -140,13 +142,34 @@ def _save(state: dict, version: int) -> int:
     return save_session(state["session_id"], state, version)
 
 
+def _model_settings(vision_model: str, image_model: str,
+                    image_quality: str, hunyuan_model: str) -> dict[str, str]:
+    models = {
+        "vision_model": vision_model.strip(),
+        "image_model": image_model.strip(),
+        "image_quality": image_quality.strip(),
+        "hunyuan_model": hunyuan_model.strip(),
+    }
+    if any(not MODEL_NAME.fullmatch(models[name]) for name in ("vision_model", "image_model", "hunyuan_model")):
+        raise WorkflowError("INVALID_MODEL", "模型名称格式无效", 422)
+    if models["image_quality"] not in IMAGE_QUALITIES:
+        raise WorkflowError("INVALID_IMAGE_QUALITY", "图片质量设置无效", 422)
+    return models
+
+
+def _session_model_settings(state: dict) -> dict[str, str]:
+    models = state.get("model_settings")
+    if not isinstance(models, dict):
+        raise WorkflowError("MODEL_SETTINGS_MISSING", "旧会话没有模型设置，请重新上传图片", 409)
+    return models
+
+
 @app.get("/api/health")
 def health():
     return {
         "status": "ok",
         "workflow": "gpt-multiview-to-hunyuan-3d",
-        "openai_image_model": os.getenv("OPENAI_IMAGE_MODEL"),
-        "hunyuan_model": os.getenv("HUNYUAN_3D_MODEL"),
+        "model_configuration": "per-session-web-settings",
         "storage": storage_status(),
     }
 
@@ -205,9 +228,17 @@ def legacy_budget():
 
 
 @app.post("/api/sessions")
-def new_session(image: UploadFile = File(...), prompt: str = Form("", max_length=4000)):
+def new_session(
+    image: UploadFile = File(...),
+    prompt: str = Form("", max_length=4000),
+    vision_model: str = Form(..., max_length=128),
+    image_model: str = Form(..., max_length=128),
+    image_quality: str = Form(..., max_length=16),
+    hunyuan_model: str = Form(..., max_length=128),
+):
+    models = _model_settings(vision_model, image_model, image_quality, hunyuan_model)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
-    analysis = analyze_image(normalized, prompt)
+    analysis = analyze_image(normalized, prompt, models["vision_model"])
     user_prompt = prompt.strip() or analysis.get("suggested_prompt_zh", "").strip()
     if not user_prompt:
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "没有生成可编辑提示词", 502)
@@ -237,6 +268,7 @@ def new_session(image: UploadFile = File(...), prompt: str = Form("", max_length
         "confirmed_snapshot": None,
         "hunyuan_task": None,
         "last_error": None,
+        "model_settings": models,
         "created_at": now,
         "updated_at": now,
     }
@@ -272,6 +304,7 @@ def update_prompt(session_id: str, data: PromptUpdate,
 def create_views(session_id: str, data: ViewGenerationRequest,
                  x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
+    models = _session_model_settings(state)
     if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"}:
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能生成多视图", 409)
     requested = list(dict.fromkeys(data.views))
@@ -292,6 +325,8 @@ def create_views(session_id: str, data: ViewGenerationRequest,
                     generate_view,
                     [front],
                     view_prompt(state["user_prompt"], view),
+                    models["image_model"],
+                    models["image_quality"],
                 ): view
                 for view in requested
             }
@@ -335,6 +370,7 @@ def create_views(session_id: str, data: ViewGenerationRequest,
 def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
+    models = _session_model_settings(state)
     if state["status"] != "VIEWS_REVIEW":
         raise WorkflowError("INVALID_SESSION_STATE", "只有待确认图片可以微调", 409)
     if view not in GENERATED_VIEWS or view not in state.get("views", {}):
@@ -349,6 +385,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
     )
     generated, usage = generate_view(
         references, view_prompt(state["user_prompt"], view, data.prompt),
+        models["image_model"], models["image_quality"],
     )
     revision = int(state["views"][view].get("revision", 0)) + 1
     url = PublicBlobStore().put(
@@ -391,6 +428,7 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
 def generate_3d(session_id: str, data: Generate3DRequest,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
+    models = _session_model_settings(state)
     if state["status"] != "CONFIRMED" or not state.get("confirmed_snapshot"):
         raise WorkflowError("NOT_CONFIRMED", "请先确认提示词和全部多视图", 409)
     if data.generate_type not in GENERATE_TYPES:
@@ -420,6 +458,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
             snapshot["views"]["front"]["url"],
             {view: snapshot["views"][view]["url"] for view in GENERATED_VIEWS},
             options,
+            models["hunyuan_model"],
         )
     except WorkflowError as exc:
         state["status"] = "CONFIRMED"
