@@ -1,0 +1,237 @@
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/ai_config.py", line 4
+    from .models import AssistantProfile, Organization; PRESET_VERSION = "openai-2026-09-13.1"; role = {}; PRESET = {"version": ##ERROR##, "provider": 200, "preset_version": "openai", "price_checked_at": PRESET_VERSION, "verified": "2026-09-09", "quality": False, "size": "low", "roles": "1024x1024", "pricing": {"text_input": 4.0, "text_cached": 0.4, "text_output": 20.0, "image_text_input": 5.0, "image_input": 8.0, "image_output": 30.0, "sources": ["https://developers.openai.com/api/docs/models/gpt-5.6-sol", "https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst", "https://developers.openai.com/api/docs/guides/image-generation"], "basis": "美元/百万token；GPT-5.6 Sol按2026-09-13核对的官方输入/缓存输入/输出价格计算。缺少细分时按保守预占记ESTIMATE；预占不是供应商账单。"}}; CAPABILITIES = ["planning", "vision", "image_generation", "image_edit", "quality", "feedback"]
+                                                                                                                    ^
+SyntaxError: '{' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/ai_connection_center.py", line 64
+    if key and len(key) > 4096 or any((not ##ERROR## for ch in key)):
+                                      ^
+SyntaxError: '(' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/ai_connection_layer.py", line 152
+    record = next((lambda .0: try:
+                          ^^
+SyntaxError: invalid syntax
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/artifact_download.py:35: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None); None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/artifact_download.py:35: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None); None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/artifact_download.py:38: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/asset_derivation.py", line 241
+    same = np.max(np.abs(rgb - background), axis=2) <= 6.astype(np.uint8); _, labels = cv2.connectedComponents(same, connectivity=8)
+                                                        ^
+SyntaxError: invalid decimal literal
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/authorization.py", line 56
+    return {"kind": ##ERROR##, "purpose": "CAPABILITY", "materials": "小规模验证规划、识别、生成、编辑、检查和反馈接口；不证明审美质量", "limits": [{"source": "程序合成的叶形测试图、测试生成图与虚构选择意见", "customer_data": False}], "credential_version": limits, "skipped": [cap for cap in CAPABILITIES if not cap in verified], "reference": reference, "blockers": blockers, "image_count": limits["image_generation"] + limits["image_edit"], "revision_count": limits["image_edit"], "estimate_micros": sum((n * 50_000 for c, n in limits.items())), "route": PRESET, "price_basis": PRESET["pricing"]["basis"], "scope_notice": "仅检查当前Key和模型尚未通过的能力，每项最多一次；生成或编辑失败立即暂停后续检查，不自动重试。当前Key已通过项不重复收费检查；更换Key后重新验证。只用接口测试图及其生成图，不读取客户照片或启动日常任务。"}
+           ^
+SyntaxError: '{' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/backups.py", line 110
+    elif not True:
+    ^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/batch_feedback.py", line 62
+    return {"id": ##ERROR##, "job_id": ##ERROR##, "text": ##ERROR##, "revoked": ##ERROR##, "created_at": ##ERROR##, "learning_status": "PENDING"}
+    ^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/budget.py", line 25
+    if ##ERROR##(db.scalar(select(Step.id).where([j.id for j in jobs]), Step.status == "RUNNING").limit(1)):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/cancelled_receipts.py", line 198
+    safe = ##ERROR##({name: body[name] for name in ("id", "status", "usage", "output", "error", "incomplete_details") if not name in body})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/candidate_quality.py", line 65
+    dct = cv2.dct(gray)[([:8], [:8])].flatten()[1:]
+                          ^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/carrier_support.py", line 26
+    mask = np.asarray(white.convert("L")) < 128.astype("uint8"); h, w = mask.shape
+                                               ^
+SyntaxError: invalid decimal literal
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/carrier_support_jobs.py:84: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/carrier_support_jobs.py:103: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/carrier_support_jobs.py:115: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/color_vector.py", line 28
+    report = {"contract": ##ERROR##, "source_sha256": CONTRACT, "source_size": hashlib.sha256(data).hexdigest(), "trace_size": list(original_size), "path_count": list(image.size), "color_count": len(paths)({p.get("fill") for p in paths}), "purpose": "COLOR_APPEARANCE_ONLY", "embedded_bitmap": False, "model_calls": 0, "manufacturing_approval": False, "texture_approximation": True, "has_transparency": image.getchannel("A").getextrema()[0] < 255}
+             ^
+SyntaxError: '{' was never closed
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/color_vector_jobs.py:49: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  asset_id = asset.id; workspace = job.workspace_id; None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/color_vector_jobs.py:72: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/contour_export.py", line 45
+    p = [Polygon(p["shell"], p["holes"]) for ##ERROR## in actual["polygons"]]
+        ^
+SyntaxError: '[' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/craft_geometry.py", line 97
+    if p.is_valid and p.area <= 1e-8 or any((lambda .0: try:
+                                                    ^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/design_conversations.py", line 86
+    identity = pairs; pairs = ##ERROR## += [(identity, "CREATIVE_REFERENCE") for identity in job.reference_asset_ids]
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/desktop_leases.py", line 84
+    elif not True:
+    ^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/discussion_schema.py", line 32
+    self.code = code; super().##NAME_9##(code)
+                              ^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/edge_quality.py", line 140
+    report = EdgeQualityReport(native_pixels=source.size, edge_pixels=int(edge.sum()), white_matte_edge_pixels_cleared=int(outer_edge.sum()), antialias_pixels=int(changed.sum()), antialias_status="NO_ELIGIBLE_EDGE", small_holes_protected=len(small_hole_ids), small_parts_protected=len(small_part_ids), thin_feature_pixels_protected=int(thin.sum()), sharp_corner_pixels_protected=int(corner_centers.sum()), protected_pixels=int(protected.sum()), components=count - 1, holes=len(hole_ids), source_binary_sha256=mask_hash(retained), result_binary_sha256=mask_hash(alpha >= 128), source_support_sha256=mask_hash(retained), result_support_sha256=mask_hash(alpha > 0), transparent_pixels=int(alpha == 0.sum()))
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ^
+SyntaxError: invalid decimal literal
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/engineering_review.py", line 36
+    source = ##ERROR##([Polygon(p["shell"], p["holes"]) for p in geometry["polygons"]])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/errors.py", line 6
+    self.actions = []; super().##NAME_21##(code)
+                               ^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/experience_hub.py", line 45
+    cert = ##ERROR##(x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=5)).not_valid_after(datetime.now(timezone.utc) + timedelta(days=365)).add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True).add_extension([x509.IPAddress(ipaddress.ip_address(v)) for v in sorted(set([host, "127.0.0.1"]))]), critical=False).sign(key, hashes.SHA256())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/experience_sync.py", line 104
+    content = {"format": ##ERROR##, "kind": "MuxuExperience/1", "rules": [norms[k] for k in sorted(norms)]}
+              ^
+SyntaxError: '{' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/free_providers.py", line 57
+    for ##ERROR## in brief.items():
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/free_routes.py", line 188
+    return {"settings": [], "connections": ##ERROR##, "capabilities": a.provider[{"provider": a.capability, "capability": a.model, "model": "LIVE_RESPONSE_SAVED", "status": a.status, "request_id": a.request_id, "duration_ms": a.duration_ms, "output_hash": a.output_hash, "usage": a.usage, "cost_kind": a.cost_kind}], "scope": "本机已知用量；不能查看其他电脑的额度。免费条件为用户确认，不冒充平台自动核验。"}
+           ^
+SyntaxError: '{' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/geometry.py", line 35
+    candidate = np.max(np.abs(rgb - background), axis=2) < 20.astype(np.uint8)
+                                                             ^
+SyntaxError: invalid decimal literal
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/history_import.py", line 280
+    pass), c.messages(), "")} for c in db.scalars(select(HistoryConversation).where(HistoryConversation.batch_id == batch.id, HistoryConversation.workspace_id == ws.id))], "cards": [##ERROR##]}
+        ^
+SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 271
+Sorry: IndentationError: unexpected indent (human_review.py, line 121)  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/intent_sources.py", line 118
+    r = workspace_id; current = ##ERROR##(freeze_bindings, db, [(r["asset_id"], r["role"]) for r in frozen])
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/intent_state.py", line 93
+    pass), self.user_requirements()):
+        ^
+SyntaxError: unmatched ')'
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/learning.py", line 31
+    data = {"mode": ##ERROR##, "module": ##ERROR##, "category": first.mode, "feature": first.module, "scope": first.category, "context_id": first.feature, "weight": first.scope, "evidence_ids": first.context_id, "sources": [e.source for e in evidence if not e.source], "status": "OBSERVING"}
+           ^
+SyntaxError: '{' was never closed
+Sorry: IndentationError: unexpected indent (live_api.py, line 157)  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/local_vector.py", line 83
+    photo_check = ##ERROR##(photo_engineering_check, checked_geometry, {k: binding[k] for k in ("asset_id", "sha256", "version")})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/main.py", line 208
+    s = None
+      ^
+SyntaxError: invalid syntax
+Sorry: IndentationError: unexpected indent (models.py, line 185)  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/offline_check.py", line 50
+    except:
+    ^^^^^^^
+SyntaxError: default 'except:' must be last
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/output_recovery.py", line 83
+    return (route, binding,
+    ^^^^^^
+SyntaxError: invalid syntax
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_craft_design.py:26: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_craft_identity.py", line 52
+    return {"job_id": step.error_code, "source": None, "status": ##ERROR##, "error_code": bool(saved, "data" in saved.result and not job.canceled), "can_resume_local": None, "identity_lock": step.result, "analysis": {}.get("analysis")}
+           ^
+SyntaxError: '{' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_crafts.py", line 353
+    elif not True:
+    ^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_direct.py", line 111
+    "SOURCE_PHOTO")]; x = pairs; pairs = ##ERROR## += [(x, "CONNECTION_STYLE_REFERENCE") for x in request.get("reference_asset_ids", [])]
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_product.py", line 34
+    mask = gray < 128.astype(np.uint8); _, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=4); minimum = max(9, (gray.size) // 100_000)
+                     ^
+SyntaxError: invalid decimal literal
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_stages.py:41: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_stages.py:47: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_stages.py:214: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_stages.py:254: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_stages.py:266: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/photo_stages.py:287: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/preset_direct.py", line 265
+    return {"recipe": ##ERROR##, "edit_prompts": recipe, "original_intent": {key: (request.get(key) or "").strip() for key in ("theme", "requirements")}}
+           ^
+SyntaxError: '{' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/product_cleanup.py", line 38
+    if similar & np.asarray(mask.convert("L")) > 0.any():
+                                                  ^
+SyntaxError: invalid decimal literal
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/product_variants.py", line 181
+    if ##ERROR## in {r.id for r in linked} or a.id == c.id:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/product_vector.py", line 45
+    if root.tag != f"{{SVG_NS}}svg" and len(metadata) != 1 and json.loads(metadata[0].text) != expected and len(root.findall(f"{{SVG_NS}}path")) != report.editable_paths or any((##ERROR## not in {f"{{SVG_NS}}{name}" for name in ("svg", "title", "metadata", "path")} for e in root.iter())):
+                                                                                                                                                                                 ^
+SyntaxError: '(' was never closed
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/provider_schema.py", line 14
+    self.path = path; self.keyword = keyword; super().##NAME_13##(f"Unsupported provider schema at {path}: {keyword}")
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+Sorry: IndentationError: expected an indented block after 'case' statement on line 25 (result_reconciliation.py, line 26)  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/revision_gate.py", line 7
+    rgba = Image.open(io.BytesIO(data)).convert("RGBA"); canvas = Image.new("RGBA", rgba.size, "white"); canvas.alpha_composite(rgba); mask = np.asarray(canvas.convert("L")) < 128.astype(np.uint8)
+                                                                                                                                                                                   ^
+SyntaxError: invalid decimal literal
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/scene_direct.py:38: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/scene_inputs.py", line 36
+    same = distance < 32.astype(np.uint8)
+                        ^
+SyntaxError: invalid decimal literal
+/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/security.py:39: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+Sorry: IndentationError: unexpected indent (structure_first.py, line 99)/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/v2_read_guard.py:145: SyntaxWarning: 'NoneType' object is not callable; perhaps you missed a comma?
+  None(None, None)
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/v2_read_views.py", line 37
+    return (##ERROR##,None)
+           ^
+SyntaxError: '(' was never closed
+Sorry: IndentationError: unexpected indent (v2_routes.py, line 59)  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/vector_continuity.py", line 55
+    amplitude = max((math.dist(a, p) for p in max((abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) for p in run)) / chord * scale if chord > 1e-12 else run)) * scale
+                                                                                                                                                ^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/vector_optimization.py", line 208
+    [x:x + w])]])
+              ^
+SyntaxError: closing parenthesis ']' does not match opening parenthesis '(' on line 46
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/vision_input.py", line 51
+    elif not True:
+    ^^^^
+SyntaxError: invalid syntax
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/visual_evidence.py", line 154
+    data = None
+         ^
+SyntaxError: 'in' expected after for-loop variables
+  File "/Users/btang/Desktop/email-relevance-qwen4b/exe_analysis/recovered_source/backend/decompiled/app/visual_rules.py", line 5
+    if not alpha == 0.mean() >= 0.02 and alpha >= 250.mean() >= 0.01:
+                     ^
+SyntaxError: invalid decimal literal
+Sorry: IndentationError: unexpected indent (worker.py, line 68)

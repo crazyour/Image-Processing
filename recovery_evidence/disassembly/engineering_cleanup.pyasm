@@ -1,0 +1,3848 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\engineering_cleanup.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        2
+# Flags:             0x00000000 (0x0)
+# First Line:        1
+# Constants:
+#    0: 'Explicit one-edit cleanup followed by a separately recorded local export.'
+#    1: 0
+#    2: None
+#    3: ('Image',)
+#    4: ('select',)
+#    5: 1
+#    6: ('DomainError',)
+#    7: ('Asset', 'Job', 'Step', 'Organization', 'ProviderAttempt')
+#    8: ('owned',)
+#    9: ('LocalStorage', 'safe_image')
+#   10: 'ENGINEERING_CLEANUP_V1'
+#   11: '依据图片1整理同一件产品的二维切割设计稿，不创作另一款设计。\n保留主体、观察角度、方向、整体比例、主要轮廓、孔洞关系、已存在的自然连接、可辨识文字和功能部件。保留原图所示汽车等主体的观察角度，不因“正视板面”把三分之四车身改成正前脸。不镜像，不旋转主体，不增加边框、挂孔或新装饰。\n去掉与产品无关的背景、表面纹理、反光和灰阶明暗，转译为清晰的纯黑实体与纯白透空。黑色为保留材料，白色为切除空间；线条是有实际宽度的实体，不是灰色描边。沿原设计表达自然连接，不能产生漂浮保留块、任意横杆或涂黑大块来代替必要细节。\n完整显示设计，四周留白，清楚区分轮廓与开口。只输出一张黑白PNG设计图，不含阴影、材质效果、尺寸数字、水印或说明文字；用户要求保留的产品原有文字除外。'
+#   12: <Code311 code object selected at 0x105cdd6a0, file app\engineering_cleanup.py>, line 20
+#   13: <Code311 code object inputs at 0x105c67110, file app\engineering_cleanup.py>, line 24
+#   14: <Code311 code object quote at 0x105c674d0, file app\engineering_cleanup.py>, line 49
+#   15: <Code311 code object submit at 0x105ca4c30, file app\engineering_cleanup.py>, line 84
+#   16: <Code311 code object verify at 0x105ca49d0, file app\engineering_cleanup.py>, line 107
+#   17: <Code311 code object normalize at 0x105d00f30, file app\engineering_cleanup.py>, line 115
+#   18: <Code311 code object save_provider_original at 0x105d01040, file app\engineering_cleanup.py>, line 133
+#   19: <Code311 code object geometry_safety at 0x105d019d0, file app\engineering_cleanup.py>, line 141
+#   20: <Code311 code object execute at 0x105d01ae0, file app\engineering_cleanup.py>, line 192
+#   21: <Code311 code object local_finished at 0x105d01bf0, file app\engineering_cleanup.py>, line 283
+#   22: (None,)
+# Names:
+#    0: __doc__
+#    1: copy
+#    2: hashlib
+#    3: io
+#    4: numpy
+#    5: np
+#    6: PIL
+#    7: Image
+#    8: sqlalchemy
+#    9: select
+#   10: errors
+#   11: DomainError
+#   12: models
+#   13: Asset
+#   14: Job
+#   15: Step
+#   16: Organization
+#   17: ProviderAttempt
+#   18: security
+#   19: owned
+#   20: storage
+#   21: LocalStorage
+#   22: safe_image
+#   23: VERSION
+#   24: PROMPT
+#   25: selected
+#   26: inputs
+#   27: quote
+#   28: submit
+#   29: verify
+#   30: normalize
+#   31: save_provider_original
+#   32: geometry_safety
+#   33: execute
+#   34: local_finished
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Explicit one-edit cleanup followed by a separately recorded local export.")
+               4 STORE_NAME           (__doc__)
+
+  2:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (None)
+              10 IMPORT_NAME          (copy)
+              12 STORE_NAME           (copy)
+
+  3:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (None)
+              18 IMPORT_NAME          (hashlib)
+              20 STORE_NAME           (hashlib)
+
+  4:          22 LOAD_CONST           (0)
+              24 LOAD_CONST           (None)
+              26 IMPORT_NAME          (io)
+              28 STORE_NAME           (io)
+
+  5:          30 LOAD_CONST           (0)
+              32 LOAD_CONST           (None)
+              34 IMPORT_NAME          (numpy)
+              36 STORE_NAME           (np)
+
+  6:          38 LOAD_CONST           (0)
+              40 LOAD_CONST           (('Image',))
+              42 IMPORT_NAME          (PIL)
+              44 IMPORT_FROM          (Image)
+              46 STORE_NAME           (Image)
+              48 POP_TOP
+
+  7:          50 LOAD_CONST           (0)
+              52 LOAD_CONST           (('select',))
+              54 IMPORT_NAME          (sqlalchemy)
+              56 IMPORT_FROM          (select)
+              58 STORE_NAME           (select)
+              60 POP_TOP
+
+  8:          62 LOAD_CONST           (1)
+              64 LOAD_CONST           (('DomainError',))
+              66 IMPORT_NAME          (errors)
+              68 IMPORT_FROM          (DomainError)
+              70 STORE_NAME           (DomainError)
+              72 POP_TOP
+
+  9:          74 LOAD_CONST           (1)
+              76 LOAD_CONST           (('Asset', 'Job', 'Step', 'Organization', 'ProviderAttempt'))
+              78 IMPORT_NAME          (models)
+              80 IMPORT_FROM          (Asset)
+              82 STORE_NAME           (Asset)
+              84 IMPORT_FROM          (Job)
+              86 STORE_NAME           (Job)
+              88 IMPORT_FROM          (Step)
+              90 STORE_NAME           (Step)
+              92 IMPORT_FROM          (Organization)
+              94 STORE_NAME           (Organization)
+              96 IMPORT_FROM          (ProviderAttempt)
+              98 STORE_NAME           (ProviderAttempt)
+             100 POP_TOP
+
+ 10:         102 LOAD_CONST           (1)
+             104 LOAD_CONST           (('owned',))
+             106 IMPORT_NAME          (security)
+             108 IMPORT_FROM          (owned)
+             110 STORE_NAME           (owned)
+             112 POP_TOP
+
+ 11:         114 LOAD_CONST           (1)
+             116 LOAD_CONST           (('LocalStorage', 'safe_image'))
+             118 IMPORT_NAME          (storage)
+             120 IMPORT_FROM          (LocalStorage)
+             122 STORE_NAME           (LocalStorage)
+             124 IMPORT_FROM          (safe_image)
+             126 STORE_NAME           (safe_image)
+             128 POP_TOP
+
+ 13:         130 LOAD_CONST           ("ENGINEERING_CLEANUP_V1")
+             132 STORE_NAME           (VERSION)
+
+ 14:         134 LOAD_CONST           ("依据图片1整理同一件产品的二维切割设计稿，不创作另一款设计。\n保留主体、观察角度、方向、整体比例、主要轮廓、孔洞关系、已存在的自然连接、可辨识文字和功能部件。保留原图所示汽车等主体的观察角度，不因“正视板面”把三分之四车身改成正前脸。不镜像，不旋转主体，不增加边框、挂孔或新装饰。\n去掉与产品无关的背景、表面纹理、反光和灰阶明暗，转译为清晰的纯黑实体与纯白透空。黑色为保留材料，白色为切除空间；线条是有实际宽度的实体，不是灰色描边。沿原设计表达自然连接，不能产生漂浮保留块、任意横杆或涂黑大块来代替必要细节。\n完整显示设计，四周留白，清楚区分轮廓与开口。只输出一张黑白PNG设计图，不含阴影、材质效果、尺寸数字、水印或说明文字；用户要求保留的产品原有文字除外。")
+             136 STORE_NAME           (PROMPT)
+
+ 20:         138 LOAD_CONST           (<Code311 code object selected at 0x105cdd6a0, file app\engineering_cleanup.py>, line 20)
+             140 MAKE_FUNCTION        (No arguments)
+             142 STORE_NAME           (selected)
+
+ 24:         144 LOAD_CONST           ((None,))
+             146 LOAD_CONST           (<Code311 code object inputs at 0x105c67110, file app\engineering_cleanup.py>, line 24)
+             148 MAKE_FUNCTION        (default)
+             150 STORE_NAME           (inputs)
+
+ 49:         152 LOAD_CONST           (<Code311 code object quote at 0x105c674d0, file app\engineering_cleanup.py>, line 49)
+             154 MAKE_FUNCTION        (No arguments)
+             156 STORE_NAME           (quote)
+
+ 84:         158 LOAD_CONST           (<Code311 code object submit at 0x105ca4c30, file app\engineering_cleanup.py>, line 84)
+             160 MAKE_FUNCTION        (No arguments)
+             162 STORE_NAME           (submit)
+
+107:         164 LOAD_CONST           (<Code311 code object verify at 0x105ca49d0, file app\engineering_cleanup.py>, line 107)
+             166 MAKE_FUNCTION        (No arguments)
+             168 STORE_NAME           (verify)
+
+115:         170 LOAD_CONST           (<Code311 code object normalize at 0x105d00f30, file app\engineering_cleanup.py>, line 115)
+             172 MAKE_FUNCTION        (No arguments)
+             174 STORE_NAME           (normalize)
+
+133:         176 LOAD_CONST           (<Code311 code object save_provider_original at 0x105d01040, file app\engineering_cleanup.py>, line 133)
+             178 MAKE_FUNCTION        (No arguments)
+             180 STORE_NAME           (save_provider_original)
+
+141:         182 LOAD_CONST           (<Code311 code object geometry_safety at 0x105d019d0, file app\engineering_cleanup.py>, line 141)
+             184 MAKE_FUNCTION        (No arguments)
+             186 STORE_NAME           (geometry_safety)
+
+192:         188 LOAD_CONST           (<Code311 code object execute at 0x105d01ae0, file app\engineering_cleanup.py>, line 192)
+             190 MAKE_FUNCTION        (No arguments)
+             192 STORE_NAME           (execute)
+
+283:         194 LOAD_CONST           (<Code311 code object local_finished at 0x105d01bf0, file app\engineering_cleanup.py>, line 283)
+             196 MAKE_FUNCTION        (No arguments)
+             198 STORE_NAME           (local_finished)
+             200 RETURN_CONST         (None)
+
+
+# Method Name:       selected
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        2
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        20
+# Constants:
+#    0: None
+#    1: 'BASIC_DXF'
+#    2: 'AI_CLEANUP_EXPORT'
+# Names:
+#    0: module
+#    1: engineering_operation
+# Varnames:
+#	request
+# Positional arguments:
+#	request
+
+ 20:           0 RESUME               0
+
+ 21:           2 LOAD_FAST            (request)
+               4 LOAD_ATTR            (module)
+              24 LOAD_CONST           ("BASIC_DXF")
+              26 COMPARE_OP           (==)
+              30 COPY                 1
+              32 POP_JUMP_IF_FALSE    (to 64)
+              34 POP_TOP
+              36 LOAD_FAST            (request)
+              38 LOAD_ATTR            (engineering_operation)
+              58 LOAD_CONST           ("AI_CLEANUP_EXPORT")
+              60 COMPARE_OP           (==)
+         >>   64 RETURN_VALUE
+
+
+# Method Name:       inputs
+# Filename:          app\engineering_cleanup.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  9
+# Stack size:        6
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        24
+# Constants:
+#    0: None
+#    1: 'STENCIL'
+#    2: (None, 'SINGLE_PIECE_CUT')
+#    3: (None, 'FLAT_CUT_MASTER')
+#    4: 'CLEANUP_PROCESS_UNSUPPORTED'
+#    5: '本入口只支持单片黑留白切；内雕或多层请使用对应工艺入口'
+#    6: 409
+#    7: 'SIZE_REQUIRED'
+#    8: '清稿前请填写成品宽度（毫米）'
+#    9: 1
+#   10: 'single'
+#   11: 'NONE'
+#   12: 'CLEANUP_INPUT_REQUIRED'
+#   13: '请选择一张来源图和一次清稿；不附加配色、场景或其他参考'
+#   14: 'authorization_revoked'
+#   15: 'UPLOAD'
+#   16: 'consent'
+#   17: 'CONSENT_REQUIRED'
+#   18: '来源素材授权已撤销'
+#   19: 'STALE_VERSION'
+#   20: '来源版本已变化'
+#   21: ('read_binding', 'require_slot')
+#   22: '待清稿设计'
+#   23: ('asset_id', 'sha256', 'version', 'position', 'role')
+#   24: 'PHOTO_TO_PRODUCT'
+#   25: 'photo_lineage'
+#   26: ('exclude_job_id',)
+# Names:
+#    0: mode
+#    1: preset_process_id
+#    2: preset_output_mode
+#    3: DomainError
+#    4: width_mm
+#    5: count
+#    6: master_id
+#    7: source_asset_id
+#    8: recipe
+#    9: reference_asset_ids
+#   10: color_swatch_asset_ids
+#   11: assembly_template_asset_id
+#   12: finish_source_asset_id
+#   13: brain_probe
+#   14: acceptance_test
+#   15: style_profile_id
+#   16: surface_finish
+#   17: owned
+#   18: Asset
+#   19: id
+#   20: info
+#   21: get
+#   22: module
+#   23: engineering_source_hash
+#   24: sha256
+#   25: photo_direct
+#   26: read_binding
+#   27: require_slot
+#   28: version
+# Varnames:
+#	db, ws, request, exclude_job_id, source, read_binding, require_slot, binding, lineage
+# Positional arguments:
+#	db, ws, request, exclude_job_id
+# Local variables:
+#    4: source
+#    5: read_binding
+#    6: require_slot
+#    7: binding
+#    8: lineage
+
+ 24:           0 RESUME               0
+
+ 25:           2 LOAD_FAST            (request)
+               4 LOAD_ATTR            (mode)
+              24 LOAD_CONST           ("STENCIL")
+              26 COMPARE_OP           (!=)
+              30 POP_JUMP_IF_TRUE     (to 88)
+              32 LOAD_FAST            (request)
+              34 LOAD_ATTR            (preset_process_id)
+              54 LOAD_CONST           ((None, 'SINGLE_PIECE_CUT'))
+              56 CONTAINS_OP          (not in)
+              58 POP_JUMP_IF_TRUE     (to 88)
+
+ 26:          60 LOAD_FAST            (request)
+              62 LOAD_ATTR            (preset_output_mode)
+              82 LOAD_CONST           ((None, 'FLAT_CUT_MASTER'))
+              84 CONTAINS_OP          (not in)
+              86 POP_JUMP_IF_FALSE    (to 114)
+
+ 27:     >>   88 LOAD_GLOBAL          (NULL + DomainError)
+              98 LOAD_CONST           ("CLEANUP_PROCESS_UNSUPPORTED")
+             100 LOAD_CONST           ("本入口只支持单片黑留白切；内雕或多层请使用对应工艺入口")
+             102 LOAD_CONST           (409)
+             104 CALL                 3
+             112 RAISE_VARARGS        (exception instance)
+
+ 28:     >>  114 LOAD_FAST            (request)
+             116 LOAD_ATTR            (width_mm)
+             136 POP_JUMP_IF_TRUE     (to 164)
+
+ 29:         138 LOAD_GLOBAL          (NULL + DomainError)
+             148 LOAD_CONST           ("SIZE_REQUIRED")
+             150 LOAD_CONST           ("清稿前请填写成品宽度（毫米）")
+             152 LOAD_CONST           (409)
+             154 CALL                 3
+             162 RAISE_VARARGS        (exception instance)
+
+ 30:     >>  164 LOAD_FAST            (request)
+             166 LOAD_ATTR            (count)
+             186 LOAD_CONST           (1)
+             188 COMPARE_OP           (!=)
+             192 POP_JUMP_IF_TRUE     (to 470)
+             194 LOAD_FAST            (request)
+             196 LOAD_ATTR            (master_id)
+             216 POP_JUMP_IF_TRUE     (to 470)
+             218 LOAD_FAST            (request)
+             220 LOAD_ATTR            (source_asset_id)
+             240 POP_JUMP_IF_FALSE    (to 470)
+             242 LOAD_FAST            (request)
+             244 LOAD_ATTR            (recipe)
+             264 LOAD_CONST           ("single")
+             266 COMPARE_OP           (!=)
+             270 POP_JUMP_IF_TRUE     (to 470)
+
+ 31:         272 LOAD_FAST            (request)
+             274 LOAD_ATTR            (reference_asset_ids)
+             294 POP_JUMP_IF_TRUE     (to 470)
+             296 LOAD_FAST            (request)
+             298 LOAD_ATTR            (color_swatch_asset_ids)
+             318 POP_JUMP_IF_TRUE     (to 470)
+             320 LOAD_FAST            (request)
+             322 LOAD_ATTR            (assembly_template_asset_id)
+             342 POP_JUMP_IF_TRUE     (to 470)
+
+ 32:         344 LOAD_FAST            (request)
+             346 LOAD_ATTR            (finish_source_asset_id)
+             366 POP_JUMP_IF_TRUE     (to 470)
+             368 LOAD_FAST            (request)
+             370 LOAD_ATTR            (brain_probe)
+             390 POP_JUMP_IF_TRUE     (to 470)
+             392 LOAD_FAST            (request)
+             394 LOAD_ATTR            (acceptance_test)
+             414 POP_JUMP_IF_TRUE     (to 470)
+
+ 33:         416 LOAD_FAST            (request)
+             418 LOAD_ATTR            (style_profile_id)
+             438 POP_JUMP_IF_TRUE     (to 470)
+             440 LOAD_FAST            (request)
+             442 LOAD_ATTR            (surface_finish)
+             462 LOAD_CONST           ("NONE")
+             464 COMPARE_OP           (!=)
+             468 POP_JUMP_IF_FALSE    (to 496)
+
+ 34:     >>  470 LOAD_GLOBAL          (NULL + DomainError)
+             480 LOAD_CONST           ("CLEANUP_INPUT_REQUIRED")
+             482 LOAD_CONST           ("请选择一张来源图和一次清稿；不附加配色、场景或其他参考")
+             484 LOAD_CONST           (409)
+             486 CALL                 3
+             494 RAISE_VARARGS        (exception instance)
+
+ 35:     >>  496 LOAD_GLOBAL          (NULL + owned)
+             506 LOAD_FAST            (db)
+             508 LOAD_GLOBAL          (Asset)
+             518 LOAD_FAST            (request)
+             520 LOAD_ATTR            (source_asset_id)
+             540 LOAD_FAST            (ws)
+             542 LOAD_ATTR            (id)
+             562 CALL                 4
+             570 STORE_FAST           (source)
+
+ 36:         572 LOAD_FAST            (source)
+             574 LOAD_ATTR            (info)
+             594 LOAD_ATTR            (NULL|self + get)
+             614 LOAD_CONST           ("authorization_revoked")
+             616 CALL                 1
+             624 POP_JUMP_IF_TRUE     (to 710)
+             626 LOAD_FAST            (source)
+             628 LOAD_ATTR            (module)
+             648 LOAD_CONST           ("UPLOAD")
+             650 COMPARE_OP           (==)
+             654 POP_JUMP_IF_FALSE    (to 736)
+             656 LOAD_FAST            (source)
+             658 LOAD_ATTR            (info)
+             678 LOAD_ATTR            (NULL|self + get)
+             698 LOAD_CONST           ("consent")
+             700 CALL                 1
+             708 POP_JUMP_IF_TRUE     (to 736)
+
+ 37:     >>  710 LOAD_GLOBAL          (NULL + DomainError)
+             720 LOAD_CONST           ("CONSENT_REQUIRED")
+             722 LOAD_CONST           ("来源素材授权已撤销")
+             724 LOAD_CONST           (409)
+             726 CALL                 3
+             734 RAISE_VARARGS        (exception instance)
+
+ 38:     >>  736 LOAD_FAST            (request)
+             738 LOAD_ATTR            (engineering_source_hash)
+             758 POP_JUMP_IF_FALSE    (to 836)
+             760 LOAD_FAST            (request)
+             762 LOAD_ATTR            (engineering_source_hash)
+             782 LOAD_FAST            (source)
+             784 LOAD_ATTR            (sha256)
+             804 COMPARE_OP           (!=)
+             808 POP_JUMP_IF_FALSE    (to 836)
+
+ 39:         810 LOAD_GLOBAL          (NULL + DomainError)
+             820 LOAD_CONST           ("STALE_VERSION")
+             822 LOAD_CONST           ("来源版本已变化")
+             824 LOAD_CONST           (409)
+             826 CALL                 3
+             834 RAISE_VARARGS        (exception instance)
+
+ 40:     >>  836 LOAD_CONST           (1)
+             838 LOAD_CONST           (('read_binding', 'require_slot'))
+             840 IMPORT_NAME          (photo_direct)
+             842 IMPORT_FROM          (read_binding)
+             844 STORE_FAST           (read_binding)
+             846 IMPORT_FROM          (require_slot)
+             848 STORE_FAST           (require_slot)
+             850 POP_TOP
+
+ 41:         852 LOAD_FAST            (source)
+             854 LOAD_ATTR            (id)
+             874 LOAD_FAST            (source)
+             876 LOAD_ATTR            (sha256)
+             896 LOAD_FAST            (source)
+             898 LOAD_ATTR            (version)
+
+ 42:         918 LOAD_CONST           (1)
+             920 LOAD_CONST           ("待清稿设计")
+
+ 41:         922 LOAD_CONST           (('asset_id', 'sha256', 'version', 'position', 'role'))
+             924 BUILD_CONST_KEY_MAP  5
+             926 STORE_FAST           (binding)
+
+ 43:         928 PUSH_NULL
+             930 LOAD_FAST            (read_binding)
+             932 LOAD_FAST            (db)
+             934 LOAD_FAST            (ws)
+             936 LOAD_ATTR            (id)
+             956 LOAD_FAST            (binding)
+             958 CALL                 3
+             966 POP_TOP
+
+ 45:         968 LOAD_FAST            (source)
+             970 LOAD_ATTR            (module)
+             990 LOAD_CONST           ("PHOTO_TO_PRODUCT")
+             992 COMPARE_OP           (==)
+             996 POP_JUMP_IF_TRUE     (to 1052)
+             998 LOAD_FAST            (source)
+            1000 LOAD_ATTR            (info)
+            1020 LOAD_ATTR            (NULL|self + get)
+            1040 LOAD_CONST           ("photo_lineage")
+            1042 CALL                 1
+            1050 POP_JUMP_IF_FALSE    (to 1076)
+
+ 44:     >> 1052 PUSH_NULL
+            1054 LOAD_FAST            (require_slot)
+            1056 LOAD_FAST            (db)
+            1058 LOAD_FAST            (ws)
+            1060 LOAD_FAST            (source)
+            1062 LOAD_FAST            (exclude_job_id)
+            1064 KW_NAMES             (('exclude_job_id',))
+            1066 CALL                 4
+            1074 JUMP_FORWARD         (to 1078)
+
+ 45:     >> 1076 LOAD_CONST           (None)
+
+ 44:     >> 1078 STORE_FAST           (lineage)
+
+ 46:        1080 LOAD_FAST            (binding)
+            1082 LOAD_FAST            (lineage)
+            1084 BUILD_TUPLE          2
+            1086 RETURN_VALUE
+
+
+# Method Name:       quote
+# Filename:          app\engineering_cleanup.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  22
+# Stack size:        12
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        49
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('source_asset', 'SourceRef')
+#    3: ('classify',)
+#    4: 'asset_id'
+#    5: 'version'
+#    6: 'sha256'
+#    7: ('asset_id', 'version', 'sha256')
+#    8: frozenset({'.webp', '.jpg', '.jpeg', '.png'})
+#    9: 'kind'
+#   10: 'CLEAN_STRUCTURE'
+#   11: 'CLEANUP_SOURCE_UNCLEAR'
+#   12: '尚不能从这张照片确认原始孔洞与连接。请选黑白结构稿；本次未调用AI。原色图片可返回SVG工作室保存为原色SVG，但不能据此确认切割结构。'
+#   13: 409
+#   14: ('route_for_configs', '_usd_estimate_micros', 'cny_estimate')
+#   15: ('native_openai_images',)
+#   16: ('request_hash',)
+#   17: 'roles'
+#   18: 'edit'
+#   19: 'API_CAPABILITY_REQUIRED'
+#   20: '本次清稿需要已配置的OpenAI图片编辑接口'
+#   21: 'role_candidates'
+#   22: '主题'
+#   23: '本次必须保留的明确要求'
+#   24: '\n'
+#   25: '：'
+#   26: ('version', 'source', 'lineage', 'width_mm', 'prompt')
+#   27: 'OFF'
+#   28: 'HUMAN_IMAGE_REVIEW_V1'
+#   29: 0
+#   30: ('engineering_cleanup', 'repair_policy', 'human_review_contract', 'auto_ai_edit_limit', 'auto_repair_limit')
+#   31: ('planning', 'vision', 'image_generation', 'image_edit', 'quality', 'feedback')
+#   32: 'CONFIGURED_BUSINESS'
+#   33: 'authorization_id'
+#   34: ('exclude',)
+#   35: 'purpose'
+#   36: '一次清稿编辑；结果随后在本机导出SVG/DXF'
+#   37: 'pricing'
+#   38: 'basis'
+#   39: '1次图像编辑，有费用；随后本地导出0模型调用。不规划、不评审、不自动重画；清稿保真及加工效果待人工判断。'
+#   40: ('kind', 'task_snapshot', 'route', 'limits', 'billing_limits', 'materials', 'request_hash', 'estimate_micros', 'cny_estimate', 'price_basis', 'scope_notice')
+# Names:
+#    0: inputs
+#    1: engineering_studio
+#    2: source_asset
+#    3: SourceRef
+#    4: engineering_source
+#    5: classify
+#    6: id
+#    7: DomainError
+#    8: api_connections
+#    9: route_for_configs
+#   10: _usd_estimate_micros
+#   11: cny_estimate
+#   12: configured_provider
+#   13: native_openai_images
+#   14: structured_policy
+#   15: request_hash
+#   16: get
+#   17: items
+#   18: PROMPT
+#   19: theme
+#   20: requirements
+#   21: strip
+#   22: update
+#   23: VERSION
+#   24: width_mm
+#   25: dict
+#   26: model_dump
+# Varnames:
+#	db, ws, request, binding, lineage, source_asset, SourceRef, classify, _, raw, route_for_configs, _usd_estimate_micros, cny_estimate, native_openai_images, request_hash, route, cfg, role, value, prompt, label, limits
+# Positional arguments:
+#	db, ws, request
+# Local variables:
+#    3: binding
+#    4: lineage
+#    5: source_asset
+#    6: SourceRef
+#    7: classify
+#    8: _
+#    9: raw
+#   10: route_for_configs
+#   11: _usd_estimate_micros
+#   12: cny_estimate
+#   13: native_openai_images
+#   14: request_hash
+#   15: route
+#   16: cfg
+#   17: role
+#   18: value
+#   19: prompt
+#   20: label
+#   21: limits
+
+ 49:           0 RESUME               0
+
+ 50:           2 LOAD_GLOBAL          (NULL + inputs)
+              12 LOAD_FAST            (db)
+              14 LOAD_FAST            (ws)
+              16 LOAD_FAST            (request)
+              18 CALL                 3
+              26 UNPACK_SEQUENCE      2
+              30 STORE_FAST           (binding)
+              32 STORE_FAST           (lineage)
+
+ 53:          34 LOAD_CONST           (1)
+              36 LOAD_CONST           (('source_asset', 'SourceRef'))
+              38 IMPORT_NAME          (engineering_studio)
+              40 IMPORT_FROM          (source_asset)
+              42 STORE_FAST           (source_asset)
+              44 IMPORT_FROM          (SourceRef)
+              46 STORE_FAST           (SourceRef)
+              48 POP_TOP
+
+ 54:          50 LOAD_CONST           (1)
+              52 LOAD_CONST           (('classify',))
+              54 IMPORT_NAME          (engineering_source)
+              56 IMPORT_FROM          (classify)
+              58 STORE_FAST           (classify)
+              60 POP_TOP
+
+ 55:          62 PUSH_NULL
+              64 LOAD_FAST            (source_asset)
+              66 LOAD_FAST            (db)
+              68 LOAD_FAST            (ws)
+              70 LOAD_ATTR            (id)
+              90 PUSH_NULL
+              92 LOAD_FAST            (SourceRef)
+              94 LOAD_FAST            (binding)
+              96 LOAD_CONST           ("asset_id")
+              98 BINARY_SUBSCR
+
+ 56:         102 LOAD_FAST            (binding)
+             104 LOAD_CONST           ("version")
+             106 BINARY_SUBSCR
+             110 LOAD_FAST            (binding)
+             112 LOAD_CONST           ("sha256")
+             114 BINARY_SUBSCR
+
+ 55:         118 KW_NAMES             (('asset_id', 'version', 'sha256'))
+             120 CALL                 3
+
+ 56:         128 BUILD_SET            0
+             130 LOAD_CONST           (frozenset({'.webp', '.jpg', '.jpeg', '.png'}))
+             132 SET_UPDATE           1
+
+ 55:         134 CALL                 4
+             142 UNPACK_SEQUENCE      2
+             146 STORE_FAST           (_)
+             148 STORE_FAST           (raw)
+
+ 57:         150 PUSH_NULL
+             152 LOAD_FAST            (classify)
+             154 LOAD_FAST            (raw)
+             156 CALL                 1
+             164 LOAD_CONST           ("kind")
+             166 BINARY_SUBSCR
+             170 LOAD_CONST           ("CLEAN_STRUCTURE")
+             172 COMPARE_OP           (!=)
+             176 POP_JUMP_IF_FALSE    (to 204)
+
+ 58:         178 LOAD_GLOBAL          (NULL + DomainError)
+             188 LOAD_CONST           ("CLEANUP_SOURCE_UNCLEAR")
+
+ 59:         190 LOAD_CONST           ("尚不能从这张照片确认原始孔洞与连接。请选黑白结构稿；本次未调用AI。原色图片可返回SVG工作室保存为原色SVG，但不能据此确认切割结构。")
+             192 LOAD_CONST           (409)
+
+ 58:         194 CALL                 3
+             202 RAISE_VARARGS        (exception instance)
+
+ 60:     >>  204 LOAD_CONST           (1)
+             206 LOAD_CONST           (('route_for_configs', '_usd_estimate_micros', 'cny_estimate'))
+             208 IMPORT_NAME          (api_connections)
+             210 IMPORT_FROM          (route_for_configs)
+             212 STORE_FAST           (route_for_configs)
+             214 IMPORT_FROM          (_usd_estimate_micros)
+             216 STORE_FAST           (_usd_estimate_micros)
+             218 IMPORT_FROM          (cny_estimate)
+             220 STORE_FAST           (cny_estimate)
+             222 POP_TOP
+
+ 61:         224 LOAD_CONST           (1)
+             226 LOAD_CONST           (('native_openai_images',))
+             228 IMPORT_NAME          (configured_provider)
+             230 IMPORT_FROM          (native_openai_images)
+             232 STORE_FAST           (native_openai_images)
+             234 POP_TOP
+
+ 62:         236 LOAD_CONST           (1)
+             238 LOAD_CONST           (('request_hash',))
+             240 IMPORT_NAME          (structured_policy)
+             242 IMPORT_FROM          (request_hash)
+             244 STORE_FAST           (request_hash)
+             246 POP_TOP
+
+ 63:         248 PUSH_NULL
+             250 LOAD_FAST            (route_for_configs)
+             252 LOAD_FAST            (db)
+             254 LOAD_FAST            (ws)
+             256 CALL                 2
+             264 STORE_FAST           (route)
+
+ 64:         266 LOAD_FAST            (route)
+             268 LOAD_CONST           ("roles")
+             270 BINARY_SUBSCR
+             274 LOAD_ATTR            (NULL|self + get)
+             294 LOAD_CONST           ("edit")
+             296 CALL                 1
+             304 COPY                 1
+             306 POP_JUMP_IF_TRUE     (to 312)
+             308 POP_TOP
+             310 BUILD_MAP            0
+         >>  312 STORE_FAST           (cfg)
+
+ 65:         314 PUSH_NULL
+             316 LOAD_FAST            (native_openai_images)
+             318 LOAD_FAST            (cfg)
+             320 CALL                 1
+             328 POP_JUMP_IF_TRUE     (to 356)
+
+ 66:         330 LOAD_GLOBAL          (NULL + DomainError)
+             340 LOAD_CONST           ("API_CAPABILITY_REQUIRED")
+             342 LOAD_CONST           ("本次清稿需要已配置的OpenAI图片编辑接口")
+             344 LOAD_CONST           (409)
+             346 CALL                 3
+             354 RAISE_VARARGS        (exception instance)
+
+ 67:     >>  356 LOAD_FAST            (route)
+             358 LOAD_CONST           ("roles")
+             360 BINARY_SUBSCR
+             364 GET_ITER
+             366 LOAD_FAST_AND_CLEAR  (role)
+             368 SWAP                 (TOS <-> TOS1)
+             370 BUILD_MAP            0
+             372 SWAP                 (TOS <-> TOS1)
+             374 FOR_ITER             (to 402)
+             378 STORE_FAST           (role)
+             380 LOAD_FAST            (role)
+             382 LOAD_FAST            (role)
+             384 LOAD_CONST           ("edit")
+             386 COMPARE_OP           (==)
+             390 POP_JUMP_IF_FALSE    (to 396)
+             392 LOAD_FAST            (cfg)
+             394 JUMP_FORWARD         (to 398)
+         >>  396 LOAD_CONST           (None)
+         >>  398 MAP_ADD              2
+         >>  400 JUMP_BACKWARD        (to 374)
+             402 END_FOR
+             404 SWAP                 (TOS <-> TOS1)
+             406 STORE_FAST           (role)
+             408 LOAD_FAST            (route)
+             410 LOAD_CONST           ("roles")
+             412 STORE_SUBSCR
+
+ 68:         416 LOAD_FAST            (route)
+             418 LOAD_CONST           ("roles")
+             420 BINARY_SUBSCR
+             424 LOAD_ATTR            (NULL|self + items)
+             444 CALL                 0
+             452 GET_ITER
+             454 LOAD_FAST_AND_CLEAR  (role)
+             456 LOAD_FAST_AND_CLEAR  (value)
+             458 SWAP                 (TOS <-> TOS2)
+             460 BUILD_MAP            0
+             462 SWAP                 (TOS <-> TOS1)
+             464 FOR_ITER             (to 494)
+             468 UNPACK_SEQUENCE      2
+             472 STORE_FAST           (role)
+             474 STORE_FAST           (value)
+             476 LOAD_FAST            (role)
+             478 LOAD_FAST            (value)
+             480 POP_JUMP_IF_FALSE    (to 488)
+             482 LOAD_FAST            (value)
+             484 BUILD_LIST           1
+             486 JUMP_FORWARD         (to 490)
+         >>  488 BUILD_LIST           0
+         >>  490 MAP_ADD              2
+         >>  492 JUMP_BACKWARD        (to 464)
+             494 END_FOR
+             496 SWAP                 (TOS <-> TOS2)
+             498 STORE_FAST           (value)
+             500 STORE_FAST           (role)
+             502 LOAD_FAST            (route)
+             504 LOAD_CONST           ("role_candidates")
+             506 STORE_SUBSCR
+
+ 69:         510 LOAD_GLOBAL          (PROMPT)
+             520 STORE_FAST           (prompt)
+
+ 70:         522 LOAD_CONST           ("主题")
+         >>  524 LOAD_FAST            (request)
+             526 LOAD_ATTR            (theme)
+             546 BUILD_TUPLE          2
+             548 LOAD_CONST           ("本次必须保留的明确要求")
+             550 LOAD_FAST            (request)
+             552 LOAD_ATTR            (requirements)
+             572 BUILD_TUPLE          2
+             574 BUILD_TUPLE          2
+             576 GET_ITER
+             578 FOR_ITER             (to 654)
+             582 UNPACK_SEQUENCE      2
+             586 STORE_FAST           (label)
+             588 STORE_FAST           (value)
+
+ 71:         590 LOAD_FAST            (value)
+             592 LOAD_ATTR            (NULL|self + strip)
+             612 CALL                 0
+             620 POP_JUMP_IF_TRUE     (to 624)
+             622 JUMP_BACKWARD        (to 578)
+         >>  624 LOAD_FAST            (prompt)
+             626 LOAD_CONST           ("\n")
+             628 LOAD_FAST            (label)
+             630 BINARY_OP            (+)
+             634 LOAD_CONST           ("：")
+             636 BINARY_OP            (+)
+             640 LOAD_FAST            (value)
+             642 BINARY_OP            (+)
+             646 BINARY_OP            (+=)
+             650 STORE_FAST           (prompt)
+         >>  652 JUMP_BACKWARD        (to 578)
+
+ 70:         654 END_FOR
+
+ 72:         656 LOAD_FAST            (route)
+             658 LOAD_ATTR            (NULL|self + update)
+             678 LOAD_GLOBAL          (VERSION)
+             688 LOAD_FAST            (binding)
+             690 LOAD_FAST            (lineage)
+
+ 73:         692 LOAD_FAST            (request)
+             694 LOAD_ATTR            (width_mm)
+             714 LOAD_FAST            (prompt)
+
+ 72:         716 LOAD_CONST           (('version', 'source', 'lineage', 'width_mm', 'prompt'))
+             718 BUILD_CONST_KEY_MAP  5
+
+ 73:         720 LOAD_CONST           ("OFF")
+
+ 74:         722 LOAD_CONST           ("HUMAN_IMAGE_REVIEW_V1")
+             724 LOAD_CONST           (0)
+             726 LOAD_CONST           (0)
+
+ 72:         728 KW_NAMES             (('engineering_cleanup', 'repair_policy', 'human_review_contract', 'auto_ai_edit_limit', 'auto_repair_limit'))
+         >>  730 CALL                 5
+             738 POP_TOP
+
+ 75:         740 LOAD_GLOBAL          (NULL + dict)
+             750 LOAD_CONST           (0)
+             752 LOAD_CONST           (0)
+             754 LOAD_CONST           (0)
+             756 LOAD_CONST           (1)
+             758 LOAD_CONST           (0)
+             760 LOAD_CONST           (0)
+             762 KW_NAMES             (('planning', 'vision', 'image_generation', 'image_edit', 'quality', 'feedback'))
+             764 CALL                 6
+             772 STORE_FAST           (limits)
+
+ 76:         774 LOAD_CONST           ("CONFIGURED_BUSINESS")
+             776 LOAD_FAST            (request)
+             778 LOAD_ATTR            (NULL|self + model_dump)
+             798 LOAD_CONST           ("authorization_id")
+             800 BUILD_SET            1
+             802 KW_NAMES             (('exclude',))
+             804 CALL                 1
+
+ 77:         812 LOAD_FAST            (route)
+             814 LOAD_FAST            (limits)
+             816 LOAD_GLOBAL          (NULL + dict)
+             826 LOAD_FAST            (limits)
+             828 CALL                 1
+
+ 78:         836 BUILD_MAP            0
+             838 LOAD_FAST            (binding)
+             840 DICT_UPDATE          1
+             842 LOAD_CONST           ("purpose")
+             844 LOAD_CONST           ("一次清稿编辑；结果随后在本机导出SVG/DXF")
+             846 BUILD_MAP            1
+             848 DICT_UPDATE          1
+             850 BUILD_LIST           1
+
+ 79:         852 PUSH_NULL
+             854 LOAD_FAST            (request_hash)
+             856 LOAD_FAST            (request)
+             858 LOAD_FAST            (route)
+             860 CALL                 2
+             868 PUSH_NULL
+             870 LOAD_FAST            (_usd_estimate_micros)
+             872 LOAD_FAST            (route)
+             874 LOAD_FAST            (limits)
+             876 CALL                 2
+
+ 80:         884 PUSH_NULL
+             886 LOAD_FAST            (cny_estimate)
+             888 LOAD_FAST            (route)
+             890 LOAD_FAST            (limits)
+             892 CALL                 2
+             900 LOAD_FAST            (route)
+             902 LOAD_CONST           ("pricing")
+             904 BINARY_SUBSCR
+             908 LOAD_CONST           ("basis")
+             910 BINARY_SUBSCR
+
+ 81:         914 LOAD_CONST           ("1次图像编辑，有费用；随后本地导出0模型调用。不规划、不评审、不自动重画；清稿保真及加工效果待人工判断。")
+
+ 76:         916 LOAD_CONST           (('kind', 'task_snapshot', 'route', 'limits', 'billing_limits', 'materials', 'request_hash', 'estimate_micros', 'cny_estimate', 'price_basis', 'scope_notice'))
+             918 BUILD_CONST_KEY_MAP  11
+             920 RETURN_VALUE
+             922 SWAP                 (TOS <-> TOS1)
+             924 POP_TOP
+
+ 67:         926 SWAP                 (TOS <-> TOS1)
+             928 STORE_FAST           (role)
+             930 RERAISE              0
+             932 SWAP                 (TOS <-> TOS1)
+             934 POP_TOP
+
+ 68:         936 SWAP                 (TOS <-> TOS2)
+             938 STORE_FAST           (value)
+             940 STORE_FAST           (role)
+             942 RERAISE              0
+
+ExceptionTable:
+  370 to 402 -> 922 [2]
+  460 to 494 -> 932 [3]
+
+# Method Name:       submit
+# Filename:          app\engineering_cleanup.py
+# Argument count:    5
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  14
+# Stack size:        19
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        84
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('validate_job_grant',)
+#    3: ('reserve_pool',)
+#    4: ('VERSION',)
+#    5: 'route'
+#    6: 'engineering_cleanup'
+#    7: 'source'
+#    8: 'lineage'
+#    9: 'AUTHORIZATION_MISMATCH'
+#   10: '清稿来源与本次授权不一致'
+#   11: 409
+#   12: 0
+#   13: False
+#   14: 'BASIC_DXF'
+#   15: 'asset_id'
+#   16: 'LIVE'
+#   17: ('input', 'route', 'mode', 'workflow_version', 'company_policy', 'photo_direct', 'rules', 'references')
+#   18: ('workspace_id', 'idempotency_key', 'request_hash', 'module', 'category', 'source_asset_id', 'pool_id', 'snapshot')
+#   19: 'root_job_id'
+#   20: 'GENERATE'
+#   21: ('workspace_id', 'job_id', 'ordinal', 'kind', 'payload')
+# Names:
+#    0: authorization
+#    1: validate_job_grant
+#    2: budget
+#    3: reserve_pool
+#    4: preset_direct
+#    5: VERSION
+#    6: plan
+#    7: get
+#    8: inputs
+#    9: DomainError
+#   10: Job
+#   11: id
+#   12: category
+#   13: model_dump
+#   14: copy
+#   15: deepcopy
+#   16: Organization
+#   17: org_id
+#   18: policy
+#   19: add
+#   20: flush
+#   21: Step
+# Varnames:
+#	db, ws, request, key, request_hash, validate_job_grant, reserve_pool, DIRECT_VERSION, grant, contract, binding, lineage, pool, job
+# Positional arguments:
+#	db, ws, request, key, request_hash
+# Local variables:
+#    5: validate_job_grant
+#    6: reserve_pool
+#    7: DIRECT_VERSION
+#    8: grant
+#    9: contract
+#   10: binding
+#   11: lineage
+#   12: pool
+#   13: job
+
+ 84:           0 RESUME               0
+
+ 85:           2 LOAD_CONST           (1)
+               4 LOAD_CONST           (('validate_job_grant',))
+               6 IMPORT_NAME          (authorization)
+               8 IMPORT_FROM          (validate_job_grant)
+              10 STORE_FAST           (validate_job_grant)
+              12 POP_TOP
+
+ 86:          14 LOAD_CONST           (1)
+              16 LOAD_CONST           (('reserve_pool',))
+              18 IMPORT_NAME          (budget)
+              20 IMPORT_FROM          (reserve_pool)
+              22 STORE_FAST           (reserve_pool)
+              24 POP_TOP
+
+ 87:          26 LOAD_CONST           (1)
+              28 LOAD_CONST           (('VERSION',))
+              30 IMPORT_NAME          (preset_direct)
+              32 IMPORT_FROM          (VERSION)
+              34 STORE_FAST           (DIRECT_VERSION)
+              36 POP_TOP
+
+ 88:          38 PUSH_NULL
+              40 LOAD_FAST            (validate_job_grant)
+              42 LOAD_FAST            (db)
+              44 LOAD_FAST            (ws)
+              46 LOAD_FAST            (request)
+              48 CALL                 3
+              56 STORE_FAST           (grant)
+
+ 89:          58 LOAD_FAST            (grant)
+              60 LOAD_ATTR            (plan)
+              80 LOAD_CONST           ("route")
+              82 BINARY_SUBSCR
+              86 LOAD_ATTR            (NULL|self + get)
+             106 LOAD_CONST           ("engineering_cleanup")
+             108 CALL                 1
+             116 STORE_FAST           (contract)
+
+ 90:         118 LOAD_GLOBAL          (NULL + inputs)
+             128 LOAD_FAST            (db)
+             130 LOAD_FAST            (ws)
+             132 LOAD_FAST            (request)
+             134 CALL                 3
+             142 UNPACK_SEQUENCE      2
+             146 STORE_FAST           (binding)
+             148 STORE_FAST           (lineage)
+
+ 91:         150 LOAD_FAST            (contract)
+             152 POP_JUMP_IF_FALSE    (to 186)
+             154 LOAD_FAST            (contract)
+             156 LOAD_CONST           ("source")
+             158 BINARY_SUBSCR
+             162 LOAD_FAST            (binding)
+             164 COMPARE_OP           (!=)
+             168 POP_JUMP_IF_TRUE     (to 186)
+             170 LOAD_FAST            (contract)
+             172 LOAD_CONST           ("lineage")
+             174 BINARY_SUBSCR
+             178 LOAD_FAST            (lineage)
+             180 COMPARE_OP           (!=)
+             184 POP_JUMP_IF_FALSE    (to 212)
+
+ 92:     >>  186 LOAD_GLOBAL          (NULL + DomainError)
+             196 LOAD_CONST           ("AUTHORIZATION_MISMATCH")
+             198 LOAD_CONST           ("清稿来源与本次授权不一致")
+             200 LOAD_CONST           (409)
+             202 CALL                 3
+             210 RAISE_VARARGS        (exception instance)
+
+ 93:     >>  212 PUSH_NULL
+             214 LOAD_FAST            (reserve_pool)
+             216 LOAD_FAST            (db)
+             218 LOAD_FAST            (ws)
+             220 LOAD_CONST           (0)
+             222 LOAD_CONST           (False)
+             224 CALL                 4
+             232 STORE_FAST           (pool)
+
+ 94:         234 LOAD_GLOBAL          (NULL + Job)
+             244 LOAD_FAST            (ws)
+             246 LOAD_ATTR            (id)
+             266 LOAD_FAST            (key)
+             268 LOAD_FAST            (request_hash)
+
+ 95:         270 LOAD_CONST           ("BASIC_DXF")
+             272 LOAD_FAST            (request)
+             274 LOAD_ATTR            (category)
+             294 LOAD_FAST            (binding)
+             296 LOAD_CONST           ("asset_id")
+             298 BINARY_SUBSCR
+             302 LOAD_FAST            (pool)
+             304 LOAD_ATTR            (id)
+
+ 96:         324 LOAD_FAST            (request)
+             326 LOAD_ATTR            (NULL|self + model_dump)
+             346 CALL                 0
+             354 LOAD_GLOBAL          (NULL + copy)
+             364 LOAD_ATTR            (deepcopy)
+             384 LOAD_FAST            (grant)
+             386 LOAD_ATTR            (plan)
+             406 LOAD_CONST           ("route")
+             408 BINARY_SUBSCR
+             412 CALL                 1
+
+ 97:         420 LOAD_CONST           ("LIVE")
+             422 LOAD_FAST            (DIRECT_VERSION)
+
+ 98:         424 LOAD_GLOBAL          (NULL + copy)
+             434 LOAD_ATTR            (deepcopy)
+             454 LOAD_FAST            (db)
+             456 LOAD_ATTR            (NULL|self + get)
+             476 LOAD_GLOBAL          (Organization)
+             486 LOAD_FAST            (ws)
+             488 LOAD_ATTR            (org_id)
+             508 CALL                 2
+             516 LOAD_ATTR            (policy)
+             536 CALL                 1
+
+ 99:         544 LOAD_FAST            (lineage)
+             546 POP_JUMP_IF_FALSE    (to 556)
+             548 LOAD_CONST           ("lineage")
+             550 LOAD_FAST            (lineage)
+             552 BUILD_MAP            1
+             554 JUMP_FORWARD         (to 558)
+         >>  556 BUILD_MAP            0
+         >>  558 BUILD_LIST           0
+             560 BUILD_LIST           0
+
+ 96:         562 LOAD_CONST           (('input', 'route', 'mode', 'workflow_version', 'company_policy', 'photo_direct', 'rules', 'references'))
+             564 BUILD_CONST_KEY_MAP  8
+
+ 94:         566 KW_NAMES             (('workspace_id', 'idempotency_key', 'request_hash', 'module', 'category', 'source_asset_id', 'pool_id', 'snapshot'))
+             568 CALL                 8
+             576 STORE_FAST           (job)
+
+100:         578 LOAD_FAST            (db)
+             580 LOAD_ATTR            (NULL|self + add)
+             600 LOAD_FAST            (job)
+             602 CALL                 1
+             610 POP_TOP
+             612 LOAD_FAST            (db)
+             614 LOAD_ATTR            (NULL|self + flush)
+             634 CALL                 0
+             642 POP_TOP
+
+101:         644 BUILD_MAP            0
+             646 LOAD_FAST            (grant)
+             648 LOAD_ATTR            (plan)
+             668 DICT_UPDATE          1
+             670 LOAD_CONST           ("root_job_id")
+             672 LOAD_FAST            (job)
+             674 LOAD_ATTR            (id)
+             694 BUILD_MAP            1
+             696 DICT_UPDATE          1
+             698 LOAD_FAST            (grant)
+             700 STORE_ATTR           (plan)
+
+102:         710 LOAD_FAST            (db)
+             712 LOAD_ATTR            (NULL|self + add)
+             732 LOAD_GLOBAL          (NULL + Step)
+             742 LOAD_FAST            (ws)
+             744 LOAD_ATTR            (id)
+             764 LOAD_FAST            (job)
+             766 LOAD_ATTR            (id)
+             786 LOAD_CONST           (0)
+             788 LOAD_CONST           ("GENERATE")
+
+103:         790 LOAD_CONST           ("engineering_cleanup")
+             792 LOAD_GLOBAL          (VERSION)
+             802 BUILD_MAP            1
+
+102:         804 KW_NAMES             (('workspace_id', 'job_id', 'ordinal', 'kind', 'payload'))
+             806 CALL                 5
+             814 CALL                 1
+             822 POP_TOP
+
+104:         824 LOAD_FAST            (job)
+             826 RETURN_VALUE
+
+
+# Method Name:       verify
+# Filename:          app\engineering_cleanup.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  7
+# Stack size:        8
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        107
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('JobIn',)
+#    3: 'input'
+#    4: ('exclude_job_id',)
+#    5: 'route'
+#    6: 'engineering_cleanup'
+#    7: 'source'
+#    8: 'lineage'
+#    9: 'STALE_VERSION'
+#   10: '冻结清稿来源或照片次数已变化'
+#   11: 409
+# Names:
+#    0: schemas
+#    1: JobIn
+#    2: inputs
+#    3: model_validate
+#    4: snapshot
+#    5: id
+#    6: DomainError
+# Varnames:
+#	db, ws, job, JobIn, binding, lineage, frozen
+# Positional arguments:
+#	db, ws, job
+# Local variables:
+#    3: JobIn
+#    4: binding
+#    5: lineage
+#    6: frozen
+
+107:           0 RESUME               0
+
+108:           2 LOAD_CONST           (1)
+               4 LOAD_CONST           (('JobIn',))
+               6 IMPORT_NAME          (schemas)
+               8 IMPORT_FROM          (JobIn)
+              10 STORE_FAST           (JobIn)
+              12 POP_TOP
+
+109:          14 LOAD_GLOBAL          (NULL + inputs)
+              24 LOAD_FAST            (db)
+              26 LOAD_FAST            (ws)
+              28 LOAD_FAST            (JobIn)
+              30 LOAD_ATTR            (NULL|self + model_validate)
+              50 LOAD_FAST            (job)
+              52 LOAD_ATTR            (snapshot)
+              72 LOAD_CONST           ("input")
+              74 BINARY_SUBSCR
+              78 CALL                 1
+              86 LOAD_FAST            (job)
+              88 LOAD_ATTR            (id)
+             108 KW_NAMES             (('exclude_job_id',))
+             110 CALL                 4
+             118 UNPACK_SEQUENCE      2
+             122 STORE_FAST           (binding)
+             124 STORE_FAST           (lineage)
+
+110:         126 LOAD_FAST            (job)
+             128 LOAD_ATTR            (snapshot)
+             148 LOAD_CONST           ("route")
+             150 BINARY_SUBSCR
+             154 LOAD_CONST           ("engineering_cleanup")
+             156 BINARY_SUBSCR
+             160 STORE_FAST           (frozen)
+
+111:         162 LOAD_FAST            (binding)
+             164 LOAD_FAST            (frozen)
+             166 LOAD_CONST           ("source")
+             168 BINARY_SUBSCR
+             172 COMPARE_OP           (!=)
+             176 POP_JUMP_IF_TRUE     (to 194)
+             178 LOAD_FAST            (lineage)
+             180 LOAD_FAST            (frozen)
+             182 LOAD_CONST           ("lineage")
+             184 BINARY_SUBSCR
+             188 COMPARE_OP           (!=)
+             192 POP_JUMP_IF_FALSE    (to 220)
+
+112:     >>  194 LOAD_GLOBAL          (NULL + DomainError)
+             204 LOAD_CONST           ("STALE_VERSION")
+             206 LOAD_CONST           ("冻结清稿来源或照片次数已变化")
+             208 LOAD_CONST           (409)
+             210 CALL                 3
+             218 RAISE_VARARGS        (exception instance)
+
+111:     >>  220 RETURN_CONST         (None)
+
+
+# Method Name:       normalize
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  9
+# Stack size:        9
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        115
+# Constants:
+#    0: None
+#    1: 'RGBA'
+#    2: 'white'
+#    3: 'RGB'
+#    4: ('dtype',)
+#    5: 2
+#    6: ('axis',)
+#    7: 32
+#    8: 0.01
+#    9: 'CLEANUP_NOT_MONOCHROME'
+#   10: '已保存AI结果，但仍是彩色效果图；未导出，也不会自动重画'
+#   11: 409
+#   12: 'L'
+#   13: <Code311 code object <lambda> at 0x105c8af90, file app\engineering_cleanup.py>, line 124
+#   14: '1'
+#   15: ('mode',)
+#   16: 1
+#   17: ('classify',)
+#   18: 'PNG'
+#   19: 'kind'
+#   20: 'CLEAN_STRUCTURE'
+#   21: 'CLEANUP_NOT_CLEAN'
+#   22: '已保存AI结果，但无法形成有效黑白清稿；未导出，也不会自动重画'
+#   23: True
+#   24: 128
+#   25: False
+#   26: ('white_composite', 'threshold', 'dither', 'morphology', 'size')
+# Names:
+#    0: safe_image
+#    1: Image
+#    2: open
+#    3: io
+#    4: BytesIO
+#    5: convert
+#    6: alpha_composite
+#    7: new
+#    8: size
+#    9: np
+#   10: asarray
+#   11: int16
+#   12: mean
+#   13: max
+#   14: min
+#   15: DomainError
+#   16: point
+#   17: engineering_source
+#   18: classify
+#   19: save
+#   20: getvalue
+#   21: len
+#   22: getcolors
+#   23: list
+# Varnames:
+#	raw, image, rgba, rgb, pixels, binary, classify, stream, data
+# Positional arguments:
+#	raw
+# Local variables:
+#    1: image
+#    2: rgba
+#    3: rgb
+#    4: pixels
+#    5: binary
+#    6: classify
+#    7: stream
+#    8: data
+
+115:           0 RESUME               0
+
+116:           2 LOAD_GLOBAL          (NULL + safe_image)
+              12 LOAD_FAST            (raw)
+              14 CALL                 1
+              22 POP_TOP
+
+117:          24 LOAD_GLOBAL          (NULL + Image)
+              34 LOAD_ATTR            (open)
+              54 LOAD_GLOBAL          (NULL + io)
+              64 LOAD_ATTR            (BytesIO)
+              84 LOAD_FAST            (raw)
+              86 CALL                 1
+              94 CALL                 1
+             102 BEFORE_WITH
+             104 STORE_FAST           (image)
+
+118:         106 LOAD_FAST            (image)
+             108 LOAD_ATTR            (NULL|self + convert)
+             128 LOAD_CONST           ("RGBA")
+             130 CALL                 1
+             138 STORE_FAST           (rgba)
+
+119:         140 LOAD_GLOBAL          (NULL + Image)
+             150 LOAD_ATTR            (alpha_composite)
+             170 LOAD_GLOBAL          (NULL + Image)
+             180 LOAD_ATTR            (new)
+             200 LOAD_CONST           ("RGBA")
+             202 LOAD_FAST            (rgba)
+             204 LOAD_ATTR            (size)
+             224 LOAD_CONST           ("white")
+             226 CALL                 3
+             234 LOAD_FAST            (rgba)
+             236 CALL                 2
+             244 LOAD_ATTR            (NULL|self + convert)
+             264 LOAD_CONST           ("RGB")
+             266 CALL                 1
+             274 STORE_FAST           (rgb)
+
+121:         276 LOAD_GLOBAL          (NULL + np)
+             286 LOAD_ATTR            (asarray)
+             306 LOAD_FAST            (rgb)
+             308 LOAD_GLOBAL          (np)
+             318 LOAD_ATTR            (int16)
+             338 KW_NAMES             (('dtype',))
+             340 CALL                 2
+             348 STORE_FAST           (pixels)
+
+122:         350 LOAD_GLOBAL          (NULL + np)
+             360 LOAD_ATTR            (mean)
+             380 LOAD_FAST            (pixels)
+             382 LOAD_ATTR            (NULL|self + max)
+             402 LOAD_CONST           (2)
+             404 KW_NAMES             (('axis',))
+             406 CALL                 1
+             414 LOAD_FAST            (pixels)
+             416 LOAD_ATTR            (NULL|self + min)
+             436 LOAD_CONST           (2)
+             438 KW_NAMES             (('axis',))
+             440 CALL                 1
+             448 BINARY_OP            (-)
+             452 LOAD_CONST           (32)
+             454 COMPARE_OP           (>)
+             458 CALL                 1
+             466 LOAD_CONST           (0.01)
+             468 COMPARE_OP           (>)
+             472 POP_JUMP_IF_FALSE    (to 500)
+
+123:         474 LOAD_GLOBAL          (NULL + DomainError)
+             484 LOAD_CONST           ("CLEANUP_NOT_MONOCHROME")
+             486 LOAD_CONST           ("已保存AI结果，但仍是彩色效果图；未导出，也不会自动重画")
+             488 LOAD_CONST           (409)
+             490 CALL                 3
+             498 RAISE_VARARGS        (exception instance)
+
+124:     >>  500 LOAD_FAST            (rgb)
+             502 LOAD_ATTR            (NULL|self + convert)
+             522 LOAD_CONST           ("L")
+             524 CALL                 1
+             532 LOAD_ATTR            (NULL|self + point)
+             552 LOAD_CONST           (<Code311 code object <lambda> at 0x105c8af90, file app\engineering_cleanup.py>, line 124)
+             554 MAKE_FUNCTION        (No arguments)
+             556 LOAD_CONST           ("1")
+             558 KW_NAMES             (('mode',))
+             560 CALL                 2
+             568 LOAD_ATTR            (NULL|self + convert)
+             588 LOAD_CONST           ("RGB")
+             590 CALL                 1
+             598 STORE_FAST           (binary)
+
+125:         600 LOAD_CONST           (1)
+             602 LOAD_CONST           (('classify',))
+             604 IMPORT_NAME          (engineering_source)
+             606 IMPORT_FROM          (classify)
+             608 STORE_FAST           (classify)
+             610 POP_TOP
+
+126:         612 LOAD_GLOBAL          (NULL + io)
+             622 LOAD_ATTR            (BytesIO)
+             642 CALL                 0
+             650 STORE_FAST           (stream)
+             652 LOAD_FAST            (binary)
+             654 LOAD_ATTR            (NULL|self + save)
+             674 LOAD_FAST            (stream)
+             676 LOAD_CONST           ("PNG")
+             678 CALL                 2
+             686 POP_TOP
+             688 LOAD_FAST            (stream)
+             690 LOAD_ATTR            (NULL|self + getvalue)
+             710 CALL                 0
+             718 STORE_FAST           (data)
+
+127:         720 PUSH_NULL
+             722 LOAD_FAST            (classify)
+             724 LOAD_FAST            (data)
+             726 CALL                 1
+             734 LOAD_CONST           ("kind")
+             736 BINARY_SUBSCR
+             740 LOAD_CONST           ("CLEAN_STRUCTURE")
+             742 COMPARE_OP           (!=)
+             746 POP_JUMP_IF_TRUE     (to 814)
+             748 LOAD_GLOBAL          (NULL + len)
+             758 LOAD_FAST            (binary)
+             760 LOAD_ATTR            (NULL|self + getcolors)
+             780 LOAD_CONST           (2)
+             782 CALL                 1
+             790 COPY                 1
+             792 POP_JUMP_IF_TRUE     (to 798)
+             794 POP_TOP
+             796 BUILD_LIST           0
+         >>  798 CALL                 1
+             806 LOAD_CONST           (2)
+             808 COMPARE_OP           (!=)
+             812 POP_JUMP_IF_FALSE    (to 840)
+
+128:     >>  814 LOAD_GLOBAL          (NULL + DomainError)
+             824 LOAD_CONST           ("CLEANUP_NOT_CLEAN")
+             826 LOAD_CONST           ("已保存AI结果，但无法形成有效黑白清稿；未导出，也不会自动重画")
+             828 LOAD_CONST           (409)
+             830 CALL                 3
+             838 RAISE_VARARGS        (exception instance)
+
+129:     >>  840 LOAD_FAST            (data)
+             842 LOAD_CONST           (True)
+             844 LOAD_CONST           (128)
+             846 LOAD_CONST           (False)
+
+130:         848 LOAD_CONST           (False)
+             850 LOAD_GLOBAL          (NULL + list)
+             860 LOAD_FAST            (binary)
+             862 LOAD_ATTR            (size)
+             882 CALL                 1
+
+129:         890 LOAD_CONST           (('white_composite', 'threshold', 'dither', 'morphology', 'size'))
+             892 BUILD_CONST_KEY_MAP  5
+             894 BUILD_TUPLE          2
+
+117:         896 SWAP                 (TOS <-> TOS1)
+             898 LOAD_CONST           (None)
+             900 LOAD_CONST           (None)
+             902 LOAD_CONST           (None)
+             904 CALL                 2
+             912 POP_TOP
+             914 RETURN_VALUE
+             916 PUSH_EXC_INFO
+             918 WITH_EXCEPT_START
+             920 POP_JUMP_IF_TRUE     (to 924)
+             922 RERAISE              2
+         >>  924 POP_TOP
+             926 POP_EXCEPT
+             928 POP_TOP
+             930 POP_TOP
+             932 RETURN_CONST         (None)
+             934 COPY                 3
+             936 POP_EXCEPT
+             938 RERAISE              1
+
+ExceptionTable:
+  104 to 894 -> 916 [1] lasti
+  916 to 924 -> 934 [3] lasti
+
+# Method Name:       save_provider_original
+# Filename:          app\engineering_cleanup.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  8
+# Stack size:        6
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        133
+# Constants:
+#    0: 'Keep exact response image bytes before the shared safety re-encoder.'
+#    1: 'cleanup_provider_original'
+#    2: ('file_key', 'sha256')
+#    3: None
+# Names:
+#    0: storage
+#    1: write
+#    2: sessions
+#    3: begin
+#    4: get
+#    5: ProviderAttempt
+#    6: result
+# Varnames:
+#	worker, workspace_id, attempt_id, raw, key, sha, db, attempt
+# Positional arguments:
+#	worker, workspace_id, attempt_id, raw
+# Local variables:
+#    4: key
+#    5: sha
+#    6: db
+#    7: attempt
+
+133:           0 RESUME               0
+
+135:           2 LOAD_FAST            (worker)
+               4 LOAD_ATTR            (storage)
+              24 LOAD_ATTR            (NULL|self + write)
+              44 LOAD_FAST            (workspace_id)
+              46 LOAD_FAST            (raw)
+              48 CALL                 2
+              56 UNPACK_SEQUENCE      2
+              60 STORE_FAST           (key)
+              62 STORE_FAST           (sha)
+
+136:          64 LOAD_FAST            (worker)
+              66 LOAD_ATTR            (sessions)
+              86 LOAD_ATTR            (NULL|self + begin)
+             106 CALL                 0
+             114 BEFORE_WITH
+             116 STORE_FAST           (db)
+
+137:         118 LOAD_FAST            (db)
+             120 LOAD_ATTR            (NULL|self + get)
+             140 LOAD_GLOBAL          (ProviderAttempt)
+             150 LOAD_FAST            (attempt_id)
+             152 CALL                 2
+             160 STORE_FAST           (attempt)
+
+138:         162 BUILD_MAP            0
+             164 LOAD_FAST            (attempt)
+             166 LOAD_ATTR            (result)
+             186 DICT_UPDATE          1
+             188 LOAD_CONST           ("cleanup_provider_original")
+             190 LOAD_FAST            (key)
+             192 LOAD_FAST            (sha)
+             194 LOAD_CONST           (('file_key', 'sha256'))
+             196 BUILD_CONST_KEY_MAP  2
+             198 BUILD_MAP            1
+             200 DICT_UPDATE          1
+             202 LOAD_FAST            (attempt)
+             204 STORE_ATTR           (result)
+
+136:         214 LOAD_CONST           (None)
+             216 LOAD_CONST           (None)
+             218 LOAD_CONST           (None)
+             220 CALL                 2
+             228 POP_TOP
+             230 RETURN_CONST         (None)
+             232 PUSH_EXC_INFO
+             234 WITH_EXCEPT_START
+             236 POP_JUMP_IF_TRUE     (to 240)
+             238 RERAISE              2
+         >>  240 POP_TOP
+             242 POP_EXCEPT
+             244 POP_TOP
+             246 POP_TOP
+             248 RETURN_CONST         (None)
+             250 COPY                 3
+             252 POP_EXCEPT
+             254 RERAISE              1
+
+ExceptionTable:
+  116 to 212 -> 232 [1] lasti
+  232 to 240 -> 250 [3] lasti
+
+# Method Name:       geometry_safety
+# Filename:          app\engineering_cleanup.py
+# Argument count:    2
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  13
+# Stack size:        9
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        141
+# Constants:
+#    0: 'Compare retained regions and enclosed void identities, without repair.\n\n    Connectivity uses complementary foreground/background neighborhoods. Region\n    overlap maps identities; an equal total alone cannot hide a replaced hole.\n    This is raster topology evidence, never dimensional/manufacturing approval.\n    '
+#    1: 0
+#    2: None
+#    3: 1
+#    4: ('classify',)
+#    5: 'BLOCKED'
+#    6: 'RASTER_REGION_IDENTITY_V1'
+#    7: False
+#    8: ('status', 'source_sha256', 'candidate_sha256', 'method', 'manufacturing_verified')
+#    9: 'kind'
+#   10: 'CLEAN_STRUCTURE'
+#   11: 'reason'
+#   12: 'SOURCE_GEOMETRY_UNKNOWN'
+#   13: <Code311 code object mask at 0x105d01150, file app\engineering_cleanup.py>, line 155
+#   14: <Code311 code object regions at 0x105d01260, file app\engineering_cleanup.py>, line 160
+#   15: ('components', 'holes')
+#   16: ('before', 'after')
+#   17: 'REGION_COUNT_CHANGED'
+#   18: ('interpolation',)
+#   19: <Code311 code object mapping at 0x105d01480, file app\engineering_cleanup.py>, line 173
+#   20: 'REGION_IDENTITY_CHANGED'
+#   21: <Code311 code object neighbors at 0x105d016a0, file app\engineering_cleanup.py>, line 184
+#   22: <Code311 code object <genexpr> at 0x105d017b0, file app\engineering_cleanup.py>, line 187
+#   23: 'HOLE_TOPOLOGY_CHANGED'
+#   24: 'PASS'
+#   25: 'TOPOLOGY_IDENTITIES_PRESERVED'
+#   26: ('status', 'reason', 'hole_mapping', 'component_mapping')
+# Names:
+#    0: cv2
+#    1: engineering_source
+#    2: classify
+#    3: hashlib
+#    4: sha256
+#    5: hexdigest
+#    6: update
+#    7: len
+#    8: resize
+#    9: shape
+#   10: INTER_NEAREST
+#   11: any
+# Varnames:
+#	source, candidate, classify, proof, mask, a, b, regions, ca, ha, cb, hb, mapping
+# Positional arguments:
+#	source, candidate
+# Local variables:
+#    2: classify
+#    3: proof
+#    4: mask
+#    5: a
+#    6: b
+#    7: regions
+#    8: ca
+#    9: ha
+#   10: cb
+#   11: hb
+#   12: mapping
+# Cell variables:
+#    0: cv2
+#    1: holes
+#    2: neighbors
+#    3: sa
+#    4: sb
+#    5: solids
+#    6: va
+#    7: vb
+               0 MAKE_CELL            (cv2)
+               2 MAKE_CELL            (holes)
+               4 MAKE_CELL            (neighbors)
+               6 MAKE_CELL            (sa)
+               8 MAKE_CELL            (sb)
+              10 MAKE_CELL            (solids)
+              12 MAKE_CELL            (va)
+              14 MAKE_CELL            (vb)
+
+141:          16 RESUME               0
+
+148:          18 LOAD_CONST           (0)
+              20 LOAD_CONST           (None)
+              22 IMPORT_NAME          (cv2)
+              24 STORE_DEREF          (cv2)
+
+149:          26 LOAD_CONST           (1)
+              28 LOAD_CONST           (('classify',))
+              30 IMPORT_NAME          (engineering_source)
+              32 IMPORT_FROM          (classify)
+              34 STORE_FAST           (classify)
+              36 POP_TOP
+
+150:          38 LOAD_CONST           ("BLOCKED")
+              40 LOAD_GLOBAL          (NULL + hashlib)
+              50 LOAD_ATTR            (sha256)
+              70 LOAD_FAST            (source)
+              72 CALL                 1
+              80 LOAD_ATTR            (NULL|self + hexdigest)
+             100 CALL                 0
+
+151:         108 LOAD_GLOBAL          (NULL + hashlib)
+             118 LOAD_ATTR            (sha256)
+             138 LOAD_FAST            (candidate)
+             140 CALL                 1
+             148 LOAD_ATTR            (NULL|self + hexdigest)
+             168 CALL                 0
+
+152:         176 LOAD_CONST           ("RASTER_REGION_IDENTITY_V1")
+             178 LOAD_CONST           (False)
+
+150:         180 LOAD_CONST           (('status', 'source_sha256', 'candidate_sha256', 'method', 'manufacturing_verified'))
+             182 BUILD_CONST_KEY_MAP  5
+             184 STORE_FAST           (proof)
+
+153:         186 PUSH_NULL
+             188 LOAD_FAST            (classify)
+             190 LOAD_FAST            (source)
+             192 CALL                 1
+             200 LOAD_CONST           ("kind")
+             202 BINARY_SUBSCR
+             206 LOAD_CONST           ("CLEAN_STRUCTURE")
+             208 COMPARE_OP           (!=)
+             212 POP_JUMP_IF_FALSE    (to 230)
+
+154:         214 BUILD_MAP            0
+             216 LOAD_FAST            (proof)
+             218 DICT_UPDATE          1
+             220 LOAD_CONST           ("reason")
+             222 LOAD_CONST           ("SOURCE_GEOMETRY_UNKNOWN")
+             224 BUILD_MAP            1
+             226 DICT_UPDATE          1
+             228 RETURN_VALUE
+
+155:     >>  230 LOAD_CONST           (<Code311 code object mask at 0x105d01150, file app\engineering_cleanup.py>, line 155)
+             232 MAKE_FUNCTION        (No arguments)
+             234 STORE_FAST           (mask)
+
+159:         236 PUSH_NULL
+             238 LOAD_FAST            (mask)
+             240 LOAD_FAST            (source)
+             242 CALL                 1
+             250 PUSH_NULL
+             252 LOAD_FAST            (mask)
+             254 LOAD_FAST            (candidate)
+             256 CALL                 1
+             264 STORE_FAST           (b)
+             266 STORE_FAST           (a)
+
+160:         268 LOAD_CLOSURE         (cv2)
+             270 BUILD_TUPLE          1
+             272 LOAD_CONST           (<Code311 code object regions at 0x105d01260, file app\engineering_cleanup.py>, line 160)
+             274 MAKE_FUNCTION        (closure)
+             276 STORE_FAST           (regions)
+
+166:         278 PUSH_NULL
+             280 LOAD_FAST            (regions)
+             282 LOAD_FAST            (a)
+             284 CALL                 1
+             292 UNPACK_SEQUENCE      4
+             296 STORE_DEREF          (sa)
+             298 STORE_DEREF          (va)
+             300 STORE_FAST           (ca)
+             302 STORE_FAST           (ha)
+             304 PUSH_NULL
+             306 LOAD_FAST            (regions)
+             308 LOAD_FAST            (b)
+             310 CALL                 1
+             318 UNPACK_SEQUENCE      4
+             322 STORE_DEREF          (sb)
+             324 STORE_DEREF          (vb)
+             326 STORE_FAST           (cb)
+             328 STORE_FAST           (hb)
+
+167:         330 LOAD_FAST            (proof)
+             332 LOAD_ATTR            (NULL|self + update)
+             352 LOAD_GLOBAL          (NULL + len)
+             362 LOAD_FAST            (ca)
+             364 CALL                 1
+             372 LOAD_GLOBAL          (NULL + len)
+             382 LOAD_FAST            (ha)
+             384 CALL                 1
+             392 LOAD_CONST           (('components', 'holes'))
+             394 BUILD_CONST_KEY_MAP  2
+             396 LOAD_GLOBAL          (NULL + len)
+             406 LOAD_FAST            (cb)
+             408 CALL                 1
+             416 LOAD_GLOBAL          (NULL + len)
+             426 LOAD_FAST            (hb)
+             428 CALL                 1
+             436 LOAD_CONST           (('components', 'holes'))
+             438 BUILD_CONST_KEY_MAP  2
+             440 KW_NAMES             (('before', 'after'))
+             442 CALL                 2
+             450 POP_TOP
+
+168:         452 LOAD_GLOBAL          (NULL + len)
+             462 LOAD_FAST            (ca)
+             464 CALL                 1
+             472 LOAD_GLOBAL          (NULL + len)
+             482 LOAD_FAST            (cb)
+             484 CALL                 1
+             492 COMPARE_OP           (!=)
+             496 POP_JUMP_IF_TRUE     (to 544)
+             498 LOAD_GLOBAL          (NULL + len)
+             508 LOAD_FAST            (ha)
+             510 CALL                 1
+             518 LOAD_GLOBAL          (NULL + len)
+             528 LOAD_FAST            (hb)
+             530 CALL                 1
+             538 COMPARE_OP           (!=)
+             542 POP_JUMP_IF_FALSE    (to 560)
+
+169:     >>  544 BUILD_MAP            0
+             546 LOAD_FAST            (proof)
+             548 DICT_UPDATE          1
+             550 LOAD_CONST           ("reason")
+             552 LOAD_CONST           ("REGION_COUNT_CHANGED")
+             554 BUILD_MAP            1
+             556 DICT_UPDATE          1
+             558 RETURN_VALUE
+
+171:     >>  560 LOAD_DEREF           (cv2)
+             562 LOAD_ATTR            (NULL|self + resize)
+             582 LOAD_DEREF           (sb)
+             584 LOAD_FAST            (a)
+             586 LOAD_ATTR            (shape)
+             606 LOAD_CONST           (1)
+             608 BINARY_SUBSCR
+             612 LOAD_FAST            (a)
+             614 LOAD_ATTR            (shape)
+             634 LOAD_CONST           (0)
+             636 BINARY_SUBSCR
+             640 BUILD_TUPLE          2
+             642 LOAD_DEREF           (cv2)
+             644 LOAD_ATTR            (INTER_NEAREST)
+             664 KW_NAMES             (('interpolation',))
+             666 CALL                 3
+             674 STORE_DEREF          (sb)
+
+172:         676 LOAD_DEREF           (cv2)
+             678 LOAD_ATTR            (NULL|self + resize)
+             698 LOAD_DEREF           (vb)
+             700 LOAD_FAST            (a)
+             702 LOAD_ATTR            (shape)
+             722 LOAD_CONST           (1)
+             724 BINARY_SUBSCR
+             728 LOAD_FAST            (a)
+             730 LOAD_ATTR            (shape)
+             750 LOAD_CONST           (0)
+             752 BINARY_SUBSCR
+             756 BUILD_TUPLE          2
+             758 LOAD_DEREF           (cv2)
+             760 LOAD_ATTR            (INTER_NEAREST)
+             780 KW_NAMES             (('interpolation',))
+             782 CALL                 3
+             790 STORE_DEREF          (vb)
+
+173:         792 LOAD_CONST           (<Code311 code object mapping at 0x105d01480, file app\engineering_cleanup.py>, line 173)
+             794 MAKE_FUNCTION        (No arguments)
+             796 STORE_FAST           (mapping)
+
+180:         798 PUSH_NULL
+             800 LOAD_FAST            (mapping)
+             802 LOAD_DEREF           (sa)
+             804 LOAD_DEREF           (sb)
+             806 LOAD_FAST            (ca)
+             808 LOAD_FAST            (cb)
+             810 CALL                 4
+             818 STORE_DEREF          (solids)
+             820 PUSH_NULL
+             822 LOAD_FAST            (mapping)
+             824 LOAD_DEREF           (va)
+             826 LOAD_DEREF           (vb)
+             828 LOAD_FAST            (ha)
+             830 LOAD_FAST            (hb)
+             832 CALL                 4
+             840 STORE_DEREF          (holes)
+
+181:         842 LOAD_DEREF           (solids)
+             844 POP_JUMP_IF_NONE     (to 850)
+             846 LOAD_DEREF           (holes)
+             848 POP_JUMP_IF_NOT_NONE (to 866)
+
+182:     >>  850 BUILD_MAP            0
+             852 LOAD_FAST            (proof)
+             854 DICT_UPDATE          1
+             856 LOAD_CONST           ("reason")
+             858 LOAD_CONST           ("REGION_IDENTITY_CHANGED")
+             860 BUILD_MAP            1
+             862 DICT_UPDATE          1
+             864 RETURN_VALUE
+
+184:     >>  866 LOAD_CLOSURE         (cv2)
+             868 BUILD_TUPLE          1
+             870 LOAD_CONST           (<Code311 code object neighbors at 0x105d016a0, file app\engineering_cleanup.py>, line 184)
+             872 MAKE_FUNCTION        (closure)
+             874 STORE_DEREF          (neighbors)
+
+187:         876 LOAD_GLOBAL          (NULL + any)
+             886 LOAD_CLOSURE         (holes)
+             888 LOAD_CLOSURE         (neighbors)
+             890 LOAD_CLOSURE         (sa)
+             892 LOAD_CLOSURE         (sb)
+             894 LOAD_CLOSURE         (solids)
+             896 LOAD_CLOSURE         (va)
+             898 LOAD_CLOSURE         (vb)
+             900 BUILD_TUPLE          7
+             902 LOAD_CONST           (<Code311 code object <genexpr> at 0x105d017b0, file app\engineering_cleanup.py>, line 187)
+             904 MAKE_FUNCTION        (closure)
+             906 LOAD_FAST            (ha)
+             908 GET_ITER
+             910 CALL                 0
+             918 CALL                 1
+             926 POP_JUMP_IF_FALSE    (to 944)
+
+188:         928 BUILD_MAP            0
+             930 LOAD_FAST            (proof)
+             932 DICT_UPDATE          1
+             934 LOAD_CONST           ("reason")
+             936 LOAD_CONST           ("HOLE_TOPOLOGY_CHANGED")
+             938 BUILD_MAP            1
+             940 DICT_UPDATE          1
+             942 RETURN_VALUE
+
+189:     >>  944 BUILD_MAP            0
+             946 LOAD_FAST            (proof)
+             948 DICT_UPDATE          1
+             950 LOAD_CONST           ("PASS")
+             952 LOAD_CONST           ("TOPOLOGY_IDENTITIES_PRESERVED")
+             954 LOAD_DEREF           (holes)
+             956 LOAD_DEREF           (solids)
+             958 LOAD_CONST           (('status', 'reason', 'hole_mapping', 'component_mapping'))
+             960 BUILD_CONST_KEY_MAP  4
+             962 DICT_UPDATE          1
+             964 RETURN_VALUE
+
+
+# Method Name:       execute
+# Filename:          app\engineering_cleanup.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  28
+# Stack size:        24
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        192
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('read_binding',)
+#    3: 'route'
+#    4: 'engineering_cleanup'
+#    5: 'cleanup_raw'
+#    6: 'asset_id'
+#    7: 'source'
+#    8: 'module'
+#    9: 'BASIC_DXF'
+#   10: 'prompt'
+#   11: 'image_edit'
+#   12: 'ENGINEERING_CLEANUP'
+#   13: ('mode', 'images')
+#   14: ('input', 'preset_direct_prompt', 'engineering_cleanup', 'capability', 'image_manifest')
+#   15: 'image'
+#   16: 'DONE'
+#   17: 'cleanup_provider_original'
+#   18: 'CLEANUP_RECEIPT_MISSING'
+#   19: '原始图像回执未完整保存；暂停衔接，不重新生成'
+#   20: 409
+#   21: ('cleanup_raw', 'model_calls')
+#   22: 'file_key'
+#   23: 'sha256'
+#   24: 'STALE_VERSION'
+#   25: '已保存清稿原文件校验失败'
+#   26: 'cleanup_raw_asset_id'
+#   27: 'NEEDS_HUMAN_DECISION'
+#   28: False
+#   29: 'NOT_REVIEWED'
+#   30: 'title'
+#   31: 'AI返回原稿（尚非切割清稿）'
+#   32: ('engineering_cleanup_raw', 'cleanup_step_id', 'mock', 'quality_validation', 'cleanup_source', 'brief')
+#   33: 'lineage'
+#   34: 'photo_lineage'
+#   35: ('workspace_id', 'job_id', 'module', 'category', 'parent_id', 'input_asset_id', 'version', 'file_key', 'sha256', 'state', 'info')
+#   36: 'geometry_safety'
+#   37: 'status'
+#   38: 'PASS'
+#   39: 'BLOCKED'
+#   40: 'SOURCE_GEOMETRY_CHANGED'
+#   41: '源稿与清稿孔洞或连通关系无法确认一致；候选已保留并阻止工程输出'
+#   42: 'UPLOAD'
+#   43: 'READY_FOR_SELECTION'
+#   44: 'FLAT_CUT_MASTER'
+#   45: 'SINGLE_PIECE_CUT'
+#   46: ('output', 'process')
+#   47: ('engineering_cleanup', 'raw_key', 'raw_hash', 'normalization', 'selected_recipe', 'cleanup_source', 'mock', 'model_review_performed', 'quality_validation')
+#   48: ('workspace_id', 'job_id', 'step_id', 'module', 'category', 'parent_id', 'input_asset_id', 'version', 'file_key', 'sha256', 'state', 'info')
+#   49: 'HISTORY'
+#   50: ('asset_id', 'model_calls', 'normalization')
+#   51: '清稿恢复后的源几何检查未通过，未导出'
+#   52: ('JobIn',)
+#   53: ('submit_job',)
+#   54: 'STENCIL'
+#   55: 'width_mm'
+#   56: ('module', 'count', 'mode', 'source_asset_id', 'engineering_source_hash', 'width_mm')
+#   57: 'cleanup-local:'
+#   58: 'local_job_id'
+#   59: 'RUNNING'
+#   60: 'cleanup_local_job_id'
+# Names:
+#    0: photo_direct
+#    1: read_binding
+#    2: sessions
+#    3: get
+#    4: Step
+#    5: _live_state
+#    6: copy
+#    7: deepcopy
+#    8: snapshot
+#    9: result
+#   10: id
+#   11: VERSION
+#   12: call
+#   13: scalar
+#   14: select
+#   15: ProviderAttempt
+#   16: where
+#   17: step_id
+#   18: role
+#   19: status
+#   20: order_by
+#   21: created_at
+#   22: desc
+#   23: DomainError
+#   24: begin
+#   25: lease_token
+#   26: pending_files
+#   27: storage
+#   28: read
+#   29: hashlib
+#   30: sha256
+#   31: hexdigest
+#   32: safe_image
+#   33: owned
+#   34: Asset
+#   35: source_asset_id
+#   36: category
+#   37: input_asset_id
+#   38: version
+#   39: add
+#   40: flush
+#   41: normalize
+#   42: geometry_safety
+#   43: info
+#   44: state
+#   45: write_artifact
+#   46: module
+#   47: file_key
+#   48: schemas
+#   49: JobIn
+#   50: services
+#   51: submit_job
+#   52: parent_id
+# Varnames:
+#	worker, step_id, token, read_binding, db, step, job, ws, contract, checkpoint, asset_id, job_id, ws_id, raw_source, context, attempt, raw, source, returned, normalized, params, safety, key, sha, asset, JobIn, submit_job, child
+# Positional arguments:
+#	worker, step_id, token
+# Local variables:
+#    3: read_binding
+#    4: db
+#    5: step
+#    6: job
+#    7: ws
+#    8: contract
+#    9: checkpoint
+#   10: asset_id
+#   11: job_id
+#   12: ws_id
+#   13: raw_source
+#   14: context
+#   15: attempt
+#   16: raw
+#   17: source
+#   18: returned
+#   19: normalized
+#   20: params
+#   21: safety
+#   22: key
+#   23: sha
+#   24: asset
+#   25: JobIn
+#   26: submit_job
+#   27: child
+
+192:           0 RESUME               0
+
+193:           2 LOAD_CONST           (1)
+               4 LOAD_CONST           (('read_binding',))
+               6 IMPORT_NAME          (photo_direct)
+               8 IMPORT_FROM          (read_binding)
+              10 STORE_FAST           (read_binding)
+              12 POP_TOP
+
+194:          14 LOAD_FAST            (worker)
+              16 LOAD_ATTR            (NULL|self + sessions)
+              36 CALL                 0
+              44 BEFORE_WITH
+              46 STORE_FAST           (db)
+
+195:          48 LOAD_FAST            (db)
+              50 LOAD_ATTR            (NULL|self + get)
+              70 LOAD_GLOBAL          (Step)
+              80 LOAD_FAST            (step_id)
+              82 CALL                 2
+              90 STORE_FAST           (step)
+              92 LOAD_FAST            (worker)
+              94 LOAD_ATTR            (NULL|self + _live_state)
+             114 LOAD_FAST            (db)
+             116 LOAD_FAST            (step)
+             118 CALL                 2
+             126 UNPACK_SEQUENCE      2
+             130 STORE_FAST           (job)
+             132 STORE_FAST           (ws)
+
+196:         134 LOAD_GLOBAL          (NULL + copy)
+             144 LOAD_ATTR            (deepcopy)
+             164 LOAD_FAST            (job)
+             166 LOAD_ATTR            (snapshot)
+             186 LOAD_CONST           ("route")
+             188 BINARY_SUBSCR
+             192 LOAD_CONST           ("engineering_cleanup")
+             194 BINARY_SUBSCR
+             198 CALL                 1
+             206 STORE_FAST           (contract)
+
+197:         208 LOAD_GLOBAL          (NULL + copy)
+             218 LOAD_ATTR            (deepcopy)
+             238 LOAD_FAST            (step)
+             240 LOAD_ATTR            (result)
+             260 LOAD_ATTR            (NULL|self + get)
+             280 LOAD_CONST           ("cleanup_raw")
+             282 CALL                 1
+             290 CALL                 1
+             298 STORE_FAST           (checkpoint)
+
+198:         300 LOAD_FAST            (step)
+             302 LOAD_ATTR            (result)
+             322 LOAD_ATTR            (NULL|self + get)
+             342 LOAD_CONST           ("asset_id")
+             344 CALL                 1
+             352 STORE_FAST           (asset_id)
+             354 LOAD_FAST            (job)
+             356 LOAD_ATTR            (id)
+             376 STORE_FAST           (job_id)
+             378 LOAD_FAST            (ws)
+             380 LOAD_ATTR            (id)
+             400 STORE_FAST           (ws_id)
+
+199:         402 PUSH_NULL
+             404 LOAD_FAST            (read_binding)
+             406 LOAD_FAST            (db)
+             408 LOAD_FAST            (ws)
+             410 LOAD_ATTR            (id)
+             430 LOAD_FAST            (contract)
+             432 LOAD_CONST           ("source")
+             434 BINARY_SUBSCR
+             438 CALL                 3
+             446 STORE_FAST           (raw_source)
+
+194:         448 LOAD_CONST           (None)
+             450 LOAD_CONST           (None)
+             452 LOAD_CONST           (None)
+             454 CALL                 2
+             462 POP_TOP
+
+200:         464 LOAD_FAST_CHECK      (checkpoint)
+             466 EXTENDED_ARG         (256)
+             468 POP_JUMP_IF_TRUE     (to 1282)
+
+201:         470 LOAD_CONST           ("module")
+             472 LOAD_CONST           ("BASIC_DXF")
+             474 BUILD_MAP            1
+             476 LOAD_FAST_CHECK      (contract)
+             478 LOAD_CONST           ("prompt")
+             480 BINARY_SUBSCR
+
+202:         484 LOAD_GLOBAL          (VERSION)
+             494 LOAD_CONST           ("image_edit")
+
+203:         496 LOAD_CONST           ("ENGINEERING_CLEANUP")
+             498 LOAD_FAST            (contract)
+             500 LOAD_CONST           ("source")
+             502 BINARY_SUBSCR
+             506 BUILD_LIST           1
+             508 LOAD_CONST           (('mode', 'images'))
+             510 BUILD_CONST_KEY_MAP  2
+
+201:         512 LOAD_CONST           (('input', 'preset_direct_prompt', 'engineering_cleanup', 'capability', 'image_manifest'))
+             514 BUILD_CONST_KEY_MAP  5
+             516 STORE_FAST           (context)
+
+204:         518 LOAD_FAST            (worker)
+             520 LOAD_ATTR            (NULL|self + call)
+             540 LOAD_FAST            (step_id)
+             542 LOAD_CONST           ("image")
+             544 LOAD_FAST            (context)
+             546 LOAD_FAST_CHECK      (raw_source)
+             548 CALL                 4
+             556 POP_TOP
+
+205:         558 LOAD_FAST            (worker)
+             560 LOAD_ATTR            (NULL|self + sessions)
+             580 CALL                 0
+             588 BEFORE_WITH
+             590 STORE_FAST           (db)
+
+206:         592 LOAD_FAST            (db)
+             594 LOAD_ATTR            (NULL|self + scalar)
+             614 LOAD_GLOBAL          (NULL + select)
+             624 LOAD_GLOBAL          (ProviderAttempt)
+             634 CALL                 1
+             642 LOAD_ATTR            (NULL|self + where)
+             662 LOAD_GLOBAL          (ProviderAttempt)
+             672 LOAD_ATTR            (step_id)
+             692 LOAD_FAST            (step_id)
+             694 COMPARE_OP           (==)
+
+207:         698 LOAD_GLOBAL          (ProviderAttempt)
+             708 LOAD_ATTR            (role)
+             728 LOAD_CONST           ("image")
+             730 COMPARE_OP           (==)
+             734 LOAD_GLOBAL          (ProviderAttempt)
+             744 LOAD_ATTR            (status)
+             764 LOAD_CONST           ("DONE")
+             766 COMPARE_OP           (==)
+
+206:         770 CALL                 3
+
+207:         778 LOAD_ATTR            (NULL|self + order_by)
+             798 LOAD_GLOBAL          (ProviderAttempt)
+             808 LOAD_ATTR            (created_at)
+             828 LOAD_ATTR            (NULL|self + desc)
+             848 CALL                 0
+             856 CALL                 1
+
+206:         864 CALL                 1
+             872 STORE_FAST           (attempt)
+
+208:         874 LOAD_GLOBAL          (NULL + copy)
+             884 LOAD_ATTR            (deepcopy)
+             904 LOAD_FAST            (attempt)
+             906 POP_JUMP_IF_FALSE    (to 932)
+             908 LOAD_FAST            (attempt)
+             910 LOAD_ATTR            (result)
+             930 JUMP_FORWARD         (to 934)
+         >>  932 BUILD_MAP            0
+         >>  934 LOAD_ATTR            (NULL|self + get)
+             954 LOAD_CONST           ("cleanup_provider_original")
+             956 CALL                 1
+             964 CALL                 1
+             972 STORE_FAST           (checkpoint)
+
+205:         974 LOAD_CONST           (None)
+             976 LOAD_CONST           (None)
+             978 LOAD_CONST           (None)
+             980 CALL                 2
+             988 POP_TOP
+
+209:         990 LOAD_FAST            (checkpoint)
+             992 POP_JUMP_IF_TRUE     (to 1020)
+
+210:         994 LOAD_GLOBAL          (NULL + DomainError)
+            1004 LOAD_CONST           ("CLEANUP_RECEIPT_MISSING")
+            1006 LOAD_CONST           ("原始图像回执未完整保存；暂停衔接，不重新生成")
+            1008 LOAD_CONST           (409)
+            1010 CALL                 3
+            1018 RAISE_VARARGS        (exception instance)
+
+211:     >> 1020 LOAD_FAST            (worker)
+            1022 LOAD_ATTR            (sessions)
+            1042 LOAD_ATTR            (NULL|self + begin)
+            1062 CALL                 0
+            1070 BEFORE_WITH
+            1072 STORE_FAST           (db)
+
+212:        1074 LOAD_FAST            (db)
+            1076 LOAD_ATTR            (NULL|self + get)
+            1096 LOAD_GLOBAL          (Step)
+            1106 LOAD_FAST            (step_id)
+            1108 CALL                 2
+            1116 STORE_FAST           (step)
+            1118 LOAD_FAST            (worker)
+            1120 LOAD_ATTR            (NULL|self + _live_state)
+            1140 LOAD_FAST            (db)
+            1142 LOAD_FAST            (step)
+            1144 CALL                 2
+            1152 POP_TOP
+
+213:        1154 LOAD_FAST            (step)
+            1156 LOAD_ATTR            (lease_token)
+            1176 LOAD_FAST            (token)
+            1178 COMPARE_OP           (!=)
+            1182 POP_JUMP_IF_FALSE    (to 1204)
+            1184 NOP
+
+211:        1186 LOAD_CONST           (None)
+            1188 LOAD_CONST           (None)
+            1190 LOAD_CONST           (None)
+            1192 CALL                 2
+            1200 POP_TOP
+            1202 RETURN_CONST         (None)
+
+214:     >> 1204 BUILD_MAP            0
+            1206 LOAD_FAST            (step)
+            1208 LOAD_ATTR            (result)
+            1228 DICT_UPDATE          1
+            1230 LOAD_FAST            (checkpoint)
+            1232 LOAD_CONST           (1)
+            1234 LOAD_CONST           (('cleanup_raw', 'model_calls'))
+            1236 BUILD_CONST_KEY_MAP  2
+            1238 DICT_UPDATE          1
+            1240 LOAD_FAST            (step)
+            1242 STORE_ATTR           (result)
+
+211:        1252 LOAD_CONST           (None)
+            1254 LOAD_CONST           (None)
+            1256 LOAD_CONST           (None)
+            1258 CALL                 2
+            1266 POP_TOP
+
+215:        1268 BUILD_LIST           0
+            1270 LOAD_FAST            (worker)
+            1272 STORE_ATTR           (pending_files)
+
+216:     >> 1282 LOAD_FAST            (worker)
+            1284 LOAD_ATTR            (storage)
+            1304 LOAD_ATTR            (NULL|self + read)
+            1324 LOAD_FAST_CHECK      (ws_id)
+            1326 LOAD_FAST            (checkpoint)
+            1328 LOAD_CONST           ("file_key")
+            1330 BINARY_SUBSCR
+            1334 CALL                 2
+            1342 STORE_FAST           (raw)
+
+217:        1344 LOAD_GLOBAL          (NULL + hashlib)
+            1354 LOAD_ATTR            (sha256)
+            1374 LOAD_FAST            (raw)
+            1376 CALL                 1
+            1384 LOAD_ATTR            (NULL|self + hexdigest)
+            1404 CALL                 0
+            1412 LOAD_FAST            (checkpoint)
+            1414 LOAD_CONST           ("sha256")
+            1416 BINARY_SUBSCR
+            1420 COMPARE_OP           (!=)
+            1424 POP_JUMP_IF_FALSE    (to 1452)
+
+218:        1426 LOAD_GLOBAL          (NULL + DomainError)
+            1436 LOAD_CONST           ("STALE_VERSION")
+            1438 LOAD_CONST           ("已保存清稿原文件校验失败")
+            1440 LOAD_CONST           (409)
+            1442 CALL                 3
+            1450 RAISE_VARARGS        (exception instance)
+
+219:     >> 1452 LOAD_FAST_CHECK      (asset_id)
+            1454 EXTENDED_ARG         (1024)
+            1456 POP_JUMP_IF_TRUE     (to 3706)
+
+221:        1458 LOAD_GLOBAL          (NULL + safe_image)
+            1468 LOAD_FAST            (raw)
+            1470 CALL                 1
+            1478 POP_TOP
+
+222:        1480 LOAD_FAST            (worker)
+            1482 LOAD_ATTR            (sessions)
+            1502 LOAD_ATTR            (NULL|self + begin)
+            1522 CALL                 0
+            1530 BEFORE_WITH
+            1532 STORE_FAST           (db)
+
+223:        1534 LOAD_FAST            (db)
+            1536 LOAD_ATTR            (NULL|self + get)
+            1556 LOAD_GLOBAL          (Step)
+            1566 LOAD_FAST            (step_id)
+            1568 CALL                 2
+            1576 STORE_FAST           (step)
+            1578 LOAD_FAST            (worker)
+            1580 LOAD_ATTR            (NULL|self + _live_state)
+            1600 LOAD_FAST            (db)
+            1602 LOAD_FAST            (step)
+            1604 CALL                 2
+            1612 UNPACK_SEQUENCE      2
+            1616 STORE_FAST           (job)
+            1618 STORE_FAST           (ws)
+
+224:        1620 LOAD_FAST            (step)
+            1622 LOAD_ATTR            (lease_token)
+            1642 LOAD_FAST            (token)
+            1644 COMPARE_OP           (!=)
+            1648 POP_JUMP_IF_FALSE    (to 1670)
+            1650 NOP
+
+222:        1652 LOAD_CONST           (None)
+            1654 LOAD_CONST           (None)
+            1656 LOAD_CONST           (None)
+            1658 CALL                 2
+            1666 POP_TOP
+            1668 RETURN_CONST         (None)
+
+225:     >> 1670 LOAD_FAST            (step)
+            1672 LOAD_ATTR            (result)
+            1692 LOAD_ATTR            (NULL|self + get)
+            1712 LOAD_CONST           ("cleanup_raw_asset_id")
+            1714 CALL                 1
+            1722 POP_JUMP_IF_TRUE     (to 2222)
+
+226:        1724 LOAD_GLOBAL          (NULL + owned)
+            1734 LOAD_FAST            (db)
+            1736 LOAD_GLOBAL          (Asset)
+            1746 LOAD_FAST            (job)
+            1748 LOAD_ATTR            (source_asset_id)
+            1768 LOAD_FAST            (ws)
+            1770 LOAD_ATTR            (id)
+            1790 CALL                 4
+            1798 STORE_FAST           (source)
+
+227:        1800 LOAD_GLOBAL          (NULL + Asset)
+            1810 LOAD_FAST            (ws)
+            1812 LOAD_ATTR            (id)
+            1832 LOAD_FAST            (job)
+            1834 LOAD_ATTR            (id)
+            1854 LOAD_CONST           ("BASIC_DXF")
+            1856 LOAD_FAST            (job)
+            1858 LOAD_ATTR            (category)
+
+228:        1878 LOAD_FAST            (source)
+            1880 LOAD_ATTR            (id)
+            1900 LOAD_FAST            (source)
+            1902 LOAD_ATTR            (input_asset_id)
+            1922 COPY                 1
+            1924 POP_JUMP_IF_TRUE     (to 1950)
+            1926 POP_TOP
+            1928 LOAD_FAST            (source)
+            1930 LOAD_ATTR            (id)
+         >> 1950 LOAD_FAST            (source)
+            1952 LOAD_ATTR            (version)
+            1972 LOAD_CONST           (1)
+            1974 BINARY_OP            (+)
+
+229:        1978 LOAD_FAST            (checkpoint)
+            1980 LOAD_CONST           ("file_key")
+            1982 BINARY_SUBSCR
+            1986 LOAD_FAST            (checkpoint)
+            1988 LOAD_CONST           ("sha256")
+            1990 BINARY_SUBSCR
+            1994 LOAD_CONST           ("NEEDS_HUMAN_DECISION")
+
+230:        1996 LOAD_GLOBAL          (VERSION)
+            2006 LOAD_FAST            (step)
+            2008 LOAD_ATTR            (id)
+            2028 LOAD_CONST           (False)
+            2030 LOAD_CONST           ("NOT_REVIEWED")
+
+231:        2032 LOAD_FAST_CHECK      (contract)
+            2034 LOAD_CONST           ("source")
+            2036 BINARY_SUBSCR
+            2040 LOAD_CONST           ("title")
+            2042 LOAD_CONST           ("AI返回原稿（尚非切割清稿）")
+            2044 BUILD_MAP            1
+
+230:        2046 LOAD_CONST           (('engineering_cleanup_raw', 'cleanup_step_id', 'mock', 'quality_validation', 'cleanup_source', 'brief'))
+            2048 BUILD_CONST_KEY_MAP  6
+
+232:        2050 LOAD_FAST            (contract)
+            2052 LOAD_CONST           ("lineage")
+            2054 BINARY_SUBSCR
+            2058 POP_JUMP_IF_FALSE    (to 2074)
+            2060 LOAD_CONST           ("photo_lineage")
+            2062 LOAD_FAST            (contract)
+            2064 LOAD_CONST           ("lineage")
+            2066 BINARY_SUBSCR
+            2070 BUILD_MAP            1
+            2072 JUMP_FORWARD         (to 2076)
+         >> 2074 BUILD_MAP            0
+
+230:     >> 2076 DICT_UPDATE          1
+
+227:        2078 KW_NAMES             (('workspace_id', 'job_id', 'module', 'category', 'parent_id', 'input_asset_id', 'version', 'file_key', 'sha256', 'state', 'info'))
+            2080 CALL                 11
+            2088 STORE_FAST           (returned)
+
+233:        2090 LOAD_FAST            (db)
+            2092 LOAD_ATTR            (NULL|self + add)
+            2112 LOAD_FAST            (returned)
+            2114 CALL                 1
+            2122 POP_TOP
+            2124 LOAD_FAST            (db)
+            2126 LOAD_ATTR            (NULL|self + flush)
+            2146 CALL                 0
+            2154 POP_TOP
+
+234:        2156 BUILD_MAP            0
+            2158 LOAD_FAST            (step)
+            2160 LOAD_ATTR            (result)
+            2180 DICT_UPDATE          1
+            2182 LOAD_CONST           ("cleanup_raw_asset_id")
+            2184 LOAD_FAST            (returned)
+            2186 LOAD_ATTR            (id)
+            2206 BUILD_MAP            1
+            2208 DICT_UPDATE          1
+            2210 LOAD_FAST            (step)
+            2212 STORE_ATTR           (result)
+
+222:     >> 2222 LOAD_CONST           (None)
+            2224 LOAD_CONST           (None)
+            2226 LOAD_CONST           (None)
+            2228 CALL                 2
+            2236 POP_TOP
+
+235:        2238 LOAD_GLOBAL          (NULL + normalize)
+            2248 LOAD_FAST            (raw)
+            2250 CALL                 1
+            2258 UNPACK_SEQUENCE      2
+            2262 STORE_FAST           (normalized)
+            2264 STORE_FAST           (params)
+
+236:        2266 LOAD_GLOBAL          (NULL + geometry_safety)
+            2276 LOAD_FAST_CHECK      (raw_source)
+            2278 LOAD_FAST            (normalized)
+            2280 CALL                 2
+            2288 STORE_FAST           (safety)
+
+237:        2290 LOAD_FAST            (worker)
+            2292 LOAD_ATTR            (sessions)
+            2312 LOAD_ATTR            (NULL|self + begin)
+            2332 CALL                 0
+            2340 BEFORE_WITH
+            2342 STORE_FAST           (db)
+
+238:        2344 LOAD_FAST            (db)
+            2346 LOAD_ATTR            (NULL|self + get)
+            2366 LOAD_GLOBAL          (Step)
+            2376 LOAD_FAST            (step_id)
+            2378 CALL                 2
+            2386 STORE_FAST           (step)
+            2388 LOAD_FAST            (worker)
+            2390 LOAD_ATTR            (NULL|self + _live_state)
+            2410 LOAD_FAST            (db)
+            2412 LOAD_FAST            (step)
+            2414 CALL                 2
+            2422 POP_TOP
+
+239:        2424 LOAD_FAST            (step)
+            2426 LOAD_ATTR            (lease_token)
+            2446 LOAD_FAST            (token)
+            2448 COMPARE_OP           (!=)
+            2452 POP_JUMP_IF_FALSE    (to 2474)
+            2454 NOP
+
+237:        2456 LOAD_CONST           (None)
+            2458 LOAD_CONST           (None)
+            2460 LOAD_CONST           (None)
+            2462 CALL                 2
+            2470 POP_TOP
+            2472 RETURN_CONST         (None)
+
+240:     >> 2474 BUILD_MAP            0
+            2476 LOAD_FAST            (step)
+            2478 LOAD_ATTR            (result)
+            2498 DICT_UPDATE          1
+            2500 LOAD_CONST           ("geometry_safety")
+            2502 LOAD_FAST            (safety)
+            2504 BUILD_MAP            1
+            2506 DICT_UPDATE          1
+            2508 LOAD_FAST            (step)
+            2510 STORE_ATTR           (result)
+
+241:        2520 LOAD_FAST            (db)
+            2522 LOAD_ATTR            (NULL|self + get)
+            2542 LOAD_GLOBAL          (Asset)
+            2552 LOAD_FAST            (step)
+            2554 LOAD_ATTR            (result)
+            2574 LOAD_CONST           ("cleanup_raw_asset_id")
+            2576 BINARY_SUBSCR
+            2580 CALL                 2
+            2588 STORE_FAST           (returned)
+
+242:        2590 BUILD_MAP            0
+            2592 LOAD_FAST            (returned)
+            2594 LOAD_ATTR            (info)
+            2614 DICT_UPDATE          1
+            2616 LOAD_CONST           ("geometry_safety")
+            2618 LOAD_FAST            (safety)
+            2620 BUILD_MAP            1
+            2622 DICT_UPDATE          1
+            2624 LOAD_FAST            (returned)
+            2626 STORE_ATTR           (info)
+
+243:        2636 LOAD_FAST            (safety)
+            2638 LOAD_CONST           ("status")
+            2640 BINARY_SUBSCR
+            2644 LOAD_CONST           ("PASS")
+            2646 COMPARE_OP           (!=)
+            2650 POP_JUMP_IF_FALSE    (to 2666)
+            2652 LOAD_CONST           ("BLOCKED")
+            2654 LOAD_FAST            (returned)
+            2656 STORE_ATTR           (state)
+
+237:     >> 2666 LOAD_CONST           (None)
+            2668 LOAD_CONST           (None)
+            2670 LOAD_CONST           (None)
+            2672 CALL                 2
+            2680 POP_TOP
+
+244:        2682 LOAD_FAST            (safety)
+            2684 LOAD_CONST           ("status")
+            2686 BINARY_SUBSCR
+            2690 LOAD_CONST           ("PASS")
+            2692 COMPARE_OP           (!=)
+            2696 POP_JUMP_IF_FALSE    (to 2724)
+
+245:        2698 LOAD_GLOBAL          (NULL + DomainError)
+            2708 LOAD_CONST           ("SOURCE_GEOMETRY_CHANGED")
+            2710 LOAD_CONST           ("源稿与清稿孔洞或连通关系无法确认一致；候选已保留并阻止工程输出")
+            2712 LOAD_CONST           (409)
+            2714 CALL                 3
+            2722 RAISE_VARARGS        (exception instance)
+
+246:     >> 2724 LOAD_FAST            (worker)
+            2726 LOAD_ATTR            (NULL|self + write_artifact)
+            2746 LOAD_FAST            (ws_id)
+            2748 LOAD_FAST            (normalized)
+            2750 CALL                 2
+            2758 UNPACK_SEQUENCE      2
+            2762 STORE_FAST           (key)
+            2764 STORE_FAST           (sha)
+
+247:        2766 LOAD_FAST            (worker)
+            2768 LOAD_ATTR            (sessions)
+            2788 LOAD_ATTR            (NULL|self + begin)
+            2808 CALL                 0
+            2816 BEFORE_WITH
+            2818 STORE_FAST           (db)
+
+248:        2820 LOAD_FAST            (db)
+            2822 LOAD_ATTR            (NULL|self + get)
+            2842 LOAD_GLOBAL          (Step)
+            2852 LOAD_FAST            (step_id)
+            2854 CALL                 2
+            2862 STORE_FAST           (step)
+            2864 LOAD_FAST            (worker)
+            2866 LOAD_ATTR            (NULL|self + _live_state)
+            2886 LOAD_FAST            (db)
+            2888 LOAD_FAST            (step)
+            2890 CALL                 2
+            2898 UNPACK_SEQUENCE      2
+            2902 STORE_FAST           (job)
+            2904 STORE_FAST           (ws)
+
+249:        2906 LOAD_FAST            (step)
+            2908 LOAD_ATTR            (lease_token)
+            2928 LOAD_FAST            (token)
+            2930 COMPARE_OP           (!=)
+            2934 POP_JUMP_IF_FALSE    (to 2956)
+            2936 NOP
+
+247:        2938 LOAD_CONST           (None)
+            2940 LOAD_CONST           (None)
+            2942 LOAD_CONST           (None)
+            2944 CALL                 2
+            2952 POP_TOP
+            2954 RETURN_CONST         (None)
+
+250:     >> 2956 LOAD_GLOBAL          (NULL + owned)
+            2966 LOAD_FAST            (db)
+            2968 LOAD_GLOBAL          (Asset)
+            2978 LOAD_FAST            (job)
+            2980 LOAD_ATTR            (source_asset_id)
+            3000 LOAD_FAST            (ws)
+            3002 LOAD_ATTR            (id)
+            3022 CALL                 4
+            3030 STORE_FAST           (source)
+
+251:        3032 LOAD_GLOBAL          (NULL + Asset)
+            3042 LOAD_FAST            (ws)
+            3044 LOAD_ATTR            (id)
+            3064 LOAD_FAST            (job)
+            3066 LOAD_ATTR            (id)
+            3086 LOAD_FAST            (step)
+            3088 LOAD_ATTR            (id)
+            3108 LOAD_CONST           ("BASIC_DXF")
+            3110 LOAD_FAST            (job)
+            3112 LOAD_ATTR            (category)
+
+252:        3132 LOAD_FAST            (source)
+            3134 LOAD_ATTR            (module)
+            3154 LOAD_CONST           ("UPLOAD")
+            3156 COMPARE_OP           (!=)
+            3160 POP_JUMP_IF_FALSE    (to 3186)
+            3162 LOAD_FAST            (source)
+            3164 LOAD_ATTR            (id)
+            3184 JUMP_FORWARD         (to 3188)
+         >> 3186 LOAD_CONST           (None)
+         >> 3188 LOAD_FAST            (source)
+            3190 LOAD_ATTR            (input_asset_id)
+            3210 COPY                 1
+            3212 POP_JUMP_IF_TRUE     (to 3238)
+            3214 POP_TOP
+            3216 LOAD_FAST            (source)
+            3218 LOAD_ATTR            (id)
+
+253:     >> 3238 LOAD_FAST            (source)
+            3240 LOAD_ATTR            (version)
+            3260 LOAD_CONST           (1)
+            3262 BINARY_OP            (+)
+            3266 LOAD_FAST            (key)
+            3268 LOAD_FAST            (sha)
+            3270 LOAD_CONST           ("READY_FOR_SELECTION")
+
+254:        3272 LOAD_GLOBAL          (VERSION)
+            3282 LOAD_FAST            (checkpoint)
+            3284 LOAD_CONST           ("file_key")
+            3286 BINARY_SUBSCR
+            3290 LOAD_FAST            (checkpoint)
+            3292 LOAD_CONST           ("sha256")
+            3294 BINARY_SUBSCR
+
+255:        3298 LOAD_FAST            (params)
+            3300 LOAD_CONST           ("FLAT_CUT_MASTER")
+            3302 LOAD_CONST           ("SINGLE_PIECE_CUT")
+            3304 LOAD_CONST           (('output', 'process'))
+            3306 BUILD_CONST_KEY_MAP  2
+
+256:        3308 LOAD_FAST_CHECK      (contract)
+            3310 LOAD_CONST           ("source")
+            3312 BINARY_SUBSCR
+            3316 LOAD_CONST           (False)
+            3318 LOAD_CONST           (False)
+
+257:        3320 LOAD_CONST           ("NOT_REVIEWED")
+
+254:        3322 LOAD_CONST           (('engineering_cleanup', 'raw_key', 'raw_hash', 'normalization', 'selected_recipe', 'cleanup_source', 'mock', 'model_review_performed', 'quality_validation'))
+            3324 BUILD_CONST_KEY_MAP  9
+
+258:        3326 LOAD_FAST            (contract)
+            3328 LOAD_CONST           ("lineage")
+            3330 BINARY_SUBSCR
+            3334 POP_JUMP_IF_FALSE    (to 3350)
+            3336 LOAD_CONST           ("photo_lineage")
+            3338 LOAD_FAST            (contract)
+            3340 LOAD_CONST           ("lineage")
+            3342 BINARY_SUBSCR
+            3346 BUILD_MAP            1
+            3348 JUMP_FORWARD         (to 3352)
+         >> 3350 BUILD_MAP            0
+
+254:     >> 3352 DICT_UPDATE          1
+
+251:        3354 KW_NAMES             (('workspace_id', 'job_id', 'step_id', 'module', 'category', 'parent_id', 'input_asset_id', 'version', 'file_key', 'sha256', 'state', 'info'))
+            3356 CALL                 12
+            3364 STORE_FAST           (asset)
+
+259:        3366 LOAD_FAST            (db)
+            3368 LOAD_ATTR            (NULL|self + add)
+            3388 LOAD_FAST            (asset)
+            3390 CALL                 1
+            3398 POP_TOP
+            3400 LOAD_FAST            (db)
+            3402 LOAD_ATTR            (NULL|self + flush)
+            3422 CALL                 0
+            3430 POP_TOP
+            3432 LOAD_FAST            (asset)
+            3434 LOAD_ATTR            (id)
+            3454 STORE_FAST           (asset_id)
+
+260:        3456 LOAD_FAST            (db)
+            3458 LOAD_ATTR            (NULL|self + get)
+            3478 LOAD_GLOBAL          (Asset)
+            3488 LOAD_FAST            (step)
+            3490 LOAD_ATTR            (result)
+            3510 LOAD_CONST           ("cleanup_raw_asset_id")
+            3512 BINARY_SUBSCR
+            3516 CALL                 2
+            3524 STORE_FAST           (returned)
+
+261:        3526 LOAD_CONST           ("HISTORY")
+            3528 LOAD_FAST            (returned)
+            3530 STORE_ATTR           (state)
+
+262:        3540 BUILD_MAP            0
+            3542 LOAD_FAST            (asset)
+            3544 LOAD_ATTR            (info)
+            3564 DICT_UPDATE          1
+            3566 LOAD_CONST           ("cleanup_raw_asset_id")
+            3568 LOAD_FAST            (returned)
+            3570 LOAD_ATTR            (id)
+            3590 BUILD_MAP            1
+            3592 DICT_UPDATE          1
+            3594 LOAD_FAST            (asset)
+            3596 STORE_ATTR           (info)
+
+263:        3606 BUILD_MAP            0
+            3608 LOAD_FAST            (step)
+            3610 LOAD_ATTR            (result)
+            3630 DICT_UPDATE          1
+            3632 LOAD_FAST            (asset)
+            3634 LOAD_ATTR            (id)
+            3654 LOAD_CONST           (1)
+            3656 LOAD_FAST            (params)
+            3658 LOAD_CONST           (('asset_id', 'model_calls', 'normalization'))
+            3660 BUILD_CONST_KEY_MAP  3
+            3662 DICT_UPDATE          1
+            3664 LOAD_FAST            (step)
+            3666 STORE_ATTR           (result)
+
+247:        3676 LOAD_CONST           (None)
+            3678 LOAD_CONST           (None)
+            3680 LOAD_CONST           (None)
+            3682 CALL                 2
+            3690 POP_TOP
+
+264:        3692 BUILD_LIST           0
+            3694 LOAD_FAST            (worker)
+            3696 STORE_ATTR           (pending_files)
+
+266:     >> 3706 LOAD_FAST            (worker)
+            3708 LOAD_ATTR            (sessions)
+            3728 LOAD_ATTR            (NULL|self + begin)
+            3748 CALL                 0
+            3756 BEFORE_WITH
+            3758 STORE_FAST           (db)
+
+267:        3760 LOAD_FAST            (db)
+            3762 LOAD_ATTR            (NULL|self + get)
+            3782 LOAD_GLOBAL          (Step)
+            3792 LOAD_FAST            (step_id)
+            3794 CALL                 2
+            3802 STORE_FAST           (step)
+            3804 LOAD_FAST            (worker)
+            3806 LOAD_ATTR            (NULL|self + _live_state)
+            3826 LOAD_FAST            (db)
+            3828 LOAD_FAST            (step)
+            3830 CALL                 2
+            3838 UNPACK_SEQUENCE      2
+            3842 STORE_FAST           (job)
+            3844 STORE_FAST           (ws)
+
+268:        3846 LOAD_FAST            (step)
+            3848 LOAD_ATTR            (lease_token)
+            3868 LOAD_FAST            (token)
+            3870 COMPARE_OP           (!=)
+            3874 POP_JUMP_IF_FALSE    (to 3896)
+            3876 NOP
+
+266:        3878 LOAD_CONST           (None)
+            3880 LOAD_CONST           (None)
+            3882 LOAD_CONST           (None)
+            3884 CALL                 2
+            3892 POP_TOP
+            3894 RETURN_CONST         (None)
+
+269:     >> 3896 LOAD_GLOBAL          (NULL + owned)
+            3906 LOAD_FAST            (db)
+            3908 LOAD_GLOBAL          (Asset)
+            3918 LOAD_FAST            (asset_id)
+            3920 LOAD_FAST            (ws)
+            3922 LOAD_ATTR            (id)
+            3942 CALL                 4
+            3950 STORE_FAST           (asset)
+
+270:        3952 LOAD_GLOBAL          (NULL + geometry_safety)
+            3962 LOAD_FAST_CHECK      (raw_source)
+            3964 LOAD_FAST            (worker)
+            3966 LOAD_ATTR            (storage)
+            3986 LOAD_ATTR            (NULL|self + read)
+            4006 LOAD_FAST            (ws)
+            4008 LOAD_ATTR            (id)
+            4028 LOAD_FAST            (asset)
+            4030 LOAD_ATTR            (file_key)
+            4050 CALL                 2
+            4058 CALL                 2
+            4066 STORE_FAST           (safety)
+
+271:        4068 LOAD_FAST            (safety)
+            4070 LOAD_CONST           ("status")
+            4072 BINARY_SUBSCR
+            4076 LOAD_CONST           ("PASS")
+            4078 COMPARE_OP           (!=)
+            4082 POP_JUMP_IF_FALSE    (to 4110)
+
+272:        4084 LOAD_GLOBAL          (NULL + DomainError)
+            4094 LOAD_CONST           ("SOURCE_GEOMETRY_CHANGED")
+            4096 LOAD_CONST           ("清稿恢复后的源几何检查未通过，未导出")
+            4098 LOAD_CONST           (409)
+            4100 CALL                 3
+            4108 RAISE_VARARGS        (exception instance)
+
+273:     >> 4110 LOAD_CONST           (1)
+            4112 LOAD_CONST           (('JobIn',))
+            4114 IMPORT_NAME          (schemas)
+            4116 IMPORT_FROM          (JobIn)
+            4118 STORE_FAST           (JobIn)
+            4120 POP_TOP
+
+274:        4122 LOAD_CONST           (1)
+            4124 LOAD_CONST           (('submit_job',))
+            4126 IMPORT_NAME          (services)
+            4128 IMPORT_FROM          (submit_job)
+            4130 STORE_FAST           (submit_job)
+            4132 POP_TOP
+
+275:        4134 PUSH_NULL
+            4136 LOAD_FAST            (submit_job)
+            4138 LOAD_FAST            (db)
+            4140 LOAD_FAST            (ws)
+            4142 PUSH_NULL
+            4144 LOAD_FAST            (JobIn)
+            4146 LOAD_CONST           ("BASIC_DXF")
+            4148 LOAD_CONST           (1)
+            4150 LOAD_CONST           ("STENCIL")
+            4152 LOAD_FAST            (asset)
+            4154 LOAD_ATTR            (id)
+
+276:        4174 LOAD_FAST            (asset)
+            4176 LOAD_ATTR            (sha256)
+            4196 LOAD_FAST_CHECK      (contract)
+            4198 LOAD_CONST           ("width_mm")
+            4200 BINARY_SUBSCR
+
+275:        4204 KW_NAMES             (('module', 'count', 'mode', 'source_asset_id', 'engineering_source_hash', 'width_mm'))
+            4206 CALL                 6
+
+276:        4214 LOAD_CONST           ("cleanup-local:")
+            4216 LOAD_FAST            (job)
+            4218 LOAD_ATTR            (id)
+            4238 BINARY_OP            (+)
+
+275:        4242 CALL                 4
+            4250 STORE_FAST           (child)
+
+277:        4252 LOAD_FAST            (job)
+            4254 LOAD_ATTR            (id)
+            4274 LOAD_FAST            (child)
+            4276 STORE_ATTR           (parent_id)
+
+278:        4286 BUILD_MAP            0
+            4288 LOAD_FAST            (step)
+            4290 LOAD_ATTR            (result)
+            4310 DICT_UPDATE          1
+            4312 LOAD_CONST           ("local_job_id")
+            4314 LOAD_FAST            (child)
+            4316 LOAD_ATTR            (id)
+            4336 BUILD_MAP            1
+            4338 DICT_UPDATE          1
+            4340 LOAD_FAST            (step)
+            4342 STORE_ATTR           (result)
+            4352 LOAD_CONST           ("DONE")
+            4354 LOAD_FAST            (step)
+            4356 STORE_ATTR           (status)
+
+279:        4366 LOAD_CONST           ("RUNNING")
+            4368 LOAD_FAST            (job)
+            4370 STORE_ATTR           (status)
+
+280:        4380 BUILD_MAP            0
+            4382 LOAD_FAST            (job)
+            4384 LOAD_ATTR            (snapshot)
+            4404 DICT_UPDATE          1
+            4406 LOAD_CONST           ("cleanup_local_job_id")
+            4408 LOAD_FAST            (child)
+            4410 LOAD_ATTR            (id)
+            4430 BUILD_MAP            1
+            4432 DICT_UPDATE          1
+            4434 LOAD_FAST            (job)
+            4436 STORE_ATTR           (snapshot)
+
+266:        4446 LOAD_CONST           (None)
+            4448 LOAD_CONST           (None)
+            4450 LOAD_CONST           (None)
+            4452 CALL                 2
+            4460 POP_TOP
+            4462 RETURN_CONST         (None)
+
+194:        4464 PUSH_EXC_INFO
+            4466 WITH_EXCEPT_START
+            4468 POP_JUMP_IF_TRUE     (to 4472)
+            4470 RERAISE              2
+         >> 4472 POP_TOP
+            4474 POP_EXCEPT
+            4476 POP_TOP
+            4478 POP_TOP
+            4480 EXTENDED_ARG         (1792)
+            4482 JUMP_BACKWARD        (to 464)
+            4484 COPY                 3
+            4486 POP_EXCEPT
+            4488 RERAISE              1
+
+205:        4490 PUSH_EXC_INFO
+            4492 WITH_EXCEPT_START
+            4494 POP_JUMP_IF_TRUE     (to 4498)
+            4496 RERAISE              2
+         >> 4498 POP_TOP
+            4500 POP_EXCEPT
+            4502 POP_TOP
+            4504 POP_TOP
+            4506 EXTENDED_ARG         (1536)
+            4508 JUMP_BACKWARD        (to 990)
+            4510 COPY                 3
+            4512 POP_EXCEPT
+            4514 RERAISE              1
+
+211:        4516 PUSH_EXC_INFO
+            4518 WITH_EXCEPT_START
+            4520 POP_JUMP_IF_TRUE     (to 4524)
+            4522 RERAISE              2
+         >> 4524 POP_TOP
+            4526 POP_EXCEPT
+            4528 POP_TOP
+            4530 POP_TOP
+            4532 EXTENDED_ARG         (1536)
+            4534 JUMP_BACKWARD        (to 1268)
+            4536 COPY                 3
+            4538 POP_EXCEPT
+            4540 RERAISE              1
+
+222:        4542 PUSH_EXC_INFO
+            4544 WITH_EXCEPT_START
+            4546 POP_JUMP_IF_TRUE     (to 4550)
+            4548 RERAISE              2
+         >> 4550 POP_TOP
+            4552 POP_EXCEPT
+            4554 POP_TOP
+            4556 POP_TOP
+            4558 EXTENDED_ARG         (1024)
+            4560 JUMP_BACKWARD        (to 2238)
+            4562 COPY                 3
+            4564 POP_EXCEPT
+            4566 RERAISE              1
+
+237:        4568 PUSH_EXC_INFO
+            4570 WITH_EXCEPT_START
+            4572 POP_JUMP_IF_TRUE     (to 4576)
+            4574 RERAISE              2
+         >> 4576 POP_TOP
+            4578 POP_EXCEPT
+            4580 POP_TOP
+            4582 POP_TOP
+            4584 EXTENDED_ARG         (768)
+            4586 JUMP_BACKWARD        (to 2682)
+            4588 COPY                 3
+            4590 POP_EXCEPT
+            4592 RERAISE              1
+
+247:        4594 PUSH_EXC_INFO
+            4596 WITH_EXCEPT_START
+            4598 POP_JUMP_IF_TRUE     (to 4602)
+            4600 RERAISE              2
+         >> 4602 POP_TOP
+            4604 POP_EXCEPT
+            4606 POP_TOP
+            4608 POP_TOP
+            4610 EXTENDED_ARG         (256)
+            4612 JUMP_BACKWARD        (to 3692)
+            4614 COPY                 3
+            4616 POP_EXCEPT
+            4618 RERAISE              1
+
+266:        4620 PUSH_EXC_INFO
+            4622 WITH_EXCEPT_START
+            4624 POP_JUMP_IF_TRUE     (to 4628)
+            4626 RERAISE              2
+         >> 4628 POP_TOP
+            4630 POP_EXCEPT
+            4632 POP_TOP
+            4634 POP_TOP
+            4636 RETURN_CONST         (None)
+            4638 COPY                 3
+            4640 POP_EXCEPT
+            4642 RERAISE              1
+
+ExceptionTable:
+  46 to 446 -> 4464 [1] lasti
+  590 to 972 -> 4490 [1] lasti
+  1072 to 1184 -> 4516 [1] lasti
+  1204 to 1250 -> 4516 [1] lasti
+  1532 to 1650 -> 4542 [1] lasti
+  1670 to 2220 -> 4542 [1] lasti
+  2342 to 2454 -> 4568 [1] lasti
+  2474 to 2664 -> 4568 [1] lasti
+  2818 to 2936 -> 4594 [1] lasti
+  2956 to 3674 -> 4594 [1] lasti
+  3758 to 3876 -> 4620 [1] lasti
+  3896 to 4444 -> 4620 [1] lasti
+  4464 to 4472 -> 4484 [3] lasti
+  4490 to 4498 -> 4510 [3] lasti
+  4516 to 4524 -> 4536 [3] lasti
+  4542 to 4550 -> 4562 [3] lasti
+  4568 to 4576 -> 4588 [3] lasti
+  4594 to 4602 -> 4614 [3] lasti
+  4620 to 4628 -> 4638 [3] lasti
+
+# Method Name:       local_finished
+# Filename:          app\engineering_cleanup.py
+# Argument count:    2
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  3
+# Stack size:        6
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        283
+# Constants:
+#    0: None
+#    1: 'cleanup_local_job_id'
+# Names:
+#    0: parent_id
+#    1: owned
+#    2: Job
+#    3: workspace_id
+#    4: snapshot
+#    5: get
+#    6: id
+#    7: status
+# Varnames:
+#	db, child, parent
+# Positional arguments:
+#	db, child
+# Local variables:
+#    2: parent
+
+283:           0 RESUME               0
+
+284:           2 LOAD_FAST            (child)
+               4 LOAD_ATTR            (parent_id)
+              24 POP_JUMP_IF_TRUE     (to 28)
+              26 RETURN_CONST         (None)
+
+285:     >>   28 LOAD_GLOBAL          (NULL + owned)
+              38 LOAD_FAST            (db)
+              40 LOAD_GLOBAL          (Job)
+              50 LOAD_FAST            (child)
+              52 LOAD_ATTR            (parent_id)
+              72 LOAD_FAST            (child)
+              74 LOAD_ATTR            (workspace_id)
+              94 CALL                 4
+             102 STORE_FAST           (parent)
+
+286:         104 LOAD_FAST            (parent)
+             106 LOAD_ATTR            (snapshot)
+             126 LOAD_ATTR            (NULL|self + get)
+             146 LOAD_CONST           ("cleanup_local_job_id")
+             148 CALL                 1
+             156 LOAD_FAST            (child)
+             158 LOAD_ATTR            (id)
+             178 COMPARE_OP           (==)
+             182 POP_JUMP_IF_FALSE    (to 220)
+
+287:         184 LOAD_FAST            (child)
+             186 LOAD_ATTR            (status)
+             206 LOAD_FAST            (parent)
+             208 STORE_ATTR           (status)
+             218 RETURN_CONST         (None)
+
+286:     >>  220 RETURN_CONST         (None)
+
+
+# Method Name:       <lambda>
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        2
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        124
+# Constants:
+#    0: None
+#    1: 128
+#    2: 255
+#    3: 0
+# Varnames:
+#	value
+# Positional arguments:
+#	value
+
+124:           0 RESUME               0
+               2 LOAD_FAST            (value)
+               4 LOAD_CONST           (128)
+               6 COMPARE_OP           (>=)
+              10 POP_JUMP_IF_FALSE    (to 16)
+              12 LOAD_CONST           (255)
+              14 RETURN_VALUE
+         >>   16 LOAD_CONST           (0)
+              18 RETURN_VALUE
+
+
+# Method Name:       mask
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  3
+# Stack size:        10
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        155
+# Constants:
+#    0: None
+#    1: 'RGBA'
+#    2: 'white'
+#    3: 'L'
+#    4: 128
+#    5: 'uint8'
+# Names:
+#    0: Image
+#    1: open
+#    2: io
+#    3: BytesIO
+#    4: convert
+#    5: np
+#    6: asarray
+#    7: alpha_composite
+#    8: new
+#    9: size
+#   10: astype
+# Varnames:
+#	raw, image, rgba
+# Positional arguments:
+#	raw
+# Local variables:
+#    1: image
+#    2: rgba
+
+155:           0 RESUME               0
+
+156:           2 LOAD_GLOBAL          (NULL + Image)
+              12 LOAD_ATTR            (open)
+              32 LOAD_GLOBAL          (NULL + io)
+              42 LOAD_ATTR            (BytesIO)
+              62 LOAD_FAST            (raw)
+              64 CALL                 1
+              72 CALL                 1
+              80 BEFORE_WITH
+              82 STORE_FAST           (image)
+
+157:          84 LOAD_FAST            (image)
+              86 LOAD_ATTR            (NULL|self + convert)
+             106 LOAD_CONST           ("RGBA")
+             108 CALL                 1
+             116 STORE_FAST           (rgba)
+
+158:         118 LOAD_GLOBAL          (NULL + np)
+             128 LOAD_ATTR            (asarray)
+             148 LOAD_GLOBAL          (NULL + Image)
+             158 LOAD_ATTR            (alpha_composite)
+             178 LOAD_GLOBAL          (NULL + Image)
+             188 LOAD_ATTR            (new)
+             208 LOAD_CONST           ("RGBA")
+             210 LOAD_FAST            (rgba)
+             212 LOAD_ATTR            (size)
+             232 LOAD_CONST           ("white")
+             234 CALL                 3
+             242 LOAD_FAST            (rgba)
+             244 CALL                 2
+             252 LOAD_ATTR            (NULL|self + convert)
+             272 LOAD_CONST           ("L")
+             274 CALL                 1
+             282 CALL                 1
+             290 LOAD_CONST           (128)
+             292 COMPARE_OP           (<)
+             296 LOAD_ATTR            (NULL|self + astype)
+             316 LOAD_CONST           ("uint8")
+             318 CALL                 1
+
+156:         326 SWAP                 (TOS <-> TOS1)
+             328 LOAD_CONST           (None)
+             330 LOAD_CONST           (None)
+             332 LOAD_CONST           (None)
+             334 CALL                 2
+             342 POP_TOP
+             344 RETURN_VALUE
+             346 PUSH_EXC_INFO
+             348 WITH_EXCEPT_START
+             350 POP_JUMP_IF_TRUE     (to 354)
+             352 RERAISE              2
+         >>  354 POP_TOP
+             356 POP_EXCEPT
+             358 POP_TOP
+             360 POP_TOP
+             362 RETURN_CONST         (None)
+             364 COPY                 3
+             366 POP_EXCEPT
+             368 RERAISE              1
+
+ExceptionTable:
+  82 to 324 -> 346 [1] lasti
+  346 to 354 -> 364 [3] lasti
+
+# Method Name:       regions
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  8
+# Stack size:        12
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        160
+# Constants:
+#    0: None
+#    1: 8
+#    2: ('connectivity',)
+#    3: 1
+#    4: 4
+#    5: 0
+#    6: -1
+# Names:
+#    0: connectedComponents
+#    1: set
+#    2: np
+#    3: unique
+#    4: concatenate
+#    5: int
+#    6: list
+#    7: range
+# Varnames:
+#	m, count, solid, _, void, exterior, i, holes
+# Positional arguments:
+#	m
+# Local variables:
+#    1: count
+#    2: solid
+#    3: _
+#    4: void
+#    5: exterior
+#    6: i
+#    7: holes
+# Free variables:
+#    0: cv2
+               0 COPY_FREE_VARS       1
+
+160:           2 RESUME               0
+
+161:           4 LOAD_DEREF           (cv2)
+               6 LOAD_ATTR            (NULL|self + connectedComponents)
+              26 LOAD_FAST            (m)
+              28 LOAD_CONST           (8)
+              30 KW_NAMES             (('connectivity',))
+              32 CALL                 2
+              40 UNPACK_SEQUENCE      2
+              44 STORE_FAST           (count)
+              46 STORE_FAST           (solid)
+
+162:          48 LOAD_DEREF           (cv2)
+              50 LOAD_ATTR            (NULL|self + connectedComponents)
+              70 LOAD_CONST           (1)
+              72 LOAD_FAST            (m)
+              74 BINARY_OP            (-)
+              78 LOAD_CONST           (4)
+              80 KW_NAMES             (('connectivity',))
+              82 CALL                 2
+              90 UNPACK_SEQUENCE      2
+              94 STORE_FAST           (_)
+              96 STORE_FAST           (void)
+
+163:          98 LOAD_GLOBAL          (NULL + set)
+             108 LOAD_GLOBAL          (NULL + np)
+             118 LOAD_ATTR            (unique)
+             138 LOAD_GLOBAL          (NULL + np)
+             148 LOAD_ATTR            (concatenate)
+             168 LOAD_FAST            (void)
+             170 LOAD_CONST           (0)
+             172 BINARY_SUBSCR
+             176 LOAD_FAST            (void)
+             178 LOAD_CONST           (-1)
+             180 BINARY_SUBSCR
+             184 LOAD_FAST            (void)
+             186 LOAD_CONST           (None)
+             188 LOAD_CONST           (None)
+             190 BUILD_SLICE          2
+             192 LOAD_CONST           (0)
+             194 BUILD_TUPLE          2
+             196 BINARY_SUBSCR
+             200 LOAD_FAST            (void)
+             202 LOAD_CONST           (None)
+             204 LOAD_CONST           (None)
+             206 BUILD_SLICE          2
+             208 LOAD_CONST           (-1)
+             210 BUILD_TUPLE          2
+             212 BINARY_SUBSCR
+             216 BUILD_TUPLE          4
+             218 CALL                 1
+             226 CALL                 1
+             234 CALL                 1
+             242 LOAD_CONST           (0)
+             244 BUILD_SET            1
+             246 BINARY_OP            (|)
+             250 STORE_FAST           (exterior)
+
+164:         252 LOAD_GLOBAL          (NULL + np)
+             262 LOAD_ATTR            (unique)
+             282 LOAD_FAST            (void)
+             284 CALL                 1
+             292 GET_ITER
+             294 LOAD_FAST_AND_CLEAR  (i)
+             296 SWAP                 (TOS <-> TOS1)
+             298 BUILD_LIST           0
+             300 SWAP                 (TOS <-> TOS1)
+             302 FOR_ITER             (to 342)
+             306 STORE_FAST           (i)
+             308 LOAD_FAST            (i)
+             310 LOAD_FAST            (exterior)
+             312 CONTAINS_OP          (not in)
+             314 POP_JUMP_IF_TRUE     (to 318)
+             316 JUMP_BACKWARD        (to 302)
+         >>  318 LOAD_GLOBAL          (NULL + int)
+             328 LOAD_FAST            (i)
+             330 CALL                 1
+             338 LIST_APPEND          2
+         >>  340 JUMP_BACKWARD        (to 302)
+             342 END_FOR
+             344 STORE_FAST           (holes)
+             346 STORE_FAST           (i)
+
+165:         348 LOAD_FAST            (solid)
+             350 LOAD_FAST            (void)
+             352 LOAD_GLOBAL          (NULL + list)
+             362 LOAD_GLOBAL          (NULL + range)
+             372 LOAD_CONST           (1)
+             374 LOAD_FAST            (count)
+             376 CALL                 2
+             384 CALL                 1
+             392 LOAD_FAST            (holes)
+             394 BUILD_TUPLE          4
+             396 RETURN_VALUE
+             398 SWAP                 (TOS <-> TOS1)
+             400 POP_TOP
+
+164:         402 SWAP                 (TOS <-> TOS1)
+             404 STORE_FAST           (i)
+             406 RERAISE              0
+
+ExceptionTable:
+  298 to 314 -> 398 [2]
+  318 to 342 -> 398 [2]
+
+# Method Name:       mapping
+# Filename:          app\engineering_cleanup.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  7
+# Stack size:        9
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        173
+# Constants:
+#    0: None
+#    1: <Code311 code object <genexpr> at 0x105d01370, file app\engineering_cleanup.py>, line 176
+#    2: 1
+# Names:
+#    0: set
+#    1: np
+#    2: unique
+#    3: len
+#    4: pop
+#    5: values
+# Varnames:
+#	left, right, left_ids, right_ids, matches, identity, hits
+# Positional arguments:
+#	left, right, left_ids, right_ids
+# Local variables:
+#    4: matches
+#    5: identity
+#    6: hits
+
+173:           0 RESUME               0
+
+174:           2 BUILD_MAP            0
+               4 STORE_FAST           (matches)
+
+175:           6 LOAD_FAST            (left_ids)
+               8 GET_ITER
+              10 FOR_ITER             (to 198)
+              14 STORE_FAST           (identity)
+
+176:          16 LOAD_GLOBAL          (NULL + set)
+              26 LOAD_CONST           (<Code311 code object <genexpr> at 0x105d01370, file app\engineering_cleanup.py>, line 176)
+              28 MAKE_FUNCTION        (No arguments)
+              30 LOAD_GLOBAL          (NULL + np)
+              40 LOAD_ATTR            (unique)
+              60 LOAD_FAST            (right)
+              62 LOAD_FAST            (left)
+              64 LOAD_FAST            (identity)
+              66 COMPARE_OP           (==)
+              70 BINARY_SUBSCR
+              74 CALL                 1
+              82 GET_ITER
+              84 CALL                 0
+              92 CALL                 1
+             100 LOAD_GLOBAL          (NULL + set)
+             110 LOAD_FAST            (right_ids)
+             112 CALL                 1
+             120 BINARY_OP            (&)
+             124 STORE_FAST           (hits)
+
+177:         126 LOAD_GLOBAL          (NULL + len)
+             136 LOAD_FAST            (hits)
+             138 CALL                 1
+             146 LOAD_CONST           (1)
+             148 COMPARE_OP           (!=)
+             152 POP_JUMP_IF_FALSE    (to 158)
+             154 POP_TOP
+             156 RETURN_CONST         (None)
+
+178:     >>  158 LOAD_FAST            (hits)
+             160 LOAD_ATTR            (NULL|self + pop)
+             180 CALL                 0
+             188 LOAD_FAST            (matches)
+             190 LOAD_FAST            (identity)
+             192 STORE_SUBSCR
+         >>  196 JUMP_BACKWARD        (to 10)
+
+175:         198 END_FOR
+
+179:         200 LOAD_GLOBAL          (NULL + set)
+             210 LOAD_FAST            (matches)
+             212 LOAD_ATTR            (NULL|self + values)
+             232 CALL                 0
+             240 CALL                 1
+             248 LOAD_GLOBAL          (NULL + set)
+             258 LOAD_FAST            (right_ids)
+             260 CALL                 1
+             268 COMPARE_OP           (==)
+             272 POP_JUMP_IF_FALSE    (to 370)
+             274 LOAD_GLOBAL          (NULL + len)
+             284 LOAD_GLOBAL          (NULL + set)
+             294 LOAD_FAST            (matches)
+             296 LOAD_ATTR            (NULL|self + values)
+             316 CALL                 0
+             324 CALL                 1
+             332 CALL                 1
+             340 LOAD_GLOBAL          (NULL + len)
+             350 LOAD_FAST            (matches)
+             352 CALL                 1
+             360 COMPARE_OP           (==)
+             364 POP_JUMP_IF_FALSE    (to 370)
+             366 LOAD_FAST            (matches)
+             368 RETURN_VALUE
+         >>  370 LOAD_CONST           (None)
+             372 RETURN_VALUE
+
+
+# Method Name:       neighbors
+# Filename:          app\engineering_cleanup.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  4
+# Stack size:        7
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        184
+# Constants:
+#    0: None
+#    1: 'uint8'
+#    2: (3, 3)
+#    3: ('dtype',)
+#    4: 0
+#    5: <Code311 code object <genexpr> at 0x105d01590, file app\engineering_cleanup.py>, line 186
+# Names:
+#    0: dilate
+#    1: astype
+#    2: np
+#    3: ones
+#    4: set
+#    5: unique
+# Varnames:
+#	labels, void, identity, ring
+# Positional arguments:
+#	labels, void, identity
+# Local variables:
+#    3: ring
+# Free variables:
+#    0: cv2
+               0 COPY_FREE_VARS       1
+
+184:           2 RESUME               0
+
+185:           4 LOAD_DEREF           (cv2)
+               6 LOAD_ATTR            (NULL|self + dilate)
+              26 LOAD_FAST            (void)
+              28 LOAD_FAST            (identity)
+              30 COMPARE_OP           (==)
+              34 LOAD_ATTR            (NULL|self + astype)
+              54 LOAD_CONST           ("uint8")
+              56 CALL                 1
+              64 LOAD_GLOBAL          (NULL + np)
+              74 LOAD_ATTR            (ones)
+              94 LOAD_CONST           ((3, 3))
+              96 LOAD_CONST           ("uint8")
+              98 KW_NAMES             (('dtype',))
+             100 CALL                 2
+             108 CALL                 2
+             116 LOAD_CONST           (0)
+             118 COMPARE_OP           (>)
+             122 STORE_FAST           (ring)
+
+186:         124 LOAD_GLOBAL          (NULL + set)
+             134 LOAD_CONST           (<Code311 code object <genexpr> at 0x105d01590, file app\engineering_cleanup.py>, line 186)
+             136 MAKE_FUNCTION        (No arguments)
+             138 LOAD_GLOBAL          (NULL + np)
+             148 LOAD_ATTR            (unique)
+             168 LOAD_FAST            (labels)
+             170 LOAD_FAST            (ring)
+             172 BINARY_SUBSCR
+             176 CALL                 1
+             184 GET_ITER
+             186 CALL                 0
+             194 CALL                 1
+             202 LOAD_CONST           (0)
+             204 BUILD_SET            1
+             206 BINARY_OP            (-)
+             210 RETURN_VALUE
+
+
+# Method Name:       <genexpr>
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  3
+# Stack size:        8
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        187
+# Constants:
+#    0: None
+# Varnames:
+#	.0, h, i
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: h
+#    2: i
+# Free variables:
+#    0: holes
+#    1: neighbors
+#    2: sa
+#    3: sb
+#    4: solids
+#    5: va
+#    6: vb
+               0 COPY_FREE_VARS       7
+
+187:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 104)
+              14 STORE_FAST           (h)
+              16 PUSH_NULL
+              18 LOAD_DEREF           (neighbors)
+              20 LOAD_DEREF           (sa)
+              22 LOAD_DEREF           (va)
+              24 LOAD_FAST            (h)
+              26 CALL                 3
+              34 GET_ITER
+              36 LOAD_FAST_AND_CLEAR  (i)
+              38 SWAP                 (TOS <-> TOS1)
+              40 BUILD_SET            0
+              42 SWAP                 (TOS <-> TOS1)
+              44 FOR_ITER             (to 62)
+              48 STORE_FAST           (i)
+              50 LOAD_DEREF           (solids)
+              52 LOAD_FAST            (i)
+              54 BINARY_SUBSCR
+              58 SET_ADD              2
+         >>   60 JUMP_BACKWARD        (to 44)
+              62 END_FOR
+              64 SWAP                 (TOS <-> TOS1)
+              66 STORE_FAST           (i)
+              68 PUSH_NULL
+              70 LOAD_DEREF           (neighbors)
+              72 LOAD_DEREF           (sb)
+              74 LOAD_DEREF           (vb)
+              76 LOAD_DEREF           (holes)
+              78 LOAD_FAST            (h)
+         >>   80 BINARY_SUBSCR
+              84 CALL                 3
+              92 COMPARE_OP           (!=)
+              96 YIELD_VALUE          1
+              98 RESUME               1
+             100 POP_TOP
+         >>  102 JUMP_BACKWARD        (to 10)
+             104 END_FOR
+             106 RETURN_CONST         (None)
+             108 SWAP                 (TOS <-> TOS1)
+             110 POP_TOP
+             112 SWAP                 (TOS <-> TOS1)
+             114 STORE_FAST           (i)
+             116 RERAISE              0
+             118 CALL_INTRINSIC_1     3
+             120 RERAISE              1
+
+ExceptionTable:
+  6 to 38 -> 118 [0] lasti
+  40 to 62 -> 108 [3]
+  64 to 116 -> 118 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        176
+# Constants:
+#    0: None
+# Names:
+#    0: int
+# Varnames:
+#	.0, i
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: i
+
+176:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 42)
+              12 STORE_FAST           (i)
+              14 LOAD_GLOBAL          (NULL + int)
+              24 LOAD_FAST            (i)
+              26 CALL                 1
+              34 YIELD_VALUE          1
+              36 RESUME               1
+              38 POP_TOP
+         >>   40 JUMP_BACKWARD        (to 8)
+              42 END_FOR
+              44 RETURN_CONST         (None)
+              46 CALL_INTRINSIC_1     3
+              48 RERAISE              1
+
+ExceptionTable:
+  4 to 44 -> 46 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\engineering_cleanup.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        186
+# Constants:
+#    0: None
+# Names:
+#    0: int
+# Varnames:
+#	.0, i
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: i
+
+186:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 42)
+              12 STORE_FAST           (i)
+              14 LOAD_GLOBAL          (NULL + int)
+              24 LOAD_FAST            (i)
+              26 CALL                 1
+              34 YIELD_VALUE          1
+              36 RESUME               1
+              38 POP_TOP
+         >>   40 JUMP_BACKWARD        (to 8)
+              42 END_FOR
+              44 RETURN_CONST         (None)
+              46 CALL_INTRINSIC_1     3
+              48 RERAISE              1
+
+ExceptionTable:
+  4 to 44 -> 46 [0] lasti

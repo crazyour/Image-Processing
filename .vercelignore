@@ -1,0 +1,9 @@
+backend/
+desktop/
+recovery_evidence/
+COMPILE_ERRORS.txt
+var/
+**/__pycache__/
+**/*.pyc
+.DS_Store
+.env

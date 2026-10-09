@@ -1,0 +1,4023 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        3
+# Flags:             0x01000000 (0x1000000)
+# First Line:        1
+# Constants:
+#    0: 'Local contour-to-cubic reconstruction shared by SVG and DXF delivery.\n\nCoordinates are normalized to a 1024-unit long side. The allowance is a digital\nrepresentation choice, not a kerf/strength/manufacturing tolerance. Source bytes\nare never changed. Native smooth arcs/curves and sparse intentional corners stay\nnative; dense sampled line chains are rebuilt with shared endpoint tangents.\n'
+#    1: 0
+#    2: ('annotations',)
+#    3: None
+#    4: ('LineString', 'Polygon')
+#    5: ('Path', 'Move', 'Close', 'Line', 'CubicBezier', 'QuadraticBezier', 'Point')
+#    6: 1
+#    7: ('_anchors', '_cumulative', '_along')
+#    8: ('DomainError',)
+#    9: 'CONTOUR_CUBIC_RECONSTRUCTION_20261001_V1'
+#   10: <Code311 code object has_geometry at 0x1059896a0, file app\contour_reconstruction.py>, line 22
+#   11: <Code311 code object _unit at 0x105913110, file app\contour_reconstruction.py>, line 35
+#   12: <Code311 code object _fit at 0x105913390, file app\contour_reconstruction.py>, line 40
+#   13: <Code311 code object _sample_path at 0x1059509d0, file app\contour_reconstruction.py>, line 66
+#   14: <Code311 code object _rebuild at 0x1059acf30, file app\contour_reconstruction.py>, line 79
+#   15: False
+#   16: ('force',)
+#   17: <Code311 code object reconstruct_paths at 0x1059ad480, file app\contour_reconstruction.py>, line 165
+#   18: ('frame',)
+#   19: <Code311 code object paths_svg at 0x1059ad8c0, file app\contour_reconstruction.py>, line 225
+#   20: <Code311 code object add_closed_native at 0x1059adae0, file app\contour_reconstruction.py>, line 250
+#   21: (0,)
+#   22: (0.4,)
+#   23: (None, None)
+#   24: ('0',)
+# Names:
+#    0: __doc__
+#    1: __future__
+#    2: annotations
+#    3: copy
+#    4: math
+#    5: numpy
+#    6: np
+#    7: shapely.geometry
+#    8: LineString
+#    9: Polygon
+#   10: svgelements
+#   11: Path
+#   12: Move
+#   13: Close
+#   14: Line
+#   15: CubicBezier
+#   16: QuadraticBezier
+#   17: Point
+#   18: cut_curve_fit
+#   19: _anchors
+#   20: _cumulative
+#   21: _along
+#   22: errors
+#   23: DomainError
+#   24: POLICY
+#   25: has_geometry
+#   26: _unit
+#   27: _fit
+#   28: _sample_path
+#   29: _rebuild
+#   30: reconstruct_paths
+#   31: paths_svg
+#   32: add_closed_native
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Local contour-to-cubic reconstruction shared by SVG and DXF delivery.\n\nCoordinates are normalized to a 1024-unit long side. The allowance is a digital\nrepresentation choice, not a kerf/strength/manufacturing tolerance. Source bytes\nare never changed. Native smooth arcs/curves and sparse intentional corners stay\nnative; dense sampled line chains are rebuilt with shared endpoint tangents.\n")
+               4 STORE_NAME           (__doc__)
+
+  8:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (('annotations',))
+              10 IMPORT_NAME          (__future__)
+              12 IMPORT_FROM          (annotations)
+              14 STORE_NAME           (annotations)
+              16 POP_TOP
+
+ 10:          18 LOAD_CONST           (0)
+              20 LOAD_CONST           (None)
+              22 IMPORT_NAME          (copy)
+              24 STORE_NAME           (copy)
+
+ 11:          26 LOAD_CONST           (0)
+              28 LOAD_CONST           (None)
+              30 IMPORT_NAME          (math)
+              32 STORE_NAME           (math)
+
+ 12:          34 LOAD_CONST           (0)
+              36 LOAD_CONST           (None)
+              38 IMPORT_NAME          (numpy)
+              40 STORE_NAME           (np)
+
+ 13:          42 LOAD_CONST           (0)
+              44 LOAD_CONST           (('LineString', 'Polygon'))
+              46 IMPORT_NAME          (shapely.geometry)
+              48 IMPORT_FROM          (LineString)
+              50 STORE_NAME           (LineString)
+              52 IMPORT_FROM          (Polygon)
+              54 STORE_NAME           (Polygon)
+              56 POP_TOP
+
+ 14:          58 LOAD_CONST           (0)
+              60 LOAD_CONST           (('Path', 'Move', 'Close', 'Line', 'CubicBezier', 'QuadraticBezier', 'Point'))
+              62 IMPORT_NAME          (svgelements)
+              64 IMPORT_FROM          (Path)
+              66 STORE_NAME           (Path)
+              68 IMPORT_FROM          (Move)
+              70 STORE_NAME           (Move)
+              72 IMPORT_FROM          (Close)
+              74 STORE_NAME           (Close)
+              76 IMPORT_FROM          (Line)
+              78 STORE_NAME           (Line)
+              80 IMPORT_FROM          (CubicBezier)
+              82 STORE_NAME           (CubicBezier)
+              84 IMPORT_FROM          (QuadraticBezier)
+              86 STORE_NAME           (QuadraticBezier)
+              88 IMPORT_FROM          (Point)
+              90 STORE_NAME           (Point)
+              92 POP_TOP
+
+ 16:          94 LOAD_CONST           (1)
+              96 LOAD_CONST           (('_anchors', '_cumulative', '_along'))
+              98 IMPORT_NAME          (cut_curve_fit)
+             100 IMPORT_FROM          (_anchors)
+             102 STORE_NAME           (_anchors)
+             104 IMPORT_FROM          (_cumulative)
+             106 STORE_NAME           (_cumulative)
+             108 IMPORT_FROM          (_along)
+             110 STORE_NAME           (_along)
+             112 POP_TOP
+
+ 17:         114 LOAD_CONST           (1)
+             116 LOAD_CONST           (('DomainError',))
+             118 IMPORT_NAME          (errors)
+             120 IMPORT_FROM          (DomainError)
+             122 STORE_NAME           (DomainError)
+             124 POP_TOP
+
+ 19:         126 LOAD_CONST           ("CONTOUR_CUBIC_RECONSTRUCTION_20261001_V1")
+             128 STORE_NAME           (POLICY)
+
+ 22:         130 LOAD_CONST           (<Code311 code object has_geometry at 0x1059896a0, file app\contour_reconstruction.py>, line 22)
+             132 MAKE_FUNCTION        (No arguments)
+             134 STORE_NAME           (has_geometry)
+
+ 35:         136 LOAD_CONST           (<Code311 code object _unit at 0x105913110, file app\contour_reconstruction.py>, line 35)
+             138 MAKE_FUNCTION        (No arguments)
+             140 STORE_NAME           (_unit)
+
+ 40:         142 LOAD_CONST           ((0,))
+             144 LOAD_CONST           (<Code311 code object _fit at 0x105913390, file app\contour_reconstruction.py>, line 40)
+             146 MAKE_FUNCTION        (default)
+             148 STORE_NAME           (_fit)
+
+ 66:         150 LOAD_CONST           ((0.4,))
+             152 LOAD_CONST           (<Code311 code object _sample_path at 0x1059509d0, file app\contour_reconstruction.py>, line 66)
+             154 MAKE_FUNCTION        (default)
+             156 STORE_NAME           (_sample_path)
+
+ 79:         158 LOAD_CONST           (<Code311 code object _rebuild at 0x1059acf30, file app\contour_reconstruction.py>, line 79)
+             160 MAKE_FUNCTION        (No arguments)
+             162 STORE_NAME           (_rebuild)
+
+165:         164 LOAD_CONST           (False)
+             166 LOAD_CONST           (('force',))
+             168 BUILD_CONST_KEY_MAP  1
+             170 LOAD_CONST           (<Code311 code object reconstruct_paths at 0x1059ad480, file app\contour_reconstruction.py>, line 165)
+             172 MAKE_FUNCTION        (keyword-only)
+             174 STORE_NAME           (reconstruct_paths)
+
+225:         176 LOAD_CONST           ((None, None))
+             178 LOAD_CONST           (None)
+             180 LOAD_CONST           (('frame',))
+             182 BUILD_CONST_KEY_MAP  1
+             184 LOAD_CONST           (<Code311 code object paths_svg at 0x1059ad8c0, file app\contour_reconstruction.py>, line 225)
+             186 MAKE_FUNCTION        (default, keyword-only)
+             188 STORE_NAME           (paths_svg)
+
+250:         190 LOAD_CONST           (('0',))
+             192 LOAD_CONST           (<Code311 code object add_closed_native at 0x1059adae0, file app\contour_reconstruction.py>, line 250)
+             194 MAKE_FUNCTION        (default)
+             196 STORE_NAME           (add_closed_native)
+             198 RETURN_CONST         (None)
+
+
+# Method Name:       has_geometry
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        5
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        22
+# Constants:
+#    0: 'A returning Bézier can enclose an area despite coincident endpoints.'
+#    1: False
+#    2: True
+#    3: 0
+# Names:
+#    0: isinstance
+#    1: Move
+#    2: start
+#    3: end
+#    4: CubicBezier
+#    5: control1
+#    6: control2
+#    7: QuadraticBezier
+#    8: control
+#    9: Line
+#   10: Close
+#   11: length
+# Varnames:
+#	segment
+# Positional arguments:
+#	segment
+
+ 22:           0 RESUME               0
+
+ 24:           2 LOAD_GLOBAL          (NULL + isinstance)
+              12 LOAD_FAST            (segment)
+              14 LOAD_GLOBAL          (Move)
+              24 CALL                 2
+              32 POP_JUMP_IF_FALSE    (to 36)
+
+ 25:          34 RETURN_CONST         (False)
+
+ 26:     >>   36 LOAD_FAST            (segment)
+              38 LOAD_ATTR            (start)
+              58 LOAD_FAST            (segment)
+              60 LOAD_ATTR            (end)
+              80 COMPARE_OP           (!=)
+              84 POP_JUMP_IF_FALSE    (to 88)
+
+ 27:          86 RETURN_CONST         (True)
+
+ 28:     >>   88 LOAD_GLOBAL          (NULL + isinstance)
+              98 LOAD_FAST            (segment)
+             100 LOAD_GLOBAL          (CubicBezier)
+             110 CALL                 2
+             118 POP_JUMP_IF_FALSE    (to 224)
+
+ 29:         120 LOAD_FAST            (segment)
+             122 LOAD_ATTR            (control1)
+             142 LOAD_FAST            (segment)
+             144 LOAD_ATTR            (start)
+             164 COMPARE_OP           (!=)
+             168 COPY                 1
+             170 POP_JUMP_IF_TRUE     (to 222)
+             172 POP_TOP
+             174 LOAD_FAST            (segment)
+             176 LOAD_ATTR            (control2)
+             196 LOAD_FAST            (segment)
+             198 LOAD_ATTR            (start)
+             218 COMPARE_OP           (!=)
+         >>  222 RETURN_VALUE
+
+ 30:     >>  224 LOAD_GLOBAL          (NULL + isinstance)
+             234 LOAD_FAST            (segment)
+             236 LOAD_GLOBAL          (QuadraticBezier)
+             246 CALL                 2
+             254 POP_JUMP_IF_FALSE    (to 306)
+
+ 31:         256 LOAD_FAST            (segment)
+             258 LOAD_ATTR            (control)
+             278 LOAD_FAST            (segment)
+             280 LOAD_ATTR            (start)
+             300 COMPARE_OP           (!=)
+             304 RETURN_VALUE
+
+ 32:     >>  306 LOAD_GLOBAL          (NULL + isinstance)
+             316 LOAD_FAST            (segment)
+             318 LOAD_GLOBAL          (Line)
+             328 LOAD_GLOBAL          (Close)
+             338 BUILD_TUPLE          2
+             340 CALL                 2
+             348 UNARY_NOT
+             350 COPY                 1
+             352 POP_JUMP_IF_FALSE    (to 392)
+             354 POP_TOP
+             356 LOAD_FAST            (segment)
+             358 LOAD_ATTR            (NULL|self + length)
+             378 CALL                 0
+             386 LOAD_CONST           (0)
+             388 COMPARE_OP           (>)
+         >>  392 RETURN_VALUE
+
+
+# Method Name:       _unit
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        35
+# Constants:
+#    0: None
+#    1: 1e-12
+#    2: 1.0
+#    3: 0.0
+# Names:
+#    0: np
+#    1: linalg
+#    2: norm
+#    3: array
+# Varnames:
+#	v, length
+# Positional arguments:
+#	v
+# Local variables:
+#    1: length
+
+ 35:           0 RESUME               0
+
+ 36:           2 LOAD_GLOBAL          (np)
+              12 LOAD_ATTR            (linalg)
+              32 LOAD_ATTR            (NULL|self + norm)
+              52 LOAD_FAST            (v)
+              54 CALL                 1
+              62 STORE_FAST           (length)
+
+ 37:          64 LOAD_FAST            (length)
+              66 LOAD_CONST           (1e-12)
+              68 COMPARE_OP           (>)
+              72 POP_JUMP_IF_FALSE    (to 84)
+              74 LOAD_FAST            (v)
+              76 LOAD_FAST            (length)
+              78 BINARY_OP            (/)
+              82 RETURN_VALUE
+         >>   84 LOAD_GLOBAL          (NULL + np)
+              94 LOAD_ATTR            (array)
+             114 LOAD_CONST           (1.0)
+             116 LOAD_CONST           (0.0)
+             118 BUILD_LIST           2
+             120 CALL                 1
+             128 RETURN_VALUE
+
+
+# Method Name:       _fit
+# Filename:          app\contour_reconstruction.py
+# Argument count:    5
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  17
+# Stack size:        9
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        40
+# Constants:
+#    0: 'Fit cubic spans; split tangents are shared, not independently guessed.'
+#    1: 0
+#    2: ('axis',)
+#    3: 1
+#    4: 0.0
+#    5: -1
+#    6: 1e-10
+#    7: 3
+#    8: 2
+#    9: None
+#   10: ('rcond',)
+#   11: 1e-05
+#   12: 0.01
+#   13: 20
+# Names:
+#    0: np
+#    1: linalg
+#    2: norm
+#    3: diff
+#    4: r_
+#    5: cumsum
+#    6: column_stack
+#    7: stack
+#    8: sum
+#    9: lstsq
+#   10: reshape
+#   11: float
+#   12: any
+#   13: size
+#   14: max
+#   15: array
+#   16: int
+#   17: argmax
+#   18: len
+#   19: min
+#   20: _unit
+#   21: _fit
+# Varnames:
+#	points, start_tangent, end_tangent, error, depth, p, length, u, b, a, target, handles, chord, controls, residual, index, tangent
+# Positional arguments:
+#	points, start_tangent, end_tangent, error, depth
+# Local variables:
+#    5: p
+#    6: length
+#    7: u
+#    8: b
+#    9: a
+#   10: target
+#   11: handles
+#   12: chord
+#   13: controls
+#   14: residual
+#   15: index
+#   16: tangent
+
+ 40:           0 RESUME               0
+
+ 42:           2 LOAD_FAST            (points)
+               4 STORE_FAST           (p)
+
+ 43:           6 LOAD_GLOBAL          (np)
+              16 LOAD_ATTR            (linalg)
+              36 LOAD_ATTR            (NULL|self + norm)
+              56 LOAD_GLOBAL          (NULL + np)
+              66 LOAD_ATTR            (diff)
+              86 LOAD_FAST            (p)
+              88 LOAD_CONST           (0)
+              90 KW_NAMES             (('axis',))
+              92 CALL                 2
+             100 LOAD_CONST           (1)
+             102 KW_NAMES             (('axis',))
+             104 CALL                 2
+             112 STORE_FAST           (length)
+
+ 44:         114 LOAD_GLOBAL          (np)
+             124 LOAD_ATTR            (r_)
+             144 LOAD_CONST           (0.0)
+             146 LOAD_GLOBAL          (NULL + np)
+             156 LOAD_ATTR            (cumsum)
+             176 LOAD_FAST            (length)
+             178 CALL                 1
+             186 BUILD_TUPLE          2
+             188 BINARY_SUBSCR
+             192 STORE_FAST           (u)
+
+ 45:         194 LOAD_FAST            (u)
+             196 LOAD_CONST           (-1)
+             198 BINARY_SUBSCR
+             202 LOAD_CONST           (1e-10)
+             204 COMPARE_OP           (<)
+             208 POP_JUMP_IF_FALSE    (to 214)
+
+ 46:         210 BUILD_LIST           0
+             212 RETURN_VALUE
+
+ 47:     >>  214 LOAD_FAST            (u)
+             216 LOAD_FAST            (u)
+             218 LOAD_CONST           (-1)
+             220 BINARY_SUBSCR
+             224 BINARY_OP            (/=)
+             228 STORE_FAST           (u)
+
+ 48:         230 LOAD_GLOBAL          (NULL + np)
+             240 LOAD_ATTR            (column_stack)
+             260 LOAD_CONST           (1)
+             262 LOAD_FAST            (u)
+             264 BINARY_OP            (-)
+             268 LOAD_CONST           (3)
+             270 BINARY_OP            (**)
+             274 LOAD_CONST           (3)
+             276 LOAD_FAST            (u)
+             278 BINARY_OP            (*)
+             282 LOAD_CONST           (1)
+             284 LOAD_FAST            (u)
+             286 BINARY_OP            (-)
+             290 LOAD_CONST           (2)
+             292 BINARY_OP            (**)
+             296 BINARY_OP            (*)
+             300 LOAD_CONST           (3)
+             302 LOAD_FAST            (u)
+             304 BINARY_OP            (*)
+             308 LOAD_FAST            (u)
+             310 BINARY_OP            (*)
+             314 LOAD_CONST           (1)
+             316 LOAD_FAST            (u)
+             318 BINARY_OP            (-)
+             322 BINARY_OP            (*)
+             326 LOAD_FAST            (u)
+             328 LOAD_CONST           (3)
+             330 BINARY_OP            (**)
+             334 BUILD_TUPLE          4
+             336 CALL                 1
+             344 STORE_FAST           (b)
+
+ 49:         346 LOAD_GLOBAL          (NULL + np)
+             356 LOAD_ATTR            (stack)
+             376 LOAD_FAST            (b)
+             378 LOAD_CONST           (None)
+             380 LOAD_CONST           (None)
+             382 BUILD_SLICE          2
+             384 LOAD_CONST           (1)
+             386 LOAD_CONST           (None)
+             388 BUILD_TUPLE          3
+             390 BINARY_SUBSCR
+             394 LOAD_FAST            (start_tangent)
+             396 BINARY_OP            (*)
+             400 LOAD_FAST            (b)
+             402 LOAD_CONST           (None)
+             404 LOAD_CONST           (None)
+             406 BUILD_SLICE          2
+             408 LOAD_CONST           (2)
+             410 LOAD_CONST           (None)
+             412 BUILD_TUPLE          3
+             414 BINARY_SUBSCR
+             418 LOAD_FAST            (end_tangent)
+             420 BINARY_OP            (*)
+             424 BUILD_TUPLE          2
+             426 LOAD_CONST           (2)
+             428 KW_NAMES             (('axis',))
+             430 CALL                 2
+             438 STORE_FAST           (a)
+
+ 50:         440 LOAD_FAST            (p)
+             442 LOAD_FAST            (b)
+             444 LOAD_CONST           (None)
+             446 LOAD_CONST           (None)
+             448 BUILD_SLICE          2
+             450 LOAD_CONST           (None)
+             452 LOAD_CONST           (2)
+             454 BUILD_SLICE          2
+             456 BUILD_TUPLE          2
+             458 BINARY_SUBSCR
+             462 LOAD_ATTR            (NULL|self + sum)
+             482 LOAD_CONST           (1)
+             484 KW_NAMES             (('axis',))
+             486 CALL                 1
+             494 LOAD_CONST           (None)
+             496 LOAD_CONST           (None)
+             498 BUILD_SLICE          2
+             500 LOAD_CONST           (None)
+             502 BUILD_TUPLE          2
+             504 BINARY_SUBSCR
+             508 LOAD_FAST            (p)
+             510 LOAD_CONST           (0)
+             512 BINARY_SUBSCR
+             516 BINARY_OP            (*)
+             520 LOAD_FAST            (b)
+             522 LOAD_CONST           (None)
+             524 LOAD_CONST           (None)
+             526 BUILD_SLICE          2
+             528 LOAD_CONST           (2)
+             530 LOAD_CONST           (None)
+             532 BUILD_SLICE          2
+             534 BUILD_TUPLE          2
+             536 BINARY_SUBSCR
+             540 LOAD_ATTR            (NULL|self + sum)
+             560 LOAD_CONST           (1)
+             562 KW_NAMES             (('axis',))
+             564 CALL                 1
+             572 LOAD_CONST           (None)
+             574 LOAD_CONST           (None)
+             576 BUILD_SLICE          2
+             578 LOAD_CONST           (None)
+             580 BUILD_TUPLE          2
+             582 BINARY_SUBSCR
+             586 LOAD_FAST            (p)
+             588 LOAD_CONST           (-1)
+             590 BINARY_SUBSCR
+             594 BINARY_OP            (*)
+             598 BINARY_OP            (+)
+             602 BINARY_OP            (-)
+             606 STORE_FAST           (target)
+
+ 51:         608 LOAD_GLOBAL          (np)
+             618 LOAD_ATTR            (linalg)
+             638 LOAD_ATTR            (NULL|self + lstsq)
+             658 LOAD_FAST            (a)
+             660 LOAD_ATTR            (NULL|self + reshape)
+             680 LOAD_CONST           (-1)
+             682 LOAD_CONST           (2)
+             684 CALL                 2
+             692 LOAD_FAST            (target)
+             694 LOAD_ATTR            (NULL|self + reshape)
+             714 LOAD_CONST           (-1)
+             716 CALL                 1
+             724 LOAD_CONST           (None)
+             726 KW_NAMES             (('rcond',))
+             728 CALL                 3
+             736 LOAD_CONST           (0)
+             738 BINARY_SUBSCR
+             742 STORE_FAST           (handles)
+
+ 52:         744 LOAD_GLOBAL          (NULL + float)
+             754 LOAD_GLOBAL          (np)
+             764 LOAD_ATTR            (linalg)
+             784 LOAD_ATTR            (NULL|self + norm)
+             804 LOAD_FAST            (p)
+             806 LOAD_CONST           (-1)
+             808 BINARY_SUBSCR
+             812 LOAD_FAST            (p)
+             814 LOAD_CONST           (0)
+             816 BINARY_SUBSCR
+             820 BINARY_OP            (-)
+             824 CALL                 1
+             832 CALL                 1
+             840 STORE_FAST           (chord)
+
+ 53:         842 LOAD_GLOBAL          (NULL + np)
+             852 LOAD_ATTR            (any)
+             872 LOAD_FAST            (handles)
+             874 LOAD_FAST            (chord)
+             876 LOAD_CONST           (1e-05)
+             878 BINARY_OP            (*)
+             882 COMPARE_OP           (<=)
+             886 CALL                 1
+             894 POP_JUMP_IF_TRUE     (to 996)
+             896 LOAD_GLOBAL          (NULL + np)
+             906 LOAD_ATTR            (any)
+             926 LOAD_FAST            (handles)
+             928 LOAD_CONST           (2)
+             930 LOAD_FAST            (u)
+             932 LOAD_ATTR            (size)
+             952 BINARY_OP            (*)
+             956 LOAD_GLOBAL          (NULL + max)
+             966 LOAD_FAST            (error)
+             968 LOAD_CONST           (0.01)
+             970 CALL                 2
+             978 BINARY_OP            (*)
+             982 COMPARE_OP           (>)
+             986 CALL                 1
+             994 POP_JUMP_IF_FALSE    (to 1054)
+
+ 54:     >>  996 LOAD_GLOBAL          (NULL + np)
+            1006 LOAD_ATTR            (array)
+            1026 LOAD_FAST            (chord)
+            1028 LOAD_CONST           (3)
+            1030 BINARY_OP            (/)
+            1034 LOAD_FAST            (chord)
+            1036 LOAD_CONST           (3)
+            1038 BINARY_OP            (/)
+            1042 BUILD_LIST           2
+            1044 CALL                 1
+            1052 STORE_FAST           (handles)
+
+ 55:     >> 1054 LOAD_GLOBAL          (NULL + np)
+            1064 LOAD_ATTR            (array)
+            1084 LOAD_FAST            (p)
+            1086 LOAD_CONST           (0)
+            1088 BINARY_SUBSCR
+            1092 LOAD_FAST            (p)
+            1094 LOAD_CONST           (0)
+            1096 BINARY_SUBSCR
+            1100 LOAD_FAST            (start_tangent)
+            1102 LOAD_FAST            (handles)
+            1104 LOAD_CONST           (0)
+            1106 BINARY_SUBSCR
+            1110 BINARY_OP            (*)
+            1114 BINARY_OP            (+)
+            1118 LOAD_FAST            (p)
+            1120 LOAD_CONST           (-1)
+            1122 BINARY_SUBSCR
+            1126 LOAD_FAST            (end_tangent)
+            1128 LOAD_FAST            (handles)
+            1130 LOAD_CONST           (1)
+            1132 BINARY_SUBSCR
+            1136 BINARY_OP            (*)
+            1140 BINARY_OP            (+)
+            1144 LOAD_FAST            (p)
+            1146 LOAD_CONST           (-1)
+            1148 BINARY_SUBSCR
+            1152 BUILD_LIST           4
+            1154 CALL                 1
+            1162 STORE_FAST           (controls)
+
+ 56:        1164 LOAD_GLOBAL          (np)
+            1174 LOAD_ATTR            (linalg)
+            1194 LOAD_ATTR            (NULL|self + norm)
+            1214 LOAD_FAST            (b)
+            1216 LOAD_FAST            (controls)
+            1218 BINARY_OP            (@)
+            1222 LOAD_FAST            (p)
+            1224 BINARY_OP            (-)
+            1228 LOAD_CONST           (1)
+            1230 KW_NAMES             (('axis',))
+            1232 CALL                 2
+            1240 STORE_FAST           (residual)
+
+ 57:        1242 LOAD_GLOBAL          (NULL + int)
+            1252 LOAD_GLOBAL          (NULL + np)
+            1262 LOAD_ATTR            (argmax)
+            1282 LOAD_FAST            (residual)
+            1284 CALL                 1
+            1292 CALL                 1
+            1300 STORE_FAST           (index)
+
+ 58:        1302 LOAD_GLOBAL          (NULL + len)
+            1312 LOAD_FAST            (p)
+            1314 CALL                 1
+            1322 LOAD_CONST           (3)
+            1324 COMPARE_OP           (<=)
+            1328 POP_JUMP_IF_TRUE     (to 1356)
+            1330 LOAD_FAST            (residual)
+            1332 LOAD_FAST            (index)
+            1334 BINARY_SUBSCR
+            1338 LOAD_FAST            (error)
+            1340 COMPARE_OP           (<=)
+            1344 POP_JUMP_IF_TRUE     (to 1356)
+            1346 LOAD_FAST            (depth)
+            1348 LOAD_CONST           (20)
+            1350 COMPARE_OP           (>=)
+            1354 POP_JUMP_IF_FALSE    (to 1362)
+
+ 59:     >> 1356 LOAD_FAST            (controls)
+            1358 BUILD_LIST           1
+            1360 RETURN_VALUE
+
+ 60:     >> 1362 LOAD_GLOBAL          (NULL + max)
+            1372 LOAD_CONST           (1)
+            1374 LOAD_GLOBAL          (NULL + min)
+            1384 LOAD_GLOBAL          (NULL + len)
+            1394 LOAD_FAST            (p)
+            1396 CALL                 1
+            1404 LOAD_CONST           (2)
+            1406 BINARY_OP            (-)
+            1410 LOAD_FAST            (index)
+            1412 CALL                 2
+            1420 CALL                 2
+            1428 STORE_FAST           (index)
+
+ 61:        1430 LOAD_GLOBAL          (NULL + _unit)
+            1440 LOAD_FAST            (p)
+            1442 LOAD_GLOBAL          (NULL + min)
+            1452 LOAD_GLOBAL          (NULL + len)
+            1462 LOAD_FAST            (p)
+            1464 CALL                 1
+            1472 LOAD_CONST           (1)
+            1474 BINARY_OP            (-)
+            1478 LOAD_FAST            (index)
+            1480 LOAD_CONST           (2)
+            1482 BINARY_OP            (+)
+            1486 CALL                 2
+            1494 BINARY_SUBSCR
+            1498 LOAD_FAST            (p)
+            1500 LOAD_GLOBAL          (NULL + max)
+            1510 LOAD_CONST           (0)
+            1512 LOAD_FAST            (index)
+            1514 LOAD_CONST           (2)
+            1516 BINARY_OP            (-)
+            1520 CALL                 2
+            1528 BINARY_SUBSCR
+            1532 BINARY_OP            (-)
+            1536 CALL                 1
+            1544 STORE_FAST           (tangent)
+
+ 62:        1546 LOAD_GLOBAL          (NULL + _fit)
+            1556 LOAD_FAST            (p)
+            1558 LOAD_CONST           (None)
+            1560 LOAD_FAST            (index)
+            1562 LOAD_CONST           (1)
+            1564 BINARY_OP            (+)
+            1568 BINARY_SLICE
+            1570 LOAD_FAST            (start_tangent)
+            1572 LOAD_FAST            (tangent)
+            1574 UNARY_NEGATIVE
+            1576 LOAD_FAST            (error)
+            1578 LOAD_FAST            (depth)
+            1580 LOAD_CONST           (1)
+            1582 BINARY_OP            (+)
+            1586 CALL                 5
+
+ 63:        1594 LOAD_GLOBAL          (NULL + _fit)
+            1604 LOAD_FAST            (p)
+            1606 LOAD_FAST            (index)
+            1608 LOAD_CONST           (None)
+            1610 BINARY_SLICE
+            1612 LOAD_FAST            (tangent)
+            1614 LOAD_FAST            (end_tangent)
+            1616 LOAD_FAST            (error)
+            1618 LOAD_FAST            (depth)
+            1620 LOAD_CONST           (1)
+            1622 BINARY_OP            (+)
+            1626 CALL                 5
+
+ 62:        1634 BINARY_OP            (+)
+            1638 RETURN_VALUE
+
+
+# Method Name:       _sample_path
+# Filename:          app\contour_reconstruction.py
+# Argument count:    2
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  7
+# Stack size:        11
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        66
+# Constants:
+#    0: None
+#    1: 0.0001
+#    2: ('error',)
+#    3: 1
+#    4: 20000
+# Names:
+#    0: isinstance
+#    1: Move
+#    2: float
+#    3: length
+#    4: max
+#    5: min
+#    6: math
+#    7: ceil
+#    8: append
+#    9: start
+#   10: x
+#   11: y
+#   12: extend
+#   13: range
+#   14: point
+#   15: np
+#   16: asarray
+# Varnames:
+#	path, step, points, s, length, count, i
+# Positional arguments:
+#	path, step
+# Local variables:
+#    2: points
+#    3: s
+#    4: length
+#    5: count
+#    6: i
+
+ 66:           0 RESUME               0
+
+ 67:           2 BUILD_LIST           0
+               4 STORE_FAST           (points)
+
+ 68:           6 LOAD_FAST            (path)
+               8 GET_ITER
+              10 FOR_ITER             (to 520)
+              14 STORE_FAST           (s)
+
+ 69:          16 LOAD_GLOBAL          (NULL + isinstance)
+              26 LOAD_FAST            (s)
+              28 LOAD_GLOBAL          (Move)
+              38 CALL                 2
+              46 POP_JUMP_IF_FALSE    (to 50)
+
+ 70:          48 JUMP_BACKWARD        (to 10)
+
+ 71:     >>   50 LOAD_GLOBAL          (NULL + float)
+              60 LOAD_FAST            (s)
+              62 LOAD_ATTR            (NULL|self + length)
+              82 LOAD_CONST           (0.0001)
+              84 KW_NAMES             (('error',))
+              86 CALL                 1
+              94 CALL                 1
+             102 STORE_FAST           (length)
+
+ 72:         104 LOAD_GLOBAL          (NULL + max)
+             114 LOAD_CONST           (1)
+             116 LOAD_GLOBAL          (NULL + min)
+             126 LOAD_CONST           (20000)
+             128 LOAD_GLOBAL          (NULL + math)
+             138 LOAD_ATTR            (ceil)
+             158 LOAD_FAST            (length)
+             160 LOAD_FAST            (step)
+             162 BINARY_OP            (/)
+             166 CALL                 1
+             174 CALL                 2
+             182 CALL                 2
+             190 STORE_FAST           (count)
+
+ 73:         192 LOAD_FAST            (points)
+             194 POP_JUMP_IF_TRUE     (to 314)
+
+ 74:         196 LOAD_FAST            (points)
+             198 LOAD_ATTR            (NULL|self + append)
+             218 LOAD_FAST            (s)
+             220 LOAD_ATTR            (start)
+             240 LOAD_ATTR            (x)
+             260 LOAD_FAST            (s)
+             262 LOAD_ATTR            (start)
+             282 LOAD_ATTR            (y)
+             302 BUILD_LIST           2
+             304 CALL                 1
+             312 POP_TOP
+
+ 75:     >>  314 LOAD_FAST            (points)
+             316 LOAD_ATTR            (NULL|self + extend)
+             336 LOAD_GLOBAL          (NULL + range)
+             346 LOAD_CONST           (1)
+             348 LOAD_FAST            (count)
+             350 LOAD_CONST           (1)
+             352 BINARY_OP            (+)
+             356 CALL                 2
+             364 GET_ITER
+             366 LOAD_FAST_AND_CLEAR  (i)
+             368 SWAP                 (TOS <-> TOS1)
+             370 BUILD_LIST           0
+             372 SWAP                 (TOS <-> TOS1)
+             374 FOR_ITER             (to 502)
+             378 STORE_FAST           (i)
+             380 LOAD_FAST            (s)
+             382 LOAD_ATTR            (NULL|self + point)
+             402 LOAD_FAST            (i)
+             404 LOAD_FAST            (count)
+             406 BINARY_OP            (/)
+             410 CALL                 1
+             418 LOAD_ATTR            (x)
+             438 LOAD_FAST            (s)
+             440 LOAD_ATTR            (NULL|self + point)
+             460 LOAD_FAST            (i)
+             462 LOAD_FAST            (count)
+             464 BINARY_OP            (/)
+             468 CALL                 1
+             476 LOAD_ATTR            (y)
+             496 BUILD_LIST           2
+             498 LIST_APPEND          2
+         >>  500 JUMP_BACKWARD        (to 374)
+             502 END_FOR
+             504 SWAP                 (TOS <-> TOS1)
+             506 STORE_FAST           (i)
+             508 CALL                 1
+             516 POP_TOP
+         >>  518 JUMP_BACKWARD        (to 10)
+
+ 68:         520 END_FOR
+
+ 76:         522 LOAD_GLOBAL          (NULL + np)
+             532 LOAD_ATTR            (asarray)
+             552 LOAD_FAST            (points)
+             554 CALL                 1
+             562 RETURN_VALUE
+             564 SWAP                 (TOS <-> TOS1)
+             566 POP_TOP
+
+ 75:         568 SWAP                 (TOS <-> TOS1)
+             570 STORE_FAST           (i)
+             572 RERAISE              0
+
+ExceptionTable:
+  370 to 502 -> 564 [5]
+
+# Method Name:       _rebuild
+# Filename:          app\contour_reconstruction.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  42
+# Stack size:        13
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        79
+# Constants:
+#    0: None
+#    1: ('dtype',)
+#    2: True
+#    3: 0
+#    4: ('axis',)
+#    5: 1
+#    6: 1e-09
+#    7: -1
+#    8: 1e-08
+#    9: 0.0
+#   10: 0.6
+#   11: 150000
+#   12: 'CONTOUR_COMPLEXITY'
+#   13: '轮廓过长，当前文件需要分部件导出；原文件保留。'
+#   14: 422
+#   15: ('endpoint',)
+#   16: 'sharp'
+#   17: (0, 1)
+#   18: 12
+#   19: 0.65
+#   20: 2
+#   21: 3
+#   22: -0.5
+#   23: 'wrap'
+#   24: 'edge'
+#   25: ('mode',)
+#   26: 'valid'
+#   27: 4
+#   28: <Code311 code object <genexpr> at 0x105950c30, file app\contour_reconstruction.py>, line 111
+#   29: 2.5
+#   30: 0.18
+#   31: <Code311 code object <genexpr> at 0x1056df9b0, file app\contour_reconstruction.py>, line 144
+#   32: <Code311 code object <genexpr> at 0x1059ace20, file app\contour_reconstruction.py>, line 153
+#   33: -2
+#   34: ('default',)
+#   35: ('source_vertices', 'cubic_spans', 'protected_corners', 'maximum_smooth_join_degrees', 'sampled_deviation_normalized', 'closed', 'source_simple', 'output_simple', 'source_area', 'output_area')
+# Names:
+#    0: np
+#    1: asarray
+#    2: float
+#    3: r_
+#    4: linalg
+#    5: norm
+#    6: diff
+#    7: _cumulative
+#    8: cumsum
+#    9: max
+#   10: len
+#   11: math
+#   12: ceil
+#   13: DomainError
+#   14: linspace
+#   15: _along
+#   16: _anchors
+#   17: items
+#   18: column_stack
+#   19: interp
+#   20: arange
+#   21: exp
+#   22: sum
+#   23: convolve
+#   24: pad
+#   25: int
+#   26: argmin
+#   27: abs
+#   28: copy
+#   29: update
+#   30: all
+#   31: minimum
+#   32: maximum
+#   33: sorted
+#   34: list
+#   35: zip
+#   36: _unit
+#   37: min
+#   38: extend
+#   39: _fit
+#   40: Path
+#   41: append
+#   42: Move
+#   43: Point
+#   44: CubicBezier
+#   45: Close
+#   46: current_point
+#   47: first_point
+#   48: LineString
+#   49: vstack
+#   50: _sample_path
+#   51: hausdorff_distance
+#   52: any
+#   53: degrees
+#   54: atan2
+#   55: is_simple
+#   56: Polygon
+#   57: area
+# Varnames:
+#	points, closed, allowance, p, c, perimeter, positions, sampled, anchors, i, v, sharp, d, candidates, sigma, radius, x, kernel, smoothed, sharp_indices, value, distance, influence, ordered, curves, pairs, first, last, seq, target, t0, j, t1, result, control, original, rebuilt, deviation, jumps, b, ta, tb
+# Positional arguments:
+#	points, closed, allowance
+# Local variables:
+#    3: p
+#    4: c
+#    5: perimeter
+#    6: positions
+#    7: sampled
+#    8: anchors
+#    9: i
+#   10: v
+#   11: sharp
+#   12: d
+#   13: candidates
+#   14: sigma
+#   15: radius
+#   16: x
+#   17: kernel
+#   18: smoothed
+#   19: sharp_indices
+#   20: value
+#   21: distance
+#   22: influence
+#   23: ordered
+#   24: curves
+#   25: pairs
+#   26: first
+#   27: last
+#   28: seq
+#   29: target
+#   30: t0
+#   31: j
+#   32: t1
+#   33: result
+#   34: control
+#   35: original
+#   36: rebuilt
+#   37: deviation
+#   38: jumps
+#   39: b
+#   40: ta
+#   41: tb
+# Cell variables:
+#    0: allowance
+#    1: i
+#    2: a
+#    3: count
+#    4: indices
+#    5: spacing
+               0 MAKE_CELL            (allowance)
+               2 MAKE_CELL            (i)
+               4 MAKE_CELL            (a)
+               6 MAKE_CELL            (count)
+               8 MAKE_CELL            (indices)
+              10 MAKE_CELL            (spacing)
+
+ 79:          12 RESUME               0
+
+ 80:          14 LOAD_GLOBAL          (NULL + np)
+              24 LOAD_ATTR            (asarray)
+              44 LOAD_FAST            (points)
+              46 LOAD_GLOBAL          (float)
+              56 KW_NAMES             (('dtype',))
+              58 CALL                 2
+              66 STORE_FAST           (p)
+
+ 81:          68 LOAD_FAST            (p)
+              70 LOAD_GLOBAL          (np)
+              80 LOAD_ATTR            (r_)
+             100 LOAD_CONST           (True)
+             102 LOAD_GLOBAL          (np)
+             112 LOAD_ATTR            (linalg)
+             132 LOAD_ATTR            (NULL|self + norm)
+             152 LOAD_GLOBAL          (NULL + np)
+             162 LOAD_ATTR            (diff)
+             182 LOAD_FAST            (p)
+             184 LOAD_CONST           (0)
+             186 KW_NAMES             (('axis',))
+             188 CALL                 2
+             196 LOAD_CONST           (1)
+             198 KW_NAMES             (('axis',))
+             200 CALL                 2
+             208 LOAD_CONST           (1e-09)
+             210 COMPARE_OP           (>)
+             214 BUILD_TUPLE          2
+             216 BINARY_SUBSCR
+             220 BINARY_SUBSCR
+             224 STORE_FAST           (p)
+
+ 82:         226 LOAD_FAST            (closed)
+             228 POP_JUMP_IF_FALSE    (to 326)
+             230 LOAD_GLOBAL          (np)
+             240 LOAD_ATTR            (linalg)
+             260 LOAD_ATTR            (NULL|self + norm)
+             280 LOAD_FAST            (p)
+             282 LOAD_CONST           (-1)
+             284 BINARY_SUBSCR
+             288 LOAD_FAST            (p)
+             290 LOAD_CONST           (0)
+             292 BINARY_SUBSCR
+             296 BINARY_OP            (-)
+             300 CALL                 1
+             308 LOAD_CONST           (1e-08)
+             310 COMPARE_OP           (<)
+             314 POP_JUMP_IF_FALSE    (to 326)
+
+ 83:         316 LOAD_FAST            (p)
+             318 LOAD_CONST           (None)
+             320 LOAD_CONST           (-1)
+             322 BINARY_SLICE
+             324 STORE_FAST           (p)
+
+ 84:     >>  326 LOAD_FAST            (closed)
+             328 POP_JUMP_IF_FALSE    (to 352)
+             330 LOAD_GLOBAL          (NULL + _cumulative)
+             340 LOAD_FAST            (p)
+             342 CALL                 1
+             350 JUMP_FORWARD         (to 534)
+         >>  352 LOAD_GLOBAL          (np)
+             362 LOAD_ATTR            (r_)
+             382 LOAD_CONST           (0.0)
+             384 LOAD_GLOBAL          (NULL + np)
+             394 LOAD_ATTR            (cumsum)
+             414 LOAD_GLOBAL          (np)
+             424 LOAD_ATTR            (linalg)
+             444 LOAD_ATTR            (NULL|self + norm)
+             464 LOAD_GLOBAL          (NULL + np)
+             474 LOAD_ATTR            (diff)
+             494 LOAD_FAST            (p)
+             496 LOAD_CONST           (0)
+             498 KW_NAMES             (('axis',))
+             500 CALL                 2
+             508 LOAD_CONST           (1)
+             510 KW_NAMES             (('axis',))
+             512 CALL                 2
+             520 CALL                 1
+             528 BUILD_TUPLE          2
+             530 BINARY_SUBSCR
+         >>  534 STORE_FAST           (c)
+
+ 85:         536 LOAD_FAST            (c)
+             538 LOAD_CONST           (-1)
+             540 BINARY_SUBSCR
+             544 STORE_FAST           (perimeter)
+
+ 86:         546 LOAD_GLOBAL          (NULL + max)
+             556 LOAD_GLOBAL          (NULL + len)
+             566 LOAD_FAST            (p)
+             568 CALL                 1
+             576 LOAD_GLOBAL          (NULL + math)
+             586 LOAD_ATTR            (ceil)
+             606 LOAD_FAST            (perimeter)
+             608 LOAD_CONST           (0.6)
+             610 BINARY_OP            (/)
+             614 CALL                 1
+             622 CALL                 2
+             630 STORE_DEREF          (count)
+
+ 87:         632 LOAD_DEREF           (count)
+             634 LOAD_CONST           (150000)
+             636 COMPARE_OP           (>)
+             640 POP_JUMP_IF_FALSE    (to 668)
+
+ 88:         642 LOAD_GLOBAL          (NULL + DomainError)
+             652 LOAD_CONST           ("CONTOUR_COMPLEXITY")
+             654 LOAD_CONST           ("轮廓过长，当前文件需要分部件导出；原文件保留。")
+             656 LOAD_CONST           (422)
+             658 CALL                 3
+             666 RAISE_VARARGS        (exception instance)
+
+ 89:     >>  668 LOAD_GLOBAL          (NULL + np)
+             678 LOAD_ATTR            (linspace)
+             698 LOAD_CONST           (0)
+             700 LOAD_FAST            (perimeter)
+             702 LOAD_DEREF           (count)
+             704 LOAD_FAST            (closed)
+             706 UNARY_NOT
+             708 KW_NAMES             (('endpoint',))
+             710 CALL                 4
+             718 STORE_FAST           (positions)
+
+ 90:         720 LOAD_FAST            (closed)
+             722 POP_JUMP_IF_FALSE    (to 860)
+
+ 91:         724 LOAD_GLOBAL          (NULL + _along)
+             734 LOAD_FAST            (p)
+             736 LOAD_FAST            (c)
+             738 LOAD_FAST            (positions)
+             740 CALL                 3
+             748 STORE_FAST           (sampled)
+
+ 92:         750 LOAD_GLOBAL          (NULL + _anchors)
+             760 LOAD_FAST            (p)
+             762 LOAD_FAST            (c)
+             764 LOAD_DEREF           (allowance)
+             766 BUILD_LIST           0
+             768 CALL                 4
+             776 STORE_FAST           (anchors)
+
+ 93:         778 LOAD_FAST            (anchors)
+             780 LOAD_ATTR            (NULL|self + items)
+             800 CALL                 0
+             808 GET_ITER
+             810 LOAD_FAST_AND_CLEAR  (i)
+             812 LOAD_FAST_AND_CLEAR  (v)
+             814 SWAP                 (TOS <-> TOS2)
+             816 BUILD_LIST           0
+             818 SWAP                 (TOS <-> TOS1)
+             820 FOR_ITER             (to 850)
+             824 UNPACK_SEQUENCE      2
+             828 STORE_FAST           (i)
+             830 STORE_FAST           (v)
+             832 LOAD_FAST            (v)
+             834 LOAD_CONST           ("sharp")
+             836 BINARY_SUBSCR
+             840 POP_JUMP_IF_TRUE     (to 844)
+             842 JUMP_BACKWARD        (to 820)
+         >>  844 LOAD_FAST            (i)
+             846 LIST_APPEND          2
+         >>  848 JUMP_BACKWARD        (to 820)
+             850 END_FOR
+             852 STORE_FAST           (sharp)
+             854 STORE_FAST           (i)
+             856 STORE_FAST           (v)
+             858 JUMP_FORWARD         (to 1166)
+
+ 95:     >>  860 LOAD_GLOBAL          (NULL + np)
+             870 LOAD_ATTR            (column_stack)
+             890 LOAD_CONST           ((0, 1))
+             892 GET_ITER
+             894 LOAD_FAST_AND_CLEAR  (d)
+             896 SWAP                 (TOS <-> TOS1)
+             898 BUILD_LIST           0
+             900 SWAP                 (TOS <-> TOS1)
+             902 FOR_ITER             (to 970)
+             906 STORE_FAST           (d)
+             908 LOAD_GLOBAL          (NULL + np)
+             918 LOAD_ATTR            (interp)
+             938 LOAD_FAST            (positions)
+             940 LOAD_FAST            (c)
+             942 LOAD_FAST            (p)
+             944 LOAD_CONST           (None)
+             946 LOAD_CONST           (None)
+             948 BUILD_SLICE          2
+             950 LOAD_FAST            (d)
+             952 BUILD_TUPLE          2
+             954 BINARY_SUBSCR
+             958 CALL                 3
+             966 LIST_APPEND          2
+         >>  968 JUMP_BACKWARD        (to 902)
+             970 END_FOR
+             972 SWAP                 (TOS <-> TOS1)
+             974 STORE_FAST           (d)
+             976 CALL                 1
+             984 STORE_FAST           (sampled)
+
+ 97:         986 LOAD_GLOBAL          (NULL + _anchors)
+             996 LOAD_FAST            (p)
+             998 LOAD_GLOBAL          (NULL + _cumulative)
+            1008 LOAD_FAST            (p)
+            1010 CALL                 1
+            1018 LOAD_DEREF           (allowance)
+            1020 BUILD_LIST           0
+            1022 CALL                 4
+            1030 STORE_FAST           (candidates)
+
+ 98:        1032 LOAD_FAST            (candidates)
+            1034 LOAD_ATTR            (NULL|self + items)
+            1054 CALL                 0
+            1062 GET_ITER
+            1064 LOAD_FAST_AND_CLEAR  (i)
+            1066 LOAD_FAST_AND_CLEAR  (v)
+            1068 SWAP                 (TOS <-> TOS2)
+            1070 BUILD_LIST           0
+            1072 SWAP                 (TOS <-> TOS1)
+            1074 FOR_ITER             (to 1158)
+            1078 UNPACK_SEQUENCE      2
+            1082 STORE_FAST           (i)
+            1084 STORE_FAST           (v)
+            1086 LOAD_FAST            (v)
+            1088 LOAD_CONST           ("sharp")
+            1090 BINARY_SUBSCR
+            1094 POP_JUMP_IF_TRUE     (to 1098)
+            1096 JUMP_BACKWARD        (to 1074)
+         >> 1098 LOAD_FAST            (c)
+            1100 LOAD_FAST            (i)
+            1102 BINARY_SUBSCR
+            1106 LOAD_CONST           (12)
+            1108 LOAD_DEREF           (allowance)
+            1110 BINARY_OP            (*)
+            1114 COMPARE_OP           (>)
+            1118 POP_JUMP_IF_TRUE     (to 1122)
+            1120 JUMP_BACKWARD        (to 1074)
+         >> 1122 LOAD_FAST            (c)
+            1124 LOAD_FAST            (i)
+            1126 BINARY_SUBSCR
+            1130 LOAD_FAST            (perimeter)
+            1132 LOAD_CONST           (12)
+            1134 LOAD_DEREF           (allowance)
+            1136 BINARY_OP            (*)
+            1140 BINARY_OP            (-)
+            1144 COMPARE_OP           (<)
+            1148 POP_JUMP_IF_TRUE     (to 1152)
+            1150 JUMP_BACKWARD        (to 1074)
+         >> 1152 LOAD_FAST            (i)
+            1154 LIST_APPEND          2
+         >> 1156 JUMP_BACKWARD        (to 1074)
+            1158 END_FOR
+            1160 STORE_FAST           (sharp)
+            1162 STORE_FAST           (i)
+            1164 STORE_FAST           (v)
+
+ 99:     >> 1166 LOAD_FAST            (perimeter)
+            1168 LOAD_FAST            (closed)
+         >> 1170 POP_JUMP_IF_FALSE    (to 1176)
+            1172 LOAD_DEREF           (count)
+            1174 JUMP_FORWARD         (to 1184)
+         >> 1176 LOAD_DEREF           (count)
+            1178 LOAD_CONST           (1)
+            1180 BINARY_OP            (-)
+         >> 1184 BINARY_OP            (/)
+            1188 STORE_DEREF          (spacing)
+
+100:        1190 LOAD_GLOBAL          (NULL + max)
+            1200 LOAD_CONST           (0.6)
+            1202 LOAD_DEREF           (allowance)
+            1204 LOAD_CONST           (0.65)
+            1206 BINARY_OP            (*)
+            1210 CALL                 2
+            1218 LOAD_DEREF           (spacing)
+            1220 BINARY_OP            (/)
+            1224 STORE_FAST           (sigma)
+
+101:        1226 LOAD_GLOBAL          (NULL + max)
+            1236 LOAD_CONST           (2)
+            1238 LOAD_GLOBAL          (NULL + math)
+            1248 LOAD_ATTR            (ceil)
+            1268 LOAD_CONST           (3)
+            1270 LOAD_FAST            (sigma)
+            1272 BINARY_OP            (*)
+            1276 CALL                 1
+            1284 CALL                 2
+            1292 STORE_FAST           (radius)
+
+102:        1294 LOAD_GLOBAL          (NULL + np)
+            1304 LOAD_ATTR            (arange)
+            1324 LOAD_FAST            (radius)
+            1326 UNARY_NEGATIVE
+            1328 LOAD_FAST            (radius)
+            1330 LOAD_CONST           (1)
+            1332 BINARY_OP            (+)
+            1336 CALL                 2
+            1344 STORE_FAST           (x)
+
+103:        1346 LOAD_GLOBAL          (NULL + np)
+            1356 LOAD_ATTR            (exp)
+            1376 LOAD_CONST           (-0.5)
+            1378 LOAD_FAST            (x)
+            1380 LOAD_FAST            (sigma)
+            1382 BINARY_OP            (/)
+            1386 LOAD_CONST           (2)
+            1388 BINARY_OP            (**)
+            1392 BINARY_OP            (*)
+            1396 CALL                 1
+            1404 STORE_FAST           (kernel)
+            1406 LOAD_FAST            (kernel)
+            1408 LOAD_FAST            (kernel)
+            1410 LOAD_ATTR            (NULL|self + sum)
+            1430 CALL                 0
+            1438 BINARY_OP            (/=)
+            1442 STORE_FAST           (kernel)
+
+104:        1444 LOAD_GLOBAL          (NULL + np)
+            1454 LOAD_ATTR            (column_stack)
+            1474 LOAD_CONST           ((0, 1))
+            1476 GET_ITER
+            1478 LOAD_FAST_AND_CLEAR  (d)
+            1480 SWAP                 (TOS <-> TOS1)
+            1482 BUILD_LIST           0
+            1484 SWAP                 (TOS <-> TOS1)
+            1486 FOR_ITER             (to 1608)
+            1490 STORE_FAST           (d)
+            1492 LOAD_GLOBAL          (NULL + np)
+            1502 LOAD_ATTR            (convolve)
+            1522 LOAD_GLOBAL          (NULL + np)
+            1532 LOAD_ATTR            (pad)
+            1552 LOAD_FAST            (sampled)
+            1554 LOAD_CONST           (None)
+            1556 LOAD_CONST           (None)
+            1558 BUILD_SLICE          2
+            1560 LOAD_FAST            (d)
+            1562 BUILD_TUPLE          2
+            1564 BINARY_SUBSCR
+            1568 LOAD_FAST            (radius)
+            1570 LOAD_FAST            (closed)
+            1572 POP_JUMP_IF_FALSE    (to 1578)
+            1574 LOAD_CONST           ("wrap")
+            1576 JUMP_FORWARD         (to 1580)
+         >> 1578 LOAD_CONST           ("edge")
+         >> 1580 KW_NAMES             (('mode',))
+            1582 CALL                 3
+            1590 LOAD_FAST            (kernel)
+            1592 LOAD_CONST           ("valid")
+            1594 KW_NAMES             (('mode',))
+            1596 CALL                 3
+            1604 LIST_APPEND          2
+         >> 1606 JUMP_BACKWARD        (to 1486)
+            1608 END_FOR
+            1610 SWAP                 (TOS <-> TOS1)
+            1612 STORE_FAST           (d)
+            1614 CALL                 1
+            1622 STORE_FAST           (smoothed)
+
+105:        1624 LOAD_FAST            (sharp)
+            1626 GET_ITER
+            1628 LOAD_FAST_AND_CLEAR  (i)
+            1630 SWAP                 (TOS <-> TOS1)
+            1632 BUILD_MAP            0
+            1634 SWAP                 (TOS <-> TOS1)
+            1636 FOR_ITER             (to 1770)
+            1640 STORE_FAST           (i)
+            1642 LOAD_GLOBAL          (NULL + int)
+            1652 LOAD_GLOBAL          (NULL + np)
+            1662 LOAD_ATTR            (argmin)
+            1682 LOAD_GLOBAL          (NULL + abs)
+            1692 LOAD_FAST            (positions)
+            1694 LOAD_FAST            (c)
+            1696 LOAD_FAST            (i)
+            1698 BINARY_SUBSCR
+            1702 BINARY_OP            (-)
+            1706 CALL                 1
+            1714 CALL                 1
+            1722 CALL                 1
+         >> 1730 LOAD_FAST            (p)
+            1732 LOAD_FAST            (i)
+            1734 BINARY_SUBSCR
+            1738 LOAD_ATTR            (NULL|self + copy)
+            1758 CALL                 0
+            1766 MAP_ADD              2
+         >> 1768 JUMP_BACKWARD        (to 1636)
+            1770 END_FOR
+            1772 SWAP                 (TOS <-> TOS1)
+            1774 STORE_FAST           (i)
+            1776 STORE_DEREF          (indices)
+
+106:        1778 LOAD_FAST            (closed)
+            1780 POP_JUMP_IF_TRUE     (to 1842)
+
+107:        1782 LOAD_DEREF           (indices)
+            1784 LOAD_ATTR            (NULL|self + update)
+            1804 LOAD_CONST           (0)
+            1806 LOAD_FAST            (p)
+            1808 LOAD_CONST           (0)
+            1810 BINARY_SUBSCR
+            1814 LOAD_DEREF           (count)
+            1816 LOAD_CONST           (1)
+            1818 BINARY_OP            (-)
+            1822 LOAD_FAST            (p)
+            1824 LOAD_CONST           (-1)
+            1826 BINARY_SUBSCR
+            1830 BUILD_MAP            2
+            1832 CALL                 1
+            1840 POP_TOP
+
+109:     >> 1842 LOAD_FAST            (closed)
+            1844 POP_JUMP_IF_FALSE    (to 1984)
+
+110:        1846 LOAD_CONST           (0)
+            1848 LOAD_DEREF           (count)
+            1850 LOAD_CONST           (4)
+            1852 BINARY_OP            (//)
+            1856 LOAD_DEREF           (count)
+            1858 LOAD_CONST           (2)
+            1860 BINARY_OP            (//)
+            1864 LOAD_CONST           (3)
+            1866 LOAD_DEREF           (count)
+            1868 BINARY_OP            (*)
+            1872 LOAD_CONST           (4)
+            1874 BINARY_OP            (//)
+            1878 BUILD_TUPLE          4
+            1880 GET_ITER
+            1882 FOR_ITER             (to 1982)
+            1886 STORE_DEREF          (i)
+
+111:        1888 LOAD_GLOBAL          (NULL + all)
+            1898 LOAD_CLOSURE         (allowance)
+            1900 LOAD_CLOSURE         (count)
+            1902 LOAD_CLOSURE         (i)
+         >> 1904 LOAD_CLOSURE         (spacing)
+            1906 BUILD_TUPLE          4
+            1908 LOAD_CONST           (<Code311 code object <genexpr> at 0x105950c30, file app\contour_reconstruction.py>, line 111)
+            1910 MAKE_FUNCTION        (closure)
+            1912 LOAD_DEREF           (indices)
+            1914 GET_ITER
+            1916 CALL                 0
+            1924 CALL                 1
+            1932 POP_JUMP_IF_TRUE     (to 1936)
+            1934 JUMP_BACKWARD        (to 1882)
+
+112:     >> 1936 LOAD_FAST            (smoothed)
+            1938 LOAD_DEREF           (i)
+            1940 BINARY_SUBSCR
+            1944 LOAD_ATTR            (NULL|self + copy)
+            1964 CALL                 0
+            1972 LOAD_DEREF           (indices)
+            1974 LOAD_DEREF           (i)
+            1976 STORE_SUBSCR
+         >> 1980 JUMP_BACKWARD        (to 1882)
+
+110:        1982 END_FOR
+
+113:     >> 1984 LOAD_GLOBAL          (NULL + len)
+            1994 LOAD_DEREF           (indices)
+            1996 CALL                 1
+            2004 LOAD_CONST           (2)
+            2006 COMPARE_OP           (<)
+            2010 POP_JUMP_IF_FALSE    (to 2112)
+
+114:        2012 LOAD_FAST            (smoothed)
+            2014 LOAD_CONST           (0)
+            2016 BINARY_SUBSCR
+            2020 LOAD_ATTR            (NULL|self + copy)
+            2040 CALL                 0
+            2048 LOAD_DEREF           (indices)
+            2050 LOAD_CONST           (0)
+            2052 STORE_SUBSCR
+            2056 LOAD_FAST            (smoothed)
+            2058 LOAD_DEREF           (count)
+            2060 LOAD_CONST           (2)
+            2062 BINARY_OP            (//)
+            2066 BINARY_SUBSCR
+            2070 LOAD_ATTR            (NULL|self + copy)
+            2090 CALL                 0
+            2098 LOAD_DEREF           (indices)
+            2100 LOAD_DEREF           (count)
+            2102 LOAD_CONST           (2)
+            2104 BINARY_OP            (//)
+            2108 STORE_SUBSCR
+
+115:     >> 2112 LOAD_FAST            (sharp)
+            2114 GET_ITER
+            2116 LOAD_FAST_AND_CLEAR  (i)
+            2118 SWAP                 (TOS <-> TOS1)
+            2120 BUILD_SET            0
+            2122 SWAP                 (TOS <-> TOS1)
+            2124 FOR_ITER             (to 2222)
+            2128 STORE_FAST           (i)
+            2130 LOAD_GLOBAL          (NULL + int)
+            2140 LOAD_GLOBAL          (NULL + np)
+            2150 LOAD_ATTR            (argmin)
+            2170 LOAD_GLOBAL          (NULL + abs)
+            2180 LOAD_FAST            (positions)
+            2182 LOAD_FAST            (c)
+            2184 LOAD_FAST            (i)
+            2186 BINARY_SUBSCR
+            2190 BINARY_OP            (-)
+            2194 CALL                 1
+            2202 CALL                 1
+            2210 CALL                 1
+            2218 SET_ADD              2
+         >> 2220 JUMP_BACKWARD        (to 2124)
+            2222 END_FOR
+            2224 STORE_FAST           (sharp_indices)
+            2226 STORE_FAST           (i)
+
+116:        2228 LOAD_FAST            (closed)
+            2230 POP_JUMP_IF_TRUE     (to 2276)
+
+117:        2232 LOAD_FAST            (sharp_indices)
+            2234 LOAD_ATTR            (NULL|self + update)
+            2254 LOAD_CONST           (0)
+            2256 LOAD_DEREF           (count)
+            2258 LOAD_CONST           (1)
+            2260 BINARY_OP            (-)
+            2264 BUILD_TUPLE          2
+            2266 CALL                 1
+            2274 POP_TOP
+
+118:     >> 2276 LOAD_DEREF           (indices)
+            2278 LOAD_ATTR            (NULL|self + items)
+            2298 CALL                 0
+            2306 GET_ITER
+            2308 FOR_ITER             (to 2568)
+            2312 UNPACK_SEQUENCE      2
+            2316 STORE_DEREF          (i)
+            2318 STORE_FAST           (value)
+
+121:     >> 2320 LOAD_DEREF           (i)
+            2322 LOAD_FAST            (sharp_indices)
+            2324 CONTAINS_OP          (not in)
+            2326 POP_JUMP_IF_FALSE    (to 2330)
+
+122:        2328 JUMP_BACKWARD        (to 2308)
+
+123:     >> 2330 LOAD_GLOBAL          (NULL + abs)
+            2340 LOAD_GLOBAL          (NULL + np)
+            2350 LOAD_ATTR            (arange)
+            2370 LOAD_DEREF           (count)
+            2372 CALL                 1
+            2380 LOAD_DEREF           (i)
+            2382 BINARY_OP            (-)
+            2386 CALL                 1
+            2394 STORE_FAST           (distance)
+
+124:        2396 LOAD_FAST            (closed)
+            2398 POP_JUMP_IF_FALSE    (to 2450)
+
+125:        2400 LOAD_GLOBAL          (NULL + np)
+            2410 LOAD_ATTR            (minimum)
+            2430 LOAD_FAST            (distance)
+            2432 LOAD_DEREF           (count)
+            2434 LOAD_FAST            (distance)
+            2436 BINARY_OP            (-)
+            2440 CALL                 2
+            2448 STORE_FAST           (distance)
+
+126:     >> 2450 LOAD_GLOBAL          (NULL + np)
+            2460 LOAD_ATTR            (maximum)
+            2480 LOAD_CONST           (0.0)
+            2482 LOAD_CONST           (1)
+            2484 LOAD_FAST            (distance)
+            2486 LOAD_DEREF           (spacing)
+            2488 BINARY_OP            (*)
+            2492 LOAD_CONST           (2.5)
+            2494 LOAD_DEREF           (allowance)
+            2496 BINARY_OP            (*)
+            2500 BINARY_OP            (/)
+            2504 BINARY_OP            (-)
+            2508 CALL                 2
+            2516 LOAD_CONST           (2)
+            2518 BINARY_OP            (**)
+            2522 STORE_FAST           (influence)
+
+127:        2524 LOAD_FAST            (smoothed)
+            2526 LOAD_FAST            (influence)
+            2528 LOAD_CONST           (None)
+            2530 LOAD_CONST           (None)
+            2532 BUILD_SLICE          2
+            2534 LOAD_CONST           (None)
+            2536 BUILD_TUPLE          2
+            2538 BINARY_SUBSCR
+            2542 LOAD_FAST            (value)
+            2544 LOAD_FAST            (smoothed)
+            2546 LOAD_DEREF           (i)
+            2548 BINARY_SUBSCR
+            2552 BINARY_OP            (-)
+            2556 BINARY_OP            (*)
+            2560 BINARY_OP            (+=)
+            2564 STORE_FAST           (smoothed)
+         >> 2566 JUMP_BACKWARD        (to 2308)
+
+118:        2568 END_FOR
+
+128:        2570 LOAD_GLOBAL          (NULL + sorted)
+            2580 LOAD_DEREF           (indices)
+            2582 CALL                 1
+            2590 STORE_FAST           (ordered)
+
+129:        2592 BUILD_LIST           0
+            2594 STORE_FAST           (curves)
+
+130:        2596 LOAD_GLOBAL          (NULL + list)
+            2606 LOAD_GLOBAL          (NULL + zip)
+            2616 LOAD_FAST            (ordered)
+            2618 LOAD_FAST            (ordered)
+            2620 LOAD_CONST           (1)
+            2622 LOAD_CONST           (None)
+            2624 BINARY_SLICE
+            2626 CALL                 2
+            2634 CALL                 1
+            2642 LOAD_FAST            (closed)
+            2644 POP_JUMP_IF_FALSE    (to 2674)
+            2646 LOAD_FAST            (ordered)
+            2648 LOAD_CONST           (-1)
+            2650 BINARY_SUBSCR
+            2654 LOAD_FAST            (ordered)
+            2656 LOAD_CONST           (0)
+            2658 BINARY_SUBSCR
+            2662 LOAD_DEREF           (count)
+            2664 BINARY_OP            (+)
+            2668 BUILD_TUPLE          2
+            2670 BUILD_LIST           1
+            2672 JUMP_FORWARD         (to 2676)
+         >> 2674 BUILD_LIST           0
+         >> 2676 BINARY_OP            (+)
+            2680 STORE_FAST           (pairs)
+
+131:        2682 LOAD_FAST            (pairs)
+            2684 GET_ITER
+            2686 EXTENDED_ARG         (256)
+            2688 FOR_ITER             (to 3224)
+            2692 UNPACK_SEQUENCE      2
+            2696 STORE_FAST           (first)
+            2698 STORE_FAST           (last)
+
+132:        2700 LOAD_GLOBAL          (NULL + np)
+            2710 LOAD_ATTR            (arange)
+            2730 LOAD_FAST            (first)
+            2732 LOAD_FAST            (last)
+            2734 LOAD_CONST           (1)
+            2736 BINARY_OP            (+)
+            2740 CALL                 2
+            2748 LOAD_DEREF           (count)
+            2750 BINARY_OP            (%)
+            2754 STORE_FAST           (seq)
+
+133:        2756 LOAD_FAST            (smoothed)
+            2758 LOAD_FAST            (seq)
+            2760 BINARY_SUBSCR
+            2764 LOAD_ATTR            (NULL|self + copy)
+            2784 CALL                 0
+            2792 STORE_FAST           (target)
+
+134:        2794 LOAD_DEREF           (indices)
+            2796 LOAD_FAST            (first)
+            2798 BINARY_SUBSCR
+            2802 LOAD_DEREF           (indices)
+            2804 LOAD_FAST            (last)
+            2806 LOAD_DEREF           (count)
+            2808 BINARY_OP            (%)
+            2812 BINARY_SUBSCR
+            2816 SWAP                 (TOS <-> TOS1)
+            2818 LOAD_FAST            (target)
+            2820 LOAD_CONST           (0)
+            2822 STORE_SUBSCR
+            2826 LOAD_FAST            (target)
+         >> 2828 LOAD_CONST           (-1)
+            2830 STORE_SUBSCR
+
+135:        2834 LOAD_FAST            (first)
+            2836 LOAD_FAST            (sharp_indices)
+            2838 CONTAINS_OP          (in)
+            2840 POP_JUMP_IF_FALSE    (to 2926)
+            2842 LOAD_GLOBAL          (NULL + _unit)
+            2852 LOAD_FAST            (target)
+            2854 LOAD_GLOBAL          (NULL + min)
+            2864 LOAD_CONST           (3)
+            2866 LOAD_GLOBAL          (NULL + len)
+            2876 LOAD_FAST            (target)
+            2878 CALL                 1
+            2886 LOAD_CONST           (1)
+            2888 BINARY_OP            (-)
+            2892 CALL                 2
+            2900 BINARY_SUBSCR
+            2904 LOAD_FAST            (target)
+            2906 LOAD_CONST           (0)
+            2908 BINARY_SUBSCR
+            2912 BINARY_OP            (-)
+            2916 CALL                 1
+            2924 JUMP_FORWARD         (to 2988)
+
+136:     >> 2926 LOAD_GLOBAL          (NULL + _unit)
+            2936 LOAD_FAST            (smoothed)
+            2938 LOAD_FAST            (first)
+            2940 LOAD_CONST           (2)
+            2942 BINARY_OP            (+)
+            2946 LOAD_DEREF           (count)
+            2948 BINARY_OP            (%)
+            2952 BINARY_SUBSCR
+            2956 LOAD_FAST            (smoothed)
+            2958 LOAD_FAST            (first)
+            2960 LOAD_CONST           (2)
+            2962 BINARY_OP            (-)
+            2966 LOAD_DEREF           (count)
+            2968 BINARY_OP            (%)
+            2972 BINARY_SUBSCR
+            2976 BINARY_OP            (-)
+            2980 CALL                 1
+
+135:     >> 2988 STORE_FAST           (t0)
+
+137:        2990 LOAD_FAST            (last)
+            2992 LOAD_DEREF           (count)
+            2994 BINARY_OP            (%)
+            2998 STORE_FAST           (j)
+
+138:        3000 LOAD_FAST            (j)
+            3002 LOAD_FAST            (sharp_indices)
+            3004 CONTAINS_OP          (in)
+            3006 POP_JUMP_IF_FALSE    (to 3092)
+            3008 LOAD_GLOBAL          (NULL + _unit)
+            3018 LOAD_FAST            (target)
+            3020 LOAD_GLOBAL          (NULL + max)
+            3030 LOAD_CONST           (0)
+            3032 LOAD_GLOBAL          (NULL + len)
+            3042 LOAD_FAST            (target)
+            3044 CALL                 1
+            3052 LOAD_CONST           (4)
+            3054 BINARY_OP            (-)
+            3058 CALL                 2
+            3066 BINARY_SUBSCR
+            3070 LOAD_FAST            (target)
+            3072 LOAD_CONST           (-1)
+            3074 BINARY_SUBSCR
+            3078 BINARY_OP            (-)
+            3082 CALL                 1
+            3090 JUMP_FORWARD         (to 3154)
+
+139:     >> 3092 LOAD_GLOBAL          (NULL + _unit)
+            3102 LOAD_FAST            (smoothed)
+            3104 LOAD_FAST            (j)
+            3106 LOAD_CONST           (2)
+            3108 BINARY_OP            (-)
+            3112 LOAD_DEREF           (count)
+            3114 BINARY_OP            (%)
+            3118 BINARY_SUBSCR
+            3122 LOAD_FAST            (smoothed)
+            3124 LOAD_FAST            (j)
+            3126 LOAD_CONST           (2)
+            3128 BINARY_OP            (+)
+            3132 LOAD_DEREF           (count)
+            3134 BINARY_OP            (%)
+            3138 BINARY_SUBSCR
+            3142 BINARY_OP            (-)
+            3146 CALL                 1
+
+138:     >> 3154 STORE_FAST           (t1)
+
+140:        3156 LOAD_FAST            (curves)
+            3158 LOAD_ATTR            (NULL|self + extend)
+            3178 LOAD_GLOBAL          (NULL + _fit)
+            3188 LOAD_FAST            (target)
+            3190 LOAD_FAST            (t0)
+            3192 LOAD_FAST            (t1)
+            3194 LOAD_DEREF           (allowance)
+            3196 LOAD_CONST           (0.18)
+            3198 BINARY_OP            (*)
+            3202 CALL                 4
+            3210 CALL                 1
+            3218 POP_TOP
+            3220 EXTENDED_ARG         (256)
+         >> 3222 JUMP_BACKWARD        (to 2686)
+
+131:        3224 END_FOR
+
+141:        3226 LOAD_GLOBAL          (NULL + Path)
+            3236 CALL                 0
+            3244 STORE_FAST           (result)
+
+142:        3246 LOAD_FAST            (result)
+            3248 LOAD_ATTR            (NULL|self + append)
+            3268 LOAD_GLOBAL          (NULL + Move)
+            3278 LOAD_GLOBAL          (NULL + Point)
+            3288 LOAD_FAST            (curves)
+            3290 LOAD_CONST           (0)
+            3292 BINARY_SUBSCR
+            3296 LOAD_CONST           (0)
+            3298 BINARY_SUBSCR
+            3302 CALL_FUNCTION_EX     (positional arguments only)
+            3304 CALL                 1
+            3312 CALL                 1
+            3320 POP_TOP
+
+143:        3322 LOAD_FAST            (curves)
+            3324 GET_ITER
+            3326 FOR_ITER             (to 3394)
+            3330 STORE_FAST           (control)
+
+144:        3332 LOAD_FAST            (result)
+            3334 LOAD_ATTR            (NULL|self + append)
+            3354 LOAD_GLOBAL          (NULL + CubicBezier)
+            3364 LOAD_CONST           (<Code311 code object <genexpr> at 0x1056df9b0, file app\contour_reconstruction.py>, line 144)
+            3366 MAKE_FUNCTION        (No arguments)
+            3368 LOAD_FAST            (control)
+            3370 GET_ITER
+            3372 CALL                 0
+            3380 CALL_FUNCTION_EX     (positional arguments only)
+            3382 CALL                 1
+            3390 POP_TOP
+         >> 3392 JUMP_BACKWARD        (to 3326)
+
+143:        3394 END_FOR
+
+145:        3396 LOAD_FAST            (closed)
+            3398 POP_JUMP_IF_FALSE    (to 3494)
+
+146:        3400 LOAD_FAST            (result)
+            3402 LOAD_ATTR            (NULL|self + append)
+            3422 LOAD_GLOBAL          (NULL + Close)
+            3432 LOAD_FAST            (result)
+            3434 LOAD_ATTR            (current_point)
+            3454 LOAD_FAST            (result)
+            3456 LOAD_ATTR            (first_point)
+            3476 CALL                 2
+            3484 CALL                 1
+            3492 POP_TOP
+
+147:     >> 3494 LOAD_GLOBAL          (NULL + LineString)
+            3504 LOAD_FAST            (closed)
+            3506 POP_JUMP_IF_FALSE    (to 3560)
+            3508 LOAD_GLOBAL          (NULL + np)
+            3518 LOAD_ATTR            (vstack)
+            3538 LOAD_FAST            (p)
+            3540 LOAD_FAST            (p)
+            3542 LOAD_CONST           (0)
+            3544 BINARY_SUBSCR
+            3548 BUILD_TUPLE          2
+            3550 CALL                 1
+            3558 JUMP_FORWARD         (to 3562)
+         >> 3560 LOAD_FAST            (p)
+         >> 3562 CALL                 1
+            3570 STORE_FAST           (original)
+
+148:        3572 LOAD_GLOBAL          (NULL + _sample_path)
+            3582 LOAD_FAST            (result)
+            3584 CALL                 1
+            3592 STORE_FAST           (rebuilt)
+
+149:        3594 LOAD_FAST            (original)
+            3596 LOAD_ATTR            (NULL|self + hausdorff_distance)
+            3616 LOAD_GLOBAL          (NULL + LineString)
+            3626 LOAD_FAST            (rebuilt)
+            3628 CALL                 1
+            3636 CALL                 1
+            3644 STORE_FAST           (deviation)
+
+150:        3646 BUILD_LIST           0
+            3648 STORE_FAST           (jumps)
+
+151:        3650 LOAD_GLOBAL          (NULL + list)
+            3660 LOAD_GLOBAL          (NULL + zip)
+            3670 LOAD_FAST            (curves)
+            3672 LOAD_FAST            (curves)
+            3674 LOAD_CONST           (1)
+            3676 LOAD_CONST           (None)
+            3678 BINARY_SLICE
+            3680 CALL                 2
+            3688 CALL                 1
+            3696 LOAD_FAST            (closed)
+            3698 POP_JUMP_IF_FALSE    (to 3722)
+            3700 LOAD_FAST            (curves)
+            3702 LOAD_CONST           (-1)
+            3704 BINARY_SUBSCR
+            3708 LOAD_FAST            (curves)
+            3710 LOAD_CONST           (0)
+            3712 BINARY_SUBSCR
+            3716 BUILD_TUPLE          2
+            3718 BUILD_LIST           1
+            3720 JUMP_FORWARD         (to 3724)
+         >> 3722 BUILD_LIST           0
+         >> 3724 BINARY_OP            (+)
+            3728 STORE_FAST           (pairs)
+
+152:        3730 LOAD_FAST            (pairs)
+            3732 GET_ITER
+            3734 FOR_ITER             (to 4068)
+            3738 UNPACK_SEQUENCE      2
+            3742 STORE_DEREF          (a)
+            3744 STORE_FAST           (b)
+
+153:        3746 LOAD_GLOBAL          (NULL + any)
+            3756 LOAD_CLOSURE         (a)
+            3758 LOAD_CLOSURE         (indices)
+            3760 BUILD_TUPLE          2
+         >> 3762 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ace20, file app\contour_reconstruction.py>, line 153)
+            3764 MAKE_FUNCTION        (closure)
+            3766 LOAD_FAST            (sharp_indices)
+            3768 GET_ITER
+            3770 CALL                 0
+            3778 CALL                 1
+            3786 POP_JUMP_IF_FALSE    (to 3790)
+
+154:        3788 JUMP_BACKWARD        (to 3734)
+
+155:     >> 3790 LOAD_GLOBAL          (NULL + _unit)
+            3800 LOAD_DEREF           (a)
+            3802 LOAD_CONST           (-1)
+            3804 BINARY_SUBSCR
+            3808 LOAD_DEREF           (a)
+            3810 LOAD_CONST           (-2)
+            3812 BINARY_SUBSCR
+            3816 BINARY_OP            (-)
+            3820 CALL                 1
+            3828 LOAD_GLOBAL          (NULL + _unit)
+            3838 LOAD_FAST            (b)
+            3840 LOAD_CONST           (1)
+            3842 BINARY_SUBSCR
+         >> 3846 LOAD_FAST            (b)
+            3848 LOAD_CONST           (0)
+            3850 BINARY_SUBSCR
+            3854 BINARY_OP            (-)
+            3858 CALL                 1
+            3866 STORE_FAST           (tb)
+            3868 STORE_FAST           (ta)
+
+156:        3870 LOAD_FAST            (jumps)
+            3872 LOAD_ATTR            (NULL|self + append)
+            3892 LOAD_GLOBAL          (NULL + math)
+            3902 LOAD_ATTR            (degrees)
+            3922 LOAD_GLOBAL          (NULL + math)
+            3932 LOAD_ATTR            (atan2)
+            3952 LOAD_GLOBAL          (NULL + abs)
+            3962 LOAD_FAST            (ta)
+            3964 LOAD_CONST           (0)
+            3966 BINARY_SUBSCR
+            3970 LOAD_FAST            (tb)
+            3972 LOAD_CONST           (1)
+            3974 BINARY_SUBSCR
+            3978 BINARY_OP            (*)
+            3982 LOAD_FAST            (ta)
+            3984 LOAD_CONST           (1)
+            3986 BINARY_SUBSCR
+            3990 LOAD_FAST            (tb)
+            3992 LOAD_CONST           (0)
+            3994 BINARY_SUBSCR
+            3998 BINARY_OP            (*)
+            4002 BINARY_OP            (-)
+            4006 CALL                 1
+            4014 LOAD_GLOBAL          (NULL + float)
+            4024 LOAD_FAST            (ta)
+            4026 LOAD_FAST            (tb)
+            4028 BINARY_OP            (@)
+            4032 CALL                 1
+            4040 CALL                 2
+            4048 CALL                 1
+            4056 CALL                 1
+            4064 POP_TOP
+         >> 4066 JUMP_BACKWARD        (to 3734)
+
+152:        4068 END_FOR
+
+157:        4070 LOAD_FAST            (result)
+            4072 LOAD_GLOBAL          (NULL + len)
+            4082 LOAD_FAST            (p)
+            4084 CALL                 1
+            4092 LOAD_GLOBAL          (NULL + len)
+            4102 LOAD_FAST            (curves)
+            4104 CALL                 1
+            4112 LOAD_GLOBAL          (NULL + len)
+            4122 LOAD_FAST            (sharp)
+            4124 CALL                 1
+
+158:        4132 LOAD_GLOBAL          (NULL + max)
+            4142 LOAD_FAST            (jumps)
+            4144 LOAD_CONST           (0.0)
+            4146 KW_NAMES             (('default',))
+            4148 CALL                 2
+
+159:        4156 LOAD_GLOBAL          (NULL + float)
+            4166 LOAD_FAST            (deviation)
+            4168 CALL                 1
+            4176 LOAD_FAST            (closed)
+
+160:        4178 LOAD_FAST            (original)
+            4180 LOAD_ATTR            (is_simple)
+            4200 LOAD_GLOBAL          (NULL + LineString)
+            4210 LOAD_FAST            (rebuilt)
+            4212 CALL                 1
+            4220 LOAD_ATTR            (is_simple)
+
+161:        4240 LOAD_FAST            (closed)
+            4242 POP_JUMP_IF_FALSE    (to 4286)
+            4244 LOAD_GLOBAL          (NULL + Polygon)
+            4254 LOAD_FAST            (p)
+            4256 CALL                 1
+            4264 LOAD_ATTR            (area)
+            4284 JUMP_FORWARD         (to 4288)
+         >> 4286 LOAD_CONST           (None)
+
+162:     >> 4288 LOAD_FAST            (closed)
+            4290 POP_JUMP_IF_FALSE    (to 4340)
+            4292 LOAD_GLOBAL          (NULL + Polygon)
+            4302 LOAD_FAST            (rebuilt)
+            4304 CALL                 1
+            4312 LOAD_ATTR            (area)
+
+157:        4332 LOAD_CONST           (('source_vertices', 'cubic_spans', 'protected_corners', 'maximum_smooth_join_degrees', 'sampled_deviation_normalized', 'closed', 'source_simple', 'output_simple', 'source_area', 'output_area'))
+            4334 BUILD_CONST_KEY_MAP  10
+            4336 BUILD_TUPLE          2
+            4338 RETURN_VALUE
+
+162:     >> 4340 LOAD_CONST           (None)
+
+157:        4342 LOAD_CONST           (('source_vertices', 'cubic_spans', 'protected_corners', 'maximum_smooth_join_degrees', 'sampled_deviation_normalized', 'closed', 'source_simple', 'output_simple', 'source_area', 'output_area'))
+            4344 BUILD_CONST_KEY_MAP  10
+            4346 BUILD_TUPLE          2
+            4348 RETURN_VALUE
+            4350 SWAP                 (TOS <-> TOS1)
+            4352 POP_TOP
+
+ 93:        4354 SWAP                 (TOS <-> TOS2)
+            4356 STORE_FAST           (v)
+            4358 STORE_FAST           (i)
+            4360 RERAISE              0
+            4362 SWAP                 (TOS <-> TOS1)
+            4364 POP_TOP
+
+ 95:        4366 SWAP                 (TOS <-> TOS1)
+            4368 STORE_FAST           (d)
+            4370 RERAISE              0
+            4372 SWAP                 (TOS <-> TOS1)
+            4374 POP_TOP
+
+ 98:        4376 SWAP                 (TOS <-> TOS2)
+            4378 STORE_FAST           (v)
+            4380 STORE_FAST           (i)
+            4382 RERAISE              0
+            4384 SWAP                 (TOS <-> TOS1)
+            4386 POP_TOP
+
+104:        4388 SWAP                 (TOS <-> TOS1)
+            4390 STORE_FAST           (d)
+            4392 RERAISE              0
+            4394 SWAP                 (TOS <-> TOS1)
+            4396 POP_TOP
+
+105:        4398 SWAP                 (TOS <-> TOS1)
+            4400 STORE_FAST           (i)
+         >> 4402 RERAISE              0
+            4404 SWAP                 (TOS <-> TOS1)
+            4406 POP_TOP
+
+115:        4408 SWAP                 (TOS <-> TOS1)
+            4410 STORE_FAST           (i)
+            4412 RERAISE              0
+
+ExceptionTable:
+  816 to 840 -> 4350 [3]
+  844 to 850 -> 4350 [3]
+  898 to 970 -> 4362 [4]
+  1070 to 1094 -> 4372 [3]
+  1098 to 1118 -> 4372 [3]
+  1122 to 1148 -> 4372 [3]
+  1152 to 1158 -> 4372 [3]
+  1482 to 1608 -> 4384 [4]
+  1632 to 1770 -> 4394 [2]
+  2120 to 2222 -> 4404 [2]
+
+# Method Name:       reconstruct_paths
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 1
+# Number of locals:  25
+# Stack size:        14
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        165
+# Constants:
+#    0: 'Return native curves; never silently restore a failed jagged chain.'
+#    1: 1
+#    2: ('screen_paths',)
+#    3: None
+#    4: 2
+#    5: 0
+#    6: ('axis',)
+#    7: 'UNCHANGED_NATIVE'
+#    8: ('policy', 'status', 'contours')
+#    9: 1024
+#   10: <Code311 code object <genexpr> at 0x1059acc00, file app\contour_reconstruction.py>, line 180
+#   11: 12
+#   12: <Code311 code object <genexpr> at 0x1059ad040, file app\contour_reconstruction.py>, line 183
+#   13: 0.7
+#   14: 'status'
+#   15: 'SCREEN_PASS'
+#   16: 8
+#   17: -1
+#   18: <Code311 code object <genexpr> at 0x1059ad150, file app\contour_reconstruction.py>, line 189
+#   19: 2048
+#   20: 0.001
+#   21: (3.5, 2.5, 1.5)
+#   22: 'sampled_deviation_normalized'
+#   23: 5.0
+#   24: 'source_simple'
+#   25: 'output_simple'
+#   26: 'maximum_smooth_join_degrees'
+#   27: 0.01
+#   28: 'CONTOUR_RECONSTRUCTION_FAILED'
+#   29: '当前轮廓重建仍有异常，原始文件保留，未用锯齿折线冒充平滑结果。'
+#   30: 409
+#   31: ('start', 'end', 'control1', 'control2')
+#   32: 'sampled_deviation_source_units'
+#   33: 'RECONSTRUCTED'
+#   34: False
+#   35: <Code311 code object <genexpr> at 0x1059ad370, file app\contour_reconstruction.py>, line 222
+#   36: 0.0
+#   37: ('default',)
+#   38: ('policy', 'status', 'contours', 'model_calls', 'source_modified', 'manufacturing_verified', 'maximum_sampled_deviation_source_units')
+# Names:
+#    0: vector_continuity
+#    1: screen_paths
+#    2: bbox
+#    3: np
+#    4: min
+#    5: array
+#    6: max
+#    7: POLICY
+#    8: Path
+#    9: copy
+#   10: deepcopy
+#   11: values
+#   12: fill
+#   13: stroke
+#   14: as_subpaths
+#   15: any
+#   16: isinstance
+#   17: Move
+#   18: Close
+#   19: len
+#   20: sum
+#   21: first_point
+#   22: current_point
+#   23: all
+#   24: start
+#   25: x
+#   26: y
+#   27: end
+#   28: _sample_path
+#   29: _rebuild
+#   30: DomainError
+#   31: getattr
+#   32: setattr
+#   33: Point
+#   34: append
+# Varnames:
+#	paths, force, screen_paths, p, boxes, lo, span, scale, output, metrics, parent, result, sub, path, s, segments, dense_lines, jagged, closed, best, allowance, candidate, metric, attr, q
+# Positional arguments:
+#	paths
+# Local variables:
+#    1: force
+#    2: screen_paths
+#    3: p
+#    4: boxes
+#    5: lo
+#    6: span
+#    7: scale
+#    8: output
+#    9: metrics
+#   10: parent
+#   11: result
+#   12: sub
+#   13: path
+#   14: s
+#   15: segments
+#   16: dense_lines
+#   17: jagged
+#   18: closed
+#   19: best
+#   20: allowance
+#   21: candidate
+#   22: metric
+#   23: attr
+#   24: q
+
+165:           0 RESUME               0
+
+167:           2 LOAD_CONST           (1)
+               4 LOAD_CONST           (('screen_paths',))
+               6 IMPORT_NAME          (vector_continuity)
+               8 IMPORT_FROM          (screen_paths)
+              10 STORE_FAST           (screen_paths)
+              12 POP_TOP
+
+168:          14 LOAD_FAST            (paths)
+              16 GET_ITER
+              18 LOAD_FAST_AND_CLEAR  (p)
+              20 SWAP                 (TOS <-> TOS1)
+              22 BUILD_LIST           0
+              24 SWAP                 (TOS <-> TOS1)
+              26 FOR_ITER             (to 66)
+              30 STORE_FAST           (p)
+              32 LOAD_FAST            (p)
+              34 LOAD_ATTR            (NULL|self + bbox)
+              54 CALL                 0
+              62 LIST_APPEND          2
+         >>   64 JUMP_BACKWARD        (to 26)
+              66 END_FOR
+              68 STORE_FAST           (boxes)
+              70 STORE_FAST           (p)
+
+169:          72 LOAD_GLOBAL          (NULL + np)
+              82 LOAD_ATTR            (min)
+             102 LOAD_GLOBAL          (NULL + np)
+             112 LOAD_ATTR            (array)
+             132 LOAD_FAST            (boxes)
+             134 CALL                 1
+             142 LOAD_CONST           (None)
+             144 LOAD_CONST           (None)
+             146 BUILD_SLICE          2
+             148 LOAD_CONST           (None)
+             150 LOAD_CONST           (2)
+             152 BUILD_SLICE          2
+             154 BUILD_TUPLE          2
+             156 BINARY_SUBSCR
+             160 LOAD_CONST           (0)
+             162 KW_NAMES             (('axis',))
+             164 CALL                 2
+             172 STORE_FAST           (lo)
+
+170:         174 LOAD_GLOBAL          (NULL + max)
+             184 LOAD_GLOBAL          (NULL + np)
+             194 LOAD_ATTR            (max)
+             214 LOAD_GLOBAL          (NULL + np)
+             224 LOAD_ATTR            (array)
+             244 LOAD_FAST            (boxes)
+             246 CALL                 1
+             254 LOAD_CONST           (None)
+             256 LOAD_CONST           (None)
+             258 BUILD_SLICE          2
+             260 LOAD_CONST           (2)
+             262 LOAD_CONST           (None)
+             264 BUILD_SLICE          2
+             266 BUILD_TUPLE          2
+             268 BINARY_SUBSCR
+             272 LOAD_CONST           (0)
+             274 KW_NAMES             (('axis',))
+             276 CALL                 2
+             284 LOAD_FAST            (lo)
+             286 BINARY_OP            (-)
+             290 CALL                 1
+             298 STORE_FAST           (span)
+
+171:         300 LOAD_FAST            (span)
+             302 LOAD_CONST           (0)
+             304 COMPARE_OP           (<=)
+             308 POP_JUMP_IF_FALSE    (to 334)
+
+172:         310 LOAD_FAST            (paths)
+             312 LOAD_GLOBAL          (POLICY)
+             322 LOAD_CONST           ("UNCHANGED_NATIVE")
+             324 BUILD_LIST           0
+             326 LOAD_CONST           (('policy', 'status', 'contours'))
+             328 BUILD_CONST_KEY_MAP  3
+             330 BUILD_TUPLE          2
+             332 RETURN_VALUE
+
+173:     >>  334 LOAD_CONST           (1024)
+             336 LOAD_FAST            (span)
+             338 BINARY_OP            (/)
+             342 STORE_FAST           (scale)
+
+174:         344 BUILD_LIST           0
+             346 BUILD_LIST           0
+             348 STORE_FAST           (metrics)
+             350 STORE_FAST           (output)
+
+175:         352 LOAD_FAST            (paths)
+             354 GET_ITER
+             356 EXTENDED_ARG         (768)
+             358 FOR_ITER             (to 1918)
+             362 STORE_FAST           (parent)
+
+176:         364 LOAD_GLOBAL          (NULL + Path)
+             374 CALL                 0
+             382 STORE_FAST           (result)
+             384 LOAD_GLOBAL          (NULL + copy)
+             394 LOAD_ATTR            (deepcopy)
+             414 LOAD_FAST            (parent)
+             416 LOAD_ATTR            (values)
+             436 CALL                 1
+             444 LOAD_FAST            (result)
+             446 STORE_ATTR           (values)
+
+177:         456 LOAD_GLOBAL          (NULL + copy)
+             466 LOAD_ATTR            (deepcopy)
+             486 LOAD_FAST            (parent)
+             488 LOAD_ATTR            (fill)
+             508 CALL                 1
+             516 LOAD_GLOBAL          (NULL + copy)
+             526 LOAD_ATTR            (deepcopy)
+             546 LOAD_FAST            (parent)
+             548 LOAD_ATTR            (stroke)
+             568 CALL                 1
+             576 SWAP                 (TOS <-> TOS1)
+             578 LOAD_FAST            (result)
+             580 STORE_ATTR           (fill)
+             590 LOAD_FAST            (result)
+             592 STORE_ATTR           (stroke)
+
+178:         602 LOAD_FAST            (parent)
+             604 LOAD_ATTR            (NULL|self + as_subpaths)
+             624 CALL                 0
+             632 GET_ITER
+             634 EXTENDED_ARG         (512)
+             636 FOR_ITER             (to 1878)
+             640 STORE_FAST           (sub)
+
+179:         642 LOAD_GLOBAL          (NULL + Path)
+             652 LOAD_FAST            (sub)
+             654 CALL                 1
+             662 STORE_FAST           (path)
+
+180:         664 LOAD_GLOBAL          (NULL + any)
+             674 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059acc00, file app\contour_reconstruction.py>, line 180)
+             676 MAKE_FUNCTION        (No arguments)
+             678 LOAD_FAST            (path)
+             680 GET_ITER
+             682 CALL                 0
+             690 CALL                 1
+             698 POP_JUMP_IF_TRUE     (to 702)
+
+181:         700 JUMP_BACKWARD        (to 634)
+
+182:     >>  702 LOAD_FAST            (path)
+             704 GET_ITER
+             706 LOAD_FAST_AND_CLEAR  (s)
+             708 SWAP                 (TOS <-> TOS1)
+             710 BUILD_LIST           0
+             712 SWAP                 (TOS <-> TOS1)
+             714 FOR_ITER             (to 772)
+             718 STORE_FAST           (s)
+             720 LOAD_GLOBAL          (NULL + isinstance)
+             730 LOAD_FAST            (s)
+             732 LOAD_GLOBAL          (Move)
+             742 LOAD_GLOBAL          (Close)
+             752 BUILD_TUPLE          2
+             754 CALL                 2
+             762 POP_JUMP_IF_FALSE    (to 766)
+             764 JUMP_BACKWARD        (to 714)
+         >>  766 LOAD_FAST            (s)
+             768 LIST_APPEND          2
+         >>  770 JUMP_BACKWARD        (to 714)
+             772 END_FOR
+             774 STORE_FAST           (segments)
+             776 STORE_FAST           (s)
+
+183:         778 LOAD_GLOBAL          (NULL + len)
+             788 LOAD_FAST            (segments)
+             790 CALL                 1
+             798 LOAD_CONST           (12)
+             800 COMPARE_OP           (>=)
+             804 COPY                 1
+             806 POP_JUMP_IF_FALSE    (to 874)
+             808 POP_TOP
+             810 LOAD_GLOBAL          (NULL + sum)
+             820 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad040, file app\contour_reconstruction.py>, line 183)
+             822 MAKE_FUNCTION        (No arguments)
+             824 LOAD_FAST            (segments)
+             826 GET_ITER
+             828 CALL                 0
+             836 CALL                 1
+             844 LOAD_CONST           (0.7)
+             846 LOAD_GLOBAL          (NULL + len)
+             856 LOAD_FAST            (segments)
+             858 CALL                 1
+             866 BINARY_OP            (*)
+             870 COMPARE_OP           (>=)
+         >>  874 STORE_FAST           (dense_lines)
+
+184:         876 PUSH_NULL
+             878 LOAD_FAST            (screen_paths)
+             880 LOAD_FAST            (path)
+             882 BUILD_LIST           1
+             884 CALL                 1
+             892 LOAD_CONST           ("status")
+             894 BINARY_SUBSCR
+             898 LOAD_CONST           ("SCREEN_PASS")
+             900 COMPARE_OP           (!=)
+             904 STORE_FAST           (jagged)
+
+185:         906 LOAD_FAST            (dense_lines)
+             908 POP_JUMP_IF_TRUE     (to 958)
+             910 LOAD_FAST            (jagged)
+             912 POP_JUMP_IF_TRUE     (to 958)
+             914 LOAD_FAST            (force)
+             916 POP_JUMP_IF_FALSE    (to 946)
+             918 LOAD_GLOBAL          (NULL + len)
+             928 LOAD_FAST            (segments)
+             930 CALL                 1
+             938 LOAD_CONST           (8)
+             940 COMPARE_OP           (>=)
+             944 POP_JUMP_IF_TRUE     (to 958)
+
+186:     >>  946 LOAD_FAST            (result)
+             948 LOAD_FAST            (path)
+             950 BINARY_OP            (+=)
+             954 STORE_FAST           (result)
+
+187:         956 JUMP_BACKWARD        (to 634)
+
+188:     >>  958 LOAD_GLOBAL          (NULL + isinstance)
+             968 LOAD_FAST            (path)
+             970 LOAD_CONST           (-1)
+             972 BINARY_SUBSCR
+             976 LOAD_GLOBAL          (Close)
+             986 CALL                 2
+             994 COPY                 1
+             996 POP_JUMP_IF_TRUE     (to 1048)
+             998 POP_TOP
+            1000 LOAD_FAST            (path)
+            1002 LOAD_ATTR            (first_point)
+            1022 LOAD_FAST            (path)
+            1024 LOAD_ATTR            (current_point)
+            1044 COMPARE_OP           (==)
+         >> 1048 STORE_FAST           (closed)
+
+189:        1050 LOAD_GLOBAL          (NULL + all)
+            1060 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad150, file app\contour_reconstruction.py>, line 189)
+            1062 MAKE_FUNCTION        (No arguments)
+            1064 LOAD_FAST            (segments)
+            1066 GET_ITER
+            1068 CALL                 0
+            1076 CALL                 1
+            1084 POP_JUMP_IF_FALSE    (to 1344)
+
+190:        1086 LOAD_GLOBAL          (NULL + np)
+            1096 LOAD_ATTR            (array)
+            1116 LOAD_FAST            (segments)
+            1118 LOAD_CONST           (0)
+            1120 BINARY_SUBSCR
+            1124 LOAD_ATTR            (start)
+            1144 LOAD_ATTR            (x)
+            1164 LOAD_FAST            (segments)
+            1166 LOAD_CONST           (0)
+            1168 BINARY_SUBSCR
+            1172 LOAD_ATTR            (start)
+            1192 LOAD_ATTR            (y)
+            1212 BUILD_LIST           2
+            1214 BUILD_LIST           1
+            1216 LOAD_FAST            (segments)
+            1218 GET_ITER
+            1220 LOAD_FAST_AND_CLEAR  (s)
+            1222 SWAP                 (TOS <-> TOS1)
+            1224 BUILD_LIST           0
+            1226 SWAP                 (TOS <-> TOS1)
+            1228 FOR_ITER             (to 1324)
+            1232 STORE_FAST           (s)
+            1234 LOAD_FAST            (s)
+            1236 LOAD_ATTR            (end)
+            1256 LOAD_ATTR            (x)
+            1276 LOAD_FAST            (s)
+            1278 LOAD_ATTR            (end)
+            1298 LOAD_ATTR            (y)
+            1318 BUILD_LIST           2
+            1320 LIST_APPEND          2
+         >> 1322 JUMP_BACKWARD        (to 1228)
+            1324 END_FOR
+            1326 SWAP                 (TOS <-> TOS1)
+            1328 STORE_FAST           (s)
+            1330 LIST_EXTEND          1
+            1332 CALL                 1
+            1340 STORE_FAST           (p)
+            1342 JUMP_FORWARD         (to 1394)
+
+192:     >> 1344 LOAD_GLOBAL          (NULL + _sample_path)
+            1354 LOAD_FAST            (path)
+            1356 LOAD_GLOBAL          (NULL + max)
+            1366 LOAD_FAST            (span)
+            1368 LOAD_CONST           (2048)
+            1370 BINARY_OP            (/)
+            1374 LOAD_CONST           (0.001)
+            1376 CALL                 2
+            1384 CALL                 2
+            1392 STORE_FAST           (p)
+
+193:     >> 1394 LOAD_FAST            (p)
+            1396 LOAD_FAST            (lo)
+            1398 BINARY_OP            (-)
+            1402 LOAD_FAST            (scale)
+            1404 BINARY_OP            (*)
+            1408 STORE_FAST           (p)
+
+194:        1410 LOAD_CONST           (None)
+            1412 STORE_FAST           (best)
+
+196:        1414 LOAD_CONST           ((3.5, 2.5, 1.5))
+            1416 GET_ITER
+            1418 FOR_ITER             (to 1584)
+            1422 STORE_FAST           (allowance)
+
+197:        1424 LOAD_GLOBAL          (NULL + _rebuild)
+            1434 LOAD_FAST            (p)
+            1436 LOAD_FAST            (closed)
+            1438 LOAD_FAST            (allowance)
+            1440 CALL                 3
+            1448 UNPACK_SEQUENCE      2
+            1452 STORE_FAST           (candidate)
+            1454 STORE_FAST           (metric)
+
+198:        1456 LOAD_FAST            (metric)
+            1458 LOAD_CONST           ("sampled_deviation_normalized")
+            1460 BINARY_SUBSCR
+            1464 LOAD_GLOBAL          (NULL + max)
+            1474 LOAD_CONST           (5.0)
+            1476 LOAD_CONST           (2)
+            1478 LOAD_FAST            (allowance)
+            1480 BINARY_OP            (*)
+            1484 CALL                 2
+            1492 COMPARE_OP           (>)
+            1496 POP_JUMP_IF_FALSE    (to 1500)
+
+199:        1498 JUMP_BACKWARD        (to 1418)
+
+200:     >> 1500 LOAD_FAST            (metric)
+            1502 LOAD_CONST           ("source_simple")
+            1504 BINARY_SUBSCR
+            1508 POP_JUMP_IF_FALSE    (to 1522)
+            1510 LOAD_FAST            (metric)
+            1512 LOAD_CONST           ("output_simple")
+            1514 BINARY_SUBSCR
+            1518 POP_JUMP_IF_TRUE     (to 1522)
+
+201:        1520 JUMP_BACKWARD        (to 1418)
+
+202:     >> 1522 LOAD_FAST            (metric)
+            1524 LOAD_CONST           ("maximum_smooth_join_degrees")
+            1526 BINARY_SUBSCR
+            1530 LOAD_CONST           (0.01)
+            1532 COMPARE_OP           (>)
+            1536 POP_JUMP_IF_FALSE    (to 1540)
+
+203:        1538 JUMP_BACKWARD        (to 1418)
+
+204:     >> 1540 PUSH_NULL
+            1542 LOAD_FAST            (screen_paths)
+            1544 LOAD_FAST            (candidate)
+            1546 BUILD_LIST           1
+            1548 CALL                 1
+            1556 LOAD_CONST           ("status")
+            1558 BINARY_SUBSCR
+            1562 LOAD_CONST           ("SCREEN_PASS")
+            1564 COMPARE_OP           (!=)
+            1568 POP_JUMP_IF_FALSE    (to 1572)
+
+205:        1570 JUMP_BACKWARD        (to 1418)
+
+206:     >> 1572 LOAD_FAST            (candidate)
+            1574 LOAD_FAST            (metric)
+            1576 BUILD_TUPLE          2
+            1578 STORE_FAST           (best)
+
+207:        1580 POP_TOP
+         >> 1582 JUMP_FORWARD         (to 1586)
+
+196:        1584 END_FOR
+
+208:     >> 1586 LOAD_FAST            (best)
+            1588 POP_JUMP_IF_NOT_NONE (to 1616)
+
+209:        1590 LOAD_GLOBAL          (NULL + DomainError)
+            1600 LOAD_CONST           ("CONTOUR_RECONSTRUCTION_FAILED")
+            1602 LOAD_CONST           ("当前轮廓重建仍有异常，原始文件保留，未用锯齿折线冒充平滑结果。")
+            1604 LOAD_CONST           (409)
+            1606 CALL                 3
+            1614 RAISE_VARARGS        (exception instance)
+
+210:     >> 1616 LOAD_FAST            (best)
+            1618 UNPACK_SEQUENCE      2
+            1622 STORE_FAST           (candidate)
+            1624 STORE_FAST           (metric)
+
+211:     >> 1626 LOAD_FAST            (candidate)
+            1628 GET_ITER
+            1630 FOR_ITER             (to 1806)
+            1634 STORE_FAST           (s)
+
+212:        1636 LOAD_CONST           (('start', 'end', 'control1', 'control2'))
+            1638 GET_ITER
+            1640 FOR_ITER             (to 1802)
+            1644 STORE_FAST           (attr)
+
+213:        1646 LOAD_GLOBAL          (NULL + getattr)
+            1656 LOAD_FAST            (s)
+            1658 LOAD_FAST            (attr)
+            1660 LOAD_CONST           (None)
+         >> 1662 CALL                 3
+            1670 STORE_FAST           (q)
+
+214:        1672 LOAD_FAST            (q)
+            1674 POP_JUMP_IF_NOT_NONE (to 1678)
+            1676 JUMP_BACKWARD        (to 1640)
+
+215:     >> 1678 LOAD_GLOBAL          (NULL + setattr)
+            1688 LOAD_FAST            (s)
+            1690 LOAD_FAST            (attr)
+            1692 LOAD_GLOBAL          (NULL + Point)
+            1702 LOAD_FAST            (q)
+            1704 LOAD_ATTR            (x)
+            1724 LOAD_FAST            (scale)
+         >> 1726 BINARY_OP            (/)
+            1730 LOAD_FAST            (lo)
+            1732 LOAD_CONST           (0)
+            1734 BINARY_SUBSCR
+            1738 BINARY_OP            (+)
+            1742 LOAD_FAST            (q)
+            1744 LOAD_ATTR            (y)
+            1764 LOAD_FAST            (scale)
+            1766 BINARY_OP            (/)
+            1770 LOAD_FAST            (lo)
+            1772 LOAD_CONST           (1)
+            1774 BINARY_SUBSCR
+            1778 BINARY_OP            (+)
+            1782 CALL                 2
+            1790 CALL                 3
+            1798 POP_TOP
+         >> 1800 JUMP_BACKWARD        (to 1640)
+
+212:        1802 END_FOR
+         >> 1804 JUMP_BACKWARD        (to 1630)
+
+211:        1806 END_FOR
+
+216:        1808 LOAD_FAST            (metric)
+            1810 LOAD_CONST           ("sampled_deviation_normalized")
+            1812 BINARY_SUBSCR
+            1816 LOAD_FAST            (scale)
+            1818 BINARY_OP            (/)
+            1822 LOAD_FAST            (metric)
+            1824 LOAD_CONST           ("sampled_deviation_source_units")
+            1826 STORE_SUBSCR
+
+217:        1830 LOAD_FAST            (metrics)
+            1832 LOAD_ATTR            (NULL|self + append)
+            1852 LOAD_FAST            (metric)
+            1854 CALL                 1
+            1862 POP_TOP
+
+218:        1864 LOAD_FAST            (result)
+            1866 LOAD_FAST            (candidate)
+            1868 BINARY_OP            (+=)
+            1872 STORE_FAST           (result)
+            1874 EXTENDED_ARG         (512)
+         >> 1876 JUMP_BACKWARD        (to 634)
+
+178:        1878 END_FOR
+
+219:        1880 LOAD_FAST            (output)
+            1882 LOAD_ATTR            (NULL|self + append)
+            1902 LOAD_FAST            (result)
+            1904 CALL                 1
+            1912 POP_TOP
+            1914 EXTENDED_ARG         (768)
+         >> 1916 JUMP_BACKWARD        (to 356)
+
+175:        1918 END_FOR
+
+220:        1920 LOAD_FAST            (output)
+            1922 LOAD_GLOBAL          (POLICY)
+            1932 LOAD_FAST            (metrics)
+            1934 POP_JUMP_IF_FALSE    (to 1940)
+            1936 LOAD_CONST           ("RECONSTRUCTED")
+            1938 JUMP_FORWARD         (to 1942)
+         >> 1940 LOAD_CONST           ("UNCHANGED_NATIVE")
+
+221:     >> 1942 LOAD_FAST            (metrics)
+            1944 LOAD_CONST           (0)
+            1946 LOAD_CONST           (False)
+            1948 LOAD_CONST           (False)
+
+222:        1950 LOAD_GLOBAL          (NULL + max)
+            1960 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad370, file app\contour_reconstruction.py>, line 222)
+            1962 MAKE_FUNCTION        (No arguments)
+         >> 1964 LOAD_FAST            (metrics)
+            1966 GET_ITER
+            1968 CALL                 0
+            1976 LOAD_CONST           (0.0)
+            1978 KW_NAMES             (('default',))
+            1980 CALL                 2
+
+220:        1988 LOAD_CONST           (('policy', 'status', 'contours', 'model_calls', 'source_modified', 'manufacturing_verified', 'maximum_sampled_deviation_source_units'))
+            1990 BUILD_CONST_KEY_MAP  7
+            1992 BUILD_TUPLE          2
+            1994 RETURN_VALUE
+            1996 SWAP                 (TOS <-> TOS1)
+            1998 POP_TOP
+
+168:        2000 SWAP                 (TOS <-> TOS1)
+            2002 STORE_FAST           (p)
+            2004 RERAISE              0
+            2006 SWAP                 (TOS <-> TOS1)
+            2008 POP_TOP
+
+182:        2010 SWAP                 (TOS <-> TOS1)
+            2012 STORE_FAST           (s)
+            2014 RERAISE              0
+            2016 SWAP                 (TOS <-> TOS1)
+            2018 POP_TOP
+
+190:        2020 SWAP                 (TOS <-> TOS1)
+            2022 STORE_FAST           (s)
+            2024 RERAISE              0
+
+ExceptionTable:
+  22 to 66 -> 1996 [2]
+  710 to 762 -> 2006 [4]
+  766 to 772 -> 2006 [4]
+  1224 to 1324 -> 2016 [7]
+
+# Method Name:       paths_svg
+# Filename:          app\contour_reconstruction.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 1
+# Number of locals:  15
+# Stack size:        11
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        225
+# Constants:
+#    0: None
+#    1: 0
+#    2: ('ElementTree',)
+#    3: 'http://www.w3.org/2000/svg'
+#    4: ''
+#    5: <Code311 code object <genexpr> at 0x1059ad260, file app\contour_reconstruction.py>, line 230
+#    6: <Code311 code object <genexpr> at 0x1059ad590, file app\contour_reconstruction.py>, line 230
+#    7: <Code311 code object <genexpr> at 0x1059ad6a0, file app\contour_reconstruction.py>, line 231
+#    8: <Code311 code object <genexpr> at 0x1059ad7b0, file app\contour_reconstruction.py>, line 231
+#    9: 1
+#   10: '{'
+#   11: '}svg'
+#   12: ' '
+#   13: ('viewBox', 'width', 'height')
+#   14: 'd'
+#   15: ('fill', 'fill-rule', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'fill-opacity', 'stroke-opacity', 'id')
+#   16: 'fill'
+#   17: 'none'
+#   18: '}path'
+#   19: 'utf8'
+#   20: True
+#   21: ('encoding', 'xml_declaration')
+# Names:
+#    0: xml.etree
+#    1: ElementTree
+#    2: register_namespace
+#    3: bbox
+#    4: min
+#    5: max
+#    6: Element
+#    7: str
+#    8: d
+#    9: values
+#   10: setdefault
+#   11: fill
+#   12: SubElement
+#   13: tostring
+# Varnames:
+#	paths, width, height, frame, ET, ns, p, boxes, x0, y0, x1, y1, root, attrs, key
+# Positional arguments:
+#	paths, width, height
+# Local variables:
+#    3: frame
+#    4: ET
+#    5: ns
+#    6: p
+#    7: boxes
+#    8: x0
+#    9: y0
+#   10: x1
+#   11: y1
+#   12: root
+#   13: attrs
+#   14: key
+
+225:           0 RESUME               0
+
+226:           2 LOAD_CONST           (0)
+               4 LOAD_CONST           (('ElementTree',))
+               6 IMPORT_NAME          (xml.etree)
+               8 IMPORT_FROM          (ElementTree)
+              10 STORE_FAST           (ET)
+              12 POP_TOP
+
+227:          14 LOAD_CONST           ("http://www.w3.org/2000/svg")
+              16 STORE_FAST           (ns)
+
+228:          18 LOAD_FAST            (ET)
+              20 LOAD_ATTR            (NULL|self + register_namespace)
+              40 LOAD_CONST           ("")
+              42 LOAD_FAST            (ns)
+              44 CALL                 2
+              52 POP_TOP
+
+229:          54 LOAD_FAST            (paths)
+              56 GET_ITER
+              58 LOAD_FAST_AND_CLEAR  (p)
+              60 SWAP                 (TOS <-> TOS1)
+              62 BUILD_LIST           0
+              64 SWAP                 (TOS <-> TOS1)
+              66 FOR_ITER             (to 106)
+              70 STORE_FAST           (p)
+              72 LOAD_FAST            (p)
+              74 LOAD_ATTR            (NULL|self + bbox)
+              94 CALL                 0
+             102 LIST_APPEND          2
+         >>  104 JUMP_BACKWARD        (to 66)
+             106 END_FOR
+             108 STORE_FAST           (boxes)
+             110 STORE_FAST           (p)
+
+230:         112 LOAD_GLOBAL          (NULL + min)
+             122 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad260, file app\contour_reconstruction.py>, line 230)
+             124 MAKE_FUNCTION        (No arguments)
+             126 LOAD_FAST            (boxes)
+             128 GET_ITER
+             130 CALL                 0
+             138 CALL                 1
+         >>  146 LOAD_GLOBAL          (NULL + min)
+             156 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad590, file app\contour_reconstruction.py>, line 230)
+             158 MAKE_FUNCTION        (No arguments)
+             160 LOAD_FAST            (boxes)
+             162 GET_ITER
+             164 CALL                 0
+             172 CALL                 1
+             180 STORE_FAST           (y0)
+             182 STORE_FAST           (x0)
+
+231:         184 LOAD_GLOBAL          (NULL + max)
+             194 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad6a0, file app\contour_reconstruction.py>, line 231)
+             196 MAKE_FUNCTION        (No arguments)
+             198 LOAD_FAST            (boxes)
+             200 GET_ITER
+             202 CALL                 0
+             210 CALL                 1
+             218 LOAD_GLOBAL          (NULL + max)
+             228 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad7b0, file app\contour_reconstruction.py>, line 231)
+             230 MAKE_FUNCTION        (No arguments)
+             232 LOAD_FAST            (boxes)
+             234 GET_ITER
+             236 CALL                 0
+             244 CALL                 1
+             252 STORE_FAST           (y1)
+             254 STORE_FAST           (x1)
+
+232:         256 LOAD_FAST            (frame)
+             258 POP_JUMP_IF_NONE     (to 274)
+
+233:         260 LOAD_FAST            (frame)
+             262 UNPACK_SEQUENCE      4
+             266 STORE_FAST           (x0)
+             268 STORE_FAST           (y0)
+             270 STORE_FAST           (x1)
+             272 STORE_FAST           (y1)
+
+236:     >>  274 LOAD_FAST            (x1)
+             276 LOAD_FAST            (x0)
+             278 COMPARE_OP           (==)
+             282 POP_JUMP_IF_FALSE    (to 294)
+             284 LOAD_FAST            (x0)
+             286 LOAD_CONST           (1)
+             288 BINARY_OP            (+)
+             292 STORE_FAST           (x1)
+
+237:     >>  294 LOAD_FAST            (y1)
+             296 LOAD_FAST            (y0)
+             298 COMPARE_OP           (==)
+             302 POP_JUMP_IF_FALSE    (to 314)
+             304 LOAD_FAST            (y0)
+             306 LOAD_CONST           (1)
+             308 BINARY_OP            (+)
+             312 STORE_FAST           (y1)
+
+238:     >>  314 LOAD_FAST            (ET)
+             316 LOAD_ATTR            (NULL|self + Element)
+             336 LOAD_CONST           ("{")
+             338 LOAD_FAST            (ns)
+             340 FORMAT_VALUE         0
+             342 LOAD_CONST           ("}svg")
+             344 BUILD_STRING         3
+             346 LOAD_FAST            (x0)
+             348 FORMAT_VALUE         0
+             350 LOAD_CONST           (" ")
+             352 LOAD_FAST            (y0)
+             354 FORMAT_VALUE         0
+             356 LOAD_CONST           (" ")
+             358 LOAD_FAST            (x1)
+             360 LOAD_FAST            (x0)
+             362 BINARY_OP            (-)
+             366 FORMAT_VALUE         0
+             368 LOAD_CONST           (" ")
+             370 LOAD_FAST            (y1)
+             372 LOAD_FAST            (y0)
+             374 BINARY_OP            (-)
+             378 FORMAT_VALUE         0
+             380 BUILD_STRING         7
+
+239:         382 LOAD_GLOBAL          (NULL + str)
+             392 LOAD_FAST            (width)
+             394 POP_JUMP_IF_NONE     (to 400)
+             396 LOAD_FAST            (width)
+             398 JUMP_FORWARD         (to 408)
+         >>  400 LOAD_FAST            (x1)
+             402 LOAD_FAST            (x0)
+             404 BINARY_OP            (-)
+         >>  408 CALL                 1
+             416 LOAD_GLOBAL          (NULL + str)
+             426 LOAD_FAST            (height)
+             428 POP_JUMP_IF_NONE     (to 434)
+             430 LOAD_FAST            (height)
+             432 JUMP_FORWARD         (to 442)
+         >>  434 LOAD_FAST            (y1)
+             436 LOAD_FAST            (y0)
+             438 BINARY_OP            (-)
+         >>  442 CALL                 1
+
+238:         450 LOAD_CONST           (('viewBox', 'width', 'height'))
+             452 BUILD_CONST_KEY_MAP  3
+             454 CALL                 2
+             462 STORE_FAST           (root)
+
+240:         464 LOAD_FAST            (paths)
+             466 GET_ITER
+             468 FOR_ITER             (to 790)
+             472 STORE_FAST           (p)
+
+241:         474 LOAD_CONST           ("d")
+             476 LOAD_FAST            (p)
+             478 LOAD_ATTR            (NULL|self + d)
+             498 CALL                 0
+             506 BUILD_MAP            1
+             508 STORE_FAST           (attrs)
+
+242:         510 LOAD_CONST           (('fill', 'fill-rule', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'fill-opacity', 'stroke-opacity', 'id'))
+             512 GET_ITER
+             514 FOR_ITER             (to 638)
+             518 STORE_FAST           (key)
+
+243:         520 LOAD_FAST            (key)
+             522 LOAD_FAST            (p)
+             524 LOAD_ATTR            (values)
+             544 CONTAINS_OP          (in)
+             546 POP_JUMP_IF_TRUE     (to 550)
+             548 JUMP_BACKWARD        (to 514)
+         >>  550 LOAD_FAST            (p)
+             552 LOAD_ATTR            (values)
+             572 LOAD_FAST            (key)
+             574 BINARY_SUBSCR
+             578 POP_JUMP_IF_NOT_NONE (to 582)
+             580 JUMP_BACKWARD        (to 514)
+
+244:     >>  582 LOAD_GLOBAL          (NULL + str)
+             592 LOAD_FAST            (p)
+             594 LOAD_ATTR            (values)
+             614 LOAD_FAST            (key)
+             616 BINARY_SUBSCR
+             620 CALL                 1
+             628 LOAD_FAST            (attrs)
+             630 LOAD_FAST            (key)
+             632 STORE_SUBSCR
+         >>  636 JUMP_BACKWARD        (to 514)
+
+242:         638 END_FOR
+
+245:         640 LOAD_FAST            (attrs)
+             642 LOAD_ATTR            (NULL|self + setdefault)
+             662 LOAD_CONST           ("fill")
+             664 LOAD_FAST            (p)
+             666 LOAD_ATTR            (fill)
+             686 POP_JUMP_IF_FALSE    (to 730)
+             688 LOAD_GLOBAL          (NULL + str)
+             698 LOAD_FAST            (p)
+             700 LOAD_ATTR            (fill)
+             720 CALL                 1
+             728 JUMP_FORWARD         (to 732)
+         >>  730 LOAD_CONST           ("none")
+         >>  732 CALL                 2
+             740 POP_TOP
+
+246:         742 LOAD_FAST            (ET)
+             744 LOAD_ATTR            (NULL|self + SubElement)
+             764 LOAD_FAST            (root)
+             766 LOAD_CONST           ("{")
+             768 LOAD_FAST            (ns)
+             770 FORMAT_VALUE         0
+             772 LOAD_CONST           ("}path")
+             774 BUILD_STRING         3
+             776 LOAD_FAST            (attrs)
+             778 CALL                 3
+             786 POP_TOP
+         >>  788 JUMP_BACKWARD        (to 468)
+
+240:         790 END_FOR
+
+247:         792 LOAD_FAST            (ET)
+             794 LOAD_ATTR            (NULL|self + tostring)
+             814 LOAD_FAST            (root)
+             816 LOAD_CONST           ("utf8")
+             818 LOAD_CONST           (True)
+             820 KW_NAMES             (('encoding', 'xml_declaration'))
+             822 CALL                 3
+             830 RETURN_VALUE
+             832 SWAP                 (TOS <-> TOS1)
+             834 POP_TOP
+
+229:         836 SWAP                 (TOS <-> TOS1)
+             838 STORE_FAST           (p)
+             840 RERAISE              0
+
+ExceptionTable:
+  62 to 106 -> 832 [2]
+
+# Method Name:       add_closed_native
+# Filename:          app\contour_reconstruction.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  15
+# Stack size:        9
+# Flags:             0x01000003 (0x1000000 | NEWLOCALS | OPTIMIZED)
+# First Line:        250
+# Constants:
+#    0: 'Emit an exact composite cubic or closed straight chain, never tiny arcs.'
+#    1: <Code311 code object <genexpr> at 0x1059ad9d0, file app\contour_reconstruction.py>, line 253
+#    2: None
+#    3: 2
+#    4: True
+#    5: 'layer'
+#    6: ('close', 'dxfattribs')
+#    7: 0.6666666666666666
+#    8: 0.3333333333333333
+#    9: 'Composite cubic requires line or cubic segments'
+#   10: 1
+#   11: 0.0
+#   12: 4
+#   13: 3
+#   14: ('degree', 'knots', 'dxfattribs')
+# Names:
+#    0: has_geometry
+#    1: all
+#    2: add_lwpolyline
+#    3: start
+#    4: isinstance
+#    5: CubicBezier
+#    6: control1
+#    7: control2
+#    8: end
+#    9: QuadraticBezier
+#   10: control
+#   11: Line
+#   12: Close
+#   13: ValueError
+#   14: extend
+#   15: len
+#   16: range
+#   17: float
+#   18: add_open_spline
+#   19: closed
+# Varnames:
+#	space, path, point, layer, s, segments, controls, c, delta, p, n, i, _, knots, entity
+# Positional arguments:
+#	space, path, point, layer
+# Local variables:
+#    4: s
+#    5: segments
+#    6: controls
+#    7: c
+#    8: delta
+#    9: p
+#   10: n
+#   11: i
+#   12: _
+#   13: knots
+#   14: entity
+
+250:           0 RESUME               0
+
+252:           2 LOAD_FAST            (path)
+               4 GET_ITER
+               6 LOAD_FAST_AND_CLEAR  (s)
+               8 SWAP                 (TOS <-> TOS1)
+              10 BUILD_LIST           0
+              12 SWAP                 (TOS <-> TOS1)
+              14 FOR_ITER             (to 50)
+              18 STORE_FAST           (s)
+              20 LOAD_GLOBAL          (NULL + has_geometry)
+              30 LOAD_FAST            (s)
+              32 CALL                 1
+              40 POP_JUMP_IF_TRUE     (to 44)
+              42 JUMP_BACKWARD        (to 14)
+         >>   44 LOAD_FAST            (s)
+              46 LIST_APPEND          2
+         >>   48 JUMP_BACKWARD        (to 14)
+              50 END_FOR
+              52 STORE_FAST           (segments)
+              54 STORE_FAST           (s)
+
+253:          56 LOAD_GLOBAL          (NULL + all)
+              66 LOAD_CONST           (<Code311 code object <genexpr> at 0x1059ad9d0, file app\contour_reconstruction.py>, line 253)
+              68 MAKE_FUNCTION        (No arguments)
+              70 LOAD_FAST            (segments)
+              72 GET_ITER
+         >>   74 CALL                 0
+              82 CALL                 1
+              90 POP_JUMP_IF_FALSE    (to 202)
+
+254:          92 LOAD_FAST            (space)
+              94 LOAD_ATTR            (NULL|self + add_lwpolyline)
+             114 LOAD_FAST            (segments)
+             116 GET_ITER
+             118 LOAD_FAST_AND_CLEAR  (s)
+             120 SWAP                 (TOS <-> TOS1)
+             122 BUILD_LIST           0
+             124 SWAP                 (TOS <-> TOS1)
+             126 FOR_ITER             (to 176)
+             130 STORE_FAST           (s)
+             132 PUSH_NULL
+             134 LOAD_FAST            (point)
+             136 LOAD_FAST            (s)
+             138 LOAD_ATTR            (start)
+             158 CALL                 1
+             166 LOAD_CONST           (None)
+             168 LOAD_CONST           (2)
+             170 BINARY_SLICE
+             172 LIST_APPEND          2
+         >>  174 JUMP_BACKWARD        (to 126)
+             176 END_FOR
+             178 SWAP                 (TOS <-> TOS1)
+             180 STORE_FAST           (s)
+             182 LOAD_CONST           (True)
+             184 LOAD_CONST           ("layer")
+             186 LOAD_FAST            (layer)
+             188 BUILD_MAP            1
+             190 KW_NAMES             (('close', 'dxfattribs'))
+             192 CALL                 3
+             200 RETURN_VALUE
+
+255:     >>  202 BUILD_LIST           0
+             204 STORE_FAST           (controls)
+
+256:         206 LOAD_FAST            (segments)
+             208 GET_ITER
+             210 EXTENDED_ARG         (256)
+             212 FOR_ITER             (to 912)
+             216 STORE_FAST           (s)
+
+257:         218 LOAD_GLOBAL          (NULL + isinstance)
+             228 LOAD_FAST            (s)
+             230 LOAD_GLOBAL          (CubicBezier)
+             240 CALL                 2
+             248 POP_JUMP_IF_FALSE    (to 344)
+             250 LOAD_FAST            (s)
+             252 LOAD_ATTR            (start)
+             272 LOAD_FAST            (s)
+             274 LOAD_ATTR            (control1)
+             294 LOAD_FAST            (s)
+             296 LOAD_ATTR            (control2)
+             316 LOAD_FAST            (s)
+             318 LOAD_ATTR            (end)
+             338 BUILD_LIST           4
+             340 STORE_FAST           (c)
+             342 JUMP_FORWARD         (to 820)
+
+258:     >>  344 LOAD_GLOBAL          (NULL + isinstance)
+             354 LOAD_FAST            (s)
+             356 LOAD_GLOBAL          (QuadraticBezier)
+             366 CALL                 2
+             374 POP_JUMP_IF_FALSE    (to 586)
+
+259:         376 LOAD_FAST            (s)
+             378 LOAD_ATTR            (start)
+             398 LOAD_FAST            (s)
+             400 LOAD_ATTR            (start)
+             420 LOAD_FAST            (s)
+             422 LOAD_ATTR            (control)
+             442 LOAD_FAST            (s)
+             444 LOAD_ATTR            (start)
+             464 BINARY_OP            (-)
+             468 LOAD_CONST           (0.6666666666666666)
+             470 BINARY_OP            (*)
+             474 BINARY_OP            (+)
+             478 LOAD_FAST            (s)
+             480 LOAD_ATTR            (end)
+             500 LOAD_FAST            (s)
+             502 LOAD_ATTR            (control)
+             522 LOAD_FAST            (s)
+             524 LOAD_ATTR            (end)
+             544 BINARY_OP            (-)
+             548 LOAD_CONST           (0.6666666666666666)
+             550 BINARY_OP            (*)
+             554 BINARY_OP            (+)
+             558 LOAD_FAST            (s)
+             560 LOAD_ATTR            (end)
+             580 BUILD_LIST           4
+             582 STORE_FAST           (c)
+             584 JUMP_FORWARD         (to 820)
+
+260:     >>  586 LOAD_GLOBAL          (NULL + isinstance)
+             596 LOAD_FAST            (s)
+             598 LOAD_GLOBAL          (Line)
+             608 LOAD_GLOBAL          (Close)
+             618 BUILD_TUPLE          2
+             620 CALL                 2
+             628 POP_JUMP_IF_FALSE    (to 798)
+
+261:         630 LOAD_FAST            (s)
+             632 LOAD_ATTR            (end)
+             652 LOAD_FAST            (s)
+             654 LOAD_ATTR            (start)
+             674 BINARY_OP            (-)
+             678 STORE_FAST           (delta)
+             680 LOAD_FAST            (s)
+             682 LOAD_ATTR            (start)
+             702 LOAD_FAST            (s)
+             704 LOAD_ATTR            (start)
+             724 LOAD_FAST            (delta)
+             726 LOAD_CONST           (0.3333333333333333)
+             728 BINARY_OP            (*)
+             732 BINARY_OP            (+)
+             736 LOAD_FAST            (s)
+             738 LOAD_ATTR            (start)
+             758 LOAD_FAST            (delta)
+             760 LOAD_CONST           (0.6666666666666666)
+             762 BINARY_OP            (*)
+             766 BINARY_OP            (+)
+             770 LOAD_FAST            (s)
+             772 LOAD_ATTR            (end)
+             792 BUILD_LIST           4
+             794 STORE_FAST           (c)
+             796 JUMP_FORWARD         (to 820)
+
+262:     >>  798 LOAD_GLOBAL          (NULL + ValueError)
+             808 LOAD_CONST           ("Composite cubic requires line or cubic segments")
+             810 CALL                 1
+             818 RAISE_VARARGS        (exception instance)
+
+263:     >>  820 LOAD_FAST            (controls)
+             822 LOAD_ATTR            (NULL|self + extend)
+             842 LOAD_FAST            (controls)
+             844 POP_JUMP_IF_TRUE     (to 850)
+             846 LOAD_FAST            (c)
+             848 JUMP_FORWARD         (to 858)
+         >>  850 LOAD_FAST            (c)
+             852 LOAD_CONST           (1)
+             854 LOAD_CONST           (None)
+             856 BINARY_SLICE
+         >>  858 GET_ITER
+             860 LOAD_FAST_AND_CLEAR  (p)
+             862 SWAP                 (TOS <-> TOS1)
+             864 BUILD_LIST           0
+             866 SWAP                 (TOS <-> TOS1)
+             868 FOR_ITER             (to 892)
+             872 STORE_FAST           (p)
+             874 PUSH_NULL
+             876 LOAD_FAST            (point)
+             878 LOAD_FAST            (p)
+             880 CALL                 1
+             888 LIST_APPEND          2
+         >>  890 JUMP_BACKWARD        (to 868)
+             892 END_FOR
+             894 SWAP                 (TOS <-> TOS1)
+             896 STORE_FAST           (p)
+             898 CALL                 1
+             906 POP_TOP
+             908 EXTENDED_ARG         (256)
+         >>  910 JUMP_BACKWARD        (to 210)
+
+256:         912 END_FOR
+
+264:         914 LOAD_GLOBAL          (NULL + len)
+             924 LOAD_FAST            (segments)
+             926 CALL                 1
+             934 STORE_FAST           (n)
+
+265:         936 LOAD_CONST           (0.0)
+             938 BUILD_LIST           1
+             940 LOAD_CONST           (4)
+             942 BINARY_OP            (*)
+             946 LOAD_GLOBAL          (NULL + range)
+             956 LOAD_CONST           (1)
+             958 LOAD_FAST            (n)
+             960 CALL                 2
+             968 GET_ITER
+             970 LOAD_FAST_AND_CLEAR  (i)
+             972 LOAD_FAST_AND_CLEAR  (_)
+             974 SWAP                 (TOS <-> TOS2)
+             976 BUILD_LIST           0
+             978 SWAP                 (TOS <-> TOS1)
+             980 FOR_ITER             (to 1042)
+             984 STORE_FAST           (i)
+             986 LOAD_GLOBAL          (NULL + range)
+             996 LOAD_CONST           (3)
+             998 CALL                 1
+            1006 GET_ITER
+            1008 FOR_ITER             (to 1038)
+            1012 STORE_FAST           (_)
+            1014 LOAD_GLOBAL          (NULL + float)
+            1024 LOAD_FAST            (i)
+            1026 CALL                 1
+            1034 LIST_APPEND          3
+         >> 1036 JUMP_BACKWARD        (to 1008)
+            1038 END_FOR
+         >> 1040 JUMP_BACKWARD        (to 980)
+            1042 END_FOR
+            1044 SWAP                 (TOS <-> TOS2)
+            1046 STORE_FAST           (_)
+            1048 STORE_FAST           (i)
+            1050 BINARY_OP            (+)
+            1054 LOAD_GLOBAL          (NULL + float)
+            1064 LOAD_FAST            (n)
+            1066 CALL                 1
+            1074 BUILD_LIST           1
+            1076 LOAD_CONST           (4)
+            1078 BINARY_OP            (*)
+            1082 BINARY_OP            (+)
+            1086 STORE_FAST           (knots)
+
+266:        1088 LOAD_FAST            (space)
+            1090 LOAD_ATTR            (NULL|self + add_open_spline)
+            1110 LOAD_FAST            (controls)
+            1112 LOAD_CONST           (3)
+            1114 LOAD_FAST            (knots)
+            1116 LOAD_CONST           ("layer")
+            1118 LOAD_FAST            (layer)
+            1120 BUILD_MAP            1
+            1122 KW_NAMES             (('degree', 'knots', 'dxfattribs'))
+            1124 CALL                 4
+            1132 STORE_FAST           (entity)
+
+267:        1134 LOAD_CONST           (True)
+            1136 LOAD_FAST            (entity)
+            1138 STORE_ATTR           (closed)
+
+268:        1148 LOAD_FAST            (entity)
+            1150 RETURN_VALUE
+            1152 SWAP                 (TOS <-> TOS1)
+            1154 POP_TOP
+
+252:        1156 SWAP                 (TOS <-> TOS1)
+            1158 STORE_FAST           (s)
+            1160 RERAISE              0
+            1162 SWAP                 (TOS <-> TOS1)
+            1164 POP_TOP
+
+254:        1166 SWAP                 (TOS <-> TOS1)
+            1168 STORE_FAST           (s)
+            1170 RERAISE              0
+            1172 SWAP                 (TOS <-> TOS1)
+            1174 POP_TOP
+
+263:        1176 SWAP                 (TOS <-> TOS1)
+            1178 STORE_FAST           (p)
+            1180 RERAISE              0
+            1182 SWAP                 (TOS <-> TOS1)
+            1184 POP_TOP
+
+265:        1186 SWAP                 (TOS <-> TOS2)
+            1188 STORE_FAST           (_)
+            1190 STORE_FAST           (i)
+            1192 RERAISE              0
+
+ExceptionTable:
+  10 to 40 -> 1152 [2]
+  44 to 50 -> 1152 [2]
+  122 to 176 -> 1162 [4]
+  864 to 892 -> 1172 [5]
+  976 to 1042 -> 1182 [4]
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        9
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        111
+# Constants:
+#    0: 4
+#    1: None
+# Names:
+#    0: min
+#    1: abs
+# Varnames:
+#	.0, j
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: j
+# Free variables:
+#    0: allowance
+#    1: count
+#    2: i
+#    3: spacing
+               0 COPY_FREE_VARS       4
+
+111:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 118)
+              14 STORE_FAST           (j)
+              16 LOAD_GLOBAL          (NULL + min)
+              26 LOAD_GLOBAL          (NULL + abs)
+              36 LOAD_DEREF           (i)
+              38 LOAD_FAST            (j)
+              40 BINARY_OP            (-)
+              44 CALL                 1
+              52 LOAD_DEREF           (count)
+              54 LOAD_GLOBAL          (NULL + abs)
+              64 LOAD_DEREF           (i)
+              66 LOAD_FAST            (j)
+              68 BINARY_OP            (-)
+              72 CALL                 1
+              80 BINARY_OP            (-)
+              84 CALL                 2
+              92 LOAD_DEREF           (spacing)
+              94 BINARY_OP            (*)
+              98 LOAD_CONST           (4)
+             100 LOAD_DEREF           (allowance)
+             102 BINARY_OP            (*)
+             106 COMPARE_OP           (>)
+             110 YIELD_VALUE          1
+             112 RESUME               1
+             114 POP_TOP
+         >>  116 JUMP_BACKWARD        (to 10)
+             118 END_FOR
+             120 RETURN_CONST         (None)
+             122 CALL_INTRINSIC_1     3
+             124 RERAISE              1
+
+ExceptionTable:
+  6 to 120 -> 122 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        144
+# Constants:
+#    0: None
+# Names:
+#    0: Point
+# Varnames:
+#	.0, p
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: p
+
+144:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 36)
+              12 STORE_FAST           (p)
+              14 LOAD_GLOBAL          (NULL + Point)
+              24 LOAD_FAST            (p)
+              26 CALL_FUNCTION_EX     (positional arguments only)
+              28 YIELD_VALUE          1
+              30 RESUME               1
+              32 POP_TOP
+         >>   34 JUMP_BACKWARD        (to 8)
+              36 END_FOR
+              38 RETURN_CONST         (None)
+              40 CALL_INTRINSIC_1     3
+              42 RERAISE              1
+
+ExceptionTable:
+  4 to 38 -> 40 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        6
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        153
+# Constants:
+#    0: -1
+#    1: 1e-07
+#    2: None
+# Names:
+#    0: np
+#    1: linalg
+#    2: norm
+# Varnames:
+#	.0, i
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: i
+# Free variables:
+#    0: a
+#    1: indices
+               0 COPY_FREE_VARS       2
+
+153:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 108)
+              14 STORE_FAST           (i)
+              16 LOAD_GLOBAL          (np)
+              26 LOAD_ATTR            (linalg)
+              46 LOAD_ATTR            (NULL|self + norm)
+              66 LOAD_DEREF           (a)
+              68 LOAD_CONST           (-1)
+              70 BINARY_SUBSCR
+              74 LOAD_DEREF           (indices)
+              76 LOAD_FAST            (i)
+              78 BINARY_SUBSCR
+              82 BINARY_OP            (-)
+              86 CALL                 1
+              94 LOAD_CONST           (1e-07)
+              96 COMPARE_OP           (<)
+             100 YIELD_VALUE          1
+             102 RESUME               1
+             104 POP_TOP
+         >>  106 JUMP_BACKWARD        (to 10)
+             108 END_FOR
+             110 RETURN_CONST         (None)
+             112 CALL_INTRINSIC_1     3
+             114 RERAISE              1
+
+ExceptionTable:
+  6 to 110 -> 112 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        180
+# Constants:
+#    0: None
+# Names:
+#    0: has_geometry
+# Varnames:
+#	.0, s
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: s
+
+180:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 42)
+              12 STORE_FAST           (s)
+              14 LOAD_GLOBAL          (NULL + has_geometry)
+              24 LOAD_FAST            (s)
+              26 CALL                 1
+              34 YIELD_VALUE          1
+              36 RESUME               1
+              38 POP_TOP
+         >>   40 JUMP_BACKWARD        (to 8)
+              42 END_FOR
+              44 RETURN_CONST         (None)
+              46 CALL_INTRINSIC_1     3
+              48 RERAISE              1
+
+ExceptionTable:
+  4 to 44 -> 46 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        183
+# Constants:
+#    0: None
+# Names:
+#    0: isinstance
+#    1: Line
+# Varnames:
+#	.0, s
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: s
+
+183:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 52)
+              12 STORE_FAST           (s)
+              14 LOAD_GLOBAL          (NULL + isinstance)
+              24 LOAD_FAST            (s)
+              26 LOAD_GLOBAL          (Line)
+              36 CALL                 2
+              44 YIELD_VALUE          1
+              46 RESUME               1
+              48 POP_TOP
+         >>   50 JUMP_BACKWARD        (to 8)
+              52 END_FOR
+              54 RETURN_CONST         (None)
+              56 CALL_INTRINSIC_1     3
+              58 RERAISE              1
+
+ExceptionTable:
+  4 to 54 -> 56 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        189
+# Constants:
+#    0: None
+# Names:
+#    0: isinstance
+#    1: Line
+# Varnames:
+#	.0, s
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: s
+
+189:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 52)
+              12 STORE_FAST           (s)
+              14 LOAD_GLOBAL          (NULL + isinstance)
+              24 LOAD_FAST            (s)
+              26 LOAD_GLOBAL          (Line)
+              36 CALL                 2
+              44 YIELD_VALUE          1
+              46 RESUME               1
+              48 POP_TOP
+         >>   50 JUMP_BACKWARD        (to 8)
+              52 END_FOR
+              54 RETURN_CONST         (None)
+              56 CALL_INTRINSIC_1     3
+              58 RERAISE              1
+
+ExceptionTable:
+  4 to 54 -> 56 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        222
+# Constants:
+#    0: 'sampled_deviation_source_units'
+#    1: None
+# Varnames:
+#	.0, m
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: m
+
+222:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 30)
+              12 STORE_FAST           (m)
+              14 LOAD_FAST            (m)
+              16 LOAD_CONST           ("sampled_deviation_source_units")
+              18 BINARY_SUBSCR
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 8)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  4 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        230
+# Constants:
+#    0: 0
+#    1: None
+# Varnames:
+#	.0, b
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: b
+
+230:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 30)
+              12 STORE_FAST           (b)
+              14 LOAD_FAST            (b)
+              16 LOAD_CONST           (0)
+              18 BINARY_SUBSCR
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 8)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  4 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        230
+# Constants:
+#    0: 1
+#    1: None
+# Varnames:
+#	.0, b
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: b
+
+230:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 30)
+              12 STORE_FAST           (b)
+              14 LOAD_FAST            (b)
+              16 LOAD_CONST           (1)
+              18 BINARY_SUBSCR
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 8)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  4 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        231
+# Constants:
+#    0: 2
+#    1: None
+# Varnames:
+#	.0, b
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: b
+
+231:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 30)
+              12 STORE_FAST           (b)
+              14 LOAD_FAST            (b)
+              16 LOAD_CONST           (2)
+              18 BINARY_SUBSCR
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 8)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  4 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        231
+# Constants:
+#    0: 3
+#    1: None
+# Varnames:
+#	.0, b
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: b
+
+231:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 30)
+              12 STORE_FAST           (b)
+              14 LOAD_FAST            (b)
+              16 LOAD_CONST           (3)
+              18 BINARY_SUBSCR
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 8)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  4 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\contour_reconstruction.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        6
+# Flags:             0x01000033 (0x1000000 | GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        253
+# Constants:
+#    0: None
+# Names:
+#    0: isinstance
+#    1: Line
+#    2: Close
+# Varnames:
+#	.0, s
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: s
+
+253:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 64)
+              12 STORE_FAST           (s)
+              14 LOAD_GLOBAL          (NULL + isinstance)
+              24 LOAD_FAST            (s)
+              26 LOAD_GLOBAL          (Line)
+              36 LOAD_GLOBAL          (Close)
+              46 BUILD_TUPLE          2
+              48 CALL                 2
+              56 YIELD_VALUE          1
+              58 RESUME               1
+              60 POP_TOP
+         >>   62 JUMP_BACKWARD        (to 8)
+              64 END_FOR
+              66 RETURN_CONST         (None)
+              68 CALL_INTRINSIC_1     3
+              70 RERAISE              1
+
+ExceptionTable:
+  4 to 66 -> 68 [0] lasti

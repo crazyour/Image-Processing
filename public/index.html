@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>图片生成 3D</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">GPT MULTIVIEW · HY-3D 3.1</p>
+      <h1>把一张图片，变成可确认的 3D 模型</h1>
+      <p>先分析主体并生成四视图；你确认提示词和图片后，才会提交腾讯混元并产生 3D 费用。</p>
+    </header>
+
+    <div id="notice" class="notice hidden" role="status"></div>
+
+    <section id="upload-step" class="panel">
+      <div class="step-title"><span>01</span><div><h2>上传正面图</h2><p>建议主体完整、背景干净、无遮挡。</p></div></div>
+      <form id="upload-form" class="stack">
+        <label class="dropzone" for="image-input">
+          <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
+          <img id="upload-preview" class="hidden" alt="上传预览">
+          <span id="drop-copy">选择 PNG、JPEG 或 WebP 图片</span>
+        </label>
+        <label>补充要求（可选）
+          <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
+        </label>
+        <button class="primary" type="submit">分析图片</button>
+      </form>
+    </section>
+
+    <section id="prompt-step" class="panel hidden">
+      <div class="step-title"><span>02</span><div><h2>确认主体与提示词</h2><p>提示词可以直接使用中文。</p></div></div>
+      <div id="analysis" class="analysis-grid"></div>
+      <label>主体提示词
+        <textarea id="prompt-editor" rows="6"></textarea>
+      </label>
+      <div class="actions">
+        <button id="save-prompt" class="secondary" type="button">保存提示词</button>
+        <button id="generate-views" class="primary" type="button">生成左、右、背面图</button>
+      </div>
+    </section>
+
+    <section id="views-step" class="panel hidden">
+      <div class="step-title"><span>03</span><div><h2>确认多角度图片</h2><p>每张生成图都可以用中文单独微调。</p></div></div>
+      <div id="views-grid" class="views-grid"></div>
+      <div class="actions">
+        <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
+        <button id="confirm-views" class="primary" type="button">确认提示词和四视图</button>
+      </div>
+    </section>
+
+    <section id="generate-step" class="panel hidden">
+      <div class="step-title"><span>04</span><div><h2>生成 3D</h2><p>确认后才提交腾讯混元。</p></div></div>
+      <div class="options">
+        <label>类型
+          <select id="generate-type"><option value="Normal">完整模型与纹理</option><option value="Geometry">仅几何白模</option></select>
+        </label>
+        <label class="check"><input id="enable-pbr" type="checkbox"> 生成 PBR 材质（额外计费）</label>
+      </div>
+      <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
+      <div id="task-progress" class="progress hidden"><div class="spinner"></div><span></span></div>
+      <div id="model-results" class="model-results"></div>
+    </section>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

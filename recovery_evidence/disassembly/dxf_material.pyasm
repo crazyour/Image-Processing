@@ -1,0 +1,791 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\dxf_material.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        2
+# Flags:             0x00000000 (0x0)
+# First Line:        1
+# Constants:
+#    0: 'Reconstruct retained material from actual exported CUT entities, ignoring ACI colors.'
+#    1: 0
+#    2: None
+#    3: ('Polygon',)
+#    4: ('unary_union',)
+#    5: 1
+#    6: ('png', 'render_geometry')
+#    7: ('read_document', 'sample_polyline', 'sampling_evidence', 'MAX_DOCUMENT_POINTS')
+#    8: <Code311 code object material_preview at 0x10848ce90, file app\dxf_material.py>, line 9
+# Names:
+#    0: __doc__
+#    1: hashlib
+#    2: shapely.geometry
+#    3: Polygon
+#    4: shapely.ops
+#    5: unary_union
+#    6: geometry
+#    7: png
+#    8: render_geometry
+#    9: dxf_paths
+#   10: read_document
+#   11: sample_polyline
+#   12: sampling_evidence
+#   13: MAX_DOCUMENT_POINTS
+#   14: material_preview
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Reconstruct retained material from actual exported CUT entities, ignoring ACI colors.")
+               4 STORE_NAME           (__doc__)
+
+  2:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (None)
+              10 IMPORT_NAME          (hashlib)
+              12 STORE_NAME           (hashlib)
+
+  3:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (('Polygon',))
+              18 IMPORT_NAME          (shapely.geometry)
+              20 IMPORT_FROM          (Polygon)
+              22 STORE_NAME           (Polygon)
+              24 POP_TOP
+
+  4:          26 LOAD_CONST           (0)
+              28 LOAD_CONST           (('unary_union',))
+              30 IMPORT_NAME          (shapely.ops)
+              32 IMPORT_FROM          (unary_union)
+              34 STORE_NAME           (unary_union)
+              36 POP_TOP
+
+  5:          38 LOAD_CONST           (1)
+              40 LOAD_CONST           (('png', 'render_geometry'))
+              42 IMPORT_NAME          (geometry)
+              44 IMPORT_FROM          (png)
+              46 STORE_NAME           (png)
+              48 IMPORT_FROM          (render_geometry)
+              50 STORE_NAME           (render_geometry)
+              52 POP_TOP
+
+  6:          54 LOAD_CONST           (1)
+              56 LOAD_CONST           (('read_document', 'sample_polyline', 'sampling_evidence', 'MAX_DOCUMENT_POINTS'))
+              58 IMPORT_NAME          (dxf_paths)
+              60 IMPORT_FROM          (read_document)
+              62 STORE_NAME           (read_document)
+              64 IMPORT_FROM          (sample_polyline)
+              66 STORE_NAME           (sample_polyline)
+              68 IMPORT_FROM          (sampling_evidence)
+              70 STORE_NAME           (sampling_evidence)
+              72 IMPORT_FROM          (MAX_DOCUMENT_POINTS)
+              74 STORE_NAME           (MAX_DOCUMENT_POINTS)
+              76 POP_TOP
+
+  9:          78 LOAD_CONST           (<Code311 code object material_preview at 0x10848ce90, file app\dxf_material.py>, line 9)
+              80 MAKE_FUNCTION        (No arguments)
+              82 STORE_NAME           (material_preview)
+              84 RETURN_CONST         (None)
+
+
+# Method Name:       material_preview
+# Filename:          app\dxf_material.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  21
+# Stack size:        15
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        9
+# Constants:
+#    0: None
+#    1: 0
+#    2: True
+#    3: ('require_closed',)
+#    4: 'Document curve sampling point limit exceeded'
+#    5: 'Invalid CUT ring'
+#    6: 'CUT_OUTER'
+#    7: ('CUT_INNER', 'CUT_HOLE')
+#    8: 'Unknown CUT layer'
+#    9: 'No outer retained material boundary'
+#   10: 'Cut hole outside material'
+#   11: <Code311 code object <lambda> at 0x1084c56a0, file app\dxf_material.py>, line 35
+#   12: ('key',)
+#   13: <Code311 code object <genexpr> at 0x10844f110, file app\dxf_material.py>, line 37
+#   14: 'Intersecting or overlapping cutouts'
+#   15: 'Material topology invalid'
+#   16: 'Polygon'
+#   17: 3
+#   18: <Code311 code object flip at 0x10844f390, file app\dxf_material.py>, line 44
+#   19: ('shell', 'holes')
+#   20: ('polygons', 'engrave')
+#   21: 'polygons'
+#   22: <Code311 code object <lambda> at 0x10848c9d0, file app\dxf_material.py>, line 49
+#   23: ('key', 'reverse')
+#   24: 'ACTUAL_CUT_DXF'
+#   25: 'RECONSTRUCTED'
+#   26: 4
+#   27: 'mm'
+#   28: 'UNVERIFIED'
+#   29: 1
+#   30: False
+#   31: ('authority', 'status', 'source_sha256', 'retained_regions', 'retained_area_document_units_squared', 'unit', 'connected', 'engraving_removes_material', 'layer_colors_are_product_colors', 'strength_verified', 'kerf_verified', 'curve_sampling')
+# Names:
+#    0: read_document
+#    1: modelspace
+#    2: sample_polyline
+#    3: len
+#    4: points
+#    5: MAX_DOCUMENT_POINTS
+#    6: ValueError
+#    7: append
+#    8: Polygon
+#    9: is_valid
+#   10: is_empty
+#   11: area
+#   12: dxf
+#   13: layer
+#   14: enumerate
+#   15: covers
+#   16: min
+#   17: list
+#   18: exterior
+#   19: coords
+#   20: any
+#   21: unary_union
+#   22: geom_type
+#   23: geoms
+#   24: bounds
+#   25: interiors
+#   26: sort
+#   27: png
+#   28: render_geometry
+#   29: hashlib
+#   30: sha256
+#   31: hexdigest
+#   32: units
+#   33: sampling_evidence
+# Varnames:
+#	cut_dxf, doc, holes, paths, sampled_count, entity, path, ring, _, assigned, hole, i, shell, parents, regions, material, parts, flip, p, h, geometry
+# Positional arguments:
+#	cut_dxf
+# Local variables:
+#    1: doc
+#    2: holes
+#    3: paths
+#    4: sampled_count
+#    5: entity
+#    6: path
+#    7: ring
+#    8: _
+#    9: assigned
+#   10: hole
+#   11: i
+#   12: shell
+#   13: parents
+#   14: regions
+#   15: material
+#   16: parts
+#   17: flip
+#   18: p
+#   19: h
+#   20: geometry
+# Cell variables:
+#    0: maxy
+#    1: shells
+               0 MAKE_CELL            (maxy)
+               2 MAKE_CELL            (shells)
+
+  9:           4 RESUME               0
+
+ 10:           6 LOAD_GLOBAL          (NULL + read_document)
+              16 LOAD_FAST            (cut_dxf)
+              18 CALL                 1
+              26 STORE_FAST           (doc)
+
+ 11:          28 BUILD_LIST           0
+              30 BUILD_LIST           0
+              32 BUILD_LIST           0
+              34 SWAP                 (TOS <-> TOS2)
+              36 STORE_DEREF          (shells)
+              38 STORE_FAST           (holes)
+              40 STORE_FAST           (paths)
+
+ 12:          42 LOAD_CONST           (0)
+              44 STORE_FAST           (sampled_count)
+
+ 13:          46 LOAD_FAST            (doc)
+              48 LOAD_ATTR            (NULL|self + modelspace)
+              68 CALL                 0
+              76 GET_ITER
+              78 FOR_ITER             (to 566)
+              82 STORE_FAST           (entity)
+
+ 14:          84 LOAD_GLOBAL          (NULL + sample_polyline)
+              94 LOAD_FAST            (entity)
+              96 LOAD_CONST           (True)
+              98 KW_NAMES             (('require_closed',))
+             100 CALL                 2
+             108 STORE_FAST           (path)
+
+ 15:         110 LOAD_FAST            (sampled_count)
+             112 LOAD_GLOBAL          (NULL + len)
+             122 LOAD_FAST            (path)
+             124 LOAD_ATTR            (points)
+             144 CALL                 1
+             152 BINARY_OP            (+=)
+             156 STORE_FAST           (sampled_count)
+
+ 16:         158 LOAD_FAST            (sampled_count)
+             160 LOAD_GLOBAL          (MAX_DOCUMENT_POINTS)
+             170 COMPARE_OP           (>)
+             174 POP_JUMP_IF_FALSE    (to 198)
+
+ 17:         176 LOAD_GLOBAL          (NULL + ValueError)
+             186 LOAD_CONST           ("Document curve sampling point limit exceeded")
+             188 CALL                 1
+             196 RAISE_VARARGS        (exception instance)
+
+ 18:     >>  198 LOAD_FAST            (paths)
+             200 LOAD_ATTR            (NULL|self + append)
+             220 LOAD_FAST            (path)
+             222 CALL                 1
+             230 POP_TOP
+
+ 19:         232 LOAD_GLOBAL          (NULL + Polygon)
+             242 LOAD_FAST            (path)
+             244 LOAD_ATTR            (points)
+             264 CALL                 1
+             272 STORE_FAST           (ring)
+
+ 20:         274 LOAD_FAST            (ring)
+             276 LOAD_ATTR            (is_valid)
+             296 POP_JUMP_IF_FALSE    (to 352)
+             298 LOAD_FAST            (ring)
+             300 LOAD_ATTR            (is_empty)
+             320 POP_JUMP_IF_TRUE     (to 352)
+             322 LOAD_FAST            (ring)
+             324 LOAD_ATTR            (area)
+             344 LOAD_CONST           (0)
+             346 COMPARE_OP           (<=)
+             350 POP_JUMP_IF_FALSE    (to 374)
+
+ 21:     >>  352 LOAD_GLOBAL          (NULL + ValueError)
+             362 LOAD_CONST           ("Invalid CUT ring")
+             364 CALL                 1
+             372 RAISE_VARARGS        (exception instance)
+
+ 22:     >>  374 LOAD_FAST            (entity)
+             376 LOAD_ATTR            (dxf)
+             396 LOAD_ATTR            (layer)
+             416 LOAD_CONST           ("CUT_OUTER")
+             418 COMPARE_OP           (==)
+             422 POP_JUMP_IF_FALSE    (to 460)
+
+ 23:         424 LOAD_DEREF           (shells)
+             426 LOAD_ATTR            (NULL|self + append)
+             446 LOAD_FAST            (ring)
+             448 CALL                 1
+             456 POP_TOP
+             458 JUMP_BACKWARD        (to 78)
+
+ 24:     >>  460 LOAD_FAST            (entity)
+             462 LOAD_ATTR            (dxf)
+             482 LOAD_ATTR            (layer)
+             502 LOAD_CONST           (('CUT_INNER', 'CUT_HOLE'))
+             504 CONTAINS_OP          (in)
+             506 POP_JUMP_IF_FALSE    (to 544)
+
+ 25:         508 LOAD_FAST            (holes)
+             510 LOAD_ATTR            (NULL|self + append)
+             530 LOAD_FAST            (ring)
+             532 CALL                 1
+             540 POP_TOP
+             542 JUMP_BACKWARD        (to 78)
+
+ 27:     >>  544 LOAD_GLOBAL          (NULL + ValueError)
+             554 LOAD_CONST           ("Unknown CUT layer")
+             556 CALL                 1
+         >>  564 RAISE_VARARGS        (exception instance)
+
+ 13:         566 END_FOR
+
+ 28:         568 LOAD_DEREF           (shells)
+             570 POP_JUMP_IF_TRUE     (to 594)
+
+ 29:         572 LOAD_GLOBAL          (NULL + ValueError)
+             582 LOAD_CONST           ("No outer retained material boundary")
+             584 CALL                 1
+             592 RAISE_VARARGS        (exception instance)
+
+ 30:     >>  594 LOAD_DEREF           (shells)
+             596 GET_ITER
+             598 LOAD_FAST_AND_CLEAR  (_)
+             600 SWAP                 (TOS <-> TOS1)
+             602 BUILD_LIST           0
+             604 SWAP                 (TOS <-> TOS1)
+             606 FOR_ITER             (to 618)
+             610 STORE_FAST           (_)
+             612 BUILD_LIST           0
+             614 LIST_APPEND          2
+         >>  616 JUMP_BACKWARD        (to 606)
+             618 END_FOR
+             620 STORE_FAST           (assigned)
+             622 STORE_FAST           (_)
+
+ 31:         624 LOAD_FAST            (holes)
+             626 GET_ITER
+             628 FOR_ITER             (to 882)
+             632 STORE_FAST           (hole)
+
+ 32:         634 LOAD_GLOBAL          (NULL + enumerate)
+             644 LOAD_DEREF           (shells)
+             646 CALL                 1
+             654 GET_ITER
+             656 LOAD_FAST_AND_CLEAR  (i)
+             658 LOAD_FAST_AND_CLEAR  (shell)
+             660 SWAP                 (TOS <-> TOS2)
+             662 BUILD_LIST           0
+             664 SWAP                 (TOS <-> TOS1)
+             666 FOR_ITER             (to 720)
+             670 UNPACK_SEQUENCE      2
+             674 STORE_FAST           (i)
+             676 STORE_FAST           (shell)
+             678 LOAD_FAST            (shell)
+             680 LOAD_ATTR            (NULL|self + covers)
+             700 LOAD_FAST            (hole)
+             702 CALL                 1
+             710 POP_JUMP_IF_TRUE     (to 714)
+             712 JUMP_BACKWARD        (to 666)
+         >>  714 LOAD_FAST            (i)
+             716 LIST_APPEND          2
+         >>  718 JUMP_BACKWARD        (to 666)
+             720 END_FOR
+             722 STORE_FAST           (parents)
+             724 STORE_FAST           (i)
+             726 STORE_FAST           (shell)
+
+ 33:         728 LOAD_FAST            (parents)
+             730 POP_JUMP_IF_TRUE     (to 754)
+
+ 34:         732 LOAD_GLOBAL          (NULL + ValueError)
+             742 LOAD_CONST           ("Cut hole outside material")
+             744 CALL                 1
+             752 RAISE_VARARGS        (exception instance)
+
+ 35:     >>  754 LOAD_FAST            (assigned)
+             756 LOAD_GLOBAL          (NULL + min)
+             766 LOAD_FAST            (parents)
+             768 LOAD_CLOSURE         (shells)
+             770 BUILD_TUPLE          1
+             772 LOAD_CONST           (<Code311 code object <lambda> at 0x1084c56a0, file app\dxf_material.py>, line 35)
+         >>  774 MAKE_FUNCTION        (closure)
+             776 KW_NAMES             (('key',))
+             778 CALL                 2
+             786 BINARY_SUBSCR
+             790 LOAD_ATTR            (NULL|self + append)
+             810 LOAD_GLOBAL          (NULL + list)
+             820 LOAD_FAST            (hole)
+             822 LOAD_ATTR            (exterior)
+         >>  842 LOAD_ATTR            (coords)
+             862 CALL                 1
+             870 CALL                 1
+             878 POP_TOP
+         >>  880 JUMP_BACKWARD        (to 628)
+
+ 31:         882 END_FOR
+
+ 36:         884 LOAD_GLOBAL          (NULL + enumerate)
+             894 LOAD_DEREF           (shells)
+             896 CALL                 1
+             904 GET_ITER
+             906 LOAD_FAST_AND_CLEAR  (i)
+             908 LOAD_FAST_AND_CLEAR  (shell)
+             910 SWAP                 (TOS <-> TOS2)
+             912 BUILD_LIST           0
+             914 SWAP                 (TOS <-> TOS1)
+             916 FOR_ITER             (to 1000)
+             920 UNPACK_SEQUENCE      2
+             924 STORE_FAST           (i)
+             926 STORE_FAST           (shell)
+             928 LOAD_GLOBAL          (NULL + Polygon)
+             938 LOAD_FAST            (shell)
+             940 LOAD_ATTR            (exterior)
+             960 LOAD_ATTR            (coords)
+             980 LOAD_FAST            (assigned)
+             982 LOAD_FAST            (i)
+             984 BINARY_SUBSCR
+             988 CALL                 2
+             996 LIST_APPEND          2
+         >>  998 JUMP_BACKWARD        (to 916)
+            1000 END_FOR
+            1002 STORE_FAST           (regions)
+            1004 STORE_FAST           (i)
+            1006 STORE_FAST           (shell)
+
+ 37:        1008 LOAD_GLOBAL          (NULL + any)
+            1018 LOAD_CONST           (<Code311 code object <genexpr> at 0x10844f110, file app\dxf_material.py>, line 37)
+            1020 MAKE_FUNCTION        (No arguments)
+            1022 LOAD_FAST            (regions)
+            1024 GET_ITER
+            1026 CALL                 0
+            1034 CALL                 1
+            1042 POP_JUMP_IF_FALSE    (to 1066)
+
+ 38:        1044 LOAD_GLOBAL          (NULL + ValueError)
+            1054 LOAD_CONST           ("Intersecting or overlapping cutouts")
+            1056 CALL                 1
+            1064 RAISE_VARARGS        (exception instance)
+
+ 39:     >> 1066 LOAD_GLOBAL          (NULL + unary_union)
+            1076 LOAD_FAST            (regions)
+            1078 CALL                 1
+            1086 STORE_FAST           (material)
+
+ 40:        1088 LOAD_FAST            (material)
+            1090 LOAD_ATTR            (is_empty)
+            1110 POP_JUMP_IF_TRUE     (to 1136)
+            1112 LOAD_FAST            (material)
+            1114 LOAD_ATTR            (is_valid)
+            1134 POP_JUMP_IF_TRUE     (to 1158)
+
+ 41:     >> 1136 LOAD_GLOBAL          (NULL + ValueError)
+            1146 LOAD_CONST           ("Material topology invalid")
+            1148 CALL                 1
+            1156 RAISE_VARARGS        (exception instance)
+
+ 42:     >> 1158 LOAD_FAST            (material)
+            1160 LOAD_ATTR            (geom_type)
+            1180 LOAD_CONST           ("Polygon")
+            1182 COMPARE_OP           (==)
+            1186 POP_JUMP_IF_FALSE    (to 1194)
+            1188 LOAD_FAST            (material)
+            1190 BUILD_LIST           1
+            1192 JUMP_FORWARD         (to 1234)
+         >> 1194 LOAD_GLOBAL          (NULL + list)
+            1204 LOAD_FAST            (material)
+            1206 LOAD_ATTR            (geoms)
+            1226 CALL                 1
+         >> 1234 STORE_FAST           (parts)
+
+ 43:        1236 LOAD_FAST            (material)
+            1238 LOAD_ATTR            (bounds)
+            1258 LOAD_CONST           (3)
+            1260 BINARY_SUBSCR
+            1264 STORE_DEREF          (maxy)
+
+ 44:        1266 LOAD_CLOSURE         (maxy)
+            1268 BUILD_TUPLE          1
+            1270 LOAD_CONST           (<Code311 code object flip at 0x10844f390, file app\dxf_material.py>, line 44)
+            1272 MAKE_FUNCTION        (closure)
+            1274 STORE_FAST           (flip)
+
+ 46:        1276 LOAD_FAST            (parts)
+            1278 GET_ITER
+            1280 LOAD_FAST_AND_CLEAR  (p)
+            1282 LOAD_FAST_AND_CLEAR  (h)
+            1284 SWAP                 (TOS <-> TOS2)
+            1286 BUILD_LIST           0
+            1288 SWAP                 (TOS <-> TOS1)
+            1290 FOR_ITER             (to 1440)
+            1294 STORE_FAST           (p)
+            1296 PUSH_NULL
+            1298 LOAD_FAST            (flip)
+            1300 LOAD_FAST            (p)
+            1302 LOAD_ATTR            (exterior)
+            1322 LOAD_ATTR            (coords)
+            1342 CALL                 1
+            1350 LOAD_FAST            (p)
+            1352 LOAD_ATTR            (interiors)
+            1372 GET_ITER
+            1374 LOAD_FAST_AND_CLEAR  (h)
+            1376 SWAP                 (TOS <-> TOS1)
+            1378 BUILD_LIST           0
+            1380 SWAP                 (TOS <-> TOS1)
+            1382 FOR_ITER             (to 1426)
+            1386 STORE_FAST           (h)
+            1388 PUSH_NULL
+            1390 LOAD_FAST            (flip)
+            1392 LOAD_FAST            (h)
+            1394 LOAD_ATTR            (coords)
+            1414 CALL                 1
+            1422 LIST_APPEND          2
+         >> 1424 JUMP_BACKWARD        (to 1382)
+            1426 END_FOR
+            1428 SWAP                 (TOS <-> TOS1)
+            1430 STORE_FAST           (h)
+            1432 LOAD_CONST           (('shell', 'holes'))
+            1434 BUILD_CONST_KEY_MAP  2
+            1436 LIST_APPEND          2
+         >> 1438 JUMP_BACKWARD        (to 1290)
+            1440 END_FOR
+            1442 SWAP                 (TOS <-> TOS2)
+            1444 STORE_FAST           (h)
+            1446 STORE_FAST           (p)
+            1448 BUILD_LIST           0
+            1450 LOAD_CONST           (('polygons', 'engrave'))
+            1452 BUILD_CONST_KEY_MAP  2
+            1454 STORE_FAST           (geometry)
+
+ 49:        1456 LOAD_FAST            (geometry)
+            1458 LOAD_CONST           ("polygons")
+            1460 BINARY_SUBSCR
+            1464 LOAD_ATTR            (NULL|self + sort)
+            1484 LOAD_CONST           (<Code311 code object <lambda> at 0x10848c9d0, file app\dxf_material.py>, line 49)
+            1486 MAKE_FUNCTION        (No arguments)
+            1488 LOAD_CONST           (True)
+            1490 KW_NAMES             (('key', 'reverse'))
+            1492 CALL                 2
+            1500 POP_TOP
+
+ 50:        1502 LOAD_GLOBAL          (NULL + png)
+            1512 LOAD_GLOBAL          (NULL + render_geometry)
+            1522 LOAD_FAST            (geometry)
+            1524 CALL                 1
+            1532 CALL                 1
+
+ 51:        1540 LOAD_CONST           ("ACTUAL_CUT_DXF")
+            1542 LOAD_CONST           ("RECONSTRUCTED")
+            1544 LOAD_GLOBAL          (NULL + hashlib)
+            1554 LOAD_ATTR            (sha256)
+            1574 LOAD_FAST            (cut_dxf)
+            1576 CALL                 1
+            1584 LOAD_ATTR            (NULL|self + hexdigest)
+            1604 CALL                 0
+
+ 52:        1612 LOAD_GLOBAL          (NULL + len)
+            1622 LOAD_FAST            (parts)
+            1624 CALL                 1
+            1632 LOAD_FAST            (material)
+            1634 LOAD_ATTR            (area)
+
+ 53:        1654 LOAD_FAST            (doc)
+            1656 LOAD_ATTR            (units)
+            1676 LOAD_CONST           (4)
+            1678 COMPARE_OP           (==)
+            1682 POP_JUMP_IF_FALSE    (to 1688)
+            1684 LOAD_CONST           ("mm")
+            1686 JUMP_FORWARD         (to 1690)
+         >> 1688 LOAD_CONST           ("UNVERIFIED")
+         >> 1690 LOAD_GLOBAL          (NULL + len)
+            1700 LOAD_FAST            (parts)
+            1702 CALL                 1
+            1710 LOAD_CONST           (1)
+            1712 COMPARE_OP           (==)
+
+ 54:        1716 LOAD_CONST           (False)
+            1718 LOAD_CONST           (False)
+
+ 55:        1720 LOAD_CONST           (False)
+            1722 LOAD_CONST           (False)
+
+ 56:        1724 LOAD_GLOBAL          (NULL + sampling_evidence)
+            1734 LOAD_FAST            (paths)
+            1736 CALL                 1
+
+ 50:        1744 LOAD_CONST           (('authority', 'status', 'source_sha256', 'retained_regions', 'retained_area_document_units_squared', 'unit', 'connected', 'engraving_removes_material', 'layer_colors_are_product_colors', 'strength_verified', 'kerf_verified', 'curve_sampling'))
+            1746 BUILD_CONST_KEY_MAP  12
+            1748 BUILD_TUPLE          2
+            1750 RETURN_VALUE
+            1752 SWAP                 (TOS <-> TOS1)
+            1754 POP_TOP
+
+ 30:        1756 SWAP                 (TOS <-> TOS1)
+            1758 STORE_FAST           (_)
+            1760 RERAISE              0
+            1762 SWAP                 (TOS <-> TOS1)
+            1764 POP_TOP
+
+ 32:        1766 SWAP                 (TOS <-> TOS2)
+            1768 STORE_FAST           (shell)
+            1770 STORE_FAST           (i)
+            1772 RERAISE              0
+            1774 SWAP                 (TOS <-> TOS1)
+            1776 POP_TOP
+
+ 36:        1778 SWAP                 (TOS <-> TOS2)
+            1780 STORE_FAST           (shell)
+            1782 STORE_FAST           (i)
+            1784 RERAISE              0
+            1786 SWAP                 (TOS <-> TOS1)
+            1788 POP_TOP
+
+ 46:        1790 SWAP                 (TOS <-> TOS1)
+            1792 STORE_FAST           (h)
+            1794 RERAISE              0
+            1796 SWAP                 (TOS <-> TOS1)
+            1798 POP_TOP
+            1800 SWAP                 (TOS <-> TOS2)
+            1802 STORE_FAST           (h)
+            1804 STORE_FAST           (p)
+            1806 RERAISE              0
+
+ExceptionTable:
+  602 to 618 -> 1752 [2]
+  662 to 710 -> 1762 [4]
+  714 to 720 -> 1762 [4]
+  912 to 1000 -> 1774 [3]
+  1286 to 1376 -> 1796 [3]
+  1378 to 1426 -> 1786 [7]
+  1428 to 1440 -> 1796 [3]
+  1786 to 1794 -> 1796 [3]
+
+# Method Name:       <lambda>
+# Filename:          app\dxf_material.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        2
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        35
+# Constants:
+#    0: None
+# Names:
+#    0: area
+# Varnames:
+#	i
+# Positional arguments:
+#	i
+# Free variables:
+#    0: shells
+               0 COPY_FREE_VARS       1
+
+ 35:           2 RESUME               0
+               4 LOAD_DEREF           (shells)
+               6 LOAD_FAST            (i)
+               8 BINARY_SUBSCR
+              12 LOAD_ATTR            (area)
+              32 RETURN_VALUE
+
+
+# Method Name:       <genexpr>
+# Filename:          app\dxf_material.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        2
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        37
+# Constants:
+#    0: None
+# Names:
+#    0: is_valid
+# Varnames:
+#	.0, p
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: p
+
+ 37:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 46)
+              12 STORE_FAST           (p)
+              14 LOAD_FAST            (p)
+              16 LOAD_ATTR            (is_valid)
+              36 UNARY_NOT
+              38 YIELD_VALUE          1
+              40 RESUME               1
+              42 POP_TOP
+         >>   44 JUMP_BACKWARD        (to 8)
+              46 END_FOR
+              48 RETURN_CONST         (None)
+              50 CALL_INTRINSIC_1     3
+              52 RERAISE              1
+
+ExceptionTable:
+  4 to 48 -> 50 [0] lasti
+
+# Method Name:       flip
+# Filename:          app\dxf_material.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  3
+# Stack size:        7
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        44
+# Constants:
+#    0: None
+# Varnames:
+#	coords, x, y
+# Positional arguments:
+#	coords
+# Local variables:
+#    1: x
+#    2: y
+# Free variables:
+#    0: maxy
+               0 COPY_FREE_VARS       1
+
+ 44:           2 RESUME               0
+
+ 45:           4 LOAD_FAST            (coords)
+               6 GET_ITER
+               8 LOAD_FAST_AND_CLEAR  (x)
+              10 LOAD_FAST_AND_CLEAR  (y)
+              12 SWAP                 (TOS <-> TOS2)
+              14 BUILD_LIST           0
+              16 SWAP                 (TOS <-> TOS1)
+              18 FOR_ITER             (to 46)
+              22 UNPACK_SEQUENCE      2
+              26 STORE_FAST           (x)
+              28 STORE_FAST           (y)
+              30 LOAD_FAST            (x)
+              32 LOAD_DEREF           (maxy)
+              34 LOAD_FAST            (y)
+              36 BINARY_OP            (-)
+              40 BUILD_LIST           2
+              42 LIST_APPEND          2
+         >>   44 JUMP_BACKWARD        (to 18)
+              46 END_FOR
+              48 SWAP                 (TOS <-> TOS2)
+              50 STORE_FAST           (y)
+              52 STORE_FAST           (x)
+              54 RETURN_VALUE
+              56 SWAP                 (TOS <-> TOS1)
+              58 POP_TOP
+              60 SWAP                 (TOS <-> TOS2)
+              62 STORE_FAST           (y)
+              64 STORE_FAST           (x)
+              66 RERAISE              0
+
+ExceptionTable:
+  14 to 46 -> 56 [3]
+
+# Method Name:       <lambda>
+# Filename:          app\dxf_material.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        4
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        49
+# Constants:
+#    0: None
+#    1: 'shell'
+# Names:
+#    0: Polygon
+#    1: area
+# Varnames:
+#	p
+# Positional arguments:
+#	p
+
+ 49:           0 RESUME               0
+               2 LOAD_GLOBAL          (NULL + Polygon)
+              12 LOAD_FAST            (p)
+              14 LOAD_CONST           ("shell")
+              16 BINARY_SUBSCR
+              20 CALL                 1
+              28 LOAD_ATTR            (area)
+              48 RETURN_VALUE
+

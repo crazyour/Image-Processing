@@ -1,0 +1,2178 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        12
+# Flags:             0x00000000 (0x0)
+# First Line:        1
+# Constants:
+#    0: 'Bounded provider diagnostics. Never persist request headers or prompt bodies.'
+#    1: 0
+#    2: None
+#    3: ('urlsplit', 'urlunsplit')
+#    4: <Code311 code object transport_diagnostic at 0x10a3a8d10, file app\provider_diagnostics.py>, line 6
+#    5: <Code311 code object safe_diagnostic at 0x10a3a9260, file app\provider_diagnostics.py>, line 83
+#    6: frozenset({'invalid_api_key', 'model_not_found', 'safety_violations', 'ip_not_authorized', 'invalid_request_error', 'moderation_blocked', 'insufficient_quota', 'billing_hard_limit_reached', 'organization_verification_required', 'content_policy_violation', 'unsupported_country_region_territory', 'insufficient_permissions', 'rate_limit_exceeded', 'credit_balance_exhausted', 'permission_denied'})
+#    7: '供应商明确要求组织完成验证。请打开组织设置核对验证状态；在同一组织新建Key不会替代验证。'
+#    8: '供应商明确拒绝访问当前模型。请核对该项目的模型权限及账户可用模型。'
+#    9: '供应商提示当前国家、地区或地域不受支持。请核对官方可用地区及账户资格。'
+#   10: '供应商提示请求来源IP未获授权。请核对组织的IP访问设置。'
+#   11: '供应商返回HTTP 403，但没有可明确识别的具体原因。Key显示“全部权限”也不能排除组织或项目限制；请凭请求ID向供应商核查。'
+#   12: '供应商拒绝了密钥认证。请核对本机绑定是否仍有效。'
+#   13: '供应商提示额度不足；本机预算不代表供应商账户余额。'
+#   14: '供应商限流。此项没有自动重试，稍后可重新确认补测。'
+#   15: '供应商拦截了当前内容。请核对素材与请求，不自动重试。'
+#   16: '请求结果无法确认，上游可能已完成并计费。先核对供应商用量，再决定是否重新调用。'
+#   17: '供应商拒绝请求参数。请根据HTTP状态、错误代码和请求ID排查程序适配。'
+#   18: ('ORGANIZATION_VERIFICATION', 'MODEL_ACCESS', 'REGION_ACCESS', 'IP_ACCESS', 'PERMISSION_UNSPECIFIED', 'CREDENTIAL', 'QUOTA', 'RATE_LIMIT', 'SAFETY', 'UNKNOWN_OUTCOME', 'REQUEST_INVALID')
+#   19: <Code311 code object diagnostic at 0x10a3a96a0, file app\provider_diagnostics.py>, line 159
+#   20: (None,)
+#   21: (None, ())
+# Names:
+#    0: __doc__
+#    1: re
+#    2: urllib.parse
+#    3: urlsplit
+#    4: urlunsplit
+#    5: transport_diagnostic
+#    6: safe_diagnostic
+#    7: KNOWN_CODES
+#    8: MESSAGES
+#    9: diagnostic
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Bounded provider diagnostics. Never persist request headers or prompt bodies.")
+               4 STORE_NAME           (__doc__)
+
+  2:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (None)
+              10 IMPORT_NAME          (re)
+              12 STORE_NAME           (re)
+
+  3:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (('urlsplit', 'urlunsplit'))
+              18 IMPORT_NAME          (urllib.parse)
+              20 IMPORT_FROM          (urlsplit)
+              22 STORE_NAME           (urlsplit)
+              24 IMPORT_FROM          (urlunsplit)
+              26 STORE_NAME           (urlunsplit)
+              28 POP_TOP
+
+  6:          30 LOAD_CONST           ((None,))
+              32 LOAD_CONST           (<Code311 code object transport_diagnostic at 0x10a3a8d10, file app\provider_diagnostics.py>, line 6)
+              34 MAKE_FUNCTION        (default)
+              36 STORE_NAME           (transport_diagnostic)
+
+ 83:          38 LOAD_CONST           ((None, ()))
+              40 LOAD_CONST           (<Code311 code object safe_diagnostic at 0x10a3a9260, file app\provider_diagnostics.py>, line 83)
+              42 MAKE_FUNCTION        (default)
+              44 STORE_NAME           (safe_diagnostic)
+
+126:          46 BUILD_SET            0
+              48 LOAD_CONST           (frozenset({'invalid_api_key', 'model_not_found', 'safety_violations', 'ip_not_authorized', 'invalid_request_error', 'moderation_blocked', 'insufficient_quota', 'billing_hard_limit_reached', 'organization_verification_required', 'content_policy_violation', 'unsupported_country_region_territory', 'insufficient_permissions', 'rate_limit_exceeded', 'credit_balance_exhausted', 'permission_denied'}))
+              50 SET_UPDATE           1
+              52 STORE_NAME           (KNOWN_CODES)
+
+145:          54 LOAD_CONST           ("供应商明确要求组织完成验证。请打开组织设置核对验证状态；在同一组织新建Key不会替代验证。")
+
+146:          56 LOAD_CONST           ("供应商明确拒绝访问当前模型。请核对该项目的模型权限及账户可用模型。")
+
+147:          58 LOAD_CONST           ("供应商提示当前国家、地区或地域不受支持。请核对官方可用地区及账户资格。")
+
+148:          60 LOAD_CONST           ("供应商提示请求来源IP未获授权。请核对组织的IP访问设置。")
+
+149:          62 LOAD_CONST           ("供应商返回HTTP 403，但没有可明确识别的具体原因。Key显示“全部权限”也不能排除组织或项目限制；请凭请求ID向供应商核查。")
+
+150:          64 LOAD_CONST           ("供应商拒绝了密钥认证。请核对本机绑定是否仍有效。")
+
+151:          66 LOAD_CONST           ("供应商提示额度不足；本机预算不代表供应商账户余额。")
+
+152:          68 LOAD_CONST           ("供应商限流。此项没有自动重试，稍后可重新确认补测。")
+
+153:          70 LOAD_CONST           ("供应商拦截了当前内容。请核对素材与请求，不自动重试。")
+
+154:          72 LOAD_CONST           ("请求结果无法确认，上游可能已完成并计费。先核对供应商用量，再决定是否重新调用。")
+
+155:          74 LOAD_CONST           ("供应商拒绝请求参数。请根据HTTP状态、错误代码和请求ID排查程序适配。")
+
+144:          76 LOAD_CONST           (('ORGANIZATION_VERIFICATION', 'MODEL_ACCESS', 'REGION_ACCESS', 'IP_ACCESS', 'PERMISSION_UNSPECIFIED', 'CREDENTIAL', 'QUOTA', 'RATE_LIMIT', 'SAFETY', 'UNKNOWN_OUTCOME', 'REQUEST_INVALID'))
+              78 BUILD_CONST_KEY_MAP  11
+              80 STORE_NAME           (MESSAGES)
+
+159:          82 LOAD_CONST           (<Code311 code object diagnostic at 0x10a3a96a0, file app\provider_diagnostics.py>, line 159)
+              84 MAKE_FUNCTION        (No arguments)
+              86 STORE_NAME           (diagnostic)
+              88 RETURN_CONST         (None)
+
+
+# Method Name:       transport_diagnostic
+# Filename:          app\provider_diagnostics.py
+# Argument count:    5
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  19
+# Stack size:        13
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        6
+# Constants:
+#    0: 'Record transport phase, never exception text (which can contain payloads/keys).'
+#    1: 0
+#    2: None
+#    3: ('datetime', 'timezone')
+#    4: <Code311 code object <genexpr> at 0x10a3856a0, file app\provider_diagnostics.py>, line 15
+#    5: False
+#    6: -1
+#    7: 'proxy.start_tls.failed'
+#    8: 'proxy.start_tls.complete'
+#    9: True
+#   10: 5
+#   11: 'type'
+#   12: ('errno', 'winerror')
+#   13: <Code311 code object <genexpr> at 0x10a30f390, file app\provider_diagnostics.py>, line 35
+#   14: frozenset({11001, 11002, 11003, 11004})
+#   15: ('DNS_ERROR', '域名解析失败')
+#   16: <Code311 code object <genexpr> at 0x10a30f110, file app\provider_diagnostics.py>, line 37
+#   17: ('TLS_ERROR', 'TLS握手或证书验证失败')
+#   18: ('PROXY_ERROR', '代理连接失败')
+#   19: ('CONNECT_TIMEOUT', '建立连接超时')
+#   20: ('READ_TIMEOUT', '等待响应超时')
+#   21: <Code311 code object <genexpr> at 0x10a34c9d0, file app\provider_diagnostics.py>, line 45
+#   22: frozenset({54, 104, 10054})
+#   23: ('CONNECTION_RESET', '连接被重置')
+#   24: ('WRITE_ERROR', '发送请求时连接异常')
+#   25: ('SDK_SERIALIZATION_ERROR', '请求无法序列化')
+#   26: ('CONNECT_ERROR', '建立连接或获取连接失败')
+#   27: ('UNKNOWN_TRANSPORT_ERROR', '网络传输异常，具体原因尚未确认')
+#   28: 'stage'
+#   29: 'connect'
+#   30: 'provider_request'
+#   31: 'http_status'
+#   32: 'request_id'
+#   33: 'transport_error_type'
+#   34: 'transport_category'
+#   35: 'exception_class'
+#   36: 'exception_message'
+#   37: 'errno'
+#   38: <Code311 code object <genexpr> at 0x10a34cd60, file app\provider_diagnostics.py>, line 67
+#   39: 'endpoint_host'
+#   40: 'timestamp'
+#   41: 'transport_error_chain'
+#   42: 'transport_events'
+#   43: -24
+#   44: 'request_delivery'
+#   45: 'NOT_SENT'
+#   46: 'UNKNOWN'
+#   47: 'full_endpoint'
+#   48: ''
+#   49: 'model_id'
+#   50: 'model'
+#   51: 'request_parameter_keys'
+#   52: <Code311 code object <genexpr> at 0x10a0af9b0, file app\provider_diagnostics.py>, line 75
+#   53: 'image_received'
+#   54: '尚未连接到作图服务，请求未发送，未产生本次模型费用。'
+#   55: '与作图服务的连接中断，请求结果和费用尚待核对。没有自动重发。'
+#   56: ('image_saved', 'message')
+# Names:
+#    0: httpx
+#    1: socket
+#    2: ssl
+#    3: datetime
+#    4: timezone
+#    5: isinstance
+#    6: ConnectError
+#    7: ConnectTimeout
+#    8: PoolTimeout
+#    9: any
+#   10: len
+#   11: append
+#   12: type
+#   13: __name__
+#   14: getattr
+#   15: int
+#   16: __cause__
+#   17: __context__
+#   18: ProxyError
+#   19: ReadTimeout
+#   20: WriteError
+#   21: WriteTimeout
+#   22: TypeError
+#   23: ValueError
+#   24: UnicodeError
+#   25: urlsplit
+#   26: next
+#   27: hostname
+#   28: now
+#   29: utc
+#   30: isoformat
+#   31: urlunsplit
+#   32: scheme
+#   33: path
+#   34: get
+#   35: sorted
+# Varnames:
+#	exc, endpoint, request_body, events, request_meta, httpx, datetime, timezone, before_send, chain, causes, current, name, e, n, numbers, category, summary, url
+# Positional arguments:
+#	exc, endpoint, request_body, events, request_meta
+# Local variables:
+#    5: httpx
+#    6: datetime
+#    7: timezone
+#    8: before_send
+#    9: chain
+#   10: causes
+#   11: current
+#   12: name
+#   13: e
+#   14: n
+#   15: numbers
+#   16: category
+#   17: summary
+#   18: url
+# Cell variables:
+#    0: socket
+#    1: ssl
+               0 MAKE_CELL            (socket)
+               2 MAKE_CELL            (ssl)
+
+  6:           4 RESUME               0
+
+  8:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (None)
+              10 IMPORT_NAME          (httpx)
+              12 STORE_FAST           (httpx)
+
+  9:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (None)
+              18 IMPORT_NAME          (socket)
+              20 STORE_DEREF          (socket)
+
+ 10:          22 LOAD_CONST           (0)
+              24 LOAD_CONST           (None)
+              26 IMPORT_NAME          (ssl)
+              28 STORE_DEREF          (ssl)
+
+ 11:          30 LOAD_CONST           (0)
+              32 LOAD_CONST           (('datetime', 'timezone'))
+              34 IMPORT_NAME          (datetime)
+              36 IMPORT_FROM          (datetime)
+              38 STORE_FAST           (datetime)
+              40 IMPORT_FROM          (timezone)
+              42 STORE_FAST           (timezone)
+              44 POP_TOP
+
+ 13:          46 LOAD_GLOBAL          (NULL + isinstance)
+              56 LOAD_FAST            (exc)
+              58 LOAD_FAST            (httpx)
+              60 LOAD_ATTR            (ConnectError)
+              80 LOAD_FAST            (httpx)
+              82 LOAD_ATTR            (ConnectTimeout)
+             102 LOAD_FAST            (httpx)
+             104 LOAD_ATTR            (PoolTimeout)
+             124 BUILD_TUPLE          3
+             126 CALL                 2
+             134 STORE_FAST           (before_send)
+
+ 15:         136 LOAD_GLOBAL          (NULL + any)
+             146 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a3856a0, file app\provider_diagnostics.py>, line 15)
+             148 MAKE_FUNCTION        (No arguments)
+             150 LOAD_FAST            (events)
+             152 GET_ITER
+             154 CALL                 0
+             162 CALL                 1
+             170 POP_JUMP_IF_FALSE    (to 176)
+
+ 16:         172 LOAD_CONST           (False)
+             174 STORE_FAST           (before_send)
+
+ 19:     >>  176 LOAD_GLOBAL          (NULL + isinstance)
+             186 LOAD_FAST            (exc)
+             188 LOAD_FAST            (httpx)
+             190 LOAD_ATTR            (ConnectError)
+             210 LOAD_FAST            (httpx)
+             212 LOAD_ATTR            (ConnectTimeout)
+             232 BUILD_TUPLE          2
+             234 CALL                 2
+             242 POP_JUMP_IF_FALSE    (to 276)
+
+ 20:         244 LOAD_FAST            (events)
+             246 POP_JUMP_IF_FALSE    (to 276)
+             248 LOAD_FAST            (events)
+             250 LOAD_CONST           (-1)
+             252 BINARY_SUBSCR
+             256 LOAD_CONST           ("proxy.start_tls.failed")
+             258 COMPARE_OP           (==)
+             262 POP_JUMP_IF_FALSE    (to 276)
+
+ 21:         264 LOAD_CONST           ("proxy.start_tls.complete")
+             266 LOAD_FAST            (events)
+             268 CONTAINS_OP          (not in)
+             270 POP_JUMP_IF_FALSE    (to 276)
+
+ 22:         272 LOAD_CONST           (True)
+             274 STORE_FAST           (before_send)
+
+ 23:     >>  276 BUILD_LIST           0
+             278 BUILD_LIST           0
+             280 LOAD_FAST            (exc)
+             282 STORE_FAST           (current)
+             284 STORE_FAST           (causes)
+             286 STORE_FAST           (chain)
+
+ 24:         288 LOAD_FAST            (current)
+             290 POP_JUMP_IF_NONE     (to 634)
+             292 LOAD_GLOBAL          (NULL + len)
+             302 LOAD_FAST            (chain)
+             304 CALL                 1
+             312 LOAD_CONST           (5)
+             314 COMPARE_OP           (<)
+             318 POP_JUMP_IF_FALSE    (to 634)
+
+ 25:         320 LOAD_FAST            (causes)
+             322 LOAD_ATTR            (NULL|self + append)
+             342 LOAD_FAST            (current)
+             344 CALL                 1
+             352 POP_TOP
+
+ 26:         354 LOAD_FAST            (chain)
+             356 LOAD_ATTR            (NULL|self + append)
+
+ 27:         376 LOAD_CONST           ("type")
+             378 LOAD_GLOBAL          (NULL + type)
+             388 LOAD_FAST            (current)
+             390 CALL                 1
+             398 LOAD_ATTR            (__name__)
+
+ 26:         418 BUILD_MAP            1
+
+ 28:         420 LOAD_CONST           (('errno', 'winerror'))
+             422 GET_ITER
+             424 LOAD_FAST_AND_CLEAR  (name)
+             426 SWAP                 (TOS <-> TOS1)
+             428 BUILD_MAP            0
+             430 SWAP                 (TOS <-> TOS1)
+             432 FOR_ITER             (to 520)
+             436 STORE_FAST           (name)
+
+ 29:         438 LOAD_GLOBAL          (NULL + isinstance)
+             448 LOAD_GLOBAL          (NULL + getattr)
+             458 LOAD_FAST            (current)
+             460 LOAD_FAST            (name)
+             462 LOAD_CONST           (None)
+             464 CALL                 3
+             472 LOAD_GLOBAL          (int)
+             482 CALL                 2
+             490 POP_JUMP_IF_FALSE    (to 518)
+
+ 28:         492 LOAD_FAST            (name)
+             494 LOAD_GLOBAL          (NULL + getattr)
+             504 LOAD_FAST            (current)
+             506 LOAD_FAST            (name)
+             508 CALL                 2
+             516 MAP_ADD              2
+         >>  518 JUMP_BACKWARD        (to 432)
+             520 END_FOR
+             522 SWAP                 (TOS <-> TOS1)
+             524 STORE_FAST           (name)
+
+ 26:         526 DICT_UPDATE          1
+             528 CALL                 1
+             536 POP_TOP
+
+ 31:         538 LOAD_FAST            (current)
+             540 LOAD_ATTR            (__cause__)
+             560 COPY                 1
+             562 POP_JUMP_IF_TRUE     (to 588)
+             564 POP_TOP
+             566 LOAD_FAST            (current)
+             568 LOAD_ATTR            (__context__)
+         >>  588 STORE_FAST           (current)
+
+ 32:         590 LOAD_FAST            (current)
+             592 LOAD_FAST            (causes)
+             594 CONTAINS_OP          (in)
+             596 POP_JUMP_IF_FALSE    (to 600)
+
+ 33:         598 JUMP_FORWARD         (to 634)
+
+ 24:     >>  600 LOAD_FAST            (current)
+             602 POP_JUMP_IF_NONE     (to 634)
+             604 LOAD_GLOBAL          (NULL + len)
+             614 LOAD_FAST            (chain)
+             616 CALL                 1
+             624 LOAD_CONST           (5)
+             626 COMPARE_OP           (<)
+             630 POP_JUMP_IF_FALSE    (to 634)
+             632 JUMP_BACKWARD        (to 320)
+
+ 34:     >>  634 LOAD_FAST            (causes)
+             636 GET_ITER
+             638 LOAD_FAST_AND_CLEAR  (e)
+             640 LOAD_FAST_AND_CLEAR  (n)
+             642 SWAP                 (TOS <-> TOS2)
+             644 BUILD_SET            0
+             646 SWAP                 (TOS <-> TOS1)
+             648 FOR_ITER             (to 696)
+             652 STORE_FAST           (e)
+             654 LOAD_CONST           (('errno', 'winerror'))
+             656 GET_ITER
+             658 FOR_ITER             (to 692)
+             662 STORE_FAST           (n)
+             664 LOAD_GLOBAL          (NULL + getattr)
+             674 LOAD_FAST            (e)
+             676 LOAD_FAST            (n)
+             678 LOAD_CONST           (None)
+             680 CALL                 3
+             688 SET_ADD              3
+         >>  690 JUMP_BACKWARD        (to 658)
+             692 END_FOR
+         >>  694 JUMP_BACKWARD        (to 648)
+             696 END_FOR
+             698 STORE_FAST           (numbers)
+             700 STORE_FAST           (e)
+             702 STORE_FAST           (n)
+
+ 35:         704 LOAD_GLOBAL          (NULL + any)
+             714 LOAD_CLOSURE         (socket)
+             716 BUILD_TUPLE          1
+             718 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a30f390, file app\provider_diagnostics.py>, line 35)
+             720 MAKE_FUNCTION        (closure)
+             722 LOAD_FAST            (causes)
+             724 GET_ITER
+         >>  726 CALL                 0
+             734 CALL                 1
+             742 POP_JUMP_IF_TRUE     (to 758)
+         >>  744 LOAD_FAST            (numbers)
+             746 BUILD_SET            0
+             748 LOAD_CONST           (frozenset({11001, 11002, 11003, 11004}))
+             750 SET_UPDATE           1
+             752 BINARY_OP            (&)
+             756 POP_JUMP_IF_FALSE    (to 772)
+
+ 36:     >>  758 LOAD_CONST           (('DNS_ERROR', '域名解析失败'))
+             760 UNPACK_SEQUENCE      2
+             764 STORE_FAST           (category)
+             766 STORE_FAST           (summary)
+             768 EXTENDED_ARG         (256)
+             770 JUMP_FORWARD         (to 1294)
+
+ 37:     >>  772 LOAD_GLOBAL          (NULL + any)
+             782 LOAD_CLOSURE         (ssl)
+             784 BUILD_TUPLE          1
+             786 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a30f110, file app\provider_diagnostics.py>, line 37)
+             788 MAKE_FUNCTION        (closure)
+             790 LOAD_FAST            (causes)
+             792 GET_ITER
+             794 CALL                 0
+             802 CALL                 1
+             810 POP_JUMP_IF_FALSE    (to 824)
+
+ 38:         812 LOAD_CONST           (('TLS_ERROR', 'TLS握手或证书验证失败'))
+             814 UNPACK_SEQUENCE      2
+             818 STORE_FAST           (category)
+             820 STORE_FAST           (summary)
+             822 JUMP_FORWARD         (to 1294)
+
+ 39:     >>  824 LOAD_GLOBAL          (NULL + isinstance)
+             834 LOAD_FAST            (exc)
+             836 LOAD_FAST            (httpx)
+             838 LOAD_ATTR            (ProxyError)
+             858 CALL                 2
+             866 POP_JUMP_IF_FALSE    (to 880)
+
+ 40:         868 LOAD_CONST           (('PROXY_ERROR', '代理连接失败'))
+             870 UNPACK_SEQUENCE      2
+             874 STORE_FAST           (category)
+             876 STORE_FAST           (summary)
+             878 JUMP_FORWARD         (to 1294)
+
+ 41:     >>  880 LOAD_GLOBAL          (NULL + isinstance)
+             890 LOAD_FAST            (exc)
+             892 LOAD_FAST            (httpx)
+             894 LOAD_ATTR            (ConnectTimeout)
+             914 CALL                 2
+             922 POP_JUMP_IF_FALSE    (to 936)
+
+ 42:         924 LOAD_CONST           (('CONNECT_TIMEOUT', '建立连接超时'))
+             926 UNPACK_SEQUENCE      2
+             930 STORE_FAST           (category)
+             932 STORE_FAST           (summary)
+             934 JUMP_FORWARD         (to 1294)
+
+ 43:     >>  936 LOAD_GLOBAL          (NULL + isinstance)
+             946 LOAD_FAST            (exc)
+         >>  948 LOAD_FAST            (httpx)
+             950 LOAD_ATTR            (ReadTimeout)
+             970 CALL                 2
+             978 POP_JUMP_IF_FALSE    (to 992)
+
+ 44:         980 LOAD_CONST           (('READ_TIMEOUT', '等待响应超时'))
+             982 UNPACK_SEQUENCE      2
+             986 STORE_FAST           (category)
+             988 STORE_FAST           (summary)
+             990 JUMP_FORWARD         (to 1294)
+
+ 45:     >>  992 LOAD_GLOBAL          (NULL + any)
+            1002 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a34c9d0, file app\provider_diagnostics.py>, line 45)
+            1004 MAKE_FUNCTION        (No arguments)
+            1006 LOAD_FAST            (causes)
+            1008 GET_ITER
+            1010 CALL                 0
+            1018 CALL                 1
+            1026 POP_JUMP_IF_TRUE     (to 1042)
+            1028 LOAD_FAST            (numbers)
+            1030 BUILD_SET            0
+            1032 LOAD_CONST           (frozenset({54, 104, 10054}))
+            1034 SET_UPDATE           1
+            1036 BINARY_OP            (&)
+            1040 POP_JUMP_IF_FALSE    (to 1054)
+
+ 46:     >> 1042 LOAD_CONST           (('CONNECTION_RESET', '连接被重置'))
+            1044 UNPACK_SEQUENCE      2
+            1048 STORE_FAST           (category)
+            1050 STORE_FAST           (summary)
+            1052 JUMP_FORWARD         (to 1294)
+
+ 47:     >> 1054 LOAD_GLOBAL          (NULL + isinstance)
+            1064 LOAD_FAST            (exc)
+            1066 LOAD_FAST            (httpx)
+            1068 LOAD_ATTR            (WriteError)
+            1088 LOAD_FAST            (httpx)
+            1090 LOAD_ATTR            (WriteTimeout)
+            1110 BUILD_TUPLE          2
+            1112 CALL                 2
+            1120 POP_JUMP_IF_FALSE    (to 1134)
+
+ 48:        1122 LOAD_CONST           (('WRITE_ERROR', '发送请求时连接异常'))
+            1124 UNPACK_SEQUENCE      2
+            1128 STORE_FAST           (category)
+            1130 STORE_FAST           (summary)
+            1132 JUMP_FORWARD         (to 1294)
+
+ 49:     >> 1134 LOAD_GLOBAL          (NULL + isinstance)
+            1144 LOAD_FAST            (exc)
+            1146 LOAD_GLOBAL          (TypeError)
+            1156 LOAD_GLOBAL          (ValueError)
+            1166 LOAD_GLOBAL          (UnicodeError)
+            1176 BUILD_TUPLE          3
+            1178 CALL                 2
+            1186 POP_JUMP_IF_FALSE    (to 1204)
+
+ 50:        1188 LOAD_CONST           (('SDK_SERIALIZATION_ERROR', '请求无法序列化'))
+            1190 UNPACK_SEQUENCE      2
+            1194 STORE_FAST           (category)
+            1196 STORE_FAST           (summary)
+
+ 51:        1198 LOAD_CONST           (True)
+            1200 STORE_FAST           (before_send)
+            1202 JUMP_FORWARD         (to 1294)
+
+ 52:     >> 1204 LOAD_GLOBAL          (NULL + isinstance)
+            1214 LOAD_FAST            (exc)
+            1216 LOAD_FAST            (httpx)
+            1218 LOAD_ATTR            (ConnectError)
+            1238 LOAD_FAST            (httpx)
+            1240 LOAD_ATTR            (PoolTimeout)
+            1260 BUILD_TUPLE          2
+            1262 CALL                 2
+            1270 POP_JUMP_IF_FALSE    (to 1284)
+
+ 53:        1272 LOAD_CONST           (('CONNECT_ERROR', '建立连接或获取连接失败'))
+            1274 UNPACK_SEQUENCE      2
+            1278 STORE_FAST           (category)
+            1280 STORE_FAST           (summary)
+            1282 JUMP_FORWARD         (to 1294)
+
+ 55:     >> 1284 LOAD_CONST           (('UNKNOWN_TRANSPORT_ERROR', '网络传输异常，具体原因尚未确认'))
+            1286 UNPACK_SEQUENCE      2
+            1290 STORE_FAST           (category)
+            1292 STORE_FAST           (summary)
+
+ 56:     >> 1294 LOAD_GLOBAL          (NULL + urlsplit)
+            1304 LOAD_FAST            (endpoint)
+            1306 CALL                 1
+            1314 STORE_FAST           (url)
+
+ 57:        1316 BUILD_MAP            0
+
+ 58:        1318 LOAD_FAST            (request_meta)
+            1320 COPY                 1
+            1322 POP_JUMP_IF_TRUE     (to 1328)
+            1324 POP_TOP
+            1326 BUILD_MAP            0
+
+ 57:     >> 1328 DICT_UPDATE          1
+            1330 BUILD_MAP            0
+
+ 59:        1332 LOAD_CONST           ("stage")
+            1334 LOAD_FAST            (before_send)
+            1336 POP_JUMP_IF_FALSE    (to 1342)
+            1338 LOAD_CONST           ("connect")
+            1340 JUMP_FORWARD         (to 1344)
+         >> 1342 LOAD_CONST           ("provider_request")
+
+ 57:     >> 1344 MAP_ADD              1
+
+ 60:        1346 LOAD_CONST           ("http_status")
+            1348 LOAD_CONST           (None)
+
+ 57:        1350 MAP_ADD              1
+
+ 61:        1352 LOAD_CONST           ("request_id")
+            1354 LOAD_CONST           (None)
+
+ 57:        1356 MAP_ADD              1
+
+ 62:        1358 LOAD_CONST           ("transport_error_type")
+            1360 LOAD_GLOBAL          (NULL + type)
+            1370 LOAD_FAST            (exc)
+            1372 CALL                 1
+            1380 LOAD_ATTR            (__name__)
+
+ 57:        1400 MAP_ADD              1
+
+ 63:        1402 LOAD_CONST           ("transport_category")
+            1404 LOAD_FAST            (category)
+
+ 57:        1406 MAP_ADD              1
+
+ 64:        1408 LOAD_CONST           ("exception_class")
+            1410 LOAD_GLOBAL          (NULL + type)
+            1420 LOAD_FAST            (exc)
+            1422 CALL                 1
+            1430 LOAD_ATTR            (__name__)
+
+ 57:        1450 MAP_ADD              1
+
+ 66:        1452 LOAD_CONST           ("exception_message")
+            1454 LOAD_FAST            (summary)
+
+ 57:        1456 MAP_ADD              1
+
+ 67:        1458 LOAD_CONST           ("errno")
+            1460 LOAD_GLOBAL          (NULL + next)
+            1470 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a34cd60, file app\provider_diagnostics.py>, line 67)
+            1472 MAKE_FUNCTION        (No arguments)
+            1474 LOAD_FAST            (causes)
+            1476 GET_ITER
+            1478 CALL                 0
+            1486 LOAD_CONST           (None)
+            1488 CALL                 2
+
+ 57:        1496 MAP_ADD              1
+
+ 68:        1498 LOAD_CONST           ("endpoint_host")
+            1500 LOAD_FAST            (url)
+            1502 LOAD_ATTR            (hostname)
+
+ 57:        1522 MAP_ADD              1
+
+ 69:        1524 LOAD_CONST           ("timestamp")
+            1526 LOAD_FAST            (datetime)
+            1528 LOAD_ATTR            (NULL|self + now)
+            1548 LOAD_FAST            (timezone)
+            1550 LOAD_ATTR            (utc)
+            1570 CALL                 1
+            1578 LOAD_ATTR            (NULL|self + isoformat)
+            1598 CALL                 0
+
+ 57:        1606 MAP_ADD              1
+
+ 70:        1608 LOAD_CONST           ("transport_error_chain")
+            1610 LOAD_FAST            (chain)
+
+ 57:        1612 MAP_ADD              1
+
+ 71:        1614 LOAD_CONST           ("transport_events")
+            1616 LOAD_FAST            (events)
+            1618 LOAD_CONST           (-24)
+            1620 LOAD_CONST           (None)
+            1622 BINARY_SLICE
+
+ 57:        1624 MAP_ADD              1
+
+ 72:        1626 LOAD_CONST           ("request_delivery")
+            1628 LOAD_FAST            (before_send)
+            1630 POP_JUMP_IF_FALSE    (to 1636)
+            1632 LOAD_CONST           ("NOT_SENT")
+            1634 JUMP_FORWARD         (to 1638)
+         >> 1636 LOAD_CONST           ("UNKNOWN")
+
+ 57:     >> 1638 MAP_ADD              1
+
+ 73:        1640 LOAD_CONST           ("full_endpoint")
+            1642 LOAD_GLOBAL          (NULL + urlunsplit)
+            1652 LOAD_FAST            (url)
+            1654 LOAD_ATTR            (scheme)
+            1674 LOAD_FAST            (url)
+            1676 LOAD_ATTR            (hostname)
+            1696 COPY                 1
+            1698 POP_JUMP_IF_TRUE     (to 1704)
+            1700 POP_TOP
+            1702 LOAD_CONST           ("")
+         >> 1704 LOAD_FAST            (url)
+            1706 LOAD_ATTR            (path)
+            1726 LOAD_CONST           ("")
+            1728 LOAD_CONST           ("")
+            1730 BUILD_TUPLE          5
+            1732 CALL                 1
+
+ 57:        1740 MAP_ADD              1
+
+ 74:        1742 LOAD_CONST           ("model_id")
+            1744 LOAD_FAST            (request_body)
+            1746 LOAD_ATTR            (NULL|self + get)
+            1766 LOAD_CONST           ("model")
+            1768 CALL                 1
+
+ 57:        1776 MAP_ADD              1
+
+ 75:        1778 LOAD_CONST           ("request_parameter_keys")
+            1780 LOAD_GLOBAL          (NULL + sorted)
+            1790 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a0af9b0, file app\provider_diagnostics.py>, line 75)
+            1792 MAKE_FUNCTION        (No arguments)
+            1794 LOAD_FAST            (request_body)
+            1796 GET_ITER
+            1798 CALL                 0
+            1806 CALL                 1
+
+ 57:        1814 MAP_ADD              1
+
+ 76:        1816 LOAD_CONST           ("image_received")
+            1818 LOAD_FAST            (before_send)
+            1820 POP_JUMP_IF_FALSE    (to 1826)
+            1822 LOAD_CONST           (False)
+            1824 JUMP_FORWARD         (to 1828)
+         >> 1826 LOAD_CONST           (None)
+
+ 57:     >> 1828 MAP_ADD              1
+            1830 DICT_UPDATE          1
+
+ 77:        1832 LOAD_CONST           (False)
+
+ 79:        1834 LOAD_FAST            (before_send)
+            1836 POP_JUMP_IF_FALSE    (to 1848)
+
+ 78:        1838 LOAD_CONST           ("尚未连接到作图服务，请求未发送，未产生本次模型费用。")
+
+ 57:        1840 LOAD_CONST           (('image_saved', 'message'))
+            1842 BUILD_CONST_KEY_MAP  2
+            1844 DICT_UPDATE          1
+            1846 RETURN_VALUE
+
+ 79:     >> 1848 LOAD_CONST           ("与作图服务的连接中断，请求结果和费用尚待核对。没有自动重发。")
+
+ 57:        1850 LOAD_CONST           (('image_saved', 'message'))
+            1852 BUILD_CONST_KEY_MAP  2
+            1854 DICT_UPDATE          1
+            1856 RETURN_VALUE
+            1858 SWAP                 (TOS <-> TOS1)
+            1860 POP_TOP
+
+ 28:        1862 SWAP                 (TOS <-> TOS1)
+            1864 STORE_FAST           (name)
+            1866 RERAISE              0
+            1868 SWAP                 (TOS <-> TOS1)
+            1870 POP_TOP
+
+ 34:        1872 SWAP                 (TOS <-> TOS2)
+            1874 STORE_FAST           (n)
+            1876 STORE_FAST           (e)
+            1878 RERAISE              0
+
+ExceptionTable:
+  428 to 520 -> 1858 [5]
+  644 to 696 -> 1868 [3]
+
+# Method Name:       safe_diagnostic
+# Filename:          app\provider_diagnostics.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  11
+# Stack size:        12
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        83
+# Constants:
+#    0: None
+#    1: <Code311 code object collect at 0x10a3a8e20, file app\provider_diagnostics.py>, line 86
+#    2: 'messages'
+#    3: 'input'
+#    4: <Code311 code object clean at 0x10a3a8f30, file app\provider_diagnostics.py>, line 96
+#    5: 'error'
+#    6: <Code311 code object symbol at 0x10a3a9040, file app\provider_diagnostics.py>, line 110
+#    7: ''
+#    8: 'code'
+#    9: 'message'
+#   10: '供应商未返回可保存的JSON错误正文，请凭请求ID核查。'
+#   11: 'param'
+#   12: 'parameter'
+#   13: 'x-request-id'
+#   14: 'request_id'
+#   15: 'model'
+#   16: <Code311 code object <genexpr> at 0x10a3a9150, file app\provider_diagnostics.py>, line 123
+#   17: ('provider_error_code', 'provider_error_message', 'invalid_parameter_name', 'provider_error_param', 'http_status', 'request_id', 'full_endpoint', 'model_id', 'request_parameter_keys')
+# Names:
+#    0: list
+#    1: get
+#    2: json
+#    3: isinstance
+#    4: dict
+#    5: ValueError
+#    6: urlsplit
+#    7: scheme
+#    8: urlunsplit
+#    9: hostname
+#   10: path
+#   11: status_code
+#   12: headers
+#   13: sorted
+# Varnames:
+#	response, endpoint, request_body, secrets, body, clean, raw, error, symbol, url, safe_url
+# Positional arguments:
+#	response, endpoint, request_body, secrets
+# Local variables:
+#    4: body
+#    5: clean
+#    6: raw
+#    7: error
+#    8: symbol
+#    9: url
+#   10: safe_url
+# Cell variables:
+#    0: collect
+#    1: sensitive
+               0 MAKE_CELL            (collect)
+               2 MAKE_CELL            (sensitive)
+
+ 83:           4 RESUME               0
+
+ 84:           6 LOAD_FAST            (request_body)
+               8 COPY                 1
+              10 POP_JUMP_IF_TRUE     (to 16)
+              12 POP_TOP
+              14 BUILD_MAP            0
+         >>   16 STORE_FAST           (body)
+
+ 85:          18 LOAD_GLOBAL          (NULL + list)
+              28 LOAD_FAST            (secrets)
+              30 CALL                 1
+              38 STORE_DEREF          (sensitive)
+
+ 86:          40 LOAD_CLOSURE         (collect)
+              42 LOAD_CLOSURE         (sensitive)
+              44 BUILD_TUPLE          2
+              46 LOAD_CONST           (<Code311 code object collect at 0x10a3a8e20, file app\provider_diagnostics.py>, line 86)
+              48 MAKE_FUNCTION        (closure)
+              50 STORE_DEREF          (collect)
+
+ 94:          52 PUSH_NULL
+              54 LOAD_DEREF           (collect)
+              56 LOAD_FAST            (body)
+              58 LOAD_ATTR            (NULL|self + get)
+              78 LOAD_CONST           ("messages")
+              80 BUILD_LIST           0
+              82 CALL                 2
+              90 CALL                 1
+              98 POP_TOP
+
+ 95:         100 PUSH_NULL
+             102 LOAD_DEREF           (collect)
+             104 LOAD_FAST            (body)
+             106 LOAD_ATTR            (NULL|self + get)
+             126 LOAD_CONST           ("input")
+             128 BUILD_LIST           0
+             130 CALL                 2
+             138 CALL                 1
+             146 POP_TOP
+
+ 96:         148 LOAD_CLOSURE         (sensitive)
+             150 BUILD_TUPLE          1
+             152 LOAD_CONST           (<Code311 code object clean at 0x10a3a8f30, file app\provider_diagnostics.py>, line 96)
+             154 MAKE_FUNCTION        (closure)
+             156 STORE_FAST           (clean)
+
+104:         158 NOP
+
+105:         160 LOAD_FAST            (response)
+             162 LOAD_ATTR            (NULL|self + json)
+             182 CALL                 0
+             190 STORE_FAST           (raw)
+
+106:         192 LOAD_GLOBAL          (NULL + isinstance)
+             202 LOAD_FAST            (raw)
+             204 LOAD_GLOBAL          (dict)
+             214 CALL                 2
+             222 POP_JUMP_IF_FALSE    (to 260)
+             224 LOAD_FAST            (raw)
+             226 LOAD_ATTR            (NULL|self + get)
+             246 LOAD_CONST           ("error")
+             248 LOAD_FAST            (raw)
+             250 CALL                 2
+             258 JUMP_FORWARD         (to 262)
+         >>  260 BUILD_MAP            0
+         >>  262 STORE_FAST           (error)
+
+107:         264 LOAD_GLOBAL          (NULL + isinstance)
+             274 LOAD_FAST            (error)
+             276 LOAD_GLOBAL          (dict)
+             286 CALL                 2
+             294 POP_JUMP_IF_FALSE    (to 300)
+             296 LOAD_FAST            (error)
+             298 JUMP_FORWARD         (to 302)
+         >>  300 BUILD_MAP            0
+         >>  302 STORE_FAST           (error)
+
+110:         304 LOAD_CONST           (<Code311 code object symbol at 0x10a3a9040, file app\provider_diagnostics.py>, line 110)
+             306 MAKE_FUNCTION        (No arguments)
+             308 STORE_FAST           (symbol)
+
+112:         310 LOAD_GLOBAL          (NULL + urlsplit)
+             320 LOAD_FAST            (endpoint)
+             322 CALL                 1
+             330 STORE_FAST           (url)
+
+113:         332 LOAD_FAST            (url)
+             334 LOAD_ATTR            (scheme)
+             354 POP_JUMP_IF_FALSE    (to 456)
+             356 LOAD_GLOBAL          (NULL + urlunsplit)
+             366 LOAD_FAST            (url)
+             368 LOAD_ATTR            (scheme)
+             388 LOAD_FAST            (url)
+             390 LOAD_ATTR            (hostname)
+             410 COPY                 1
+             412 POP_JUMP_IF_TRUE     (to 418)
+             414 POP_TOP
+             416 LOAD_CONST           ("")
+         >>  418 LOAD_FAST            (url)
+             420 LOAD_ATTR            (path)
+             440 LOAD_CONST           ("")
+             442 LOAD_CONST           ("")
+             444 BUILD_TUPLE          5
+             446 CALL                 1
+             454 JUMP_FORWARD         (to 478)
+         >>  456 LOAD_FAST            (url)
+             458 LOAD_ATTR            (path)
+         >>  478 STORE_FAST           (safe_url)
+
+115:         480 PUSH_NULL
+             482 LOAD_FAST            (symbol)
+             484 LOAD_FAST            (error)
+             486 LOAD_ATTR            (NULL|self + get)
+             506 LOAD_CONST           ("code")
+             508 CALL                 1
+             516 CALL                 1
+
+116:         524 PUSH_NULL
+             526 LOAD_FAST            (clean)
+             528 LOAD_FAST            (error)
+             530 LOAD_ATTR            (NULL|self + get)
+             550 LOAD_CONST           ("message")
+             552 CALL                 1
+             560 CALL                 1
+             568 COPY                 1
+             570 POP_JUMP_IF_TRUE     (to 576)
+             572 POP_TOP
+             574 LOAD_CONST           ("供应商未返回可保存的JSON错误正文，请凭请求ID核查。")
+
+117:     >>  576 PUSH_NULL
+             578 LOAD_FAST            (symbol)
+             580 LOAD_FAST            (error)
+             582 LOAD_ATTR            (NULL|self + get)
+             602 LOAD_CONST           ("param")
+             604 CALL                 1
+             612 COPY                 1
+             614 POP_JUMP_IF_TRUE     (to 650)
+             616 POP_TOP
+             618 LOAD_FAST            (error)
+             620 LOAD_ATTR            (NULL|self + get)
+             640 LOAD_CONST           ("parameter")
+             642 CALL                 1
+         >>  650 CALL                 1
+
+118:         658 PUSH_NULL
+             660 LOAD_FAST            (symbol)
+             662 LOAD_FAST            (error)
+             664 LOAD_ATTR            (NULL|self + get)
+             684 LOAD_CONST           ("param")
+             686 CALL                 1
+             694 COPY                 1
+             696 POP_JUMP_IF_TRUE     (to 732)
+             698 POP_TOP
+             700 LOAD_FAST            (error)
+             702 LOAD_ATTR            (NULL|self + get)
+             722 LOAD_CONST           ("parameter")
+             724 CALL                 1
+         >>  732 CALL                 1
+
+119:         740 LOAD_FAST            (response)
+             742 LOAD_ATTR            (status_code)
+
+120:         762 PUSH_NULL
+             764 LOAD_FAST            (symbol)
+             766 LOAD_FAST            (response)
+             768 LOAD_ATTR            (headers)
+             788 LOAD_ATTR            (NULL|self + get)
+             808 LOAD_CONST           ("x-request-id")
+             810 CALL                 1
+             818 COPY                 1
+             820 POP_JUMP_IF_TRUE     (to 892)
+             822 POP_TOP
+             824 LOAD_GLOBAL          (NULL + isinstance)
+             834 LOAD_FAST            (raw)
+             836 LOAD_GLOBAL          (dict)
+             846 CALL                 2
+             854 POP_JUMP_IF_FALSE    (to 890)
+             856 LOAD_FAST            (raw)
+             858 LOAD_ATTR            (NULL|self + get)
+             878 LOAD_CONST           ("request_id")
+             880 CALL                 1
+             888 JUMP_FORWARD         (to 892)
+         >>  890 LOAD_CONST           (None)
+         >>  892 CALL                 1
+
+121:         900 LOAD_FAST            (safe_url)
+
+122:         902 PUSH_NULL
+             904 LOAD_FAST            (symbol)
+             906 LOAD_FAST            (body)
+             908 LOAD_ATTR            (NULL|self + get)
+             928 LOAD_CONST           ("model")
+             930 CALL                 1
+             938 CALL                 1
+
+123:         946 LOAD_GLOBAL          (NULL + sorted)
+             956 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a3a9150, file app\provider_diagnostics.py>, line 123)
+             958 MAKE_FUNCTION        (No arguments)
+             960 LOAD_FAST            (body)
+             962 GET_ITER
+             964 CALL                 0
+             972 CALL                 1
+
+114:         980 LOAD_CONST           (('provider_error_code', 'provider_error_message', 'invalid_parameter_name', 'provider_error_param', 'http_status', 'request_id', 'full_endpoint', 'model_id', 'request_parameter_keys'))
+             982 BUILD_CONST_KEY_MAP  9
+             984 RETURN_VALUE
+             986 PUSH_EXC_INFO
+
+108:         988 LOAD_GLOBAL          (ValueError)
+             998 CHECK_EXC_MATCH
+            1000 POP_JUMP_IF_FALSE    (to 1018)
+            1002 POP_TOP
+
+109:        1004 BUILD_MAP            0
+            1006 BUILD_MAP            0
+            1008 STORE_FAST           (error)
+            1010 STORE_FAST           (raw)
+            1012 POP_EXCEPT
+            1014 EXTENDED_ARG         (256)
+            1016 JUMP_BACKWARD        (to 304)
+
+108:     >> 1018 RERAISE              0
+            1020 COPY                 3
+            1022 POP_EXCEPT
+            1024 RERAISE              1
+
+ExceptionTable:
+  160 to 302 -> 986 [0]
+  986 to 1010 -> 1020 [1] lasti
+  1018 to 1018 -> 1020 [1] lasti
+
+# Method Name:       diagnostic
+# Filename:          app\provider_diagnostics.py
+# Argument count:    2
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  8
+# Stack size:        8
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        159
+# Constants:
+#    0: None
+#    1: 'error'
+#    2: 'code'
+#    3: 'message'
+#    4: ''
+#    5: 16000
+#    6: 401
+#    7: ('PAUSED_CREDENTIAL', 'CREDENTIAL')
+#    8: frozenset({'safety_violations', 'content_policy_violation', 'moderation_blocked'})
+#    9: ('SAFETY_BLOCKED', 'SAFETY')
+#   10: frozenset({'credit_balance_exhausted', 'insufficient_quota', 'billing_hard_limit_reached'})
+#   11: ('PROVIDER_QUOTA', 'QUOTA')
+#   12: (400, 403, 404)
+#   13: 'organization_verification_required'
+#   14: 'organization'
+#   15: <Code311 code object <genexpr> at 0x10a3a9370, file app\provider_diagnostics.py>, line 181
+#   16: ('must be verified', 'verification required', 'verify your organization')
+#   17: ('PROVIDER_PERMISSION', 'ORGANIZATION_VERIFICATION')
+#   18: (403, 404)
+#   19: 'model_not_found'
+#   20: 'model'
+#   21: <Code311 code object <genexpr> at 0x10a3a9480, file app\provider_diagnostics.py>, line 189
+#   22: ('do not have access', 'not have access', 'not permitted', 'not allowed')
+#   23: ('PROVIDER_PERMISSION', 'MODEL_ACCESS')
+#   24: 403
+#   25: 'PERMISSION_UNSPECIFIED'
+#   26: 'unsupported_country_region_territory'
+#   27: 'unsupported country'
+#   28: 'REGION_ACCESS'
+#   29: 'ip_not_authorized'
+#   30: 'ip not authorized'
+#   31: 'IP_ACCESS'
+#   32: 'PROVIDER_PERMISSION'
+#   33: 429
+#   34: ('RATE_LIMIT', 'RATE_LIMIT')
+#   35: 500
+#   36: ('OUTCOME_UNKNOWN', 'UNKNOWN_OUTCOME')
+#   37: ('PROVIDER_REQUEST_INVALID', 'REQUEST_INVALID')
+#   38: ('/responses', '/images/generations', '/images/edits', '/chat/completions')
+#   39: False
+#   40: ('http_status', 'endpoint', 'provider_code', 'reason', 'message', 'raw_message_saved')
+# Names:
+#    0: json
+#    1: isinstance
+#    2: dict
+#    3: get
+#    4: ValueError
+#    5: str
+#    6: KNOWN_CODES
+#    7: lower
+#    8: status_code
+#    9: any
+#   10: MESSAGES
+# Varnames:
+#	response, endpoint, body, error, code, status, state, reason
+# Positional arguments:
+#	response, endpoint
+# Local variables:
+#    2: body
+#    3: error
+#    4: code
+#    5: status
+#    6: state
+#    7: reason
+# Cell variables:
+#    0: message
+               0 MAKE_CELL            (message)
+
+159:           2 RESUME               0
+
+160:           4 NOP
+
+161:           6 LOAD_FAST            (response)
+               8 LOAD_ATTR            (NULL|self + json)
+              28 CALL                 0
+              36 STORE_FAST           (body)
+
+162:          38 LOAD_GLOBAL          (NULL + isinstance)
+              48 LOAD_FAST            (body)
+              50 LOAD_GLOBAL          (dict)
+              60 CALL                 2
+              68 POP_JUMP_IF_FALSE    (to 106)
+              70 LOAD_FAST            (body)
+              72 LOAD_ATTR            (NULL|self + get)
+              92 LOAD_CONST           ("error")
+              94 BUILD_MAP            0
+              96 CALL                 2
+             104 JUMP_FORWARD         (to 108)
+         >>  106 BUILD_MAP            0
+         >>  108 STORE_FAST           (error)
+
+163:         110 LOAD_GLOBAL          (NULL + isinstance)
+             120 LOAD_FAST            (error)
+             122 LOAD_GLOBAL          (dict)
+             132 CALL                 2
+             140 POP_JUMP_IF_FALSE    (to 146)
+             142 LOAD_FAST            (error)
+             144 JUMP_FORWARD         (to 148)
+         >>  146 BUILD_MAP            0
+         >>  148 STORE_FAST           (error)
+
+166:         150 LOAD_FAST            (error)
+             152 LOAD_ATTR            (NULL|self + get)
+             172 LOAD_CONST           ("code")
+             174 CALL                 1
+             182 STORE_FAST           (code)
+
+167:         184 LOAD_GLOBAL          (NULL + isinstance)
+             194 LOAD_FAST            (code)
+             196 LOAD_GLOBAL          (str)
+             206 CALL                 2
+             214 POP_JUMP_IF_FALSE    (to 236)
+             216 LOAD_FAST            (code)
+             218 LOAD_GLOBAL          (KNOWN_CODES)
+             228 CONTAINS_OP          (in)
+             230 POP_JUMP_IF_FALSE    (to 236)
+             232 LOAD_FAST            (code)
+             234 JUMP_FORWARD         (to 238)
+         >>  236 LOAD_CONST           (None)
+         >>  238 STORE_FAST           (code)
+
+168:         240 LOAD_FAST            (error)
+             242 LOAD_ATTR            (NULL|self + get)
+             262 LOAD_CONST           ("message")
+             264 LOAD_CONST           ("")
+             266 CALL                 2
+             274 STORE_DEREF          (message)
+
+169:         276 LOAD_GLOBAL          (NULL + isinstance)
+             286 LOAD_DEREF           (message)
+             288 LOAD_GLOBAL          (str)
+             298 CALL                 2
+             306 POP_JUMP_IF_FALSE    (to 346)
+             308 LOAD_DEREF           (message)
+             310 LOAD_ATTR            (NULL|self + lower)
+             330 CALL                 0
+             338 LOAD_CONST           (None)
+             340 LOAD_CONST           (16000)
+             342 BINARY_SLICE
+             344 JUMP_FORWARD         (to 348)
+         >>  346 LOAD_CONST           ("")
+         >>  348 STORE_DEREF          (message)
+
+170:         350 LOAD_FAST            (response)
+             352 LOAD_ATTR            (status_code)
+             372 STORE_FAST           (status)
+
+171:         374 LOAD_FAST            (status)
+             376 LOAD_CONST           (401)
+             378 COMPARE_OP           (==)
+             382 POP_JUMP_IF_FALSE    (to 396)
+
+172:         384 LOAD_CONST           (('PAUSED_CREDENTIAL', 'CREDENTIAL'))
+             386 UNPACK_SEQUENCE      2
+             390 STORE_FAST           (state)
+             392 STORE_FAST           (reason)
+             394 JUMP_FORWARD         (to 712)
+
+173:     >>  396 LOAD_FAST            (code)
+             398 LOAD_CONST           (frozenset({'safety_violations', 'content_policy_violation', 'moderation_blocked'}))
+             400 CONTAINS_OP          (in)
+             402 POP_JUMP_IF_FALSE    (to 416)
+
+174:         404 LOAD_CONST           (('SAFETY_BLOCKED', 'SAFETY'))
+             406 UNPACK_SEQUENCE      2
+             410 STORE_FAST           (state)
+             412 STORE_FAST           (reason)
+             414 JUMP_FORWARD         (to 712)
+
+175:     >>  416 LOAD_FAST            (code)
+             418 LOAD_CONST           (frozenset({'credit_balance_exhausted', 'insufficient_quota', 'billing_hard_limit_reached'}))
+             420 CONTAINS_OP          (in)
+             422 POP_JUMP_IF_FALSE    (to 436)
+
+176:         424 LOAD_CONST           (('PROVIDER_QUOTA', 'QUOTA'))
+             426 UNPACK_SEQUENCE      2
+             430 STORE_FAST           (state)
+             432 STORE_FAST           (reason)
+             434 JUMP_FORWARD         (to 712)
+
+177:     >>  436 LOAD_FAST            (status)
+             438 LOAD_CONST           ((400, 403, 404))
+             440 CONTAINS_OP          (in)
+             442 POP_JUMP_IF_FALSE    (to 514)
+
+178:         444 LOAD_FAST            (code)
+             446 LOAD_CONST           ("organization_verification_required")
+             448 COMPARE_OP           (==)
+             452 POP_JUMP_IF_TRUE     (to 502)
+
+180:         454 LOAD_CONST           ("organization")
+             456 LOAD_DEREF           (message)
+             458 CONTAINS_OP          (in)
+             460 POP_JUMP_IF_FALSE    (to 514)
+
+181:         462 LOAD_GLOBAL          (NULL + any)
+             472 LOAD_CLOSURE         (message)
+             474 BUILD_TUPLE          1
+             476 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a3a9370, file app\provider_diagnostics.py>, line 181)
+             478 MAKE_FUNCTION        (closure)
+             480 LOAD_CONST           (('must be verified', 'verification required', 'verify your organization'))
+             482 GET_ITER
+             484 CALL                 0
+             492 CALL                 1
+             500 POP_JUMP_IF_FALSE    (to 514)
+
+184:     >>  502 LOAD_CONST           (('PROVIDER_PERMISSION', 'ORGANIZATION_VERIFICATION'))
+             504 UNPACK_SEQUENCE      2
+             508 STORE_FAST           (state)
+             510 STORE_FAST           (reason)
+             512 JUMP_FORWARD         (to 712)
+
+185:     >>  514 LOAD_FAST            (status)
+             516 LOAD_CONST           ((403, 404))
+             518 CONTAINS_OP          (in)
+             520 POP_JUMP_IF_FALSE    (to 592)
+
+186:         522 LOAD_FAST            (code)
+             524 LOAD_CONST           ("model_not_found")
+             526 COMPARE_OP           (==)
+             530 POP_JUMP_IF_TRUE     (to 580)
+
+188:         532 LOAD_CONST           ("model")
+             534 LOAD_DEREF           (message)
+             536 CONTAINS_OP          (in)
+             538 POP_JUMP_IF_FALSE    (to 592)
+
+189:         540 LOAD_GLOBAL          (NULL + any)
+             550 LOAD_CLOSURE         (message)
+             552 BUILD_TUPLE          1
+             554 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a3a9480, file app\provider_diagnostics.py>, line 189)
+             556 MAKE_FUNCTION        (closure)
+             558 LOAD_CONST           (('do not have access', 'not have access', 'not permitted', 'not allowed'))
+             560 GET_ITER
+             562 CALL                 0
+             570 CALL                 1
+             578 POP_JUMP_IF_FALSE    (to 592)
+
+192:     >>  580 LOAD_CONST           (('PROVIDER_PERMISSION', 'MODEL_ACCESS'))
+             582 UNPACK_SEQUENCE      2
+             586 STORE_FAST           (state)
+             588 STORE_FAST           (reason)
+             590 JUMP_FORWARD         (to 712)
+
+193:     >>  592 LOAD_FAST            (status)
+             594 LOAD_CONST           (403)
+             596 COMPARE_OP           (==)
+             600 POP_JUMP_IF_FALSE    (to 658)
+
+194:         602 LOAD_CONST           ("PERMISSION_UNSPECIFIED")
+             604 STORE_FAST           (reason)
+
+195:         606 LOAD_FAST            (code)
+             608 LOAD_CONST           ("unsupported_country_region_territory")
+             610 COMPARE_OP           (==)
+             614 POP_JUMP_IF_TRUE     (to 624)
+             616 LOAD_CONST           ("unsupported country")
+             618 LOAD_DEREF           (message)
+             620 CONTAINS_OP          (in)
+             622 POP_JUMP_IF_FALSE    (to 630)
+
+196:     >>  624 LOAD_CONST           ("REGION_ACCESS")
+             626 STORE_FAST           (reason)
+             628 JUMP_FORWARD         (to 652)
+
+197:     >>  630 LOAD_FAST            (code)
+             632 LOAD_CONST           ("ip_not_authorized")
+             634 COMPARE_OP           (==)
+             638 POP_JUMP_IF_TRUE     (to 648)
+             640 LOAD_CONST           ("ip not authorized")
+             642 LOAD_DEREF           (message)
+             644 CONTAINS_OP          (in)
+             646 POP_JUMP_IF_FALSE    (to 652)
+
+198:     >>  648 LOAD_CONST           ("IP_ACCESS")
+             650 STORE_FAST           (reason)
+
+199:     >>  652 LOAD_CONST           ("PROVIDER_PERMISSION")
+             654 STORE_FAST           (state)
+             656 JUMP_FORWARD         (to 712)
+
+200:     >>  658 LOAD_FAST            (status)
+             660 LOAD_CONST           (429)
+             662 COMPARE_OP           (==)
+             666 POP_JUMP_IF_FALSE    (to 680)
+
+201:         668 LOAD_CONST           (('RATE_LIMIT', 'RATE_LIMIT'))
+             670 UNPACK_SEQUENCE      2
+             674 STORE_FAST           (state)
+             676 STORE_FAST           (reason)
+             678 JUMP_FORWARD         (to 712)
+
+202:     >>  680 LOAD_FAST            (status)
+             682 LOAD_CONST           (500)
+             684 COMPARE_OP           (>=)
+             688 POP_JUMP_IF_FALSE    (to 702)
+
+203:         690 LOAD_CONST           (('OUTCOME_UNKNOWN', 'UNKNOWN_OUTCOME'))
+             692 UNPACK_SEQUENCE      2
+             696 STORE_FAST           (state)
+             698 STORE_FAST           (reason)
+             700 JUMP_FORWARD         (to 712)
+
+205:     >>  702 LOAD_CONST           (('PROVIDER_REQUEST_INVALID', 'REQUEST_INVALID'))
+             704 UNPACK_SEQUENCE      2
+             708 STORE_FAST           (state)
+             710 STORE_FAST           (reason)
+
+206:     >>  712 LOAD_FAST            (state)
+
+207:         714 LOAD_FAST            (status)
+
+208:         716 LOAD_FAST            (endpoint)
+             718 LOAD_CONST           (('/responses', '/images/generations', '/images/edits', '/chat/completions'))
+             720 CONTAINS_OP          (in)
+             722 POP_JUMP_IF_FALSE    (to 728)
+             724 LOAD_FAST            (endpoint)
+             726 JUMP_FORWARD         (to 730)
+         >>  728 LOAD_CONST           (None)
+
+209:     >>  730 LOAD_FAST            (code)
+
+210:         732 LOAD_FAST            (reason)
+
+211:         734 LOAD_GLOBAL          (MESSAGES)
+             744 LOAD_FAST            (reason)
+             746 BINARY_SUBSCR
+
+212:         750 LOAD_CONST           (False)
+
+206:         752 LOAD_CONST           (('http_status', 'endpoint', 'provider_code', 'reason', 'message', 'raw_message_saved'))
+             754 BUILD_CONST_KEY_MAP  6
+             756 BUILD_TUPLE          2
+             758 RETURN_VALUE
+             760 PUSH_EXC_INFO
+
+164:         762 LOAD_GLOBAL          (ValueError)
+             772 CHECK_EXC_MATCH
+             774 POP_JUMP_IF_FALSE    (to 788)
+             776 POP_TOP
+
+165:         778 BUILD_MAP            0
+             780 STORE_FAST           (error)
+             782 POP_EXCEPT
+             784 EXTENDED_ARG         (256)
+             786 JUMP_BACKWARD        (to 150)
+
+164:     >>  788 RERAISE              0
+             790 COPY                 3
+             792 POP_EXCEPT
+             794 RERAISE              1
+
+ExceptionTable:
+  6 to 148 -> 760 [0]
+  760 to 780 -> 790 [1] lasti
+  788 to 788 -> 790 [1] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        15
+# Constants:
+#    0: 'send_request_headers'
+#    1: 'send_request_body'
+#    2: None
+# Varnames:
+#	.0, event
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: event
+
+ 15:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 40)
+              12 STORE_FAST           (event)
+              14 LOAD_CONST           ("send_request_headers")
+              16 LOAD_FAST            (event)
+              18 CONTAINS_OP          (in)
+              20 COPY                 1
+              22 POP_JUMP_IF_TRUE     (to 32)
+              24 POP_TOP
+              26 LOAD_CONST           ("send_request_body")
+              28 LOAD_FAST            (event)
+              30 CONTAINS_OP          (in)
+         >>   32 YIELD_VALUE          1
+              34 RESUME               1
+              36 POP_TOP
+         >>   38 JUMP_BACKWARD        (to 8)
+              40 END_FOR
+              42 RETURN_CONST         (None)
+              44 CALL_INTRINSIC_1     3
+              46 RERAISE              1
+
+ExceptionTable:
+  4 to 42 -> 44 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        35
+# Constants:
+#    0: None
+# Names:
+#    0: isinstance
+#    1: gaierror
+# Varnames:
+#	.0, e
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: e
+# Free variables:
+#    0: socket
+               0 COPY_FREE_VARS       1
+
+ 35:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 66)
+              14 STORE_FAST           (e)
+              16 LOAD_GLOBAL          (NULL + isinstance)
+              26 LOAD_FAST            (e)
+              28 LOAD_DEREF           (socket)
+              30 LOAD_ATTR            (gaierror)
+              50 CALL                 2
+              58 YIELD_VALUE          1
+              60 RESUME               1
+              62 POP_TOP
+         >>   64 JUMP_BACKWARD        (to 10)
+              66 END_FOR
+              68 RETURN_CONST         (None)
+              70 CALL_INTRINSIC_1     3
+              72 RERAISE              1
+
+ExceptionTable:
+  6 to 68 -> 70 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        37
+# Constants:
+#    0: None
+# Names:
+#    0: isinstance
+#    1: SSLError
+# Varnames:
+#	.0, e
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: e
+# Free variables:
+#    0: ssl
+               0 COPY_FREE_VARS       1
+
+ 37:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 66)
+              14 STORE_FAST           (e)
+              16 LOAD_GLOBAL          (NULL + isinstance)
+              26 LOAD_FAST            (e)
+              28 LOAD_DEREF           (ssl)
+              30 LOAD_ATTR            (SSLError)
+              50 CALL                 2
+              58 YIELD_VALUE          1
+              60 RESUME               1
+              62 POP_TOP
+         >>   64 JUMP_BACKWARD        (to 10)
+              66 END_FOR
+              68 RETURN_CONST         (None)
+              70 CALL_INTRINSIC_1     3
+              72 RERAISE              1
+
+ExceptionTable:
+  6 to 68 -> 70 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        45
+# Constants:
+#    0: None
+# Names:
+#    0: isinstance
+#    1: ConnectionResetError
+# Varnames:
+#	.0, e
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: e
+
+ 45:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 52)
+              12 STORE_FAST           (e)
+              14 LOAD_GLOBAL          (NULL + isinstance)
+              24 LOAD_FAST            (e)
+              26 LOAD_GLOBAL          (ConnectionResetError)
+              36 CALL                 2
+              44 YIELD_VALUE          1
+              46 RESUME               1
+              48 POP_TOP
+         >>   50 JUMP_BACKWARD        (to 8)
+              52 END_FOR
+              54 RETURN_CONST         (None)
+              56 CALL_INTRINSIC_1     3
+              58 RERAISE              1
+
+ExceptionTable:
+  4 to 54 -> 56 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        8
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        67
+# Constants:
+#    0: 'errno'
+#    1: None
+# Names:
+#    0: isinstance
+#    1: getattr
+#    2: int
+# Varnames:
+#	.0, e
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: e
+
+ 67:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 100)
+              12 STORE_FAST           (e)
+              14 LOAD_GLOBAL          (NULL + isinstance)
+              24 LOAD_GLOBAL          (NULL + getattr)
+              34 LOAD_FAST            (e)
+              36 LOAD_CONST           ("errno")
+              38 LOAD_CONST           (None)
+              40 CALL                 3
+              48 LOAD_GLOBAL          (int)
+              58 CALL                 2
+              66 POP_JUMP_IF_TRUE     (to 70)
+              68 JUMP_BACKWARD        (to 8)
+         >>   70 LOAD_GLOBAL          (NULL + getattr)
+              80 LOAD_FAST            (e)
+              82 LOAD_CONST           ("errno")
+              84 CALL                 2
+              92 YIELD_VALUE          1
+              94 RESUME               1
+              96 POP_TOP
+         >>   98 JUMP_BACKWARD        (to 8)
+             100 END_FOR
+             102 RETURN_CONST         (None)
+             104 CALL_INTRINSIC_1     3
+             106 RERAISE              1
+
+ExceptionTable:
+  4 to 66 -> 104 [0] lasti
+  70 to 102 -> 104 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        75
+# Constants:
+#    0: ('key', 'api_key', 'authorization')
+#    1: None
+# Names:
+#    0: lower
+# Varnames:
+#	.0, k
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: k
+
+ 75:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 62)
+              12 STORE_FAST           (k)
+              14 LOAD_FAST            (k)
+              16 LOAD_ATTR            (NULL|self + lower)
+              36 CALL                 0
+              44 LOAD_CONST           (('key', 'api_key', 'authorization'))
+              46 CONTAINS_OP          (not in)
+              48 POP_JUMP_IF_TRUE     (to 52)
+              50 JUMP_BACKWARD        (to 8)
+         >>   52 LOAD_FAST            (k)
+              54 YIELD_VALUE          1
+              56 RESUME               1
+              58 POP_TOP
+         >>   60 JUMP_BACKWARD        (to 8)
+              62 END_FOR
+              64 RETURN_CONST         (None)
+              66 CALL_INTRINSIC_1     3
+              68 RERAISE              1
+
+ExceptionTable:
+  4 to 48 -> 66 [0] lasti
+  52 to 64 -> 66 [0] lasti
+
+# Method Name:       collect
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        86
+# Constants:
+#    0: None
+#    1: <Code311 code object <genexpr> at 0x10a3a8c00, file app\provider_diagnostics.py>, line 89
+# Names:
+#    0: isinstance
+#    1: str
+#    2: append
+#    3: extend
+#    4: splitlines
+#    5: dict
+#    6: values
+#    7: list
+# Varnames:
+#	value, item
+# Positional arguments:
+#	value
+# Local variables:
+#    1: item
+# Free variables:
+#    0: collect
+#    1: sensitive
+               0 COPY_FREE_VARS       2
+
+ 86:           2 RESUME               0
+
+ 87:           4 LOAD_GLOBAL          (NULL + isinstance)
+              14 LOAD_FAST            (value)
+              16 LOAD_GLOBAL          (str)
+              26 CALL                 2
+              34 POP_JUMP_IF_FALSE    (to 148)
+
+ 88:          36 LOAD_DEREF           (sensitive)
+              38 LOAD_ATTR            (NULL|self + append)
+              58 LOAD_FAST            (value)
+              60 CALL                 1
+              68 POP_TOP
+
+ 89:          70 LOAD_DEREF           (sensitive)
+              72 LOAD_ATTR            (NULL|self + extend)
+              92 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a3a8c00, file app\provider_diagnostics.py>, line 89)
+              94 MAKE_FUNCTION        (No arguments)
+              96 LOAD_FAST            (value)
+              98 LOAD_ATTR            (NULL|self + splitlines)
+             118 CALL                 0
+             126 GET_ITER
+             128 CALL                 0
+             136 CALL                 1
+             144 POP_TOP
+             146 RETURN_CONST         (None)
+
+ 90:     >>  148 LOAD_GLOBAL          (NULL + isinstance)
+             158 LOAD_FAST            (value)
+             160 LOAD_GLOBAL          (dict)
+             170 CALL                 2
+             178 POP_JUMP_IF_FALSE    (to 240)
+
+ 91:         180 LOAD_FAST            (value)
+             182 LOAD_ATTR            (NULL|self + values)
+             202 CALL                 0
+             210 GET_ITER
+             212 FOR_ITER             (to 236)
+             216 STORE_FAST           (item)
+             218 PUSH_NULL
+             220 LOAD_DEREF           (collect)
+             222 LOAD_FAST            (item)
+             224 CALL                 1
+             232 POP_TOP
+         >>  234 JUMP_BACKWARD        (to 212)
+             236 END_FOR
+             238 RETURN_CONST         (None)
+
+ 92:     >>  240 LOAD_GLOBAL          (NULL + isinstance)
+             250 LOAD_FAST            (value)
+             252 LOAD_GLOBAL          (list)
+             262 CALL                 2
+             270 POP_JUMP_IF_FALSE    (to 304)
+
+ 93:         272 LOAD_FAST            (value)
+             274 GET_ITER
+             276 FOR_ITER             (to 300)
+             280 STORE_FAST           (item)
+             282 PUSH_NULL
+             284 LOAD_DEREF           (collect)
+             286 LOAD_FAST            (item)
+             288 CALL                 1
+             296 POP_TOP
+         >>  298 JUMP_BACKWARD        (to 276)
+             300 END_FOR
+             302 RETURN_CONST         (None)
+
+ 92:     >>  304 RETURN_CONST         (None)
+
+
+# Method Name:       clean
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        96
+# Constants:
+#    0: None
+#    1: True
+#    2: ('key', 'reverse')
+#    3: 8
+#    4: '[REDACTED]'
+#    5: '(?i)(?:bearer\\s+|sk-)[\\w.\\-]+'
+#    6: '(?i)data:[^\\s"\\\']+|[A-Za-z0-9+/=_-]{80,}'
+#    7: 'https?://[^\\s"\\\']+'
+#    8: '[URL]'
+#    9: 600
+# Names:
+#    0: isinstance
+#    1: str
+#    2: sorted
+#    3: set
+#    4: len
+#    5: replace
+#    6: re
+#    7: sub
+# Varnames:
+#	value, secret
+# Positional arguments:
+#	value
+# Local variables:
+#    1: secret
+# Free variables:
+#    0: sensitive
+               0 COPY_FREE_VARS       1
+
+ 96:           2 RESUME               0
+
+ 97:           4 LOAD_GLOBAL          (NULL + isinstance)
+              14 LOAD_FAST            (value)
+              16 LOAD_GLOBAL          (str)
+              26 CALL                 2
+              34 POP_JUMP_IF_TRUE     (to 38)
+              36 RETURN_CONST         (None)
+
+ 98:     >>   38 LOAD_GLOBAL          (NULL + sorted)
+              48 LOAD_GLOBAL          (NULL + set)
+              58 LOAD_DEREF           (sensitive)
+              60 CALL                 1
+              68 LOAD_GLOBAL          (len)
+              78 LOAD_CONST           (True)
+              80 KW_NAMES             (('key', 'reverse'))
+              82 CALL                 3
+              90 GET_ITER
+              92 FOR_ITER             (to 166)
+              96 STORE_FAST           (secret)
+
+ 99:          98 LOAD_GLOBAL          (NULL + len)
+             108 LOAD_FAST            (secret)
+             110 CALL                 1
+             118 LOAD_CONST           (8)
+             120 COMPARE_OP           (>=)
+             124 POP_JUMP_IF_TRUE     (to 128)
+             126 JUMP_BACKWARD        (to 92)
+         >>  128 LOAD_FAST            (value)
+             130 LOAD_ATTR            (NULL|self + replace)
+             150 LOAD_FAST            (secret)
+             152 LOAD_CONST           ("[REDACTED]")
+             154 CALL                 2
+             162 STORE_FAST           (value)
+         >>  164 JUMP_BACKWARD        (to 92)
+
+ 98:         166 END_FOR
+
+100:         168 LOAD_GLOBAL          (NULL + re)
+             178 LOAD_ATTR            (sub)
+             198 LOAD_CONST           ("(?i)(?:bearer\\s+|sk-)[\\w.\\-]+")
+             200 LOAD_CONST           ("[REDACTED]")
+             202 LOAD_FAST            (value)
+             204 CALL                 3
+             212 STORE_FAST           (value)
+
+101:         214 LOAD_GLOBAL          (NULL + re)
+             224 LOAD_ATTR            (sub)
+             244 LOAD_CONST           ('(?i)data:[^\\s"\\\']+|[A-Za-z0-9+/=_-]{80,}')
+             246 LOAD_CONST           ("[REDACTED]")
+             248 LOAD_FAST            (value)
+             250 CALL                 3
+             258 STORE_FAST           (value)
+
+102:         260 LOAD_GLOBAL          (NULL + re)
+             270 LOAD_ATTR            (sub)
+             290 LOAD_CONST           ('https?://[^\\s"\\\']+')
+             292 LOAD_CONST           ("[URL]")
+             294 LOAD_FAST            (value)
+             296 CALL                 3
+             304 STORE_FAST           (value)
+
+103:         306 LOAD_FAST            (value)
+             308 LOAD_CONST           (None)
+             310 LOAD_CONST           (600)
+             312 BINARY_SLICE
+             314 RETURN_VALUE
+
+
+# Method Name:       symbol
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        4
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        110
+# Constants:
+#    0: None
+#    1: '[A-Za-z0-9_.\\[\\]-]{1,100}'
+#    2: 'sk-'
+# Names:
+#    0: isinstance
+#    1: str
+#    2: re
+#    3: fullmatch
+#    4: startswith
+# Varnames:
+#	value
+# Positional arguments:
+#	value
+
+110:           0 RESUME               0
+
+111:           2 LOAD_GLOBAL          (NULL + isinstance)
+              12 LOAD_FAST            (value)
+              14 LOAD_GLOBAL          (str)
+              24 CALL                 2
+              32 POP_JUMP_IF_FALSE    (to 116)
+              34 LOAD_GLOBAL          (NULL + re)
+              44 LOAD_ATTR            (fullmatch)
+              64 LOAD_CONST           ("[A-Za-z0-9_.\\[\\]-]{1,100}")
+              66 LOAD_FAST            (value)
+              68 CALL                 2
+              76 POP_JUMP_IF_FALSE    (to 116)
+              78 LOAD_FAST            (value)
+              80 LOAD_ATTR            (NULL|self + startswith)
+             100 LOAD_CONST           ("sk-")
+             102 CALL                 1
+             110 POP_JUMP_IF_TRUE     (to 116)
+             112 LOAD_FAST            (value)
+             114 RETURN_VALUE
+         >>  116 LOAD_CONST           (None)
+             118 RETURN_VALUE
+
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        123
+# Constants:
+#    0: ('key', 'api_key', 'authorization')
+#    1: None
+# Names:
+#    0: lower
+# Varnames:
+#	.0, k
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: k
+
+123:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 62)
+              12 STORE_FAST           (k)
+              14 LOAD_FAST            (k)
+              16 LOAD_ATTR            (NULL|self + lower)
+              36 CALL                 0
+              44 LOAD_CONST           (('key', 'api_key', 'authorization'))
+              46 CONTAINS_OP          (not in)
+              48 POP_JUMP_IF_TRUE     (to 52)
+              50 JUMP_BACKWARD        (to 8)
+         >>   52 LOAD_FAST            (k)
+              54 YIELD_VALUE          1
+              56 RESUME               1
+              58 POP_TOP
+         >>   60 JUMP_BACKWARD        (to 8)
+              62 END_FOR
+              64 RETURN_CONST         (None)
+              66 CALL_INTRINSIC_1     3
+              68 RERAISE              1
+
+ExceptionTable:
+  4 to 48 -> 66 [0] lasti
+  52 to 64 -> 66 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        181
+# Constants:
+#    0: None
+# Varnames:
+#	.0, x
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: x
+# Free variables:
+#    0: message
+               0 COPY_FREE_VARS       1
+
+181:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 30)
+              14 STORE_FAST           (x)
+              16 LOAD_FAST            (x)
+              18 LOAD_DEREF           (message)
+              20 CONTAINS_OP          (in)
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 10)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  6 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        189
+# Constants:
+#    0: None
+# Varnames:
+#	.0, x
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: x
+# Free variables:
+#    0: message
+               0 COPY_FREE_VARS       1
+
+189:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 30)
+              14 STORE_FAST           (x)
+              16 LOAD_FAST            (x)
+              18 LOAD_DEREF           (message)
+              20 CONTAINS_OP          (in)
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 10)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  6 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\provider_diagnostics.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        89
+# Constants:
+#    0: 12
+#    1: None
+# Names:
+#    0: len
+# Varnames:
+#	.0, part
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: part
+
+ 89:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 54)
+              12 STORE_FAST           (part)
+              14 LOAD_GLOBAL          (NULL + len)
+              24 LOAD_FAST            (part)
+              26 CALL                 1
+              34 LOAD_CONST           (12)
+              36 COMPARE_OP           (>=)
+              40 POP_JUMP_IF_TRUE     (to 44)
+              42 JUMP_BACKWARD        (to 8)
+         >>   44 LOAD_FAST            (part)
+              46 YIELD_VALUE          1
+              48 RESUME               1
+              50 POP_TOP
+         >>   52 JUMP_BACKWARD        (to 8)
+              54 END_FOR
+              56 RETURN_CONST         (None)
+              58 CALL_INTRINSIC_1     3
+              60 RERAISE              1
+
+ExceptionTable:
+  4 to 40 -> 58 [0] lasti
+  44 to 56 -> 58 [0] lasti

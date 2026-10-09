@@ -1,0 +1,514 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\local_repair.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        2
+# Flags:             0x00000000 (0x0)
+# First Line:        1
+# Constants:
+#    0: 'Canvas-only repairs. No resizing product pixels or changing physical geometry.'
+#    1: 0
+#    2: None
+#    3: ('Image',)
+#    4: 1
+#    5: ('DomainError',)
+#    6: ('png',)
+#    7: <Code311 code object repair_canvas at 0x10a7ad6a0, file app\local_repair.py>, line 10
+# Names:
+#    0: __doc__
+#    1: copy
+#    2: io
+#    3: PIL
+#    4: Image
+#    5: errors
+#    6: DomainError
+#    7: geometry
+#    8: png
+#    9: repair_canvas
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Canvas-only repairs. No resizing product pixels or changing physical geometry.")
+               4 STORE_NAME           (__doc__)
+
+  3:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (None)
+              10 IMPORT_NAME          (copy)
+              12 STORE_NAME           (copy)
+
+  4:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (None)
+              18 IMPORT_NAME          (io)
+              20 STORE_NAME           (io)
+
+  5:          22 LOAD_CONST           (0)
+              24 LOAD_CONST           (('Image',))
+              26 IMPORT_NAME          (PIL)
+              28 IMPORT_FROM          (Image)
+              30 STORE_NAME           (Image)
+              32 POP_TOP
+
+  6:          34 LOAD_CONST           (1)
+              36 LOAD_CONST           (('DomainError',))
+              38 IMPORT_NAME          (errors)
+              40 IMPORT_FROM          (DomainError)
+              42 STORE_NAME           (DomainError)
+              44 POP_TOP
+
+  7:          46 LOAD_CONST           (1)
+              48 LOAD_CONST           (('png',))
+              50 IMPORT_NAME          (geometry)
+              52 IMPORT_FROM          (png)
+              54 STORE_NAME           (png)
+              56 POP_TOP
+
+ 10:          58 LOAD_CONST           (<Code311 code object repair_canvas at 0x10a7ad6a0, file app\local_repair.py>, line 10)
+              60 MAKE_FUNCTION        (No arguments)
+              62 STORE_NAME           (repair_canvas)
+              64 RETURN_CONST         (None)
+
+
+# Method Name:       repair_canvas
+# Filename:          app\local_repair.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  16
+# Stack size:        13
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        10
+# Constants:
+#    0: None
+#    1: 'RGBA'
+#    2: 'A'
+#    3: 0
+#    4: 255
+#    5: 'WAITING_INPUT'
+#    6: '缺少明确透明主体，已保留原稿，请选择修改建议'
+#    7: 'product_too_large'
+#    8: 1.25
+#    9: 'off_center'
+#   10: '此本地建议尚不支持自动执行，请查看原稿'
+#   11: 8192
+#   12: '画布已达到本地修正上限，原稿已保留'
+#   13: 2
+#   14: 3
+#   15: 1
+#   16: 'polygons'
+#   17: 'shell'
+#   18: 'holes'
+#   19: 'engrave'
+#   20: 'points'
+#   21: 'source_size'
+#   22: False
+#   23: ('operation', 'offset_px', 'canvas_px', 'pixel_scale', 'physical_size_changed', 'image_api_calls')
+# Names:
+#    0: Image
+#    1: open
+#    2: io
+#    3: BytesIO
+#    4: convert
+#    5: getchannel
+#    6: getbbox
+#    7: getextrema
+#    8: DomainError
+#    9: size
+#   10: round
+#   11: max
+#   12: new
+#   13: paste
+#   14: crop
+#   15: copy
+#   16: deepcopy
+#   17: get
+#   18: png
+# Varnames:
+#	content, geometry, code, image, box, width, height, dx, dy, output, result, polygon, x, y, ring, line
+# Positional arguments:
+#	content, geometry, code
+# Local variables:
+#    3: image
+#    4: box
+#    5: width
+#    6: height
+#    7: dx
+#    8: dy
+#    9: output
+#   10: result
+#   11: polygon
+#   12: x
+#   13: y
+#   14: ring
+#   15: line
+
+ 10:           0 RESUME               0
+
+ 11:           2 LOAD_GLOBAL          (NULL + Image)
+              12 LOAD_ATTR            (open)
+              32 LOAD_GLOBAL          (NULL + io)
+              42 LOAD_ATTR            (BytesIO)
+              62 LOAD_FAST            (content)
+              64 CALL                 1
+              72 CALL                 1
+              80 LOAD_ATTR            (NULL|self + convert)
+             100 LOAD_CONST           ("RGBA")
+             102 CALL                 1
+             110 STORE_FAST           (image)
+
+ 12:         112 LOAD_FAST            (image)
+             114 LOAD_ATTR            (NULL|self + getchannel)
+             134 LOAD_CONST           ("A")
+             136 CALL                 1
+             144 LOAD_ATTR            (NULL|self + getbbox)
+             164 CALL                 0
+             172 STORE_FAST           (box)
+
+ 13:         174 LOAD_FAST            (box)
+             176 POP_JUMP_IF_FALSE    (to 252)
+             178 LOAD_FAST            (image)
+             180 LOAD_ATTR            (NULL|self + getchannel)
+             200 LOAD_CONST           ("A")
+             202 CALL                 1
+             210 LOAD_ATTR            (NULL|self + getextrema)
+             230 CALL                 0
+             238 LOAD_CONST           (0)
+             240 BINARY_SUBSCR
+             244 LOAD_CONST           (255)
+             246 COMPARE_OP           (==)
+             250 POP_JUMP_IF_FALSE    (to 276)
+
+ 14:     >>  252 LOAD_GLOBAL          (NULL + DomainError)
+             262 LOAD_CONST           ("WAITING_INPUT")
+             264 LOAD_CONST           ("缺少明确透明主体，已保留原稿，请选择修改建议")
+             266 CALL                 2
+             274 RAISE_VARARGS        (exception instance)
+
+ 15:     >>  276 LOAD_FAST            (image)
+             278 LOAD_ATTR            (size)
+             298 UNPACK_SEQUENCE      2
+             302 STORE_FAST           (width)
+             304 STORE_FAST           (height)
+
+ 16:         306 LOAD_FAST            (code)
+             308 LOAD_CONST           ("product_too_large")
+             310 COMPARE_OP           (==)
+             314 POP_JUMP_IF_FALSE    (to 374)
+
+ 18:         316 LOAD_GLOBAL          (NULL + round)
+             326 LOAD_FAST            (width)
+             328 LOAD_CONST           (1.25)
+             330 BINARY_OP            (*)
+             334 CALL                 1
+             342 LOAD_GLOBAL          (NULL + round)
+             352 LOAD_FAST            (height)
+             354 LOAD_CONST           (1.25)
+             356 BINARY_OP            (*)
+             360 CALL                 1
+             368 STORE_FAST           (height)
+             370 STORE_FAST           (width)
+             372 JUMP_FORWARD         (to 408)
+
+ 19:     >>  374 LOAD_FAST            (code)
+             376 LOAD_CONST           ("off_center")
+             378 COMPARE_OP           (!=)
+             382 POP_JUMP_IF_FALSE    (to 408)
+
+ 20:         384 LOAD_GLOBAL          (NULL + DomainError)
+             394 LOAD_CONST           ("WAITING_INPUT")
+             396 LOAD_CONST           ("此本地建议尚不支持自动执行，请查看原稿")
+             398 CALL                 2
+             406 RAISE_VARARGS        (exception instance)
+
+ 21:     >>  408 LOAD_GLOBAL          (NULL + max)
+             418 LOAD_FAST            (width)
+             420 LOAD_FAST            (height)
+             422 CALL                 2
+             430 LOAD_CONST           (8192)
+             432 COMPARE_OP           (>)
+             436 POP_JUMP_IF_FALSE    (to 462)
+
+ 22:         438 LOAD_GLOBAL          (NULL + DomainError)
+             448 LOAD_CONST           ("WAITING_INPUT")
+             450 LOAD_CONST           ("画布已达到本地修正上限，原稿已保留")
+             452 CALL                 2
+             460 RAISE_VARARGS        (exception instance)
+
+ 23:     >>  462 LOAD_GLOBAL          (NULL + round)
+             472 LOAD_FAST            (width)
+             474 LOAD_FAST            (box)
+             476 LOAD_CONST           (2)
+             478 BINARY_SUBSCR
+             482 LOAD_FAST            (box)
+             484 LOAD_CONST           (0)
+             486 BINARY_SUBSCR
+             490 BINARY_OP            (-)
+             494 BINARY_OP            (-)
+             498 LOAD_CONST           (2)
+             500 BINARY_OP            (/)
+             504 CALL                 1
+             512 LOAD_FAST            (box)
+             514 LOAD_CONST           (0)
+             516 BINARY_SUBSCR
+             520 BINARY_OP            (-)
+             524 STORE_FAST           (dx)
+
+ 24:         526 LOAD_GLOBAL          (NULL + round)
+             536 LOAD_FAST            (height)
+             538 LOAD_FAST            (box)
+             540 LOAD_CONST           (3)
+             542 BINARY_SUBSCR
+             546 LOAD_FAST            (box)
+             548 LOAD_CONST           (1)
+             550 BINARY_SUBSCR
+             554 BINARY_OP            (-)
+             558 BINARY_OP            (-)
+             562 LOAD_CONST           (2)
+             564 BINARY_OP            (/)
+             568 CALL                 1
+             576 LOAD_FAST            (box)
+             578 LOAD_CONST           (1)
+             580 BINARY_SUBSCR
+             584 BINARY_OP            (-)
+             588 STORE_FAST           (dy)
+
+ 25:         590 LOAD_GLOBAL          (NULL + Image)
+             600 LOAD_ATTR            (new)
+             620 LOAD_CONST           ("RGBA")
+             622 LOAD_FAST            (width)
+             624 LOAD_FAST            (height)
+             626 BUILD_TUPLE          2
+             628 CALL                 2
+             636 STORE_FAST           (output)
+
+ 26:         638 LOAD_FAST            (output)
+             640 LOAD_ATTR            (NULL|self + paste)
+             660 LOAD_FAST            (image)
+             662 LOAD_ATTR            (NULL|self + crop)
+             682 LOAD_FAST            (box)
+             684 CALL                 1
+             692 LOAD_FAST            (box)
+             694 LOAD_CONST           (0)
+             696 BINARY_SUBSCR
+             700 LOAD_FAST            (dx)
+             702 BINARY_OP            (+)
+             706 LOAD_FAST            (box)
+             708 LOAD_CONST           (1)
+             710 BINARY_SUBSCR
+             714 LOAD_FAST            (dy)
+             716 BINARY_OP            (+)
+             720 BUILD_TUPLE          2
+             722 CALL                 2
+             730 POP_TOP
+
+ 27:         732 LOAD_GLOBAL          (NULL + copy)
+             742 LOAD_ATTR            (deepcopy)
+             762 LOAD_FAST            (geometry)
+             764 CALL                 1
+             772 STORE_FAST           (result)
+
+ 28:         774 LOAD_FAST            (result)
+             776 LOAD_CONST           ("polygons")
+             778 BINARY_SUBSCR
+             782 GET_ITER
+             784 FOR_ITER             (to 968)
+             788 STORE_FAST           (polygon)
+
+ 29:         790 LOAD_FAST            (polygon)
+             792 LOAD_CONST           ("shell")
+             794 BINARY_SUBSCR
+             798 GET_ITER
+             800 LOAD_FAST_AND_CLEAR  (x)
+             802 LOAD_FAST_AND_CLEAR  (y)
+             804 SWAP                 (TOS <-> TOS2)
+             806 BUILD_LIST           0
+             808 SWAP                 (TOS <-> TOS1)
+             810 FOR_ITER             (to 844)
+             814 UNPACK_SEQUENCE      2
+             818 STORE_FAST           (x)
+             820 STORE_FAST           (y)
+             822 LOAD_FAST            (x)
+             824 LOAD_FAST            (dx)
+             826 BINARY_OP            (+)
+             830 LOAD_FAST            (y)
+             832 LOAD_FAST            (dy)
+             834 BINARY_OP            (+)
+             838 BUILD_LIST           2
+             840 LIST_APPEND          2
+         >>  842 JUMP_BACKWARD        (to 810)
+             844 END_FOR
+             846 SWAP                 (TOS <-> TOS2)
+             848 STORE_FAST           (y)
+             850 STORE_FAST           (x)
+             852 LOAD_FAST            (polygon)
+             854 LOAD_CONST           ("shell")
+             856 STORE_SUBSCR
+
+ 30:         860 LOAD_FAST            (polygon)
+             862 LOAD_CONST           ("holes")
+             864 BINARY_SUBSCR
+             868 GET_ITER
+             870 LOAD_FAST_AND_CLEAR  (ring)
+             872 LOAD_FAST_AND_CLEAR  (x)
+             874 LOAD_FAST_AND_CLEAR  (y)
+             876 SWAP                 (TOS <-> TOS3)
+         >>  878 BUILD_LIST           0
+             880 SWAP                 (TOS <-> TOS1)
+             882 FOR_ITER             (to 948)
+             886 STORE_FAST           (ring)
+             888 LOAD_FAST            (ring)
+             890 GET_ITER
+             892 LOAD_FAST_AND_CLEAR  (x)
+             894 LOAD_FAST_AND_CLEAR  (y)
+             896 SWAP                 (TOS <-> TOS2)
+             898 BUILD_LIST           0
+             900 SWAP                 (TOS <-> TOS1)
+             902 FOR_ITER             (to 936)
+             906 UNPACK_SEQUENCE      2
+             910 STORE_FAST           (x)
+             912 STORE_FAST           (y)
+             914 LOAD_FAST            (x)
+             916 LOAD_FAST            (dx)
+             918 BINARY_OP            (+)
+             922 LOAD_FAST            (y)
+             924 LOAD_FAST            (dy)
+             926 BINARY_OP            (+)
+             930 BUILD_LIST           2
+             932 LIST_APPEND          2
+         >>  934 JUMP_BACKWARD        (to 902)
+             936 END_FOR
+             938 SWAP                 (TOS <-> TOS2)
+             940 STORE_FAST           (y)
+             942 STORE_FAST           (x)
+             944 LIST_APPEND          2
+         >>  946 JUMP_BACKWARD        (to 882)
+             948 END_FOR
+             950 SWAP                 (TOS <-> TOS3)
+             952 STORE_FAST           (y)
+             954 STORE_FAST           (x)
+             956 STORE_FAST           (ring)
+             958 LOAD_FAST            (polygon)
+             960 LOAD_CONST           ("holes")
+             962 STORE_SUBSCR
+         >>  966 JUMP_BACKWARD        (to 784)
+
+ 28:         968 END_FOR
+
+ 31:     >>  970 LOAD_FAST            (result)
+             972 LOAD_ATTR            (NULL|self + get)
+             992 LOAD_CONST           ("engrave")
+             994 BUILD_LIST           0
+             996 CALL                 2
+            1004 GET_ITER
+            1006 FOR_ITER             (to 1084)
+            1010 STORE_FAST           (line)
+
+ 32:        1012 LOAD_FAST            (line)
+         >> 1014 LOAD_CONST           ("points")
+            1016 BINARY_SUBSCR
+            1020 GET_ITER
+            1022 LOAD_FAST_AND_CLEAR  (x)
+            1024 LOAD_FAST_AND_CLEAR  (y)
+            1026 SWAP                 (TOS <-> TOS2)
+            1028 BUILD_LIST           0
+            1030 SWAP                 (TOS <-> TOS1)
+            1032 FOR_ITER             (to 1066)
+            1036 UNPACK_SEQUENCE      2
+            1040 STORE_FAST           (x)
+            1042 STORE_FAST           (y)
+            1044 LOAD_FAST            (x)
+            1046 LOAD_FAST            (dx)
+            1048 BINARY_OP            (+)
+            1052 LOAD_FAST            (y)
+            1054 LOAD_FAST            (dy)
+            1056 BINARY_OP            (+)
+            1060 BUILD_LIST           2
+            1062 LIST_APPEND          2
+         >> 1064 JUMP_BACKWARD        (to 1032)
+            1066 END_FOR
+            1068 SWAP                 (TOS <-> TOS2)
+            1070 STORE_FAST           (y)
+            1072 STORE_FAST           (x)
+            1074 LOAD_FAST            (line)
+            1076 LOAD_CONST           ("points")
+            1078 STORE_SUBSCR
+         >> 1082 JUMP_BACKWARD        (to 1006)
+
+ 31:        1084 END_FOR
+
+ 33:        1086 LOAD_FAST            (width)
+            1088 LOAD_FAST            (height)
+            1090 BUILD_LIST           2
+            1092 LOAD_FAST            (result)
+            1094 LOAD_CONST           ("source_size")
+            1096 STORE_SUBSCR
+
+ 35:     >> 1100 LOAD_GLOBAL          (NULL + png)
+            1110 LOAD_FAST            (output)
+            1112 CALL                 1
+
+ 36:        1120 LOAD_FAST            (result)
+
+ 38:        1122 LOAD_FAST            (code)
+
+ 39:        1124 LOAD_FAST            (dx)
+            1126 LOAD_FAST            (dy)
+            1128 BUILD_LIST           2
+
+ 40:        1130 LOAD_FAST            (width)
+            1132 LOAD_FAST            (height)
+            1134 BUILD_LIST           2
+
+ 41:        1136 LOAD_CONST           (1)
+
+ 42:        1138 LOAD_CONST           (False)
+
+ 43:        1140 LOAD_CONST           (0)
+
+ 37:        1142 LOAD_CONST           (('operation', 'offset_px', 'canvas_px', 'pixel_scale', 'physical_size_changed', 'image_api_calls'))
+            1144 BUILD_CONST_KEY_MAP  6
+
+ 34:        1146 BUILD_TUPLE          3
+            1148 RETURN_VALUE
+            1150 SWAP                 (TOS <-> TOS1)
+         >> 1152 POP_TOP
+
+ 29:        1154 SWAP                 (TOS <-> TOS2)
+            1156 STORE_FAST           (y)
+            1158 STORE_FAST           (x)
+            1160 RERAISE              0
+         >> 1162 SWAP                 (TOS <-> TOS1)
+            1164 POP_TOP
+
+ 30:        1166 SWAP                 (TOS <-> TOS2)
+            1168 STORE_FAST           (y)
+            1170 STORE_FAST           (x)
+            1172 RERAISE              0
+            1174 SWAP                 (TOS <-> TOS1)
+            1176 POP_TOP
+            1178 SWAP                 (TOS <-> TOS3)
+            1180 STORE_FAST           (y)
+            1182 STORE_FAST           (x)
+            1184 STORE_FAST           (ring)
+            1186 RERAISE              0
+            1188 SWAP                 (TOS <-> TOS1)
+            1190 POP_TOP
+
+ 32:        1192 SWAP                 (TOS <-> TOS2)
+            1194 STORE_FAST           (y)
+            1196 STORE_FAST           (x)
+            1198 RERAISE              0
+
+ExceptionTable:
+  806 to 844 -> 1150 [4]
+  878 to 896 -> 1174 [5]
+  898 to 936 -> 1162 [9]
+  938 to 948 -> 1174 [5]
+  1028 to 1066 -> 1188 [4]
+  1162 to 1172 -> 1174 [5]

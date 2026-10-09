@@ -1,0 +1,2662 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\design_memory.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        2
+# Flags:             0x00000000 (0x0)
+# First Line:        1
+# Constants:
+#    0: 'Private direction-use metadata, rebuilt from new frozen grants/steps only.\n\nNo schema migration, historical prompt ingestion, inferred preference or model call.\nThe existing transaction/queue owns reservations and unknown provider outcomes.\n'
+#    1: 0
+#    2: None
+#    3: ('select',)
+#    4: 1
+#    5: ('digest',)
+#    6: ('DomainError',)
+#    7: ('Asset', 'CallAuthorization', 'Job', 'ProviderAttempt', 'Step')
+#    8: 'DESIGN_DIRECTION_MEMORY_V1'
+#    9: <Code311 code object signature at 0x10a35d6a0, file app\design_memory.py>, line 15
+#   10: <Code311 code object entry at 0x10a2e7390, file app\design_memory.py>, line 19
+#   11: <Code311 code object scope at 0x10a2e7110, file app\design_memory.py>, line 23
+#   12: ('exclude_grant',)
+#   13: <Code311 code object history at 0x10a324e90, file app\design_memory.py>, line 38
+#   14: ('frozen',)
+#   15: <Code311 code object new_memory at 0x10a30b0b0, file app\design_memory.py>, line 91
+#   16: <Code311 code object choose at 0x10a380c00, file app\design_memory.py>, line 108
+#   17: <Code311 code object reserve at 0x10a380f30, file app\design_memory.py>, line 123
+#   18: ('intent_priority',)
+#   19: <Code311 code object custom_rows at 0x10a381040, file app\design_memory.py>, line 134
+#   20: <Code311 code object prepare_custom at 0x10a381590, file app\design_memory.py>, line 149
+#   21: <Code311 code object validate_cache at 0x10a3816a0, file app\design_memory.py>, line 191
+# Names:
+#    0: __doc__
+#    1: time
+#    2: sqlalchemy
+#    3: select
+#    4: authorization
+#    5: digest
+#    6: errors
+#    7: DomainError
+#    8: models
+#    9: Asset
+#   10: CallAuthorization
+#   11: Job
+#   12: ProviderAttempt
+#   13: Step
+#   14: VERSION
+#   15: signature
+#   16: entry
+#   17: scope
+#   18: history
+#   19: new_memory
+#   20: choose
+#   21: reserve
+#   22: custom_rows
+#   23: prepare_custom
+#   24: validate_cache
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Private direction-use metadata, rebuilt from new frozen grants/steps only.\n\nNo schema migration, historical prompt ingestion, inferred preference or model call.\nThe existing transaction/queue owns reservations and unknown provider outcomes.\n")
+               4 STORE_NAME           (__doc__)
+
+  6:           6 LOAD_CONST           (0)
+               8 LOAD_CONST           (None)
+              10 IMPORT_NAME          (time)
+              12 STORE_NAME           (time)
+
+  7:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (('select',))
+              18 IMPORT_NAME          (sqlalchemy)
+              20 IMPORT_FROM          (select)
+              22 STORE_NAME           (select)
+              24 POP_TOP
+
+  8:          26 LOAD_CONST           (1)
+              28 LOAD_CONST           (('digest',))
+              30 IMPORT_NAME          (authorization)
+              32 IMPORT_FROM          (digest)
+              34 STORE_NAME           (digest)
+              36 POP_TOP
+
+  9:          38 LOAD_CONST           (1)
+              40 LOAD_CONST           (('DomainError',))
+              42 IMPORT_NAME          (errors)
+              44 IMPORT_FROM          (DomainError)
+              46 STORE_NAME           (DomainError)
+              48 POP_TOP
+
+ 10:          50 LOAD_CONST           (1)
+              52 LOAD_CONST           (('Asset', 'CallAuthorization', 'Job', 'ProviderAttempt', 'Step'))
+              54 IMPORT_NAME          (models)
+              56 IMPORT_FROM          (Asset)
+              58 STORE_NAME           (Asset)
+              60 IMPORT_FROM          (CallAuthorization)
+              62 STORE_NAME           (CallAuthorization)
+              64 IMPORT_FROM          (Job)
+              66 STORE_NAME           (Job)
+              68 IMPORT_FROM          (ProviderAttempt)
+              70 STORE_NAME           (ProviderAttempt)
+              72 IMPORT_FROM          (Step)
+              74 STORE_NAME           (Step)
+              76 POP_TOP
+
+ 12:          78 LOAD_CONST           ("DESIGN_DIRECTION_MEMORY_V1")
+              80 STORE_NAME           (VERSION)
+
+ 15:          82 LOAD_CONST           (<Code311 code object signature at 0x10a35d6a0, file app\design_memory.py>, line 15)
+              84 MAKE_FUNCTION        (No arguments)
+              86 STORE_NAME           (signature)
+
+ 19:          88 LOAD_CONST           (<Code311 code object entry at 0x10a2e7390, file app\design_memory.py>, line 19)
+              90 MAKE_FUNCTION        (No arguments)
+              92 STORE_NAME           (entry)
+
+ 23:          94 LOAD_CONST           (<Code311 code object scope at 0x10a2e7110, file app\design_memory.py>, line 23)
+              96 MAKE_FUNCTION        (No arguments)
+              98 STORE_NAME           (scope)
+
+ 38:         100 LOAD_CONST           (None)
+             102 LOAD_CONST           (('exclude_grant',))
+             104 BUILD_CONST_KEY_MAP  1
+             106 LOAD_CONST           (<Code311 code object history at 0x10a324e90, file app\design_memory.py>, line 38)
+             108 MAKE_FUNCTION        (keyword-only)
+             110 STORE_NAME           (history)
+
+ 91:         112 LOAD_CONST           (None)
+             114 LOAD_CONST           (('frozen',))
+             116 BUILD_CONST_KEY_MAP  1
+             118 LOAD_CONST           (<Code311 code object new_memory at 0x10a30b0b0, file app\design_memory.py>, line 91)
+             120 MAKE_FUNCTION        (keyword-only)
+             122 STORE_NAME           (new_memory)
+
+108:         124 LOAD_CONST           (<Code311 code object choose at 0x10a380c00, file app\design_memory.py>, line 108)
+             126 MAKE_FUNCTION        (No arguments)
+             128 STORE_NAME           (choose)
+
+123:         130 LOAD_CONST           (<Code311 code object reserve at 0x10a380f30, file app\design_memory.py>, line 123)
+             132 MAKE_FUNCTION        (No arguments)
+             134 STORE_NAME           (reserve)
+
+134:         136 LOAD_CONST           (None)
+             138 LOAD_CONST           (('intent_priority',))
+             140 BUILD_CONST_KEY_MAP  1
+             142 LOAD_CONST           (<Code311 code object custom_rows at 0x10a381040, file app\design_memory.py>, line 134)
+             144 MAKE_FUNCTION        (keyword-only)
+             146 STORE_NAME           (custom_rows)
+
+149:         148 LOAD_CONST           (<Code311 code object prepare_custom at 0x10a381590, file app\design_memory.py>, line 149)
+             150 MAKE_FUNCTION        (No arguments)
+             152 STORE_NAME           (prepare_custom)
+
+191:         154 LOAD_CONST           (<Code311 code object validate_cache at 0x10a3816a0, file app\design_memory.py>, line 191)
+             156 MAKE_FUNCTION        (No arguments)
+             158 STORE_NAME           (validate_cache)
+             160 RETURN_CONST         (None)
+
+
+# Method Name:       signature
+# Filename:          app\design_memory.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        10
+# Flags:             0x00000007 (VARARGS | NEWLOCALS | OPTIMIZED)
+# First Line:        15
+# Constants:
+#    0: None
+#    1: ' '
+# Names:
+#    0: digest
+#    1: join
+#    2: str
+#    3: split
+# Varnames:
+#	parts, p
+# Local variables:
+#    0: parts
+#    1: p
+
+ 15:           0 RESUME               0
+
+ 16:           2 LOAD_GLOBAL          (NULL + digest)
+              12 LOAD_FAST            (parts)
+              14 GET_ITER
+              16 LOAD_FAST_AND_CLEAR  (p)
+              18 SWAP                 (TOS <-> TOS1)
+              20 BUILD_LIST           0
+              22 SWAP                 (TOS <-> TOS1)
+              24 FOR_ITER             (to 112)
+              28 STORE_FAST           (p)
+              30 LOAD_CONST           (" ")
+              32 LOAD_ATTR            (NULL|self + join)
+              52 LOAD_GLOBAL          (NULL + str)
+              62 LOAD_FAST            (p)
+              64 CALL                 1
+              72 LOAD_ATTR            (NULL|self + split)
+              92 CALL                 0
+             100 CALL                 1
+             108 LIST_APPEND          2
+         >>  110 JUMP_BACKWARD        (to 24)
+             112 END_FOR
+             114 SWAP                 (TOS <-> TOS1)
+             116 STORE_FAST           (p)
+             118 CALL                 1
+             126 RETURN_VALUE
+             128 SWAP                 (TOS <-> TOS1)
+             130 POP_TOP
+             132 SWAP                 (TOS <-> TOS1)
+             134 STORE_FAST           (p)
+             136 RERAISE              0
+
+ExceptionTable:
+  20 to 112 -> 128 [4]
+
+# Method Name:       entry
+# Filename:          app\design_memory.py
+# Argument count:    2
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        19
+# Constants:
+#    0: None
+#    1: ' '
+#    2: 120
+#    3: ('signature', 'summary')
+# Names:
+#    0: join
+#    1: split
+# Varnames:
+#	key, text
+# Positional arguments:
+#	key, text
+
+ 19:           0 RESUME               0
+
+ 20:           2 LOAD_FAST            (key)
+               4 LOAD_CONST           (" ")
+               6 LOAD_ATTR            (NULL|self + join)
+              26 LOAD_FAST            (text)
+              28 LOAD_ATTR            (NULL|self + split)
+              48 CALL                 0
+              56 CALL                 1
+              64 LOAD_CONST           (None)
+              66 LOAD_CONST           (120)
+              68 BINARY_SLICE
+              70 LOAD_CONST           (('signature', 'summary'))
+              72 BUILD_CONST_KEY_MAP  2
+              74 RETURN_VALUE
+
+
+# Method Name:       scope
+# Filename:          app\design_memory.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  7
+# Stack size:        8
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        23
+# Constants:
+#    0: None
+#    1: ('module', 'category', 'intent_source', 'workflow_mode', 'creative_entry_mode', 'theme', 'requirements', 'preset_family_id', 'preset_direction_id', 'preset_direction_ids', 'preset_process_id', 'preset_material_id', 'preset_set_mode_id', 'preset_output_mode', 'surface_finish', 'width_mm', 'thickness_mm', 'installation', 'material', 'preset_scene_card_id', 'intent_controls', 'project', 'style_profile_id', 'explicit_detail', 'creative_direction', 'scene_variation_axes', 'projection_width', 'camera', 'scene_placement', 'high_quality_scene')
+#    2: 'custom_design_directions'
+#    3: ('workspace', 'employee', 'input', 'bindings', 'feedback')
+# Names:
+#    0: get
+#    1: digest
+#    2: id
+#    3: owner_id
+# Varnames:
+#	ws, request, bindings, feedback, fields, k, values
+# Positional arguments:
+#	ws, request, bindings, feedback
+# Local variables:
+#    4: fields
+#    5: k
+#    6: values
+
+ 23:           0 RESUME               0
+
+ 24:           2 LOAD_CONST           (('module', 'category', 'intent_source', 'workflow_mode', 'creative_entry_mode', 'theme', 'requirements', 'preset_family_id', 'preset_direction_id', 'preset_direction_ids', 'preset_process_id', 'preset_material_id', 'preset_set_mode_id', 'preset_output_mode', 'surface_finish', 'width_mm', 'thickness_mm', 'installation', 'material', 'preset_scene_card_id', 'intent_controls', 'project', 'style_profile_id', 'explicit_detail', 'creative_direction', 'scene_variation_axes', 'projection_width', 'camera', 'scene_placement', 'high_quality_scene'))
+               4 STORE_FAST           (fields)
+
+ 31:           6 LOAD_FAST            (fields)
+               8 GET_ITER
+              10 LOAD_FAST_AND_CLEAR  (k)
+              12 SWAP                 (TOS <-> TOS1)
+              14 BUILD_MAP            0
+              16 SWAP                 (TOS <-> TOS1)
+              18 FOR_ITER             (to 62)
+              22 STORE_FAST           (k)
+              24 LOAD_FAST            (k)
+              26 LOAD_FAST            (request)
+              28 LOAD_ATTR            (NULL|self + get)
+              48 LOAD_FAST            (k)
+              50 CALL                 1
+              58 MAP_ADD              2
+         >>   60 JUMP_BACKWARD        (to 18)
+              62 END_FOR
+              64 STORE_FAST           (values)
+              66 STORE_FAST           (k)
+
+ 32:          68 LOAD_FAST            (request)
+              70 LOAD_ATTR            (NULL|self + get)
+              90 LOAD_CONST           ("custom_design_directions")
+              92 CALL                 1
+             100 POP_JUMP_IF_FALSE    (to 118)
+
+ 33:         102 LOAD_FAST            (request)
+             104 LOAD_CONST           ("custom_design_directions")
+         >>  106 BINARY_SUBSCR
+             110 LOAD_FAST            (values)
+             112 LOAD_CONST           ("custom_design_directions")
+             114 STORE_SUBSCR
+
+ 34:     >>  118 LOAD_GLOBAL          (NULL + digest)
+             128 LOAD_FAST            (ws)
+             130 LOAD_ATTR            (id)
+             150 LOAD_FAST            (ws)
+             152 LOAD_ATTR            (owner_id)
+
+ 35:         172 LOAD_FAST            (values)
+             174 LOAD_FAST            (bindings)
+             176 LOAD_FAST            (feedback)
+
+ 34:         178 LOAD_CONST           (('workspace', 'employee', 'input', 'bindings', 'feedback'))
+             180 BUILD_CONST_KEY_MAP  5
+             182 CALL                 1
+             190 RETURN_VALUE
+             192 SWAP                 (TOS <-> TOS1)
+             194 POP_TOP
+
+ 31:         196 SWAP                 (TOS <-> TOS1)
+             198 STORE_FAST           (k)
+             200 RERAISE              0
+
+ExceptionTable:
+  14 to 62 -> 192 [2]
+
+# Method Name:       history
+# Filename:          app\design_memory.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 1
+# Number of locals:  28
+# Stack size:        13
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        38
+# Constants:
+#    0: 'Project compact metadata; never load old prompts into future model context.'
+#    1: 'route'
+#    2: 'design_memory'
+#    3: 'root_job_id'
+#    4: 'version'
+#    5: 'scope_key'
+#    6: (False, 0)
+#    7: 'employee_id'
+#    8: 'APPROVED'
+#    9: 'entries'
+#   10: <Code311 code object <genexpr> at 0x10a3249d0, file app\design_memory.py>, line 56
+#   11: 'mode'
+#   12: 'PLAN_ONCE'
+#   13: ('STARTED', 'OUTCOME_UNKNOWN', 'DONE')
+#   14: ('FAILED', 'CANCELED', 'DONE')
+#   15: 'PLAN'
+#   16: ('QUEUED', 'RUNNING', 'PENDING')
+#   17: 'DONE'
+#   18: 'OUTCOME_UNKNOWN'
+#   19: 'selected_recipe'
+#   20: 'design_memory_entry'
+#   21: 'signature'
+#   22: 6
+#   23: 'GENERATED'
+#   24: 'RESERVED_OR_UNKNOWN'
+#   25: 'human_review'
+#   26: 'grade'
+#   27: None
+#   28: 'UNRATED'
+#   29: ('state', 'human_grade')
+#   30: ('used', 'recent', 'pending_plan', 'unresolved_plan_count', 'records')
+# Names:
+#    0: set
+#    1: CallAuthorization
+#    2: plan
+#    3: select
+#    4: id
+#    5: status
+#    6: expires_at
+#    7: where
+#    8: workspace_id
+#    9: as_string
+#   10: VERSION
+#   11: order_by
+#   12: created_at
+#   13: desc
+#   14: execute
+#   15: get
+#   16: owner_id
+#   17: time
+#   18: update
+#   19: Job
+#   20: list
+#   21: scalars
+#   22: Step
+#   23: job_id
+#   24: Asset
+#   25: step_id
+#   26: ProviderAttempt
+#   27: join
+#   28: in_
+#   29: canceled
+#   30: kind
+#   31: int
+#   32: payload
+#   33: add
+#   34: len
+#   35: append
+#   36: info
+# Varnames:
+#	db, ws, key, exclude_grant, used, recent, records, memory, query, pending, unresolved_plans, grant_id, status, expires, job_id, meta, values, job, steps, assets, a, by_step, uncertain, active, step, row, asset, r
+# Positional arguments:
+#	db, ws, key
+# Local variables:
+#    3: exclude_grant
+#    4: used
+#    5: recent
+#    6: records
+#    7: memory
+#    8: query
+#    9: pending
+#   10: unresolved_plans
+#   11: grant_id
+#   12: status
+#   13: expires
+#   14: job_id
+#   15: meta
+#   16: values
+#   17: job
+#   18: steps
+#   19: assets
+#   20: a
+#   21: by_step
+#   22: uncertain
+#   23: active
+#   24: step
+#   25: row
+#   26: asset
+#   27: r
+
+ 38:           0 RESUME               0
+
+ 40:           2 LOAD_GLOBAL          (NULL + set)
+              12 CALL                 0
+              20 BUILD_LIST           0
+              22 BUILD_LIST           0
+              24 STORE_FAST           (records)
+              26 STORE_FAST           (recent)
+              28 STORE_FAST           (used)
+
+ 41:          30 LOAD_GLOBAL          (CallAuthorization)
+              40 LOAD_ATTR            (plan)
+              60 LOAD_CONST           ("route")
+              62 BINARY_SUBSCR
+              66 LOAD_CONST           ("design_memory")
+              68 BINARY_SUBSCR
+              72 STORE_FAST           (memory)
+
+ 42:          74 LOAD_GLOBAL          (NULL + select)
+              84 LOAD_GLOBAL          (CallAuthorization)
+              94 LOAD_ATTR            (id)
+             114 LOAD_GLOBAL          (CallAuthorization)
+             124 LOAD_ATTR            (status)
+             144 LOAD_GLOBAL          (CallAuthorization)
+             154 LOAD_ATTR            (expires_at)
+
+ 43:         174 LOAD_GLOBAL          (CallAuthorization)
+             184 LOAD_ATTR            (plan)
+             204 LOAD_CONST           ("root_job_id")
+             206 BINARY_SUBSCR
+             210 LOAD_FAST            (memory)
+
+ 42:         212 CALL                 5
+
+ 43:         220 LOAD_ATTR            (NULL|self + where)
+
+ 44:         240 LOAD_GLOBAL          (CallAuthorization)
+             250 LOAD_ATTR            (workspace_id)
+             270 LOAD_FAST            (ws)
+             272 LOAD_ATTR            (id)
+             292 COMPARE_OP           (==)
+
+ 45:         296 LOAD_FAST            (memory)
+             298 LOAD_CONST           ("version")
+             300 BINARY_SUBSCR
+             304 LOAD_ATTR            (NULL|self + as_string)
+             324 CALL                 0
+             332 LOAD_GLOBAL          (VERSION)
+             342 COMPARE_OP           (==)
+
+ 46:         346 LOAD_FAST            (memory)
+             348 LOAD_CONST           ("scope_key")
+             350 BINARY_SUBSCR
+             354 LOAD_ATTR            (NULL|self + as_string)
+             374 CALL                 0
+             382 LOAD_FAST            (key)
+             384 COMPARE_OP           (==)
+
+ 43:         388 CALL                 3
+
+ 46:         396 LOAD_ATTR            (NULL|self + order_by)
+             416 LOAD_GLOBAL          (CallAuthorization)
+             426 LOAD_ATTR            (created_at)
+             446 LOAD_ATTR            (NULL|self + desc)
+             466 CALL                 0
+             474 CALL                 1
+
+ 42:         482 STORE_FAST           (query)
+
+ 47:         484 LOAD_CONST           ((False, 0))
+             486 UNPACK_SEQUENCE      2
+             490 STORE_FAST           (pending)
+             492 STORE_FAST           (unresolved_plans)
+
+ 48:         494 LOAD_FAST            (db)
+             496 LOAD_ATTR            (NULL|self + execute)
+             516 LOAD_FAST            (query)
+             518 CALL                 1
+             526 GET_ITER
+             528 EXTENDED_ARG         (768)
+             530 FOR_ITER             (to 2514)
+             534 UNPACK_SEQUENCE      5
+             538 STORE_FAST           (grant_id)
+             540 STORE_FAST           (status)
+             542 STORE_FAST           (expires)
+             544 STORE_FAST           (job_id)
+             546 STORE_FAST           (meta)
+
+ 49:         548 LOAD_FAST            (grant_id)
+             550 LOAD_FAST            (exclude_grant)
+             552 COMPARE_OP           (==)
+             556 POP_JUMP_IF_FALSE    (to 560)
+
+ 50:         558 JUMP_BACKWARD        (to 528)
+
+ 51:     >>  560 LOAD_FAST            (meta)
+             562 LOAD_ATTR            (NULL|self + get)
+             582 LOAD_CONST           ("employee_id")
+             584 CALL                 1
+         >>  592 LOAD_FAST            (ws)
+             594 LOAD_ATTR            (owner_id)
+             614 COMPARE_OP           (!=)
+             618 POP_JUMP_IF_FALSE    (to 622)
+
+ 52:         620 JUMP_BACKWARD        (to 528)
+
+ 53:     >>  622 LOAD_FAST            (job_id)
+             624 POP_JUMP_IF_TRUE     (to 790)
+
+ 54:         626 LOAD_FAST            (status)
+             628 LOAD_CONST           ("APPROVED")
+             630 COMPARE_OP           (==)
+             634 POP_JUMP_IF_FALSE    (to 788)
+             636 LOAD_FAST            (expires)
+             638 LOAD_GLOBAL          (NULL + time)
+             648 LOAD_ATTR            (time)
+             668 CALL                 0
+             676 COMPARE_OP           (>)
+             680 POP_JUMP_IF_FALSE    (to 788)
+
+ 55:         682 LOAD_FAST            (meta)
+             684 LOAD_ATTR            (NULL|self + get)
+             704 LOAD_CONST           ("entries")
+             706 BUILD_LIST           0
+             708 CALL                 2
+         >>  716 STORE_FAST           (values)
+
+ 56:         718 LOAD_FAST            (used)
+             720 LOAD_ATTR            (NULL|self + update)
+             740 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a3249d0, file app\design_memory.py>, line 56)
+             742 MAKE_FUNCTION        (No arguments)
+             744 LOAD_FAST            (values)
+             746 GET_ITER
+             748 CALL                 0
+             756 CALL                 1
+             764 POP_TOP
+
+ 57:         766 LOAD_FAST            (pending)
+             768 LOAD_FAST            (meta)
+             770 LOAD_CONST           ("mode")
+             772 BINARY_SUBSCR
+             776 LOAD_CONST           ("PLAN_ONCE")
+             778 COMPARE_OP           (==)
+             782 BINARY_OP            (|=)
+             786 STORE_FAST           (pending)
+
+ 58:     >>  788 JUMP_BACKWARD        (to 528)
+
+ 59:     >>  790 LOAD_FAST            (db)
+             792 LOAD_ATTR            (NULL|self + get)
+             812 LOAD_GLOBAL          (Job)
+             822 LOAD_FAST            (job_id)
+             824 CALL                 2
+             832 STORE_FAST           (job)
+
+ 60:         834 LOAD_FAST            (job)
+             836 POP_JUMP_IF_FALSE    (to 888)
+             838 LOAD_FAST            (job)
+             840 LOAD_ATTR            (workspace_id)
+             860 LOAD_FAST            (ws)
+             862 LOAD_ATTR            (id)
+             882 COMPARE_OP           (!=)
+             886 POP_JUMP_IF_FALSE    (to 890)
+
+ 61:     >>  888 JUMP_BACKWARD        (to 528)
+
+ 62:     >>  890 LOAD_GLOBAL          (NULL + list)
+             900 LOAD_FAST            (db)
+             902 LOAD_ATTR            (NULL|self + scalars)
+             922 LOAD_GLOBAL          (NULL + select)
+             932 LOAD_GLOBAL          (Step)
+             942 CALL                 1
+             950 LOAD_ATTR            (NULL|self + where)
+             970 LOAD_GLOBAL          (Step)
+             980 LOAD_ATTR            (job_id)
+            1000 LOAD_FAST            (job_id)
+            1002 COMPARE_OP           (==)
+            1006 LOAD_GLOBAL          (Step)
+            1016 LOAD_ATTR            (workspace_id)
+            1036 LOAD_FAST            (ws)
+            1038 LOAD_ATTR            (id)
+            1058 COMPARE_OP           (==)
+            1062 CALL                 2
+            1070 CALL                 1
+            1078 CALL                 1
+            1086 STORE_FAST           (steps)
+
+ 63:        1088 LOAD_GLOBAL          (NULL + list)
+            1098 LOAD_FAST            (db)
+            1100 LOAD_ATTR            (NULL|self + scalars)
+            1120 LOAD_GLOBAL          (NULL + select)
+            1130 LOAD_GLOBAL          (Asset)
+            1140 CALL                 1
+            1148 LOAD_ATTR            (NULL|self + where)
+            1168 LOAD_GLOBAL          (Asset)
+            1178 LOAD_ATTR            (job_id)
+            1198 LOAD_FAST            (job_id)
+            1200 COMPARE_OP           (==)
+            1204 LOAD_GLOBAL          (Asset)
+            1214 LOAD_ATTR            (workspace_id)
+            1234 LOAD_FAST            (ws)
+            1236 LOAD_ATTR            (id)
+            1256 COMPARE_OP           (==)
+            1260 CALL                 2
+            1268 CALL                 1
+            1276 CALL                 1
+            1284 STORE_FAST           (assets)
+
+ 64:        1286 LOAD_FAST            (assets)
+            1288 GET_ITER
+            1290 LOAD_FAST_AND_CLEAR  (a)
+            1292 SWAP                 (TOS <-> TOS1)
+            1294 BUILD_MAP            0
+            1296 SWAP                 (TOS <-> TOS1)
+            1298 FOR_ITER             (to 1332)
+            1302 STORE_FAST           (a)
+            1304 LOAD_FAST            (a)
+            1306 LOAD_ATTR            (step_id)
+            1326 LOAD_FAST            (a)
+            1328 MAP_ADD              2
+         >> 1330 JUMP_BACKWARD        (to 1298)
+            1332 END_FOR
+            1334 STORE_FAST           (by_step)
+            1336 STORE_FAST           (a)
+
+ 65:        1338 LOAD_GLOBAL          (NULL + set)
+            1348 LOAD_FAST            (db)
+            1350 LOAD_ATTR            (NULL|self + scalars)
+            1370 LOAD_GLOBAL          (NULL + select)
+            1380 LOAD_GLOBAL          (ProviderAttempt)
+            1390 LOAD_ATTR            (step_id)
+            1410 CALL                 1
+            1418 LOAD_ATTR            (NULL|self + join)
+            1438 LOAD_GLOBAL          (Step)
+            1448 CALL                 1
+            1456 LOAD_ATTR            (NULL|self + where)
+
+ 66:        1476 LOAD_GLOBAL          (Step)
+            1486 LOAD_ATTR            (job_id)
+            1506 LOAD_FAST            (job_id)
+            1508 COMPARE_OP           (==)
+            1512 LOAD_GLOBAL          (ProviderAttempt)
+            1522 LOAD_ATTR            (workspace_id)
+            1542 LOAD_FAST            (ws)
+            1544 LOAD_ATTR            (id)
+            1564 COMPARE_OP           (==)
+
+ 67:        1568 LOAD_GLOBAL          (ProviderAttempt)
+            1578 LOAD_ATTR            (status)
+            1598 LOAD_ATTR            (NULL|self + in_)
+            1618 BUILD_LIST           0
+            1620 LOAD_CONST           (('STARTED', 'OUTCOME_UNKNOWN', 'DONE'))
+            1622 LIST_EXTEND          1
+            1624 CALL                 1
+
+ 65:        1632 CALL                 3
+            1640 CALL                 1
+            1648 CALL                 1
+            1656 STORE_FAST           (uncertain)
+
+ 68:        1658 LOAD_FAST            (status)
+            1660 LOAD_CONST           ("APPROVED")
+            1662 COMPARE_OP           (==)
+            1666 COPY                 1
+            1668 POP_JUMP_IF_FALSE    (to 1728)
+            1670 POP_TOP
+            1672 LOAD_FAST            (job)
+            1674 LOAD_ATTR            (canceled)
+            1694 UNARY_NOT
+            1696 COPY                 1
+            1698 POP_JUMP_IF_FALSE    (to 1728)
+            1700 POP_TOP
+            1702 LOAD_FAST            (job)
+            1704 LOAD_ATTR            (status)
+            1724 LOAD_CONST           (('FAILED', 'CANCELED', 'DONE'))
+            1726 CONTAINS_OP          (not in)
+         >> 1728 STORE_FAST           (active)
+
+ 69:        1730 LOAD_FAST            (steps)
+            1732 GET_ITER
+            1734 EXTENDED_ARG         (256)
+            1736 FOR_ITER             (to 2466)
+            1740 STORE_FAST           (step)
+
+ 70:        1742 LOAD_FAST            (step)
+            1744 LOAD_ATTR            (kind)
+            1764 LOAD_CONST           ("PLAN")
+            1766 COMPARE_OP           (==)
+            1770 POP_JUMP_IF_FALSE    (to 1964)
+
+ 71:        1772 LOAD_FAST            (pending)
+            1774 LOAD_FAST            (active)
+            1776 COPY                 1
+            1778 POP_JUMP_IF_FALSE    (to 1808)
+            1780 POP_TOP
+            1782 LOAD_FAST            (step)
+            1784 LOAD_ATTR            (status)
+            1804 LOAD_CONST           (('QUEUED', 'RUNNING', 'PENDING'))
+            1806 CONTAINS_OP          (in)
+         >> 1808 BINARY_OP            (|=)
+            1812 STORE_FAST           (pending)
+
+ 74:        1814 LOAD_FAST            (unresolved_plans)
+            1816 LOAD_GLOBAL          (NULL + int)
+            1826 LOAD_FAST            (step)
+            1828 LOAD_ATTR            (id)
+            1848 LOAD_FAST            (uncertain)
+            1850 CONTAINS_OP          (in)
+            1852 COPY                 1
+            1854 POP_JUMP_IF_FALSE    (to 1948)
+            1856 POP_TOP
+            1858 LOAD_FAST            (step)
+            1860 LOAD_ATTR            (status)
+            1880 LOAD_CONST           ("DONE")
+            1882 COMPARE_OP           (!=)
+            1886 COPY                 1
+            1888 POP_JUMP_IF_FALSE    (to 1948)
+            1890 POP_TOP
+
+ 75:        1892 LOAD_FAST            (step)
+            1894 LOAD_ATTR            (status)
+            1914 LOAD_CONST           ("OUTCOME_UNKNOWN")
+            1916 COMPARE_OP           (==)
+            1920 COPY                 1
+            1922 POP_JUMP_IF_TRUE     (to 1948)
+            1924 POP_TOP
+            1926 LOAD_FAST            (job)
+            1928 LOAD_ATTR            (canceled)
+
+ 74:     >> 1948 CALL                 1
+            1956 BINARY_OP            (+=)
+            1960 STORE_FAST           (unresolved_plans)
+
+ 76:        1962 JUMP_BACKWARD        (to 1734)
+
+ 77:     >> 1964 LOAD_FAST            (step)
+            1966 LOAD_ATTR            (payload)
+            1986 LOAD_ATTR            (NULL|self + get)
+            2006 LOAD_CONST           ("selected_recipe")
+            2008 CALL                 1
+            2016 COPY                 1
+            2018 POP_JUMP_IF_TRUE     (to 2024)
+            2020 POP_TOP
+            2022 BUILD_MAP            0
+         >> 2024 LOAD_ATTR            (NULL|self + get)
+            2044 LOAD_CONST           ("design_memory_entry")
+            2046 CALL                 1
+            2054 STORE_FAST           (row)
+
+ 78:        2056 LOAD_FAST            (row)
+            2058 POP_JUMP_IF_TRUE     (to 2062)
+
+ 79:        2060 JUMP_BACKWARD        (to 1734)
+
+ 80:     >> 2062 LOAD_FAST            (by_step)
+            2064 LOAD_ATTR            (NULL|self + get)
+            2084 LOAD_FAST            (step)
+            2086 LOAD_ATTR            (id)
+            2106 CALL                 1
+            2114 STORE_FAST           (asset)
+
+ 81:        2116 LOAD_FAST            (asset)
+            2118 POP_JUMP_IF_TRUE     (to 2184)
+            2120 LOAD_FAST            (step)
+            2122 LOAD_ATTR            (id)
+            2142 LOAD_FAST            (uncertain)
+            2144 CONTAINS_OP          (in)
+            2146 POP_JUMP_IF_TRUE     (to 2184)
+            2148 LOAD_FAST            (active)
+            2150 POP_JUMP_IF_TRUE     (to 2154)
+            2152 JUMP_BACKWARD        (to 1734)
+         >> 2154 LOAD_FAST            (step)
+            2156 LOAD_ATTR            (status)
+            2176 LOAD_CONST           (('QUEUED', 'RUNNING', 'PENDING'))
+            2178 CONTAINS_OP          (in)
+            2180 POP_JUMP_IF_TRUE     (to 2184)
+            2182 JUMP_BACKWARD        (to 1734)
+
+ 82:     >> 2184 LOAD_FAST            (used)
+            2186 LOAD_ATTR            (NULL|self + add)
+            2206 LOAD_FAST            (row)
+            2208 LOAD_CONST           ("signature")
+            2210 BINARY_SUBSCR
+            2214 CALL                 1
+            2222 POP_TOP
+
+ 83:        2224 LOAD_GLOBAL          (NULL + len)
+            2234 LOAD_FAST            (recent)
+            2236 CALL                 1
+            2244 LOAD_CONST           (6)
+            2246 COMPARE_OP           (<)
+            2250 POP_JUMP_IF_TRUE     (to 2256)
+            2252 EXTENDED_ARG         (256)
+            2254 JUMP_BACKWARD        (to 1734)
+         >> 2256 LOAD_FAST            (row)
+            2258 LOAD_CONST           ("signature")
+            2260 BINARY_SUBSCR
+            2264 LOAD_FAST            (recent)
+            2266 GET_ITER
+            2268 LOAD_FAST_AND_CLEAR  (r)
+            2270 SWAP                 (TOS <-> TOS1)
+            2272 BUILD_SET            0
+            2274 SWAP                 (TOS <-> TOS1)
+            2276 FOR_ITER             (to 2294)
+            2280 STORE_FAST           (r)
+            2282 LOAD_FAST            (r)
+            2284 LOAD_CONST           ("signature")
+            2286 BINARY_SUBSCR
+            2290 SET_ADD              2
+         >> 2292 JUMP_BACKWARD        (to 2276)
+            2294 END_FOR
+            2296 SWAP                 (TOS <-> TOS1)
+            2298 STORE_FAST           (r)
+            2300 CONTAINS_OP          (not in)
+            2302 POP_JUMP_IF_TRUE     (to 2308)
+            2304 EXTENDED_ARG         (256)
+            2306 JUMP_BACKWARD        (to 1734)
+
+ 84:     >> 2308 LOAD_FAST            (recent)
+            2310 LOAD_ATTR            (NULL|self + append)
+            2330 BUILD_MAP            0
+            2332 LOAD_FAST            (row)
+            2334 DICT_UPDATE          1
+            2336 LOAD_FAST            (asset)
+            2338 POP_JUMP_IF_FALSE    (to 2344)
+            2340 LOAD_CONST           ("GENERATED")
+            2342 JUMP_FORWARD         (to 2346)
+         >> 2344 LOAD_CONST           ("RESERVED_OR_UNKNOWN")
+
+ 85:     >> 2346 LOAD_FAST            (asset)
+            2348 POP_JUMP_IF_FALSE    (to 2436)
+            2350 LOAD_FAST            (asset)
+            2352 LOAD_ATTR            (info)
+            2372 LOAD_ATTR            (NULL|self + get)
+            2392 LOAD_CONST           ("human_review")
+            2394 BUILD_MAP            0
+            2396 CALL                 2
+            2404 LOAD_ATTR            (NULL|self + get)
+            2424 LOAD_CONST           ("grade")
+            2426 CALL                 1
+            2434 JUMP_FORWARD         (to 2438)
+         >> 2436 LOAD_CONST           (None)
+         >> 2438 COPY                 1
+            2440 POP_JUMP_IF_TRUE     (to 2446)
+            2442 POP_TOP
+            2444 LOAD_CONST           ("UNRATED")
+
+ 84:     >> 2446 LOAD_CONST           (('state', 'human_grade'))
+            2448 BUILD_CONST_KEY_MAP  2
+            2450 DICT_UPDATE          1
+            2452 CALL                 1
+            2460 POP_TOP
+            2462 EXTENDED_ARG         (256)
+         >> 2464 JUMP_BACKWARD        (to 1734)
+
+ 69:        2466 END_FOR
+
+ 86:        2468 LOAD_FAST            (records)
+            2470 LOAD_ATTR            (NULL|self + append)
+            2490 LOAD_FAST            (meta)
+            2492 LOAD_FAST            (job)
+            2494 LOAD_FAST            (steps)
+            2496 LOAD_FAST            (assets)
+            2498 BUILD_TUPLE          4
+            2500 CALL                 1
+            2508 POP_TOP
+            2510 EXTENDED_ARG         (768)
+         >> 2512 JUMP_BACKWARD        (to 528)
+
+ 48:        2514 END_FOR
+
+ 87:        2516 LOAD_FAST            (used)
+            2518 LOAD_FAST            (recent)
+            2520 LOAD_FAST            (pending)
+
+ 88:        2522 LOAD_FAST            (unresolved_plans)
+            2524 LOAD_FAST            (records)
+
+ 87:        2526 LOAD_CONST           (('used', 'recent', 'pending_plan', 'unresolved_plan_count', 'records'))
+            2528 BUILD_CONST_KEY_MAP  5
+            2530 RETURN_VALUE
+            2532 SWAP                 (TOS <-> TOS1)
+            2534 POP_TOP
+
+ 64:        2536 SWAP                 (TOS <-> TOS1)
+            2538 STORE_FAST           (a)
+            2540 RERAISE              0
+            2542 SWAP                 (TOS <-> TOS1)
+            2544 POP_TOP
+
+ 83:        2546 SWAP                 (TOS <-> TOS1)
+            2548 STORE_FAST           (r)
+            2550 RERAISE              0
+
+ExceptionTable:
+  1294 to 1332 -> 2532 [3]
+  2272 to 2294 -> 2542 [5]
+
+# Method Name:       new_memory
+# Filename:          app\design_memory.py
+# Argument count:    6
+# Position-only argument count: 0
+# Keyword-only arguments: 1
+# Number of locals:  11
+# Stack size:        12
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        91
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('catalog',)
+#    3: 'version'
+#    4: 'scope_key'
+#    5: 'employee_id'
+#    6: 'catalog_hash'
+#    7: 'AUTHORIZATION_MISMATCH'
+#    8: '方向记忆的输入、模板或目录版本已变化，请重新确认'
+#    9: 409
+#   10: 'used'
+#   11: 'recent'
+#   12: 'unresolved_plan_count'
+#   13: ('version', 'scope_key', 'employee_id', 'catalog_hash', 'mode', 'entries', 'bindings', 'feedback_hash', 'used_count', 'recent', 'unresolved_plan_count')
+# Names:
+#    0: preset_direct
+#    1: catalog
+#    2: scope
+#    3: digest
+#    4: get
+#    5: VERSION
+#    6: owner_id
+#    7: DomainError
+#    8: history
+#    9: len
+# Varnames:
+#	db, ws, request, bindings, feedback, mode, frozen, catalog, key, catalog_hash, past
+# Positional arguments:
+#	db, ws, request, bindings, feedback, mode
+# Local variables:
+#    6: frozen
+#    7: catalog
+#    8: key
+#    9: catalog_hash
+#   10: past
+
+ 91:           0 RESUME               0
+
+ 92:           2 LOAD_CONST           (1)
+               4 LOAD_CONST           (('catalog',))
+               6 IMPORT_NAME          (preset_direct)
+               8 IMPORT_FROM          (catalog)
+              10 STORE_FAST           (catalog)
+              12 POP_TOP
+
+ 93:          14 LOAD_GLOBAL          (NULL + scope)
+              24 LOAD_FAST            (ws)
+              26 LOAD_FAST            (request)
+              28 LOAD_FAST            (bindings)
+              30 LOAD_FAST            (feedback)
+              32 CALL                 4
+              40 STORE_FAST           (key)
+
+ 94:          42 LOAD_GLOBAL          (NULL + digest)
+              52 PUSH_NULL
+              54 LOAD_FAST            (catalog)
+              56 CALL                 0
+              64 CALL                 1
+              72 STORE_FAST           (catalog_hash)
+
+ 95:          74 LOAD_FAST            (frozen)
+              76 POP_JUMP_IF_NONE     (to 300)
+
+ 96:          78 LOAD_FAST            (frozen)
+              80 LOAD_ATTR            (NULL|self + get)
+             100 LOAD_CONST           ("version")
+             102 CALL                 1
+             110 LOAD_GLOBAL          (VERSION)
+             120 COMPARE_OP           (!=)
+             124 POP_JUMP_IF_TRUE     (to 266)
+             126 LOAD_FAST            (frozen)
+             128 LOAD_ATTR            (NULL|self + get)
+             148 LOAD_CONST           ("scope_key")
+             150 CALL                 1
+             158 LOAD_FAST            (key)
+             160 COMPARE_OP           (!=)
+             164 POP_JUMP_IF_TRUE     (to 266)
+
+ 97:         166 LOAD_FAST            (frozen)
+             168 LOAD_ATTR            (NULL|self + get)
+             188 LOAD_CONST           ("employee_id")
+             190 CALL                 1
+             198 LOAD_FAST            (ws)
+             200 LOAD_ATTR            (owner_id)
+             220 COMPARE_OP           (!=)
+             224 POP_JUMP_IF_TRUE     (to 266)
+             226 LOAD_FAST            (frozen)
+             228 LOAD_ATTR            (NULL|self + get)
+             248 LOAD_CONST           ("catalog_hash")
+             250 CALL                 1
+             258 LOAD_FAST            (catalog_hash)
+             260 COMPARE_OP           (!=)
+             264 POP_JUMP_IF_FALSE    (to 292)
+
+ 98:     >>  266 LOAD_GLOBAL          (NULL + DomainError)
+             276 LOAD_CONST           ("AUTHORIZATION_MISMATCH")
+             278 LOAD_CONST           ("方向记忆的输入、模板或目录版本已变化，请重新确认")
+             280 LOAD_CONST           (409)
+             282 CALL                 3
+             290 RAISE_VARARGS        (exception instance)
+
+ 99:     >>  292 LOAD_FAST            (frozen)
+             294 LOAD_CONST           (None)
+             296 BUILD_TUPLE          2
+             298 RETURN_VALUE
+
+100:     >>  300 LOAD_GLOBAL          (NULL + history)
+             310 LOAD_FAST            (db)
+             312 LOAD_FAST            (ws)
+             314 LOAD_FAST            (key)
+             316 CALL                 3
+             324 STORE_FAST           (past)
+
+101:         326 LOAD_GLOBAL          (VERSION)
+             336 LOAD_FAST            (key)
+             338 LOAD_FAST            (ws)
+             340 LOAD_ATTR            (owner_id)
+
+102:         360 LOAD_FAST            (catalog_hash)
+             362 LOAD_FAST            (mode)
+             364 BUILD_LIST           0
+
+103:         366 LOAD_FAST            (bindings)
+             368 LOAD_GLOBAL          (NULL + digest)
+             378 LOAD_FAST            (feedback)
+             380 CALL                 1
+
+104:         388 LOAD_GLOBAL          (NULL + len)
+             398 LOAD_FAST            (past)
+             400 LOAD_CONST           ("used")
+             402 BINARY_SUBSCR
+             406 CALL                 1
+             414 LOAD_FAST            (past)
+             416 LOAD_CONST           ("recent")
+             418 BINARY_SUBSCR
+
+105:         422 LOAD_FAST            (past)
+             424 LOAD_CONST           ("unresolved_plan_count")
+             426 BINARY_SUBSCR
+
+101:         430 LOAD_CONST           (('version', 'scope_key', 'employee_id', 'catalog_hash', 'mode', 'entries', 'bindings', 'feedback_hash', 'used_count', 'recent', 'unresolved_plan_count'))
+             432 BUILD_CONST_KEY_MAP  11
+
+105:         434 LOAD_FAST            (past)
+
+101:         436 BUILD_TUPLE          2
+             438 RETURN_VALUE
+
+
+# Method Name:       choose
+# Filename:          app\design_memory.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  11
+# Stack size:        7
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        108
+# Constants:
+#    0: None
+#    1: 'entries'
+#    2: 'signature'
+#    3: <Code311 code object <genexpr> at 0x10a380d10, file app\design_memory.py>, line 112
+#    4: 'AUTHORIZATION_MISMATCH'
+#    5: '已确认方向与当前配方不匹配，请重新确认'
+#    6: 409
+#    7: 'used'
+#    8: 'DESIGN_DIRECTIONS_EXHAUSTED'
+#    9: '本范围还剩'
+#   10: '个未用安排，请减少数量，或使用“先聊方案 / 探索不同创意”规划新方向；不会自动扣费重画'
+#   11: ('减少数量', '先聊方案', '探索不同创意')
+# Names:
+#    0: len
+#    1: set
+#    2: any
+#    3: DomainError
+# Varnames:
+#	pool, count, memory, past, key, row, r, keys, k, available, _
+# Positional arguments:
+#	pool, count, memory, past
+# Local variables:
+#    4: key
+#    5: row
+#    6: r
+#    7: keys
+#    8: k
+#    9: available
+#   10: _
+# Cell variables:
+#    0: selected
+               0 MAKE_CELL            (selected)
+
+108:           2 RESUME               0
+
+109:           4 LOAD_FAST            (past)
+               6 POP_JUMP_IF_NOT_NONE (to 272)
+
+110:           8 LOAD_FAST            (pool)
+              10 GET_ITER
+              12 LOAD_FAST_AND_CLEAR  (key)
+              14 LOAD_FAST_AND_CLEAR  (row)
+              16 SWAP                 (TOS <-> TOS2)
+              18 BUILD_MAP            0
+              20 SWAP                 (TOS <-> TOS1)
+              22 FOR_ITER             (to 42)
+              26 UNPACK_SEQUENCE      2
+              30 STORE_FAST           (key)
+              32 STORE_FAST           (row)
+              34 LOAD_FAST            (key)
+              36 LOAD_FAST            (row)
+              38 MAP_ADD              2
+         >>   40 JUMP_BACKWARD        (to 22)
+              42 END_FOR
+              44 SWAP                 (TOS <-> TOS2)
+              46 STORE_FAST           (row)
+              48 STORE_FAST           (key)
+              50 STORE_DEREF          (selected)
+
+111:          52 LOAD_FAST            (memory)
+              54 LOAD_CONST           ("entries")
+              56 BINARY_SUBSCR
+              60 GET_ITER
+         >>   62 LOAD_FAST_AND_CLEAR  (r)
+              64 SWAP                 (TOS <-> TOS1)
+              66 BUILD_LIST           0
+              68 SWAP                 (TOS <-> TOS1)
+              70 FOR_ITER             (to 88)
+              74 STORE_FAST           (r)
+              76 LOAD_FAST            (r)
+              78 LOAD_CONST           ("signature")
+              80 BINARY_SUBSCR
+              84 LIST_APPEND          2
+         >>   86 JUMP_BACKWARD        (to 70)
+              88 END_FOR
+              90 STORE_FAST           (keys)
+              92 STORE_FAST           (r)
+
+112:          94 LOAD_GLOBAL          (NULL + len)
+             104 LOAD_FAST            (keys)
+         >>  106 CALL                 1
+             114 LOAD_FAST            (count)
+             116 COMPARE_OP           (!=)
+             120 POP_JUMP_IF_TRUE     (to 208)
+             122 LOAD_GLOBAL          (NULL + len)
+             132 LOAD_GLOBAL          (NULL + set)
+             142 LOAD_FAST            (keys)
+             144 CALL                 1
+             152 CALL                 1
+             160 LOAD_FAST            (count)
+             162 COMPARE_OP           (!=)
+             166 POP_JUMP_IF_TRUE     (to 208)
+             168 LOAD_GLOBAL          (NULL + any)
+             178 LOAD_CLOSURE         (selected)
+             180 BUILD_TUPLE          1
+             182 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a380d10, file app\design_memory.py>, line 112)
+             184 MAKE_FUNCTION        (closure)
+             186 LOAD_FAST            (keys)
+             188 GET_ITER
+             190 CALL                 0
+             198 CALL                 1
+             206 POP_JUMP_IF_FALSE    (to 234)
+
+113:     >>  208 LOAD_GLOBAL          (NULL + DomainError)
+             218 LOAD_CONST           ("AUTHORIZATION_MISMATCH")
+             220 LOAD_CONST           ("已确认方向与当前配方不匹配，请重新确认")
+             222 LOAD_CONST           (409)
+             224 CALL                 3
+             232 RAISE_VARARGS        (exception instance)
+
+114:     >>  234 LOAD_FAST            (keys)
+             236 GET_ITER
+             238 LOAD_FAST_AND_CLEAR  (k)
+             240 SWAP                 (TOS <-> TOS1)
+             242 BUILD_LIST           0
+             244 SWAP                 (TOS <-> TOS1)
+             246 FOR_ITER             (to 264)
+             250 STORE_FAST           (k)
+             252 LOAD_DEREF           (selected)
+             254 LOAD_FAST            (k)
+             256 BINARY_SUBSCR
+             260 LIST_APPEND          2
+         >>  262 JUMP_BACKWARD        (to 246)
+             264 END_FOR
+             266 SWAP                 (TOS <-> TOS1)
+             268 STORE_FAST           (k)
+             270 RETURN_VALUE
+
+115:     >>  272 LOAD_FAST            (pool)
+             274 GET_ITER
+             276 LOAD_FAST_AND_CLEAR  (key)
+             278 LOAD_FAST_AND_CLEAR  (row)
+             280 SWAP                 (TOS <-> TOS2)
+         >>  282 BUILD_LIST           0
+             284 SWAP                 (TOS <-> TOS1)
+             286 FOR_ITER             (to 324)
+             290 UNPACK_SEQUENCE      2
+             294 STORE_FAST           (key)
+             296 STORE_FAST           (row)
+             298 LOAD_FAST            (key)
+             300 LOAD_FAST            (past)
+             302 LOAD_CONST           ("used")
+             304 BINARY_SUBSCR
+             308 CONTAINS_OP          (not in)
+             310 POP_JUMP_IF_TRUE     (to 314)
+             312 JUMP_BACKWARD        (to 286)
+         >>  314 LOAD_FAST            (key)
+             316 LOAD_FAST            (row)
+             318 BUILD_TUPLE          2
+             320 LIST_APPEND          2
+         >>  322 JUMP_BACKWARD        (to 286)
+             324 END_FOR
+             326 STORE_FAST           (available)
+             328 STORE_FAST           (key)
+             330 STORE_FAST           (row)
+
+116:         332 LOAD_GLOBAL          (NULL + len)
+         >>  342 LOAD_FAST            (available)
+             344 CALL                 1
+             352 LOAD_FAST            (count)
+             354 COMPARE_OP           (<)
+             358 POP_JUMP_IF_FALSE    (to 418)
+
+117:         360 LOAD_GLOBAL          (NULL + DomainError)
+             370 LOAD_CONST           ("DESIGN_DIRECTIONS_EXHAUSTED")
+
+118:         372 LOAD_CONST           ("本范围还剩")
+             374 LOAD_GLOBAL          (NULL + len)
+             384 LOAD_FAST            (available)
+             386 CALL                 1
+             394 FORMAT_VALUE         0
+             396 LOAD_CONST           ("个未用安排，请减少数量，或使用“先聊方案 / 探索不同创意”规划新方向；不会自动扣费重画")
+             398 BUILD_STRING         3
+
+119:         400 LOAD_CONST           (409)
+             402 BUILD_LIST           0
+             404 LOAD_CONST           (('减少数量', '先聊方案', '探索不同创意'))
+             406 LIST_EXTEND          1
+
+117:         408 CALL                 4
+             416 RAISE_VARARGS        (exception instance)
+
+120:     >>  418 LOAD_FAST            (available)
+             420 LOAD_CONST           (None)
+             422 LOAD_FAST            (count)
+             424 BINARY_SLICE
+             426 GET_ITER
+             428 LOAD_FAST_AND_CLEAR  (_)
+             430 LOAD_FAST_AND_CLEAR  (row)
+             432 SWAP                 (TOS <-> TOS2)
+             434 BUILD_LIST           0
+             436 SWAP                 (TOS <-> TOS1)
+             438 FOR_ITER             (to 456)
+             442 UNPACK_SEQUENCE      2
+             446 STORE_FAST           (_)
+             448 STORE_FAST           (row)
+             450 LOAD_FAST            (row)
+             452 LIST_APPEND          2
+         >>  454 JUMP_BACKWARD        (to 438)
+             456 END_FOR
+             458 SWAP                 (TOS <-> TOS2)
+             460 STORE_FAST           (row)
+             462 STORE_FAST           (_)
+             464 RETURN_VALUE
+             466 SWAP                 (TOS <-> TOS1)
+             468 POP_TOP
+
+110:         470 SWAP                 (TOS <-> TOS2)
+             472 STORE_FAST           (row)
+         >>  474 STORE_FAST           (key)
+             476 RERAISE              0
+             478 SWAP                 (TOS <-> TOS1)
+             480 POP_TOP
+
+111:         482 SWAP                 (TOS <-> TOS1)
+             484 STORE_FAST           (r)
+             486 RERAISE              0
+             488 SWAP                 (TOS <-> TOS1)
+             490 POP_TOP
+
+114:         492 SWAP                 (TOS <-> TOS1)
+             494 STORE_FAST           (k)
+             496 RERAISE              0
+             498 SWAP                 (TOS <-> TOS1)
+             500 POP_TOP
+
+115:         502 SWAP                 (TOS <-> TOS2)
+             504 STORE_FAST           (row)
+             506 STORE_FAST           (key)
+             508 RERAISE              0
+             510 SWAP                 (TOS <-> TOS1)
+             512 POP_TOP
+
+120:         514 SWAP                 (TOS <-> TOS2)
+             516 STORE_FAST           (row)
+             518 STORE_FAST           (_)
+             520 RERAISE              0
+
+ExceptionTable:
+  18 to 42 -> 466 [3]
+  66 to 88 -> 478 [2]
+  242 to 264 -> 488 [2]
+  282 to 310 -> 498 [3]
+  314 to 324 -> 498 [3]
+  434 to 456 -> 510 [3]
+
+# Method Name:       reserve
+# Filename:          app\design_memory.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  7
+# Stack size:        6
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        123
+# Constants:
+#    0: None
+#    1: 'version'
+#    2: 1
+#    3: ('lock_workspace',)
+#    4: 'scope_key'
+#    5: 'entries'
+#    6: 'signature'
+#    7: 'used'
+#    8: 'mode'
+#    9: 'PLAN_ONCE'
+#   10: 'pending_plan'
+#   11: 'DESIGN_MEMORY_CHANGED'
+#   12: '另一批已预占这些方向，请刷新本次调用确认；尚未调用模型'
+#   13: 409
+# Names:
+#    0: get
+#    1: VERSION
+#    2: learning
+#    3: lock_workspace
+#    4: id
+#    5: history
+#    6: DomainError
+# Varnames:
+#	db, ws, memory, lock_workspace, past, r, keys
+# Positional arguments:
+#	db, ws, memory
+# Local variables:
+#    3: lock_workspace
+#    4: past
+#    5: r
+#    6: keys
+
+123:           0 RESUME               0
+
+124:           2 LOAD_FAST            (memory)
+               4 POP_JUMP_IF_FALSE    (to 54)
+               6 LOAD_FAST            (memory)
+               8 LOAD_ATTR            (NULL|self + get)
+              28 LOAD_CONST           ("version")
+              30 CALL                 1
+              38 LOAD_GLOBAL          (VERSION)
+              48 COMPARE_OP           (!=)
+              52 POP_JUMP_IF_FALSE    (to 56)
+
+125:     >>   54 RETURN_CONST         (None)
+
+126:     >>   56 LOAD_CONST           (1)
+              58 LOAD_CONST           (('lock_workspace',))
+              60 IMPORT_NAME          (learning)
+              62 IMPORT_FROM          (lock_workspace)
+              64 STORE_FAST           (lock_workspace)
+              66 POP_TOP
+
+127:          68 PUSH_NULL
+              70 LOAD_FAST            (lock_workspace)
+              72 LOAD_FAST            (db)
+              74 LOAD_FAST            (ws)
+              76 LOAD_ATTR            (id)
+              96 CALL                 2
+             104 POP_TOP
+
+128:         106 LOAD_GLOBAL          (NULL + history)
+             116 LOAD_FAST            (db)
+             118 LOAD_FAST            (ws)
+             120 LOAD_FAST            (memory)
+             122 LOAD_CONST           ("scope_key")
+             124 BINARY_SUBSCR
+             128 CALL                 3
+             136 STORE_FAST           (past)
+
+129:         138 LOAD_FAST            (memory)
+             140 LOAD_CONST           ("entries")
+             142 BINARY_SUBSCR
+             146 GET_ITER
+             148 LOAD_FAST_AND_CLEAR  (r)
+             150 SWAP                 (TOS <-> TOS1)
+             152 BUILD_SET            0
+             154 SWAP                 (TOS <-> TOS1)
+             156 FOR_ITER             (to 174)
+             160 STORE_FAST           (r)
+             162 LOAD_FAST            (r)
+             164 LOAD_CONST           ("signature")
+             166 BINARY_SUBSCR
+             170 SET_ADD              2
+         >>  172 JUMP_BACKWARD        (to 156)
+             174 END_FOR
+             176 STORE_FAST           (keys)
+             178 STORE_FAST           (r)
+
+130:         180 LOAD_FAST            (keys)
+             182 LOAD_FAST            (past)
+             184 LOAD_CONST           ("used")
+             186 BINARY_SUBSCR
+             190 BINARY_OP            (&)
+             194 POP_JUMP_IF_TRUE     (to 222)
+             196 LOAD_FAST            (memory)
+             198 LOAD_CONST           ("mode")
+             200 BINARY_SUBSCR
+             204 LOAD_CONST           ("PLAN_ONCE")
+             206 COMPARE_OP           (==)
+             210 POP_JUMP_IF_FALSE    (to 250)
+             212 LOAD_FAST            (past)
+             214 LOAD_CONST           ("pending_plan")
+             216 BINARY_SUBSCR
+             220 POP_JUMP_IF_FALSE    (to 248)
+
+131:     >>  222 LOAD_GLOBAL          (NULL + DomainError)
+             232 LOAD_CONST           ("DESIGN_MEMORY_CHANGED")
+             234 LOAD_CONST           ("另一批已预占这些方向，请刷新本次调用确认；尚未调用模型")
+             236 LOAD_CONST           (409)
+             238 CALL                 3
+             246 RAISE_VARARGS        (exception instance)
+
+130:     >>  248 RETURN_CONST         (None)
+         >>  250 RETURN_CONST         (None)
+             252 SWAP                 (TOS <-> TOS1)
+             254 POP_TOP
+
+129:         256 SWAP                 (TOS <-> TOS1)
+             258 STORE_FAST           (r)
+             260 RERAISE              0
+
+ExceptionTable:
+  152 to 174 -> 252 [2]
+
+# Method Name:       custom_rows
+# Filename:          app\design_memory.py
+# Argument count:    4
+# Position-only argument count: 0
+# Keyword-only arguments: 1
+# Number of locals:  15
+# Stack size:        8
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        134
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('compile_prompt', 'with_human_feedback')
+#    3: ('add_design_variation',)
+#    4: True
+#    5: ('strict',)
+#    6: 'execution_direction'
+#    7: ('custom_direction', 'intent_priority')
+#    8: 'CUSTOM'
+#    9: 'instructions'
+#   10: '；'
+#   11: 'label'
+#   12: ('design_variation', 'design_memory_entry')
+#   13: ('candidate_index', 'execution_prompt', 'selected_recipe')
+# Names:
+#    0: preset_direct
+#    1: compile_prompt
+#    2: with_human_feedback
+#    3: intent_sources
+#    4: add_design_variation
+#    5: enumerate
+#    6: zip
+#    7: entry
+#    8: signature
+#    9: update
+#   10: append
+# Varnames:
+#	request, briefs, variations, feedback, intent_priority, compile_prompt, with_human_feedback, add_design_variation, result, index, brief, variation, prompt, recipe, row
+# Positional arguments:
+#	request, briefs, variations, feedback
+# Local variables:
+#    4: intent_priority
+#    5: compile_prompt
+#    6: with_human_feedback
+#    7: add_design_variation
+#    8: result
+#    9: index
+#   10: brief
+#   11: variation
+#   12: prompt
+#   13: recipe
+#   14: row
+
+134:           0 RESUME               0
+
+135:           2 LOAD_CONST           (1)
+               4 LOAD_CONST           (('compile_prompt', 'with_human_feedback'))
+               6 IMPORT_NAME          (preset_direct)
+               8 IMPORT_FROM          (compile_prompt)
+              10 STORE_FAST           (compile_prompt)
+              12 IMPORT_FROM          (with_human_feedback)
+              14 STORE_FAST           (with_human_feedback)
+              16 POP_TOP
+
+136:          18 LOAD_CONST           (1)
+              20 LOAD_CONST           (('add_design_variation',))
+              22 IMPORT_NAME          (intent_sources)
+              24 IMPORT_FROM          (add_design_variation)
+              26 STORE_FAST           (add_design_variation)
+              28 POP_TOP
+
+137:          30 BUILD_LIST           0
+              32 STORE_FAST           (result)
+
+138:          34 LOAD_GLOBAL          (NULL + enumerate)
+              44 LOAD_GLOBAL          (NULL + zip)
+              54 LOAD_FAST            (briefs)
+              56 LOAD_FAST            (variations)
+              58 LOAD_CONST           (True)
+              60 KW_NAMES             (('strict',))
+              62 CALL                 3
+              70 CALL                 1
+              78 GET_ITER
+              80 FOR_ITER             (to 332)
+              84 UNPACK_SEQUENCE      2
+              88 STORE_FAST           (index)
+              90 UNPACK_SEQUENCE      2
+              94 STORE_FAST           (brief)
+              96 STORE_FAST           (variation)
+
+139:          98 PUSH_NULL
+             100 LOAD_FAST            (compile_prompt)
+             102 LOAD_FAST            (request)
+             104 LOAD_FAST            (brief)
+             106 LOAD_CONST           ("execution_direction")
+             108 BINARY_SUBSCR
+             112 LOAD_FAST            (intent_priority)
+             114 KW_NAMES             (('custom_direction', 'intent_priority'))
+             116 CALL                 3
+             124 UNPACK_SEQUENCE      2
+             128 STORE_FAST           (prompt)
+             130 STORE_FAST           (recipe)
+
+140:         132 PUSH_NULL
+             134 LOAD_FAST            (add_design_variation)
+             136 LOAD_FAST            (prompt)
+             138 LOAD_FAST            (variation)
+             140 CALL                 2
+             148 STORE_FAST           (prompt)
+
+141:         150 PUSH_NULL
+             152 LOAD_FAST            (with_human_feedback)
+             154 LOAD_FAST            (prompt)
+             156 LOAD_FAST            (feedback)
+             158 CALL                 2
+             166 STORE_FAST           (prompt)
+
+142:         168 LOAD_GLOBAL          (NULL + entry)
+             178 LOAD_GLOBAL          (NULL + signature)
+             188 LOAD_CONST           ("CUSTOM")
+             190 LOAD_FAST            (brief)
+             192 LOAD_CONST           ("execution_direction")
+             194 BINARY_SUBSCR
+             198 BUILD_LIST           2
+             200 LOAD_FAST            (variation)
+             202 LOAD_CONST           ("instructions")
+             204 BINARY_SUBSCR
+             208 LIST_EXTEND          1
+             210 CALL_INTRINSIC_1     6
+             212 CALL_FUNCTION_EX     (positional arguments only)
+
+143:         214 LOAD_FAST            (brief)
+             216 LOAD_CONST           ("execution_direction")
+             218 BINARY_SUBSCR
+             222 LOAD_CONST           ("；")
+             224 BINARY_OP            (+)
+             228 LOAD_FAST            (variation)
+             230 LOAD_CONST           ("label")
+             232 BINARY_SUBSCR
+             236 BINARY_OP            (+)
+
+142:         240 CALL                 2
+             248 STORE_FAST           (row)
+
+144:         250 LOAD_FAST            (recipe)
+             252 LOAD_ATTR            (NULL|self + update)
+             272 LOAD_FAST            (variation)
+             274 LOAD_FAST            (row)
+             276 KW_NAMES             (('design_variation', 'design_memory_entry'))
+             278 CALL                 2
+             286 POP_TOP
+
+145:         288 LOAD_FAST            (result)
+             290 LOAD_ATTR            (NULL|self + append)
+             310 LOAD_FAST            (index)
+             312 LOAD_FAST            (prompt)
+             314 LOAD_FAST            (recipe)
+             316 LOAD_CONST           (('candidate_index', 'execution_prompt', 'selected_recipe'))
+             318 BUILD_CONST_KEY_MAP  3
+             320 CALL                 1
+             328 POP_TOP
+         >>  330 JUMP_BACKWARD        (to 80)
+
+138:         332 END_FOR
+
+146:         334 LOAD_FAST            (result)
+             336 RETURN_VALUE
+
+
+# Method Name:       prepare_custom
+# Filename:          app\design_memory.py
+# Argument count:    6
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  24
+# Stack size:        10
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        149
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('design_batch_variations',)
+#    3: ('selected_intent_priority', 'INTENT_PRIORITY_VERSION')
+#    4: 'PLAN_ONCE'
+#    5: 'scope_key'
+#    6: 'catalog_hash'
+#    7: 'count'
+#    8: 'roles'
+#    9: ('scope', 'catalog', 'count', 'models', 'intent_priority')
+#   10: 'cache_key'
+#   11: 'pending_plan'
+#   12: 'DESIGN_PLAN_PENDING'
+#   13: '相同要求已有规划已授权或正在执行，请先查看该任务，避免重复付费'
+#   14: 409
+#   15: 'records'
+#   16: <Code311 code object <genexpr> at 0x10a381150, file app\design_memory.py>, line 163
+#   17: <Code311 code object <genexpr> at 0x10a381260, file app\design_memory.py>, line 164
+#   18: 'briefs'
+#   19: 'used'
+#   20: <Code311 code object <genexpr> at 0x10a381370, file app\design_memory.py>, line 171
+#   21: 'CUSTOM'
+#   22: 'execution_direction'
+#   23: 'instructions'
+#   24: 'CACHED_PLAN'
+#   25: 'selected_recipe'
+#   26: 'design_memory_entry'
+#   27: ('mode', 'source_plan_job_id', 'entries')
+#   28: 'source_plan_job_id'
+#   29: ('mode', 'entries')
+#   30: ('briefs', 'candidates')
+# Names:
+#    0: intent_sources
+#    1: design_batch_variations
+#    2: preset_direct
+#    3: selected_intent_priority
+#    4: INTENT_PRIORITY_VERSION
+#    5: new_memory
+#    6: digest
+#    7: DomainError
+#    8: get
+#    9: canceled
+#   10: next
+#   11: any
+#   12: len
+#   13: set
+#   14: append
+#   15: add
+#   16: signature
+#   17: custom_rows
+#   18: update
+#   19: id
+#   20: validate_cache
+#   21: items
+# Varnames:
+#	db, ws, request, route, bindings, feedback, design_batch_variations, selected_intent_priority, INTENT_PRIORITY_VERSION, meta, past, choices, old, job, steps, assets, plan, briefs, selected, possible, rows, r, k, v
+# Positional arguments:
+#	db, ws, request, route, bindings, feedback
+# Local variables:
+#    6: design_batch_variations
+#    7: selected_intent_priority
+#    8: INTENT_PRIORITY_VERSION
+#    9: meta
+#   10: past
+#   11: choices
+#   12: old
+#   13: job
+#   14: steps
+#   15: assets
+#   16: plan
+#   17: briefs
+#   18: selected
+#   19: possible
+#   20: rows
+#   21: r
+#   22: k
+#   23: v
+# Cell variables:
+#    0: brief
+#    1: used
+               0 MAKE_CELL            (brief)
+               2 MAKE_CELL            (used)
+
+149:           4 RESUME               0
+
+150:           6 LOAD_CONST           (1)
+               8 LOAD_CONST           (('design_batch_variations',))
+              10 IMPORT_NAME          (intent_sources)
+              12 IMPORT_FROM          (design_batch_variations)
+              14 STORE_FAST           (design_batch_variations)
+              16 POP_TOP
+
+151:          18 LOAD_CONST           (1)
+              20 LOAD_CONST           (('selected_intent_priority', 'INTENT_PRIORITY_VERSION'))
+              22 IMPORT_NAME          (preset_direct)
+              24 IMPORT_FROM          (selected_intent_priority)
+              26 STORE_FAST           (selected_intent_priority)
+              28 IMPORT_FROM          (INTENT_PRIORITY_VERSION)
+              30 STORE_FAST           (INTENT_PRIORITY_VERSION)
+              32 POP_TOP
+
+152:          34 LOAD_GLOBAL          (NULL + new_memory)
+              44 LOAD_FAST            (db)
+              46 LOAD_FAST            (ws)
+              48 LOAD_FAST            (request)
+              50 LOAD_FAST            (bindings)
+              52 LOAD_FAST            (feedback)
+              54 LOAD_CONST           ("PLAN_ONCE")
+              56 CALL                 6
+              64 UNPACK_SEQUENCE      2
+              68 STORE_FAST           (meta)
+              70 STORE_FAST           (past)
+
+154:          72 LOAD_GLOBAL          (NULL + digest)
+              82 LOAD_FAST            (meta)
+              84 LOAD_CONST           ("scope_key")
+              86 BINARY_SUBSCR
+              90 LOAD_FAST            (meta)
+              92 LOAD_CONST           ("catalog_hash")
+              94 BINARY_SUBSCR
+
+155:          98 LOAD_FAST            (request)
+             100 LOAD_CONST           ("count")
+             102 BINARY_SUBSCR
+             106 LOAD_FAST            (route)
+             108 LOAD_CONST           ("roles")
+             110 BINARY_SUBSCR
+
+156:         114 PUSH_NULL
+             116 LOAD_FAST            (selected_intent_priority)
+             118 LOAD_FAST            (request)
+             120 CALL                 1
+             128 POP_JUMP_IF_FALSE    (to 134)
+             130 LOAD_FAST            (INTENT_PRIORITY_VERSION)
+             132 JUMP_FORWARD         (to 136)
+         >>  134 LOAD_CONST           (None)
+
+154:     >>  136 LOAD_CONST           (('scope', 'catalog', 'count', 'models', 'intent_priority'))
+             138 BUILD_CONST_KEY_MAP  5
+             140 CALL                 1
+             148 LOAD_FAST            (meta)
+             150 LOAD_CONST           ("cache_key")
+             152 STORE_SUBSCR
+
+157:         156 LOAD_FAST            (past)
+             158 LOAD_CONST           ("pending_plan")
+             160 BINARY_SUBSCR
+             164 POP_JUMP_IF_FALSE    (to 192)
+
+158:         166 LOAD_GLOBAL          (NULL + DomainError)
+             176 LOAD_CONST           ("DESIGN_PLAN_PENDING")
+             178 LOAD_CONST           ("相同要求已有规划已授权或正在执行，请先查看该任务，避免重复付费")
+             180 LOAD_CONST           (409)
+             182 CALL                 3
+             190 RAISE_VARARGS        (exception instance)
+
+159:     >>  192 PUSH_NULL
+             194 LOAD_FAST            (design_batch_variations)
+             196 CALL                 0
+             204 STORE_FAST           (choices)
+
+160:         206 LOAD_FAST            (past)
+             208 LOAD_CONST           ("records")
+             210 BINARY_SUBSCR
+             214 GET_ITER
+             216 EXTENDED_ARG         (256)
+             218 FOR_ITER             (to 856)
+             222 UNPACK_SEQUENCE      4
+             226 STORE_FAST           (old)
+             228 STORE_FAST           (job)
+             230 STORE_FAST           (steps)
+             232 STORE_FAST           (assets)
+
+161:         234 LOAD_FAST            (old)
+             236 LOAD_ATTR            (NULL|self + get)
+             256 LOAD_CONST           ("cache_key")
+             258 CALL                 1
+             266 LOAD_FAST            (meta)
+             268 LOAD_CONST           ("cache_key")
+             270 BINARY_SUBSCR
+             274 COMPARE_OP           (!=)
+             278 POP_JUMP_IF_TRUE     (to 304)
+             280 LOAD_FAST            (job)
+             282 LOAD_ATTR            (canceled)
+             302 POP_JUMP_IF_FALSE    (to 306)
+
+162:     >>  304 JUMP_BACKWARD        (to 216)
+
+163:     >>  306 LOAD_GLOBAL          (NULL + next)
+             316 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a381150, file app\design_memory.py>, line 163)
+             318 MAKE_FUNCTION        (No arguments)
+             320 LOAD_FAST            (steps)
+             322 GET_ITER
+             324 CALL                 0
+             332 LOAD_CONST           (None)
+             334 CALL                 2
+             342 STORE_FAST           (plan)
+
+164:         344 LOAD_FAST            (plan)
+             346 POP_JUMP_IF_FALSE    (to 384)
+             348 LOAD_GLOBAL          (NULL + any)
+             358 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a381260, file app\design_memory.py>, line 164)
+             360 MAKE_FUNCTION        (No arguments)
+             362 LOAD_FAST            (assets)
+             364 GET_ITER
+             366 CALL                 0
+             374 CALL                 1
+             382 POP_JUMP_IF_FALSE    (to 386)
+
+165:     >>  384 JUMP_BACKWARD        (to 216)
+
+166:     >>  386 LOAD_FAST            (plan)
+             388 LOAD_CONST           ("briefs")
+             390 BINARY_SUBSCR
+             394 STORE_FAST           (briefs)
+
+167:     >>  396 LOAD_GLOBAL          (NULL + len)
+             406 LOAD_FAST            (briefs)
+             408 CALL                 1
+             416 LOAD_FAST            (request)
+             418 LOAD_CONST           ("count")
+             420 BINARY_SUBSCR
+             424 COMPARE_OP           (!=)
+             428 POP_JUMP_IF_FALSE    (to 432)
+
+168:         430 JUMP_BACKWARD        (to 216)
+
+169:     >>  432 BUILD_LIST           0
+             434 LOAD_GLOBAL          (NULL + set)
+             444 LOAD_FAST            (past)
+             446 LOAD_CONST           ("used")
+             448 BINARY_SUBSCR
+             452 CALL                 1
+             460 SWAP                 (TOS <-> TOS1)
+             462 STORE_FAST           (selected)
+             464 STORE_DEREF          (used)
+
+170:         466 LOAD_FAST            (briefs)
+             468 GET_ITER
+             470 FOR_ITER             (to 632)
+             474 STORE_DEREF          (brief)
+
+171:         476 LOAD_GLOBAL          (NULL + next)
+             486 LOAD_CLOSURE         (brief)
+             488 LOAD_CLOSURE         (used)
+             490 BUILD_TUPLE          2
+             492 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a381370, file app\design_memory.py>, line 171)
+             494 MAKE_FUNCTION        (closure)
+             496 LOAD_FAST            (choices)
+             498 GET_ITER
+             500 CALL                 0
+
+172:         508 LOAD_CONST           (None)
+
+171:         510 CALL                 2
+             518 STORE_FAST           (possible)
+
+173:         520 LOAD_FAST            (possible)
+             522 POP_JUMP_IF_TRUE     (to 528)
+
+174:         524 POP_TOP
+             526 JUMP_FORWARD         (to 634)
+
+175:     >>  528 LOAD_FAST            (selected)
+             530 LOAD_ATTR            (NULL|self + append)
+             550 LOAD_FAST            (possible)
+             552 CALL                 1
+             560 POP_TOP
+
+176:         562 LOAD_DEREF           (used)
+             564 LOAD_ATTR            (NULL|self + add)
+             584 LOAD_GLOBAL          (NULL + signature)
+             594 LOAD_CONST           ("CUSTOM")
+             596 LOAD_DEREF           (brief)
+             598 LOAD_CONST           ("execution_direction")
+             600 BINARY_SUBSCR
+             604 BUILD_LIST           2
+             606 LOAD_FAST            (possible)
+             608 LOAD_CONST           ("instructions")
+             610 BINARY_SUBSCR
+             614 LIST_EXTEND          1
+             616 CALL_INTRINSIC_1     6
+             618 CALL_FUNCTION_EX     (positional arguments only)
+             620 CALL                 1
+             628 POP_TOP
+         >>  630 JUMP_BACKWARD        (to 470)
+
+170:         632 END_FOR
+
+177:     >>  634 LOAD_GLOBAL          (NULL + len)
+             644 LOAD_FAST            (selected)
+             646 CALL                 1
+             654 LOAD_GLOBAL          (NULL + len)
+             664 LOAD_FAST            (briefs)
+             666 CALL                 1
+             674 COMPARE_OP           (==)
+             678 POP_JUMP_IF_TRUE     (to 682)
+             680 JUMP_BACKWARD        (to 216)
+
+178:     >>  682 LOAD_GLOBAL          (NULL + custom_rows)
+             692 LOAD_FAST            (request)
+             694 LOAD_FAST            (briefs)
+             696 LOAD_FAST            (selected)
+             698 LOAD_FAST            (feedback)
+             700 CALL                 4
+             708 STORE_FAST           (rows)
+
+179:         710 LOAD_FAST            (meta)
+             712 LOAD_ATTR            (NULL|self + update)
+             732 LOAD_CONST           ("CACHED_PLAN")
+             734 LOAD_FAST            (job)
+             736 LOAD_ATTR            (id)
+
+180:         756 LOAD_FAST            (rows)
+             758 GET_ITER
+             760 LOAD_FAST_AND_CLEAR  (r)
+             762 SWAP                 (TOS <-> TOS1)
+             764 BUILD_LIST           0
+             766 SWAP                 (TOS <-> TOS1)
+             768 FOR_ITER             (to 792)
+             772 STORE_FAST           (r)
+             774 LOAD_FAST            (r)
+             776 LOAD_CONST           ("selected_recipe")
+             778 BINARY_SUBSCR
+             782 LOAD_CONST           ("design_memory_entry")
+             784 BINARY_SUBSCR
+             788 LIST_APPEND          2
+         >>  790 JUMP_BACKWARD        (to 768)
+             792 END_FOR
+         >>  794 SWAP                 (TOS <-> TOS1)
+             796 STORE_FAST           (r)
+
+179:         798 KW_NAMES             (('mode', 'source_plan_job_id', 'entries'))
+             800 CALL                 3
+             808 POP_TOP
+
+181:         810 NOP
+
+182:         812 LOAD_GLOBAL          (NULL + validate_cache)
+             822 LOAD_FAST            (db)
+             824 LOAD_FAST            (ws)
+             826 LOAD_FAST            (meta)
+             828 CALL                 3
+             836 POP_TOP
+
+187:         838 LOAD_FAST            (meta)
+             840 LOAD_FAST            (briefs)
+             842 LOAD_FAST            (rows)
+             844 LOAD_CONST           (('briefs', 'candidates'))
+             846 BUILD_CONST_KEY_MAP  2
+             848 BUILD_TUPLE          2
+             850 SWAP                 (TOS <-> TOS1)
+             852 POP_TOP
+         >>  854 RETURN_VALUE
+
+160:         856 END_FOR
+
+188:         858 LOAD_FAST            (meta)
+             860 LOAD_CONST           (None)
+             862 BUILD_TUPLE          2
+             864 RETURN_VALUE
+             866 SWAP                 (TOS <-> TOS1)
+             868 POP_TOP
+
+180:         870 SWAP                 (TOS <-> TOS1)
+             872 STORE_FAST           (r)
+             874 RERAISE              0
+             876 PUSH_EXC_INFO
+
+183:         878 LOAD_GLOBAL          (DomainError)
+             888 CHECK_EXC_MATCH
+             890 POP_JUMP_IF_FALSE    (to 1034)
+             892 POP_TOP
+
+184:         894 LOAD_FAST            (meta)
+             896 LOAD_ATTR            (NULL|self + items)
+             916 CALL                 0
+             924 GET_ITER
+             926 LOAD_FAST_AND_CLEAR  (k)
+             928 LOAD_FAST_AND_CLEAR  (v)
+             930 SWAP                 (TOS <-> TOS2)
+             932 BUILD_MAP            0
+             934 SWAP                 (TOS <-> TOS1)
+             936 FOR_ITER             (to 968)
+             940 UNPACK_SEQUENCE      2
+             944 STORE_FAST           (k)
+             946 STORE_FAST           (v)
+             948 LOAD_FAST            (k)
+             950 LOAD_CONST           ("source_plan_job_id")
+             952 COMPARE_OP           (!=)
+             956 POP_JUMP_IF_TRUE     (to 960)
+             958 JUMP_BACKWARD        (to 936)
+         >>  960 LOAD_FAST            (k)
+             962 LOAD_FAST            (v)
+             964 MAP_ADD              2
+         >>  966 JUMP_BACKWARD        (to 936)
+             968 END_FOR
+             970 JUMP_FORWARD         (to 984)
+             972 SWAP                 (TOS <-> TOS1)
+             974 POP_TOP
+             976 SWAP                 (TOS <-> TOS2)
+             978 STORE_FAST           (v)
+             980 STORE_FAST           (k)
+             982 RERAISE              0
+         >>  984 STORE_FAST           (meta)
+             986 STORE_FAST           (k)
+             988 STORE_FAST           (v)
+
+185:         990 LOAD_FAST            (meta)
+             992 LOAD_ATTR            (NULL|self + update)
+            1012 LOAD_CONST           ("PLAN_ONCE")
+            1014 BUILD_LIST           0
+            1016 KW_NAMES             (('mode', 'entries'))
+            1018 CALL                 2
+            1026 POP_TOP
+
+186:        1028 POP_EXCEPT
+            1030 EXTENDED_ARG         (256)
+            1032 JUMP_BACKWARD        (to 216)
+
+183:     >> 1034 RERAISE              0
+            1036 COPY                 3
+            1038 POP_EXCEPT
+            1040 RERAISE              1
+
+ExceptionTable:
+  764 to 792 -> 866 [7]
+  812 to 836 -> 876 [1]
+  876 to 930 -> 1036 [2] lasti
+  932 to 956 -> 972 [5]
+  960 to 968 -> 972 [5]
+  970 to 1026 -> 1036 [2] lasti
+  1034 to 1034 -> 1036 [2] lasti
+
+# Method Name:       validate_cache
+# Filename:          app\design_memory.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  7
+# Stack size:        9
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        191
+# Constants:
+#    0: 'A withdrawn/rejected source cannot supply a new cached-plan task.'
+#    1: 'mode'
+#    2: 'CACHED_PLAN'
+#    3: 'source_plan_job_id'
+#    4: 'DESIGN_CACHE_INVALID'
+#    5: '复用规划来源已失效，请重新确认'
+#    6: 409
+#    7: 'input'
+#    8: 'authorization_id'
+#    9: 'APPROVED'
+#   10: <Code311 code object <genexpr> at 0x10a381480, file app\design_memory.py>, line 201
+#   11: '复用规划已撤回或其图片被淘汰，请重新确认新方向'
+#   12: 'route'
+#   13: 'design_memory'
+#   14: None
+# Names:
+#    0: set
+#    1: get
+#    2: Job
+#    3: id
+#    4: workspace_id
+#    5: canceled
+#    6: DomainError
+#    7: add
+#    8: CallAuthorization
+#    9: snapshot
+#   10: list
+#   11: scalars
+#   12: select
+#   13: Asset
+#   14: where
+#   15: job_id
+#   16: status
+#   17: any
+# Varnames:
+#	db, ws, meta, seen, source, grant, assets
+# Positional arguments:
+#	db, ws, meta
+# Local variables:
+#    3: seen
+#    4: source
+#    5: grant
+#    6: assets
+
+191:           0 RESUME               0
+
+193:           2 LOAD_GLOBAL          (NULL + set)
+              12 CALL                 0
+              20 STORE_FAST           (seen)
+
+194:          22 LOAD_FAST            (meta)
+              24 LOAD_ATTR            (NULL|self + get)
+              44 LOAD_CONST           ("mode")
+              46 CALL                 1
+              54 LOAD_CONST           ("CACHED_PLAN")
+              56 COMPARE_OP           (==)
+              60 EXTENDED_ARG         (256)
+              62 POP_JUMP_IF_FALSE    (to 854)
+
+195:          64 LOAD_FAST            (db)
+              66 LOAD_ATTR            (NULL|self + get)
+              86 LOAD_GLOBAL          (Job)
+              96 LOAD_FAST            (meta)
+              98 LOAD_CONST           ("source_plan_job_id")
+             100 BINARY_SUBSCR
+             104 CALL                 2
+             112 STORE_FAST           (source)
+
+196:         114 LOAD_FAST            (source)
+             116 POP_JUMP_IF_FALSE    (to 220)
+             118 LOAD_FAST            (source)
+             120 LOAD_ATTR            (id)
+             140 LOAD_FAST            (seen)
+             142 CONTAINS_OP          (in)
+             144 POP_JUMP_IF_TRUE     (to 220)
+             146 LOAD_FAST            (source)
+             148 LOAD_ATTR            (workspace_id)
+             168 LOAD_FAST            (ws)
+             170 LOAD_ATTR            (id)
+             190 COMPARE_OP           (!=)
+             194 POP_JUMP_IF_TRUE     (to 220)
+             196 LOAD_FAST            (source)
+             198 LOAD_ATTR            (canceled)
+             218 POP_JUMP_IF_FALSE    (to 246)
+
+197:     >>  220 LOAD_GLOBAL          (NULL + DomainError)
+             230 LOAD_CONST           ("DESIGN_CACHE_INVALID")
+             232 LOAD_CONST           ("复用规划来源已失效，请重新确认")
+             234 LOAD_CONST           (409)
+             236 CALL                 3
+             244 RAISE_VARARGS        (exception instance)
+
+198:     >>  246 LOAD_FAST            (seen)
+             248 LOAD_ATTR            (NULL|self + add)
+             268 LOAD_FAST            (source)
+             270 LOAD_ATTR            (id)
+             290 CALL                 1
+             298 POP_TOP
+
+199:         300 LOAD_FAST            (db)
+             302 LOAD_ATTR            (NULL|self + get)
+             322 LOAD_GLOBAL          (CallAuthorization)
+             332 LOAD_FAST            (source)
+             334 LOAD_ATTR            (snapshot)
+             354 LOAD_CONST           ("input")
+             356 BINARY_SUBSCR
+             360 LOAD_ATTR            (NULL|self + get)
+             380 LOAD_CONST           ("authorization_id")
+             382 CALL                 1
+             390 CALL                 2
+             398 STORE_FAST           (grant)
+
+200:         400 LOAD_GLOBAL          (NULL + list)
+             410 LOAD_FAST            (db)
+             412 LOAD_ATTR            (NULL|self + scalars)
+             432 LOAD_GLOBAL          (NULL + select)
+             442 LOAD_GLOBAL          (Asset)
+             452 CALL                 1
+             460 LOAD_ATTR            (NULL|self + where)
+             480 LOAD_GLOBAL          (Asset)
+             490 LOAD_ATTR            (job_id)
+             510 LOAD_FAST            (source)
+             512 LOAD_ATTR            (id)
+             532 COMPARE_OP           (==)
+             536 LOAD_GLOBAL          (Asset)
+             546 LOAD_ATTR            (workspace_id)
+             566 LOAD_FAST            (ws)
+             568 LOAD_ATTR            (id)
+             588 COMPARE_OP           (==)
+             592 CALL                 2
+             600 CALL                 1
+             608 CALL                 1
+             616 STORE_FAST           (assets)
+
+201:         618 LOAD_FAST            (grant)
+             620 POP_JUMP_IF_FALSE    (to 688)
+             622 LOAD_FAST            (grant)
+             624 LOAD_ATTR            (status)
+             644 LOAD_CONST           ("APPROVED")
+             646 COMPARE_OP           (!=)
+             650 POP_JUMP_IF_TRUE     (to 688)
+             652 LOAD_GLOBAL          (NULL + any)
+             662 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a381480, file app\design_memory.py>, line 201)
+             664 MAKE_FUNCTION        (No arguments)
+
+202:         666 LOAD_FAST            (assets)
+             668 GET_ITER
+
+201:         670 CALL                 0
+             678 CALL                 1
+             686 POP_JUMP_IF_FALSE    (to 714)
+
+203:     >>  688 LOAD_GLOBAL          (NULL + DomainError)
+             698 LOAD_CONST           ("DESIGN_CACHE_INVALID")
+             700 LOAD_CONST           ("复用规划已撤回或其图片被淘汰，请重新确认新方向")
+             702 LOAD_CONST           (409)
+             704 CALL                 3
+             712 RAISE_VARARGS        (exception instance)
+
+204:     >>  714 LOAD_FAST            (source)
+             716 LOAD_ATTR            (snapshot)
+             736 LOAD_ATTR            (NULL|self + get)
+             756 LOAD_CONST           ("route")
+             758 BUILD_MAP            0
+             760 CALL                 2
+             768 LOAD_ATTR            (NULL|self + get)
+             788 LOAD_CONST           ("design_memory")
+             790 CALL                 1
+             798 COPY                 1
+             800 POP_JUMP_IF_TRUE     (to 806)
+             802 POP_TOP
+             804 BUILD_MAP            0
+         >>  806 STORE_FAST           (meta)
+
+194:         808 LOAD_FAST            (meta)
+             810 LOAD_ATTR            (NULL|self + get)
+             830 LOAD_CONST           ("mode")
+             832 CALL                 1
+             840 LOAD_CONST           ("CACHED_PLAN")
+             842 COMPARE_OP           (==)
+             846 POP_JUMP_IF_FALSE    (to 852)
+             848 EXTENDED_ARG         (256)
+             850 JUMP_BACKWARD        (to 64)
+         >>  852 RETURN_CONST         (None)
+         >>  854 RETURN_CONST         (None)
+
+
+# Method Name:       <genexpr>
+# Filename:          app\design_memory.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        56
+# Constants:
+#    0: 'signature'
+#    1: None
+# Varnames:
+#	.0, r
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: r
+
+ 56:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 30)
+              12 STORE_FAST           (r)
+              14 LOAD_FAST            (r)
+              16 LOAD_CONST           ("signature")
+              18 BINARY_SUBSCR
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 8)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  4 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\design_memory.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        3
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        112
+# Constants:
+#    0: None
+# Varnames:
+#	.0, k
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: k
+# Free variables:
+#    0: selected
+               0 COPY_FREE_VARS       1
+
+112:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 30)
+              14 STORE_FAST           (k)
+              16 LOAD_FAST            (k)
+              18 LOAD_DEREF           (selected)
+              20 CONTAINS_OP          (not in)
+              22 YIELD_VALUE          1
+              24 RESUME               1
+              26 POP_TOP
+         >>   28 JUMP_BACKWARD        (to 10)
+              30 END_FOR
+              32 RETURN_CONST         (None)
+              34 CALL_INTRINSIC_1     3
+              36 RERAISE              1
+
+ExceptionTable:
+  6 to 32 -> 34 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\design_memory.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        163
+# Constants:
+#    0: 'PLAN'
+#    1: 'DONE'
+#    2: 'plan'
+#    3: None
+# Names:
+#    0: kind
+#    1: status
+#    2: result
+#    3: get
+# Varnames:
+#	.0, s
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: s
+
+163:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 138)
+              12 STORE_FAST           (s)
+              14 LOAD_FAST            (s)
+              16 LOAD_ATTR            (kind)
+              36 LOAD_CONST           ("PLAN")
+              38 COMPARE_OP           (==)
+              42 POP_JUMP_IF_TRUE     (to 46)
+              44 JUMP_BACKWARD        (to 8)
+         >>   46 LOAD_FAST            (s)
+              48 LOAD_ATTR            (status)
+              68 LOAD_CONST           ("DONE")
+              70 COMPARE_OP           (==)
+              74 POP_JUMP_IF_TRUE     (to 78)
+              76 JUMP_BACKWARD        (to 8)
+         >>   78 LOAD_FAST            (s)
+              80 LOAD_ATTR            (result)
+             100 LOAD_ATTR            (NULL|self + get)
+             120 LOAD_CONST           ("plan")
+             122 CALL                 1
+             130 YIELD_VALUE          1
+             132 RESUME               1
+             134 POP_TOP
+         >>  136 JUMP_BACKWARD        (to 8)
+             138 END_FOR
+             140 RETURN_CONST         (None)
+             142 CALL_INTRINSIC_1     3
+             144 RERAISE              1
+
+ExceptionTable:
+  4 to 42 -> 142 [0] lasti
+  46 to 74 -> 142 [0] lasti
+  78 to 140 -> 142 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\design_memory.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        164
+# Constants:
+#    0: 'REJECTED'
+#    1: 'human_review'
+#    2: 'grade'
+#    3: 'UNUSABLE'
+#    4: None
+# Names:
+#    0: deleted
+#    1: state
+#    2: info
+#    3: get
+# Varnames:
+#	.0, a
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: a
+
+164:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 174)
+              12 STORE_FAST           (a)
+              14 LOAD_FAST            (a)
+              16 LOAD_ATTR            (deleted)
+              36 COPY                 1
+              38 POP_JUMP_IF_TRUE     (to 166)
+              40 POP_TOP
+              42 LOAD_FAST            (a)
+              44 LOAD_ATTR            (state)
+              64 LOAD_CONST           ("REJECTED")
+              66 COMPARE_OP           (==)
+              70 COPY                 1
+              72 POP_JUMP_IF_TRUE     (to 166)
+              74 POP_TOP
+              76 LOAD_FAST            (a)
+              78 LOAD_ATTR            (info)
+              98 LOAD_ATTR            (NULL|self + get)
+             118 LOAD_CONST           ("human_review")
+             120 BUILD_MAP            0
+             122 CALL                 2
+             130 LOAD_ATTR            (NULL|self + get)
+             150 LOAD_CONST           ("grade")
+             152 CALL                 1
+             160 LOAD_CONST           ("UNUSABLE")
+             162 COMPARE_OP           (==)
+         >>  166 YIELD_VALUE          1
+             168 RESUME               1
+             170 POP_TOP
+         >>  172 JUMP_BACKWARD        (to 8)
+             174 END_FOR
+             176 RETURN_CONST         (None)
+             178 CALL_INTRINSIC_1     3
+             180 RERAISE              1
+
+ExceptionTable:
+  4 to 176 -> 178 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\design_memory.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        6
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        171
+# Constants:
+#    0: 'CUSTOM'
+#    1: 'execution_direction'
+#    2: 'instructions'
+#    3: None
+# Names:
+#    0: signature
+# Varnames:
+#	.0, v
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: v
+# Free variables:
+#    0: brief
+#    1: used
+               0 COPY_FREE_VARS       2
+
+171:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 68)
+              14 STORE_FAST           (v)
+
+172:          16 LOAD_GLOBAL          (NULL + signature)
+              26 LOAD_CONST           ("CUSTOM")
+              28 LOAD_DEREF           (brief)
+              30 LOAD_CONST           ("execution_direction")
+              32 BINARY_SUBSCR
+              36 BUILD_LIST           2
+              38 LOAD_FAST            (v)
+              40 LOAD_CONST           ("instructions")
+              42 BINARY_SUBSCR
+              46 LIST_EXTEND          1
+              48 CALL_INTRINSIC_1     6
+              50 CALL_FUNCTION_EX     (positional arguments only)
+              52 LOAD_DEREF           (used)
+              54 CONTAINS_OP          (not in)
+              56 POP_JUMP_IF_FALSE    (to 66)
+
+171:          58 LOAD_FAST            (v)
+              60 YIELD_VALUE          1
+              62 RESUME               1
+              64 POP_TOP
+         >>   66 JUMP_BACKWARD        (to 10)
+              68 END_FOR
+              70 RETURN_CONST         (None)
+              72 CALL_INTRINSIC_1     3
+              74 RERAISE              1
+
+ExceptionTable:
+  6 to 70 -> 72 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\design_memory.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        201
+# Constants:
+#    0: 'REJECTED'
+#    1: 'human_review'
+#    2: 'grade'
+#    3: 'UNUSABLE'
+#    4: None
+# Names:
+#    0: deleted
+#    1: state
+#    2: info
+#    3: get
+# Varnames:
+#	.0, a
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: a
+
+201:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+
+202:           8 FOR_ITER             (to 174)
+              12 STORE_FAST           (a)
+              14 LOAD_FAST            (a)
+              16 LOAD_ATTR            (deleted)
+              36 COPY                 1
+              38 POP_JUMP_IF_TRUE     (to 166)
+              40 POP_TOP
+              42 LOAD_FAST            (a)
+              44 LOAD_ATTR            (state)
+              64 LOAD_CONST           ("REJECTED")
+              66 COMPARE_OP           (==)
+              70 COPY                 1
+              72 POP_JUMP_IF_TRUE     (to 166)
+              74 POP_TOP
+              76 LOAD_FAST            (a)
+              78 LOAD_ATTR            (info)
+              98 LOAD_ATTR            (NULL|self + get)
+             118 LOAD_CONST           ("human_review")
+             120 BUILD_MAP            0
+             122 CALL                 2
+             130 LOAD_ATTR            (NULL|self + get)
+             150 LOAD_CONST           ("grade")
+             152 CALL                 1
+             160 LOAD_CONST           ("UNUSABLE")
+             162 COMPARE_OP           (==)
+         >>  166 YIELD_VALUE          1
+             168 RESUME               1
+             170 POP_TOP
+         >>  172 JUMP_BACKWARD        (to 8)
+             174 END_FOR
+             176 RETURN_CONST         (None)
+             178 CALL_INTRINSIC_1     3
+             180 RERAISE              1
+
+ExceptionTable:
+  4 to 176 -> 178 [0] lasti

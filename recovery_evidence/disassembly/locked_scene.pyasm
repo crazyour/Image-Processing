@@ -1,0 +1,4726 @@
+# pydisasm version 6.3.0
+# CPython Python bytecode 3.12.0 (3531)
+#   Disassembled from CPython Python 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]
+# Timestamp in code: 0 (1970-01-01 09:00:00)
+# Source code size mod 2**32: 0 bytes
+# Method Name:       <module>
+# Filename:          app\locked_scene.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        5
+# Flags:             0x00000000 (0x0)
+# First Line:        1
+# Constants:
+#    0: 'Keep source RGB; only the local alpha mask and placement may change.'
+#    1: 1
+#    2: ('review_for_local_validation',)
+#    3: 0
+#    4: None
+#    5: ('Image', 'ImageFilter')
+#    6: ('DomainError',)
+#    7: ('compose_scene', 'png')
+#    8: ('Strict',)
+#    9: ('Point',)
+#   10: ('DefectTarget', 'crop_box')
+#   11: ('Field',)
+#   12: ('Literal',)
+#   13: <Code311 code object MaskOperation at 0x10a2256a0, file app\locked_scene.py>, line 16
+#   14: 'MaskOperation'
+#   15: <Code311 code object MaskRepairPlan at 0x10a1af390, file app\locked_scene.py>, line 24
+#   16: 'MaskRepairPlan'
+#   17: <Code311 code object repair_mask at 0x10a1ecfc0, file app\locked_scene.py>, line 30
+#   18: <Code311 code object final_scene_brief at 0x10a1d2e70, file app\locked_scene.py>, line 72
+#   19: <Code311 code object isolate_product at 0x10a248e20, file app\locked_scene.py>, line 93
+#   20: <Code311 code object composite_product at 0x10a249040, file app\locked_scene.py>, line 128
+#   21: ('product_asset',)
+#   22: <Code311 code object checked_product at 0x10a2498c0, file app\locked_scene.py>, line 167
+#   23: (0.4, 'wall', None)
+#   24: (None,)
+# Names:
+#    0: __doc__
+#    1: vision_review
+#    2: review_for_local_validation
+#    3: hashlib
+#    4: cv2
+#    5: numpy
+#    6: np
+#    7: PIL
+#    8: Image
+#    9: ImageFilter
+#   10: errors
+#   11: DomainError
+#   12: geometry
+#   13: compose_scene
+#   14: png
+#   15: schemas
+#   16: Strict
+#   17: source_profiles
+#   18: Point
+#   19: visual_evidence
+#   20: DefectTarget
+#   21: crop_box
+#   22: pydantic
+#   23: Field
+#   24: typing
+#   25: Literal
+#   26: MaskOperation
+#   27: MaskRepairPlan
+#   28: repair_mask
+#   29: final_scene_brief
+#   30: isolate_product
+#   31: composite_product
+#   32: checked_product
+
+  0:           0 RESUME               0
+
+  1:           2 LOAD_CONST           ("Keep source RGB; only the local alpha mask and placement may change.")
+               4 STORE_NAME           (__doc__)
+
+  2:           6 LOAD_CONST           (1)
+               8 LOAD_CONST           (('review_for_local_validation',))
+              10 IMPORT_NAME          (vision_review)
+              12 IMPORT_FROM          (review_for_local_validation)
+              14 STORE_NAME           (review_for_local_validation)
+              16 POP_TOP
+
+  3:          18 LOAD_CONST           (0)
+              20 LOAD_CONST           (None)
+              22 IMPORT_NAME          (hashlib)
+              24 STORE_NAME           (hashlib)
+
+  4:          26 LOAD_CONST           (0)
+              28 LOAD_CONST           (None)
+              30 IMPORT_NAME          (cv2)
+              32 STORE_NAME           (cv2)
+
+  5:          34 LOAD_CONST           (0)
+              36 LOAD_CONST           (None)
+              38 IMPORT_NAME          (numpy)
+              40 STORE_NAME           (np)
+
+  6:          42 LOAD_CONST           (0)
+              44 LOAD_CONST           (('Image', 'ImageFilter'))
+              46 IMPORT_NAME          (PIL)
+              48 IMPORT_FROM          (Image)
+              50 STORE_NAME           (Image)
+              52 IMPORT_FROM          (ImageFilter)
+              54 STORE_NAME           (ImageFilter)
+              56 POP_TOP
+
+  7:          58 LOAD_CONST           (1)
+              60 LOAD_CONST           (('DomainError',))
+              62 IMPORT_NAME          (errors)
+              64 IMPORT_FROM          (DomainError)
+              66 STORE_NAME           (DomainError)
+              68 POP_TOP
+
+  8:          70 LOAD_CONST           (1)
+              72 LOAD_CONST           (('compose_scene', 'png'))
+              74 IMPORT_NAME          (geometry)
+              76 IMPORT_FROM          (compose_scene)
+              78 STORE_NAME           (compose_scene)
+              80 IMPORT_FROM          (png)
+              82 STORE_NAME           (png)
+              84 POP_TOP
+
+  9:          86 LOAD_CONST           (1)
+              88 LOAD_CONST           (('Strict',))
+              90 IMPORT_NAME          (schemas)
+              92 IMPORT_FROM          (Strict)
+              94 STORE_NAME           (Strict)
+              96 POP_TOP
+
+ 10:          98 LOAD_CONST           (1)
+             100 LOAD_CONST           (('Point',))
+             102 IMPORT_NAME          (source_profiles)
+             104 IMPORT_FROM          (Point)
+             106 STORE_NAME           (Point)
+             108 POP_TOP
+
+ 11:         110 LOAD_CONST           (1)
+             112 LOAD_CONST           (('DefectTarget', 'crop_box'))
+             114 IMPORT_NAME          (visual_evidence)
+             116 IMPORT_FROM          (DefectTarget)
+             118 STORE_NAME           (DefectTarget)
+             120 IMPORT_FROM          (crop_box)
+             122 STORE_NAME           (crop_box)
+             124 POP_TOP
+
+ 12:         126 LOAD_CONST           (0)
+             128 LOAD_CONST           (('Field',))
+             130 IMPORT_NAME          (pydantic)
+             132 IMPORT_FROM          (Field)
+             134 STORE_NAME           (Field)
+             136 POP_TOP
+
+ 13:         138 LOAD_CONST           (0)
+             140 LOAD_CONST           (('Literal',))
+             142 IMPORT_NAME          (typing)
+             144 IMPORT_FROM          (Literal)
+             146 STORE_NAME           (Literal)
+             148 POP_TOP
+
+ 16:         150 PUSH_NULL
+             152 LOAD_BUILD_CLASS
+             154 LOAD_CONST           (<Code311 code object MaskOperation at 0x10a2256a0, file app\locked_scene.py>, line 16)
+             156 MAKE_FUNCTION        (No arguments)
+             158 LOAD_CONST           ("MaskOperation")
+             160 LOAD_NAME            (Strict)
+             162 CALL                 3
+             170 STORE_NAME           (MaskOperation)
+
+ 24:         172 PUSH_NULL
+             174 LOAD_BUILD_CLASS
+             176 LOAD_CONST           (<Code311 code object MaskRepairPlan at 0x10a1af390, file app\locked_scene.py>, line 24)
+             178 MAKE_FUNCTION        (No arguments)
+             180 LOAD_CONST           ("MaskRepairPlan")
+             182 LOAD_NAME            (Strict)
+             184 CALL                 3
+             192 STORE_NAME           (MaskRepairPlan)
+
+ 30:         194 LOAD_CONST           (<Code311 code object repair_mask at 0x10a1ecfc0, file app\locked_scene.py>, line 30)
+             196 MAKE_FUNCTION        (No arguments)
+             198 STORE_NAME           (repair_mask)
+
+ 72:         200 LOAD_CONST           (<Code311 code object final_scene_brief at 0x10a1d2e70, file app\locked_scene.py>, line 72)
+             202 MAKE_FUNCTION        (No arguments)
+             204 STORE_NAME           (final_scene_brief)
+
+ 93:         206 LOAD_CONST           (<Code311 code object isolate_product at 0x10a248e20, file app\locked_scene.py>, line 93)
+             208 MAKE_FUNCTION        (No arguments)
+             210 STORE_NAME           (isolate_product)
+
+128:         212 LOAD_CONST           ((0.4, 'wall', None))
+             214 LOAD_CONST           (<Code311 code object composite_product at 0x10a249040, file app\locked_scene.py>, line 128)
+             216 MAKE_FUNCTION        (default)
+             218 STORE_NAME           (composite_product)
+
+167:         220 LOAD_CONST           ((None,))
+             222 LOAD_CONST           (None)
+             224 LOAD_CONST           (('product_asset',))
+             226 BUILD_CONST_KEY_MAP  1
+             228 LOAD_CONST           (<Code311 code object checked_product at 0x10a2498c0, file app\locked_scene.py>, line 167)
+             230 MAKE_FUNCTION        (default, keyword-only)
+             232 STORE_NAME           (checked_product)
+             234 RETURN_CONST         (None)
+
+
+# Method Name:       MaskOperation
+# Filename:          app\locked_scene.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        4
+# Flags:             0x00000000 (0x0)
+# First Line:        16
+# Constants:
+#    0: 'MaskOperation'
+#    1: 'target_id'
+#    2: ('REMOVE_BACKGROUND', 'RESTORE_PRODUCT', 'REFINE_BOUNDARY')
+#    3: 'action'
+#    4: 80
+#    5: ('default_factory', 'max_length')
+#    6: 'polygon'
+#    7: 30
+#    8: 'foreground_points'
+#    9: 40
+#   10: 'background_points'
+#   11: None
+# Names:
+#    0: __name__
+#    1: __module__
+#    2: __qualname__
+#    3: str
+#    4: __annotations__
+#    5: Literal
+#    6: Field
+#    7: list
+#    8: polygon
+#    9: Point
+#   10: foreground_points
+#   11: background_points
+
+ 16:           0 RESUME               0
+               2 LOAD_NAME            (__name__)
+               4 STORE_NAME           (__module__)
+               6 LOAD_CONST           ("MaskOperation")
+               8 STORE_NAME           (__qualname__)
+              10 SETUP_ANNOTATIONS
+
+ 17:          12 LOAD_NAME            (str)
+              14 LOAD_NAME            (__annotations__)
+              16 LOAD_CONST           ("target_id")
+              18 STORE_SUBSCR
+
+ 18:          22 LOAD_NAME            (Literal)
+              24 LOAD_CONST           (('REMOVE_BACKGROUND', 'RESTORE_PRODUCT', 'REFINE_BOUNDARY'))
+              26 BINARY_SUBSCR
+              30 LOAD_NAME            (__annotations__)
+              32 LOAD_CONST           ("action")
+              34 STORE_SUBSCR
+
+ 19:          38 PUSH_NULL
+              40 LOAD_NAME            (Field)
+              42 LOAD_NAME            (list)
+              44 LOAD_CONST           (80)
+              46 KW_NAMES             (('default_factory', 'max_length'))
+              48 CALL                 2
+              56 STORE_NAME           (polygon)
+              58 LOAD_NAME            (list)
+              60 LOAD_NAME            (Point)
+              62 BINARY_SUBSCR
+              66 LOAD_NAME            (__annotations__)
+              68 LOAD_CONST           ("polygon")
+              70 STORE_SUBSCR
+
+ 20:          74 PUSH_NULL
+              76 LOAD_NAME            (Field)
+              78 LOAD_NAME            (list)
+              80 LOAD_CONST           (30)
+              82 KW_NAMES             (('default_factory', 'max_length'))
+              84 CALL                 2
+              92 STORE_NAME           (foreground_points)
+              94 LOAD_NAME            (list)
+              96 LOAD_NAME            (Point)
+              98 BINARY_SUBSCR
+             102 LOAD_NAME            (__annotations__)
+             104 LOAD_CONST           ("foreground_points")
+             106 STORE_SUBSCR
+
+ 21:         110 PUSH_NULL
+             112 LOAD_NAME            (Field)
+             114 LOAD_NAME            (list)
+             116 LOAD_CONST           (40)
+             118 KW_NAMES             (('default_factory', 'max_length'))
+             120 CALL                 2
+             128 STORE_NAME           (background_points)
+             130 LOAD_NAME            (list)
+             132 LOAD_NAME            (Point)
+             134 BINARY_SUBSCR
+             138 LOAD_NAME            (__annotations__)
+             140 LOAD_CONST           ("background_points")
+             142 STORE_SUBSCR
+             146 RETURN_CONST         (None)
+
+
+# Method Name:       MaskRepairPlan
+# Filename:          app\locked_scene.py
+# Argument count:    0
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  0
+# Stack size:        4
+# Flags:             0x00000000 (0x0)
+# First Line:        24
+# Constants:
+#    0: 'MaskRepairPlan'
+#    1: 1
+#    2: 600
+#    3: ('min_length', 'max_length')
+#    4: 'diagnosis'
+#    5: 8
+#    6: 'defect_targets'
+#    7: 24
+#    8: 'operations'
+#    9: None
+# Names:
+#    0: __name__
+#    1: __module__
+#    2: __qualname__
+#    3: Field
+#    4: diagnosis
+#    5: str
+#    6: __annotations__
+#    7: defect_targets
+#    8: list
+#    9: DefectTarget
+#   10: operations
+#   11: MaskOperation
+
+ 24:           0 RESUME               0
+               2 LOAD_NAME            (__name__)
+               4 STORE_NAME           (__module__)
+               6 LOAD_CONST           ("MaskRepairPlan")
+               8 STORE_NAME           (__qualname__)
+              10 SETUP_ANNOTATIONS
+
+ 25:          12 PUSH_NULL
+              14 LOAD_NAME            (Field)
+              16 LOAD_CONST           (1)
+              18 LOAD_CONST           (600)
+              20 KW_NAMES             (('min_length', 'max_length'))
+              22 CALL                 2
+              30 STORE_NAME           (diagnosis)
+              32 LOAD_NAME            (str)
+              34 LOAD_NAME            (__annotations__)
+              36 LOAD_CONST           ("diagnosis")
+              38 STORE_SUBSCR
+
+ 26:          42 PUSH_NULL
+              44 LOAD_NAME            (Field)
+              46 LOAD_CONST           (1)
+              48 LOAD_CONST           (8)
+              50 KW_NAMES             (('min_length', 'max_length'))
+              52 CALL                 2
+              60 STORE_NAME           (defect_targets)
+              62 LOAD_NAME            (list)
+              64 LOAD_NAME            (DefectTarget)
+              66 BINARY_SUBSCR
+              70 LOAD_NAME            (__annotations__)
+              72 LOAD_CONST           ("defect_targets")
+              74 STORE_SUBSCR
+
+ 27:          78 PUSH_NULL
+              80 LOAD_NAME            (Field)
+              82 LOAD_CONST           (1)
+              84 LOAD_CONST           (24)
+              86 KW_NAMES             (('min_length', 'max_length'))
+              88 CALL                 2
+              96 STORE_NAME           (operations)
+              98 LOAD_NAME            (list)
+             100 LOAD_NAME            (MaskOperation)
+             102 BINARY_SUBSCR
+             106 LOAD_NAME            (__annotations__)
+             108 LOAD_CONST           ("operations")
+             110 STORE_SUBSCR
+             114 RETURN_CONST         (None)
+
+
+# Method Name:       repair_mask
+# Filename:          app\locked_scene.py
+# Argument count:    3
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  19
+# Stack size:        10
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        30
+# Constants:
+#    0: 'Execute bounded alpha-only corrections; original RGB is never replaced.'
+#    1: 'RGBA'
+#    2: 'REVISION_ALIGNMENT_REQUIRED'
+#    3: '产品蒙版尺寸与原图不一致'
+#    4: 'A'
+#    5: None
+#    6: 3
+#    7: 'defect_targets'
+#    8: 'target_id'
+#    9: 'bbox'
+#   10: 'operations'
+#   11: 'REVISION_LOCALIZATION_REQUIRED'
+#   12: '蒙版动作未绑定缺陷区域'
+#   13: <Code311 code object points at 0x10a1ecc30, file app\locked_scene.py>, line 45
+#   14: 'action'
+#   15: ('REMOVE_BACKGROUND', 'RESTORE_PRODUCT')
+#   16: 'polygon'
+#   17: '蒙版修复缺少有效边界'
+#   18: 'REMOVE_BACKGROUND'
+#   19: 0
+#   20: 255
+#   21: 'foreground_points'
+#   22: 'background_points'
+#   23: '局部边界修复缺少前景或背景依据'
+#   24: 127
+#   25: 1
+#   26: -1
+#   27: (1, 65)
+#   28: 5
+#   29: 'REVISION_FAILED'
+#   30: '蒙版修复未覆盖全部目标或清空了产品'
+# Names:
+#    0: MaskRepairPlan
+#    1: model_validate
+#    2: model_dump
+#    3: convert
+#    4: size
+#    5: DomainError
+#    6: np
+#    7: array
+#    8: getchannel
+#    9: copy
+#   10: shape
+#   11: crop_box
+#   12: set
+#   13: len
+#   14: cv2
+#   15: fillPoly
+#   16: int32
+#   17: where
+#   18: GC_PR_FGD
+#   19: GC_PR_BGD
+#   20: astype
+#   21: uint8
+#   22: circle
+#   23: GC_FGD
+#   24: GC_BGD
+#   25: grabCut
+#   26: zeros
+#   27: GC_INIT_WITH_MASK
+#   28: add
+#   29: any
+#   30: putalpha
+#   31: Image
+#   32: fromarray
+# Varnames:
+#	original, cutout, proposal, plan, result, alpha, rgb, t, boxes, changed_targets, operation, points, vertices, fg, bg, region, mask, x, y
+# Positional arguments:
+#	original, cutout, proposal
+# Local variables:
+#    3: plan
+#    4: result
+#    5: alpha
+#    6: rgb
+#    7: t
+#    8: boxes
+#    9: changed_targets
+#   10: operation
+#   11: points
+#   12: vertices
+#   13: fg
+#   14: bg
+#   15: region
+#   16: mask
+#   17: x
+#   18: y
+# Cell variables:
+#    0: h
+#    1: w
+#    2: x0
+#    3: x1
+#    4: y0
+#    5: y1
+               0 MAKE_CELL            (h)
+               2 MAKE_CELL            (w)
+               4 MAKE_CELL            (x0)
+               6 MAKE_CELL            (x1)
+               8 MAKE_CELL            (y0)
+              10 MAKE_CELL            (y1)
+
+ 30:          12 RESUME               0
+
+ 32:          14 LOAD_GLOBAL          (MaskRepairPlan)
+              24 LOAD_ATTR            (NULL|self + model_validate)
+              44 LOAD_FAST            (proposal)
+              46 CALL                 1
+              54 LOAD_ATTR            (NULL|self + model_dump)
+              74 CALL                 0
+              82 STORE_FAST           (plan)
+
+ 33:          84 LOAD_FAST            (original)
+              86 LOAD_ATTR            (NULL|self + convert)
+             106 LOAD_CONST           ("RGBA")
+             108 CALL                 1
+             116 STORE_FAST           (result)
+
+ 34:         118 LOAD_FAST            (result)
+             120 LOAD_ATTR            (size)
+             140 LOAD_FAST            (cutout)
+             142 LOAD_ATTR            (size)
+             162 COMPARE_OP           (!=)
+             166 POP_JUMP_IF_FALSE    (to 192)
+
+ 35:         168 LOAD_GLOBAL          (NULL + DomainError)
+             178 LOAD_CONST           ("REVISION_ALIGNMENT_REQUIRED")
+             180 LOAD_CONST           ("产品蒙版尺寸与原图不一致")
+             182 CALL                 2
+             190 RAISE_VARARGS        (exception instance)
+
+ 36:     >>  192 LOAD_GLOBAL          (NULL + np)
+             202 LOAD_ATTR            (array)
+             222 LOAD_FAST            (cutout)
+             224 LOAD_ATTR            (NULL|self + getchannel)
+             244 LOAD_CONST           ("A")
+             246 CALL                 1
+             254 CALL                 1
+             262 LOAD_ATTR            (NULL|self + copy)
+             282 CALL                 0
+             290 STORE_FAST           (alpha)
+
+ 37:         292 LOAD_GLOBAL          (NULL + np)
+             302 LOAD_ATTR            (array)
+             322 LOAD_FAST            (result)
+             324 CALL                 1
+             332 LOAD_CONST           (None)
+             334 LOAD_CONST           (None)
+             336 BUILD_SLICE          2
+             338 LOAD_CONST           (None)
+             340 LOAD_CONST           (None)
+             342 BUILD_SLICE          2
+             344 LOAD_CONST           (None)
+             346 LOAD_CONST           (3)
+             348 BUILD_SLICE          2
+             350 BUILD_TUPLE          3
+             352 BINARY_SUBSCR
+             356 LOAD_ATTR            (NULL|self + copy)
+             376 CALL                 0
+             384 STORE_FAST           (rgb)
+
+ 38:         386 LOAD_FAST            (alpha)
+             388 LOAD_ATTR            (shape)
+             408 UNPACK_SEQUENCE      2
+             412 STORE_DEREF          (h)
+             414 STORE_DEREF          (w)
+
+ 39:         416 LOAD_FAST            (plan)
+             418 LOAD_CONST           ("defect_targets")
+             420 BINARY_SUBSCR
+             424 GET_ITER
+             426 LOAD_FAST_AND_CLEAR  (t)
+             428 SWAP                 (TOS <-> TOS1)
+             430 BUILD_MAP            0
+             432 SWAP                 (TOS <-> TOS1)
+             434 FOR_ITER             (to 500)
+             438 STORE_FAST           (t)
+             440 LOAD_FAST            (t)
+             442 LOAD_CONST           ("target_id")
+             444 BINARY_SUBSCR
+             448 LOAD_GLOBAL          (NULL + crop_box)
+             458 LOAD_FAST            (t)
+             460 LOAD_CONST           ("bbox")
+             462 BINARY_SUBSCR
+             466 LOAD_FAST            (result)
+             468 LOAD_ATTR            (size)
+             488 CALL                 2
+             496 MAP_ADD              2
+         >>  498 JUMP_BACKWARD        (to 434)
+             500 END_FOR
+             502 STORE_FAST           (boxes)
+             504 STORE_FAST           (t)
+
+ 40:         506 LOAD_GLOBAL          (NULL + set)
+             516 CALL                 0
+             524 STORE_FAST           (changed_targets)
+
+ 41:         526 LOAD_FAST            (plan)
+             528 LOAD_CONST           ("operations")
+             530 BINARY_SUBSCR
+             534 GET_ITER
+             536 EXTENDED_ARG         (512)
+             538 FOR_ITER             (to 1756)
+             542 STORE_FAST           (operation)
+
+ 42:         544 LOAD_FAST            (operation)
+             546 LOAD_CONST           ("target_id")
+             548 BINARY_SUBSCR
+             552 LOAD_FAST            (boxes)
+             554 CONTAINS_OP          (not in)
+             556 POP_JUMP_IF_FALSE    (to 582)
+
+ 43:         558 LOAD_GLOBAL          (NULL + DomainError)
+             568 LOAD_CONST           ("REVISION_LOCALIZATION_REQUIRED")
+             570 LOAD_CONST           ("蒙版动作未绑定缺陷区域")
+             572 CALL                 2
+             580 RAISE_VARARGS        (exception instance)
+
+ 44:     >>  582 LOAD_FAST            (boxes)
+             584 LOAD_FAST            (operation)
+             586 LOAD_CONST           ("target_id")
+             588 BINARY_SUBSCR
+             592 BINARY_SUBSCR
+             596 UNPACK_SEQUENCE      4
+             600 STORE_DEREF          (x0)
+             602 STORE_DEREF          (y0)
+             604 STORE_DEREF          (x1)
+             606 STORE_DEREF          (y1)
+
+ 45:         608 LOAD_CLOSURE         (h)
+             610 LOAD_CLOSURE         (w)
+             612 LOAD_CLOSURE         (x0)
+             614 LOAD_CLOSURE         (x1)
+             616 LOAD_CLOSURE         (y0)
+             618 LOAD_CLOSURE         (y1)
+             620 BUILD_TUPLE          6
+             622 LOAD_CONST           (<Code311 code object points at 0x10a1ecc30, file app\locked_scene.py>, line 45)
+             624 MAKE_FUNCTION        (closure)
+             626 STORE_FAST           (points)
+
+ 50:         628 LOAD_FAST            (operation)
+             630 LOAD_CONST           ("action")
+             632 BINARY_SUBSCR
+             636 LOAD_CONST           (('REMOVE_BACKGROUND', 'RESTORE_PRODUCT'))
+             638 CONTAINS_OP          (in)
+             640 POP_JUMP_IF_FALSE    (to 856)
+
+ 51:         642 PUSH_NULL
+             644 LOAD_FAST            (points)
+             646 LOAD_FAST            (operation)
+             648 LOAD_CONST           ("polygon")
+             650 BINARY_SUBSCR
+             654 CALL                 1
+             662 STORE_FAST           (vertices)
+
+ 52:         664 LOAD_GLOBAL          (NULL + len)
+             674 LOAD_FAST            (vertices)
+             676 CALL                 1
+             684 LOAD_CONST           (3)
+             686 COMPARE_OP           (<)
+             690 POP_JUMP_IF_FALSE    (to 716)
+
+ 53:         692 LOAD_GLOBAL          (NULL + DomainError)
+             702 LOAD_CONST           ("REVISION_LOCALIZATION_REQUIRED")
+             704 LOAD_CONST           ("蒙版修复缺少有效边界")
+             706 CALL                 2
+             714 RAISE_VARARGS        (exception instance)
+
+ 54:     >>  716 LOAD_GLOBAL          (NULL + cv2)
+             726 LOAD_ATTR            (fillPoly)
+             746 LOAD_FAST            (alpha)
+             748 LOAD_GLOBAL          (NULL + np)
+             758 LOAD_ATTR            (array)
+             778 LOAD_FAST            (vertices)
+             780 LOAD_GLOBAL          (np)
+             790 LOAD_ATTR            (int32)
+             810 CALL                 2
+             818 BUILD_LIST           1
+             820 LOAD_FAST            (operation)
+             822 LOAD_CONST           ("action")
+             824 BINARY_SUBSCR
+             828 LOAD_CONST           ("REMOVE_BACKGROUND")
+             830 COMPARE_OP           (==)
+             834 POP_JUMP_IF_FALSE    (to 840)
+             836 LOAD_CONST           (0)
+             838 JUMP_FORWARD         (to 842)
+         >>  840 LOAD_CONST           (255)
+         >>  842 CALL                 3
+             850 POP_TOP
+             852 EXTENDED_ARG         (256)
+             854 JUMP_FORWARD         (to 1712)
+
+ 56:     >>  856 PUSH_NULL
+             858 LOAD_FAST            (points)
+             860 LOAD_FAST            (operation)
+             862 LOAD_CONST           ("foreground_points")
+             864 BINARY_SUBSCR
+             868 CALL                 1
+             876 PUSH_NULL
+             878 LOAD_FAST            (points)
+             880 LOAD_FAST            (operation)
+             882 LOAD_CONST           ("background_points")
+             884 BINARY_SUBSCR
+             888 CALL                 1
+             896 STORE_FAST           (bg)
+             898 STORE_FAST           (fg)
+
+ 57:         900 LOAD_FAST            (fg)
+             902 POP_JUMP_IF_FALSE    (to 908)
+             904 LOAD_FAST            (bg)
+             906 POP_JUMP_IF_TRUE     (to 932)
+
+ 58:     >>  908 LOAD_GLOBAL          (NULL + DomainError)
+             918 LOAD_CONST           ("REVISION_LOCALIZATION_REQUIRED")
+             920 LOAD_CONST           ("局部边界修复缺少前景或背景依据")
+             922 CALL                 2
+             930 RAISE_VARARGS        (exception instance)
+
+ 59:     >>  932 LOAD_FAST            (alpha)
+             934 LOAD_DEREF           (y0)
+             936 LOAD_DEREF           (y1)
+             938 BUILD_SLICE          2
+             940 LOAD_DEREF           (x0)
+             942 LOAD_DEREF           (x1)
+             944 BUILD_SLICE          2
+             946 BUILD_TUPLE          2
+             948 BINARY_SUBSCR
+             952 STORE_FAST           (region)
+
+ 60:         954 LOAD_GLOBAL          (NULL + np)
+             964 LOAD_ATTR            (where)
+             984 LOAD_FAST            (region)
+             986 LOAD_CONST           (127)
+             988 COMPARE_OP           (>)
+             992 LOAD_GLOBAL          (cv2)
+            1002 LOAD_ATTR            (GC_PR_FGD)
+            1022 LOAD_GLOBAL          (cv2)
+            1032 LOAD_ATTR            (GC_PR_BGD)
+            1052 CALL                 3
+            1060 LOAD_ATTR            (NULL|self + astype)
+            1080 LOAD_GLOBAL          (np)
+            1090 LOAD_ATTR            (uint8)
+            1110 CALL                 1
+            1118 STORE_FAST           (mask)
+
+ 61:        1120 LOAD_FAST            (fg)
+            1122 GET_ITER
+            1124 FOR_ITER             (to 1232)
+            1128 UNPACK_SEQUENCE      2
+            1132 STORE_FAST           (x)
+            1134 STORE_FAST           (y)
+            1136 LOAD_GLOBAL          (NULL + cv2)
+            1146 LOAD_ATTR            (circle)
+            1166 LOAD_FAST            (mask)
+            1168 LOAD_FAST            (x)
+            1170 LOAD_DEREF           (x0)
+            1172 BINARY_OP            (-)
+            1176 LOAD_FAST            (y)
+            1178 LOAD_DEREF           (y0)
+            1180 BINARY_OP            (-)
+            1184 BUILD_TUPLE          2
+            1186 LOAD_CONST           (1)
+            1188 LOAD_GLOBAL          (cv2)
+            1198 LOAD_ATTR            (GC_FGD)
+            1218 LOAD_CONST           (-1)
+            1220 CALL                 5
+            1228 POP_TOP
+         >> 1230 JUMP_BACKWARD        (to 1124)
+            1232 END_FOR
+
+ 62:        1234 LOAD_FAST            (bg)
+            1236 GET_ITER
+            1238 FOR_ITER             (to 1346)
+            1242 UNPACK_SEQUENCE      2
+            1246 STORE_FAST           (x)
+            1248 STORE_FAST           (y)
+            1250 LOAD_GLOBAL          (NULL + cv2)
+            1260 LOAD_ATTR            (circle)
+            1280 LOAD_FAST            (mask)
+            1282 LOAD_FAST            (x)
+            1284 LOAD_DEREF           (x0)
+            1286 BINARY_OP            (-)
+            1290 LOAD_FAST            (y)
+            1292 LOAD_DEREF           (y0)
+            1294 BINARY_OP            (-)
+            1298 BUILD_TUPLE          2
+            1300 LOAD_CONST           (1)
+            1302 LOAD_GLOBAL          (cv2)
+            1312 LOAD_ATTR            (GC_BGD)
+            1332 LOAD_CONST           (-1)
+            1334 CALL                 5
+            1342 POP_TOP
+         >> 1344 JUMP_BACKWARD        (to 1238)
+            1346 END_FOR
+
+ 63:        1348 LOAD_GLOBAL          (NULL + cv2)
+            1358 LOAD_ATTR            (grabCut)
+            1378 LOAD_FAST            (rgb)
+            1380 LOAD_DEREF           (y0)
+            1382 LOAD_DEREF           (y1)
+            1384 BUILD_SLICE          2
+            1386 LOAD_DEREF           (x0)
+            1388 LOAD_DEREF           (x1)
+            1390 BUILD_SLICE          2
+            1392 BUILD_TUPLE          2
+            1394 BINARY_SUBSCR
+            1398 LOAD_ATTR            (NULL|self + copy)
+            1418 CALL                 0
+            1426 LOAD_FAST            (mask)
+            1428 LOAD_CONST           (None)
+            1430 LOAD_GLOBAL          (NULL + np)
+            1440 LOAD_ATTR            (zeros)
+            1460 LOAD_CONST           ((1, 65))
+            1462 CALL                 1
+            1470 LOAD_GLOBAL          (NULL + np)
+            1480 LOAD_ATTR            (zeros)
+            1500 LOAD_CONST           ((1, 65))
+            1502 CALL                 1
+            1510 LOAD_CONST           (5)
+            1512 LOAD_GLOBAL          (cv2)
+            1522 LOAD_ATTR            (GC_INIT_WITH_MASK)
+            1542 CALL                 7
+            1550 POP_TOP
+
+ 64:        1552 LOAD_FAST            (mask)
+            1554 LOAD_GLOBAL          (cv2)
+            1564 LOAD_ATTR            (GC_FGD)
+            1584 COMPARE_OP           (==)
+            1588 LOAD_FAST            (mask)
+            1590 LOAD_GLOBAL          (cv2)
+            1600 LOAD_ATTR            (GC_PR_FGD)
+            1620 COMPARE_OP           (==)
+            1624 BINARY_OP            (|)
+            1628 LOAD_ATTR            (NULL|self + astype)
+            1648 LOAD_GLOBAL          (np)
+            1658 LOAD_ATTR            (uint8)
+            1678 CALL                 1
+            1686 LOAD_CONST           (255)
+            1688 BINARY_OP            (*)
+            1692 LOAD_FAST            (alpha)
+            1694 LOAD_DEREF           (y0)
+            1696 LOAD_DEREF           (y1)
+            1698 BUILD_SLICE          2
+            1700 LOAD_DEREF           (x0)
+            1702 LOAD_DEREF           (x1)
+            1704 BUILD_SLICE          2
+            1706 BUILD_TUPLE          2
+            1708 STORE_SUBSCR
+
+ 65:     >> 1712 LOAD_FAST            (changed_targets)
+            1714 LOAD_ATTR            (NULL|self + add)
+            1734 LOAD_FAST            (operation)
+            1736 LOAD_CONST           ("target_id")
+            1738 BINARY_SUBSCR
+            1742 CALL                 1
+            1750 POP_TOP
+            1752 EXTENDED_ARG         (512)
+         >> 1754 JUMP_BACKWARD        (to 536)
+
+ 41:        1756 END_FOR
+
+ 66:        1758 LOAD_FAST            (changed_targets)
+            1760 LOAD_GLOBAL          (NULL + set)
+            1770 LOAD_FAST            (boxes)
+            1772 CALL                 1
+            1780 COMPARE_OP           (!=)
+            1784 POP_JUMP_IF_TRUE     (to 1818)
+            1786 LOAD_FAST            (alpha)
+            1788 LOAD_ATTR            (NULL|self + any)
+            1808 CALL                 0
+            1816 POP_JUMP_IF_TRUE     (to 1842)
+
+ 67:     >> 1818 LOAD_GLOBAL          (NULL + DomainError)
+            1828 LOAD_CONST           ("REVISION_FAILED")
+            1830 LOAD_CONST           ("蒙版修复未覆盖全部目标或清空了产品")
+            1832 CALL                 2
+            1840 RAISE_VARARGS        (exception instance)
+
+ 68:     >> 1842 LOAD_FAST            (result)
+            1844 LOAD_ATTR            (NULL|self + putalpha)
+            1864 LOAD_GLOBAL          (NULL + Image)
+            1874 LOAD_ATTR            (fromarray)
+            1894 LOAD_FAST            (alpha)
+            1896 CALL                 1
+            1904 CALL                 1
+            1912 POP_TOP
+
+ 69:        1914 LOAD_FAST            (result)
+            1916 RETURN_VALUE
+            1918 SWAP                 (TOS <-> TOS1)
+            1920 POP_TOP
+
+ 39:        1922 SWAP                 (TOS <-> TOS1)
+            1924 STORE_FAST           (t)
+            1926 RERAISE              0
+
+ExceptionTable:
+  430 to 500 -> 1918 [2]
+
+# Method Name:       final_scene_brief
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        8
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        72
+# Constants:
+#    0: 'Project a background-generation brief into its actual delivery phase.\n\n    The complete original brief stays on the artifact. Empty-plate instructions\n    must not become no-product requirements on the final composed photograph.\n    '
+#    1: ('environment', 'lighting', 'camera', 'composition', 'aesthetic_goal', 'material_expression', 'reference_roles', 'revision_plan', 'manual_instruction', 'scene_execution', 'scene_scale_advice')
+#    2: '完整产品场景效果图'
+#    3: '原产品在专业环境中的最终效果图；检查产品保真、场景构图与摄影效果'
+#    4: '已上传的原产品，必须在最终场景中保留'
+#    5: '评审完整成图；空背景是中间素材，最终图必须包含原产品。'
+#    6: ('非产品的人手或皮肤残影', '产品变形、镜像、改孔、换材质或重复', '原始背景残留、拼接伪影、错误光影')
+#    7: 'BITMAP_VISUAL'
+#    8: ('title', 'intent', 'motif', 'execution_prompt', 'must_avoid', 'output_kind')
+# Varnames:
+#	brief, key
+# Positional arguments:
+#	brief
+# Local variables:
+#    1: key
+
+ 72:           0 RESUME               0
+
+ 78:           2 BUILD_MAP            0
+
+ 79:           4 LOAD_CONST           (('environment', 'lighting', 'camera', 'composition', 'aesthetic_goal', 'material_expression', 'reference_roles', 'revision_plan', 'manual_instruction', 'scene_execution', 'scene_scale_advice'))
+               6 GET_ITER
+               8 LOAD_FAST_AND_CLEAR  (key)
+              10 SWAP                 (TOS <-> TOS1)
+              12 BUILD_MAP            0
+              14 SWAP                 (TOS <-> TOS1)
+              16 FOR_ITER             (to 44)
+              20 STORE_FAST           (key)
+
+ 82:          22 LOAD_FAST            (key)
+              24 LOAD_FAST            (brief)
+              26 CONTAINS_OP          (in)
+              28 POP_JUMP_IF_FALSE    (to 42)
+
+ 79:          30 LOAD_FAST            (key)
+              32 LOAD_FAST            (brief)
+              34 LOAD_FAST            (key)
+              36 BINARY_SUBSCR
+              40 MAP_ADD              2
+         >>   42 JUMP_BACKWARD        (to 16)
+              44 END_FOR
+              46 SWAP                 (TOS <-> TOS1)
+              48 STORE_FAST           (key)
+
+ 78:          50 DICT_UPDATE          1
+
+ 83:          52 LOAD_CONST           ("完整产品场景效果图")
+
+ 84:          54 LOAD_CONST           ("原产品在专业环境中的最终效果图；检查产品保真、场景构图与摄影效果")
+
+ 85:          56 LOAD_CONST           ("已上传的原产品，必须在最终场景中保留")
+
+ 86:          58 LOAD_CONST           ("评审完整成图；空背景是中间素材，最终图必须包含原产品。")
+
+ 87:          60 BUILD_LIST           0
+              62 LOAD_CONST           (('非产品的人手或皮肤残影', '产品变形、镜像、改孔、换材质或重复', '原始背景残留、拼接伪影、错误光影'))
+              64 LIST_EXTEND          1
+
+ 89:          66 LOAD_CONST           ("BITMAP_VISUAL")
+
+ 78:          68 LOAD_CONST           (('title', 'intent', 'motif', 'execution_prompt', 'must_avoid', 'output_kind'))
+              70 BUILD_CONST_KEY_MAP  6
+         >>   72 DICT_UPDATE          1
+              74 RETURN_VALUE
+              76 SWAP                 (TOS <-> TOS1)
+              78 POP_TOP
+
+ 79:          80 SWAP                 (TOS <-> TOS1)
+              82 STORE_FAST           (key)
+              84 RERAISE              0
+
+ExceptionTable:
+  12 to 44 -> 76 [3]
+
+# Method Name:       isolate_product
+# Filename:          app\locked_scene.py
+# Argument count:    2
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  13
+# Stack size:        11
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        93
+# Constants:
+#    0: None
+#    1: 'RGBA'
+#    2: 'A'
+#    3: 0
+#    4: 128
+#    5: 'SOURCE_ALPHA'
+#    6: True
+#    7: ('method', 'rgb_unchanged')
+#    8: (1280, 1280)
+#    9: 3
+#   10: 2
+#   11: <Code311 code object point at 0x10a248c00, file app\locked_scene.py>, line 101
+#   12: 'product_outline'
+#   13: 'foreground_points'
+#   14: 'background_points'
+#   15: 'WAITING_INPUT'
+#   16: '产品分离依据不足，原图已保留，请使用背景更清楚的产品图'
+#   17: 1
+#   18: ('dtype',)
+#   19: -1
+#   20: (1, 65)
+#   21: 5
+#   22: 255
+#   23: 0.005
+#   24: 0.95
+#   25: '无法可靠分离产品，原图已保留，请换一张背景更清楚的图片'
+#   26: 'VISION_SEEDED_GRABCUT'
+#   27: 'VISION_QA_REQUIRED'
+#   28: ('method', 'rgb_unchanged', 'mask_sha256', 'mask_validation')
+# Names:
+#    0: convert
+#    1: getchannel
+#    2: getextrema
+#    3: copy
+#    4: thumbnail
+#    5: np
+#    6: array
+#    7: shape
+#    8: get
+#    9: len
+#   10: DomainError
+#   11: zeros
+#   12: uint8
+#   13: cv2
+#   14: fillPoly
+#   15: int32
+#   16: full
+#   17: GC_PR_BGD
+#   18: GC_PR_FGD
+#   19: circle
+#   20: GC_FGD
+#   21: GC_BGD
+#   22: grabCut
+#   23: GC_INIT_WITH_MASK
+#   24: astype
+#   25: float
+#   26: mean
+#   27: putalpha
+#   28: Image
+#   29: fromarray
+#   30: resize
+#   31: size
+#   32: Resampling
+#   33: NEAREST
+#   34: hashlib
+#   35: sha256
+#   36: tobytes
+#   37: hexdigest
+# Varnames:
+#	image, diagnosis, rgba, small, rgb, point, outline, fg, bg, polygon, p, mask, alpha
+# Positional arguments:
+#	image, diagnosis
+# Local variables:
+#    2: rgba
+#    3: small
+#    4: rgb
+#    5: point
+#    6: outline
+#    7: fg
+#    8: bg
+#    9: polygon
+#   10: p
+#   11: mask
+#   12: alpha
+# Cell variables:
+#    0: h
+#    1: w
+               0 MAKE_CELL            (h)
+               2 MAKE_CELL            (w)
+
+ 93:           4 RESUME               0
+
+ 94:           6 LOAD_FAST            (image)
+               8 LOAD_ATTR            (NULL|self + convert)
+              28 LOAD_CONST           ("RGBA")
+              30 CALL                 1
+              38 STORE_FAST           (rgba)
+
+ 95:          40 LOAD_FAST            (rgba)
+              42 LOAD_ATTR            (NULL|self + getchannel)
+              62 LOAD_CONST           ("A")
+              64 CALL                 1
+              72 LOAD_ATTR            (NULL|self + getextrema)
+              92 CALL                 0
+             100 LOAD_CONST           (0)
+             102 BINARY_SUBSCR
+             106 LOAD_CONST           (128)
+             108 COMPARE_OP           (<)
+             112 POP_JUMP_IF_FALSE    (to 128)
+
+ 96:         114 LOAD_FAST            (rgba)
+             116 LOAD_CONST           ("SOURCE_ALPHA")
+             118 LOAD_CONST           (True)
+             120 LOAD_CONST           (('method', 'rgb_unchanged'))
+             122 BUILD_CONST_KEY_MAP  2
+             124 BUILD_TUPLE          2
+             126 RETURN_VALUE
+
+ 97:     >>  128 LOAD_FAST            (rgba)
+             130 LOAD_ATTR            (NULL|self + copy)
+             150 CALL                 0
+             158 STORE_FAST           (small)
+
+ 98:         160 LOAD_FAST            (small)
+             162 LOAD_ATTR            (NULL|self + thumbnail)
+             182 LOAD_CONST           ((1280, 1280))
+             184 CALL                 1
+             192 POP_TOP
+
+ 99:         194 LOAD_GLOBAL          (NULL + np)
+             204 LOAD_ATTR            (array)
+             224 LOAD_FAST            (small)
+             226 CALL                 1
+             234 LOAD_CONST           (None)
+             236 LOAD_CONST           (None)
+             238 BUILD_SLICE          2
+             240 LOAD_CONST           (None)
+             242 LOAD_CONST           (None)
+             244 BUILD_SLICE          2
+             246 LOAD_CONST           (None)
+             248 LOAD_CONST           (3)
+             250 BUILD_SLICE          2
+             252 BUILD_TUPLE          3
+             254 BINARY_SUBSCR
+             258 LOAD_ATTR            (NULL|self + copy)
+             278 CALL                 0
+             286 STORE_FAST           (rgb)
+
+100:         288 LOAD_FAST            (rgb)
+             290 LOAD_ATTR            (shape)
+             310 LOAD_CONST           (None)
+             312 LOAD_CONST           (2)
+             314 BINARY_SLICE
+             316 UNPACK_SEQUENCE      2
+             320 STORE_DEREF          (h)
+             322 STORE_DEREF          (w)
+
+101:         324 LOAD_CLOSURE         (h)
+             326 LOAD_CLOSURE         (w)
+             328 BUILD_TUPLE          2
+             330 LOAD_CONST           (<Code311 code object point at 0x10a248c00, file app\locked_scene.py>, line 101)
+             332 MAKE_FUNCTION        (closure)
+             334 STORE_FAST           (point)
+
+103:         336 LOAD_FAST            (diagnosis)
+             338 LOAD_ATTR            (NULL|self + get)
+             358 LOAD_CONST           ("product_outline")
+             360 CALL                 1
+             368 COPY                 1
+             370 POP_JUMP_IF_TRUE     (to 376)
+             372 POP_TOP
+             374 BUILD_LIST           0
+         >>  376 STORE_FAST           (outline)
+
+104:         378 LOAD_FAST            (diagnosis)
+             380 LOAD_ATTR            (NULL|self + get)
+             400 LOAD_CONST           ("foreground_points")
+             402 CALL                 1
+             410 COPY                 1
+             412 POP_JUMP_IF_TRUE     (to 418)
+             414 POP_TOP
+             416 BUILD_LIST           0
+         >>  418 STORE_FAST           (fg)
+
+105:         420 LOAD_FAST            (diagnosis)
+             422 LOAD_ATTR            (NULL|self + get)
+             442 LOAD_CONST           ("background_points")
+             444 CALL                 1
+             452 COPY                 1
+             454 POP_JUMP_IF_TRUE     (to 460)
+             456 POP_TOP
+             458 BUILD_LIST           0
+         >>  460 STORE_FAST           (bg)
+
+106:         462 LOAD_GLOBAL          (NULL + len)
+             472 LOAD_FAST            (outline)
+             474 CALL                 1
+             482 LOAD_CONST           (3)
+             484 COMPARE_OP           (<)
+             488 POP_JUMP_IF_TRUE     (to 546)
+             490 LOAD_GLOBAL          (NULL + len)
+             500 LOAD_FAST            (fg)
+             502 CALL                 1
+             510 LOAD_CONST           (3)
+             512 COMPARE_OP           (<)
+             516 POP_JUMP_IF_TRUE     (to 546)
+             518 LOAD_GLOBAL          (NULL + len)
+             528 LOAD_FAST            (bg)
+             530 CALL                 1
+             538 LOAD_CONST           (3)
+             540 COMPARE_OP           (<)
+             544 POP_JUMP_IF_FALSE    (to 570)
+
+107:     >>  546 LOAD_GLOBAL          (NULL + DomainError)
+             556 LOAD_CONST           ("WAITING_INPUT")
+             558 LOAD_CONST           ("产品分离依据不足，原图已保留，请使用背景更清楚的产品图")
+             560 CALL                 2
+             568 RAISE_VARARGS        (exception instance)
+
+108:     >>  570 LOAD_GLOBAL          (NULL + np)
+             580 LOAD_ATTR            (zeros)
+             600 LOAD_DEREF           (h)
+             602 LOAD_DEREF           (w)
+             604 BUILD_TUPLE          2
+             606 LOAD_GLOBAL          (np)
+             616 LOAD_ATTR            (uint8)
+             636 CALL                 2
+             644 STORE_FAST           (polygon)
+
+109:         646 LOAD_GLOBAL          (NULL + cv2)
+             656 LOAD_ATTR            (fillPoly)
+             676 LOAD_FAST            (polygon)
+             678 LOAD_GLOBAL          (NULL + np)
+             688 LOAD_ATTR            (array)
+             708 LOAD_FAST            (outline)
+             710 GET_ITER
+             712 LOAD_FAST_AND_CLEAR  (p)
+             714 SWAP                 (TOS <-> TOS1)
+             716 BUILD_LIST           0
+             718 SWAP                 (TOS <-> TOS1)
+             720 FOR_ITER             (to 744)
+             724 STORE_FAST           (p)
+             726 PUSH_NULL
+             728 LOAD_FAST            (point)
+             730 LOAD_FAST            (p)
+             732 CALL                 1
+             740 LIST_APPEND          2
+         >>  742 JUMP_BACKWARD        (to 720)
+             744 END_FOR
+             746 SWAP                 (TOS <-> TOS1)
+             748 STORE_FAST           (p)
+             750 LOAD_GLOBAL          (np)
+             760 LOAD_ATTR            (int32)
+             780 CALL                 2
+             788 BUILD_LIST           1
+             790 LOAD_CONST           (1)
+             792 CALL                 3
+             800 POP_TOP
+
+112:         802 LOAD_GLOBAL          (NULL + np)
+             812 LOAD_ATTR            (full)
+             832 LOAD_DEREF           (h)
+             834 LOAD_DEREF           (w)
+             836 BUILD_TUPLE          2
+             838 LOAD_GLOBAL          (cv2)
+             848 LOAD_ATTR            (GC_PR_BGD)
+             868 LOAD_GLOBAL          (np)
+             878 LOAD_ATTR            (uint8)
+             898 KW_NAMES             (('dtype',))
+             900 CALL                 3
+             908 STORE_FAST           (mask)
+
+113:         910 LOAD_GLOBAL          (cv2)
+             920 LOAD_ATTR            (GC_PR_FGD)
+             940 LOAD_FAST            (mask)
+             942 LOAD_FAST            (polygon)
+             944 LOAD_CONST           (0)
+             946 COMPARE_OP           (>)
+             950 STORE_SUBSCR
+
+114:         954 LOAD_FAST            (fg)
+             956 GET_ITER
+             958 FOR_ITER             (to 1056)
+             962 STORE_FAST           (p)
+
+115:         964 LOAD_GLOBAL          (NULL + cv2)
+             974 LOAD_ATTR            (circle)
+             994 LOAD_FAST            (mask)
+             996 PUSH_NULL
+             998 LOAD_FAST            (point)
+            1000 LOAD_FAST            (p)
+            1002 CALL                 1
+            1010 LOAD_CONST           (2)
+            1012 LOAD_GLOBAL          (cv2)
+            1022 LOAD_ATTR            (GC_FGD)
+            1042 LOAD_CONST           (-1)
+            1044 CALL                 5
+            1052 POP_TOP
+         >> 1054 JUMP_BACKWARD        (to 958)
+
+114:        1056 END_FOR
+
+116:        1058 LOAD_FAST            (bg)
+            1060 GET_ITER
+            1062 FOR_ITER             (to 1160)
+            1066 STORE_FAST           (p)
+
+117:        1068 LOAD_GLOBAL          (NULL + cv2)
+            1078 LOAD_ATTR            (circle)
+            1098 LOAD_FAST            (mask)
+            1100 PUSH_NULL
+            1102 LOAD_FAST            (point)
+            1104 LOAD_FAST            (p)
+            1106 CALL                 1
+            1114 LOAD_CONST           (2)
+            1116 LOAD_GLOBAL          (cv2)
+            1126 LOAD_ATTR            (GC_BGD)
+            1146 LOAD_CONST           (-1)
+            1148 CALL                 5
+            1156 POP_TOP
+         >> 1158 JUMP_BACKWARD        (to 1062)
+
+116:        1160 END_FOR
+
+118:        1162 LOAD_GLOBAL          (NULL + cv2)
+            1172 LOAD_ATTR            (grabCut)
+            1192 LOAD_FAST            (rgb)
+            1194 LOAD_FAST            (mask)
+            1196 LOAD_CONST           (None)
+            1198 LOAD_GLOBAL          (NULL + np)
+            1208 LOAD_ATTR            (zeros)
+            1228 LOAD_CONST           ((1, 65))
+            1230 CALL                 1
+            1238 LOAD_GLOBAL          (NULL + np)
+            1248 LOAD_ATTR            (zeros)
+            1268 LOAD_CONST           ((1, 65))
+            1270 CALL                 1
+            1278 LOAD_CONST           (5)
+            1280 LOAD_GLOBAL          (cv2)
+            1290 LOAD_ATTR            (GC_INIT_WITH_MASK)
+            1310 CALL                 7
+            1318 POP_TOP
+
+119:        1320 LOAD_FAST            (mask)
+            1322 LOAD_GLOBAL          (cv2)
+            1332 LOAD_ATTR            (GC_FGD)
+            1352 COMPARE_OP           (==)
+            1356 LOAD_FAST            (mask)
+            1358 LOAD_GLOBAL          (cv2)
+            1368 LOAD_ATTR            (GC_PR_FGD)
+            1388 COMPARE_OP           (==)
+            1392 BINARY_OP            (|)
+            1396 LOAD_ATTR            (NULL|self + astype)
+            1416 LOAD_GLOBAL          (np)
+            1426 LOAD_ATTR            (uint8)
+            1446 CALL                 1
+            1454 LOAD_CONST           (255)
+            1456 BINARY_OP            (*)
+            1460 STORE_FAST           (alpha)
+
+120:        1462 LOAD_CONST           (0.005)
+            1464 LOAD_GLOBAL          (NULL + float)
+            1474 LOAD_FAST            (alpha)
+            1476 LOAD_CONST           (0)
+            1478 COMPARE_OP           (>)
+            1482 LOAD_ATTR            (NULL|self + mean)
+            1502 CALL                 0
+            1510 CALL                 1
+            1518 SWAP                 (TOS <-> TOS1)
+            1520 COPY                 2
+            1522 COMPARE_OP           (<)
+            1526 POP_JUMP_IF_FALSE    (to 1538)
+            1528 LOAD_CONST           (0.95)
+            1530 COMPARE_OP           (<)
+            1534 POP_JUMP_IF_TRUE     (to 1564)
+            1536 JUMP_FORWARD         (to 1540)
+         >> 1538 POP_TOP
+
+121:     >> 1540 LOAD_GLOBAL          (NULL + DomainError)
+            1550 LOAD_CONST           ("WAITING_INPUT")
+            1552 LOAD_CONST           ("无法可靠分离产品，原图已保留，请换一张背景更清楚的图片")
+            1554 CALL                 2
+            1562 RAISE_VARARGS        (exception instance)
+
+122:     >> 1564 LOAD_FAST            (rgba)
+            1566 LOAD_ATTR            (NULL|self + putalpha)
+            1586 LOAD_GLOBAL          (NULL + Image)
+            1596 LOAD_ATTR            (fromarray)
+            1616 LOAD_FAST            (alpha)
+            1618 CALL                 1
+            1626 LOAD_ATTR            (NULL|self + resize)
+            1646 LOAD_FAST            (rgba)
+            1648 LOAD_ATTR            (size)
+            1668 LOAD_GLOBAL          (Image)
+            1678 LOAD_ATTR            (Resampling)
+            1698 LOAD_ATTR            (NEAREST)
+            1718 CALL                 2
+            1726 CALL                 1
+            1734 POP_TOP
+
+123:        1736 LOAD_FAST            (rgba)
+            1738 LOAD_CONST           ("VISION_SEEDED_GRABCUT")
+            1740 LOAD_CONST           (True)
+
+124:        1742 LOAD_GLOBAL          (NULL + hashlib)
+            1752 LOAD_ATTR            (sha256)
+            1772 LOAD_FAST            (rgba)
+            1774 LOAD_ATTR            (NULL|self + getchannel)
+            1794 LOAD_CONST           ("A")
+            1796 CALL                 1
+            1804 LOAD_ATTR            (NULL|self + tobytes)
+            1824 CALL                 0
+            1832 CALL                 1
+            1840 LOAD_ATTR            (NULL|self + hexdigest)
+            1860 CALL                 0
+
+125:        1868 LOAD_CONST           ("VISION_QA_REQUIRED")
+
+123:        1870 LOAD_CONST           (('method', 'rgb_unchanged', 'mask_sha256', 'mask_validation'))
+            1872 BUILD_CONST_KEY_MAP  4
+            1874 BUILD_TUPLE          2
+            1876 RETURN_VALUE
+            1878 SWAP                 (TOS <-> TOS1)
+            1880 POP_TOP
+
+109:        1882 SWAP                 (TOS <-> TOS1)
+            1884 STORE_FAST           (p)
+            1886 RERAISE              0
+
+ExceptionTable:
+  716 to 744 -> 1878 [7]
+
+# Method Name:       composite_product
+# Filename:          app\locked_scene.py
+# Argument count:    5
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  16
+# Stack size:        15
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        128
+# Constants:
+#    0: None
+#    1: 1
+#    2: ('SceneExecution',)
+#    3: True
+#    4: ('exclude_none',)
+#    5: 'source_view_compatible'
+#    6: 'SCENE_VIEW_INCOMPATIBLE'
+#    7: '此机位需要原图未展示的产品表面。请AI选择与原产品视角兼容的场景。'
+#    8: 'RGBA'
+#    9: (2048, 2048)
+#   10: 'A'
+#   11: 'WAITING_INPUT'
+#   12: '原产品透明蒙版为空'
+#   13: 'width_fraction'
+#   14: 'rotation_degrees'
+#   15: ('resample', 'expand')
+#   16: 'center_x'
+#   17: 2
+#   18: 'center_y'
+#   19: 0
+#   20: 'SCENE_PLACEMENT_OUTSIDE'
+#   21: 'AI构图超出画面边界，未裁切产品。请重新规划位置和比例。'
+#   22: <Code311 code object <lambda> at 0x10a248f30, file app\locked_scene.py>, line 150
+#   23: (0, 0, 0, 255)
+#   24: 'shadow_dx'
+#   25: 'shadow_dy'
+#   26: 'shadow_blur'
+#   27: 'camera'
+#   28: 'placement_plane'
+#   29: False
+#   30: 'SOURCE_LOCKED_VISUAL_REVIEW_REQUIRED'
+#   31: 'VISUAL_PROPORTION_ONLY'
+#   32: ('scene_execution', 'transform', 'actual_fraction', 'camera', 'plane', 'rotation', 'mirrored', 'nonuniform_scale', 'rgb_redrawn', 'source_cutout_sha256', 'fidelity_status', 'physical_scale')
+#   33: 'front'
+#   34: 'LOCKED_PRODUCT_ASSET'
+#   35: ('asset_role', 'mirrored', 'rotation', 'nonuniform_scale', 'rgb_redrawn', 'source_cutout_sha256')
+# Names:
+#    0: schemas
+#    1: SceneExecution
+#    2: model_validate
+#    3: model_dump
+#    4: DomainError
+#    5: convert
+#    6: thumbnail
+#    7: Image
+#    8: Resampling
+#    9: LANCZOS
+#   10: getchannel
+#   11: getbbox
+#   12: crop
+#   13: max
+#   14: round
+#   15: width
+#   16: height
+#   17: resize
+#   18: rotate
+#   19: BICUBIC
+#   20: new
+#   21: size
+#   22: point
+#   23: paste
+#   24: alpha_composite
+#   25: filter
+#   26: ImageFilter
+#   27: GaussianBlur
+#   28: hashlib
+#   29: sha256
+#   30: png
+#   31: hexdigest
+#   32: compose_scene
+#   33: update
+# Varnames:
+#	background, product, fraction, placement, execution, SceneExecution, image, bbox, cutout, width, height, x, y, shadow, alpha, transform
+# Positional arguments:
+#	background, product, fraction, placement, execution
+# Local variables:
+#    5: SceneExecution
+#    6: image
+#    7: bbox
+#    8: cutout
+#    9: width
+#   10: height
+#   11: x
+#   12: y
+#   13: shadow
+#   14: alpha
+#   15: transform
+# Cell variables:
+#    0: plan
+               0 MAKE_CELL            (plan)
+
+128:           2 RESUME               0
+
+129:           4 LOAD_FAST            (execution)
+               6 EXTENDED_ARG         (768)
+               8 POP_JUMP_IF_NONE     (to 1814)
+
+130:          10 LOAD_CONST           (1)
+              12 LOAD_CONST           (('SceneExecution',))
+              14 IMPORT_NAME          (schemas)
+              16 IMPORT_FROM          (SceneExecution)
+              18 STORE_FAST           (SceneExecution)
+              20 POP_TOP
+
+131:          22 LOAD_FAST            (SceneExecution)
+              24 LOAD_ATTR            (NULL|self + model_validate)
+              44 LOAD_FAST            (execution)
+              46 CALL                 1
+              54 LOAD_ATTR            (NULL|self + model_dump)
+              74 LOAD_CONST           (True)
+              76 KW_NAMES             (('exclude_none',))
+              78 CALL                 1
+              86 STORE_DEREF          (plan)
+
+132:          88 LOAD_DEREF           (plan)
+              90 LOAD_CONST           ("source_view_compatible")
+              92 BINARY_SUBSCR
+              96 POP_JUMP_IF_TRUE     (to 122)
+
+133:          98 LOAD_GLOBAL          (NULL + DomainError)
+             108 LOAD_CONST           ("SCENE_VIEW_INCOMPATIBLE")
+             110 LOAD_CONST           ("此机位需要原图未展示的产品表面。请AI选择与原产品视角兼容的场景。")
+             112 CALL                 2
+             120 RAISE_VARARGS        (exception instance)
+
+134:     >>  122 LOAD_FAST            (background)
+             124 LOAD_ATTR            (NULL|self + convert)
+             144 LOAD_CONST           ("RGBA")
+             146 CALL                 1
+             154 STORE_FAST           (image)
+
+135:         156 LOAD_FAST            (image)
+             158 LOAD_ATTR            (NULL|self + thumbnail)
+             178 LOAD_CONST           ((2048, 2048))
+             180 LOAD_GLOBAL          (Image)
+             190 LOAD_ATTR            (Resampling)
+             210 LOAD_ATTR            (LANCZOS)
+             230 CALL                 2
+             238 POP_TOP
+
+136:         240 LOAD_FAST            (product)
+             242 LOAD_ATTR            (NULL|self + getchannel)
+             262 LOAD_CONST           ("A")
+             264 CALL                 1
+             272 LOAD_ATTR            (NULL|self + getbbox)
+             292 CALL                 0
+             300 STORE_FAST           (bbox)
+
+137:         302 LOAD_FAST            (bbox)
+             304 POP_JUMP_IF_TRUE     (to 330)
+
+138:         306 LOAD_GLOBAL          (NULL + DomainError)
+             316 LOAD_CONST           ("WAITING_INPUT")
+             318 LOAD_CONST           ("原产品透明蒙版为空")
+             320 CALL                 2
+             328 RAISE_VARARGS        (exception instance)
+
+139:     >>  330 LOAD_FAST            (product)
+             332 LOAD_ATTR            (NULL|self + crop)
+             352 LOAD_FAST            (bbox)
+             354 CALL                 1
+             362 STORE_FAST           (cutout)
+
+140:         364 LOAD_GLOBAL          (NULL + max)
+             374 LOAD_CONST           (1)
+             376 LOAD_GLOBAL          (NULL + round)
+             386 LOAD_FAST            (image)
+             388 LOAD_ATTR            (width)
+             408 LOAD_DEREF           (plan)
+             410 LOAD_CONST           ("width_fraction")
+             412 BINARY_SUBSCR
+             416 BINARY_OP            (*)
+             420 CALL                 1
+             428 CALL                 2
+             436 STORE_FAST           (width)
+
+141:         438 LOAD_GLOBAL          (NULL + max)
+             448 LOAD_CONST           (1)
+             450 LOAD_GLOBAL          (NULL + round)
+             460 LOAD_FAST            (width)
+             462 LOAD_FAST            (cutout)
+             464 LOAD_ATTR            (height)
+             484 BINARY_OP            (*)
+             488 LOAD_FAST            (cutout)
+             490 LOAD_ATTR            (width)
+             510 BINARY_OP            (/)
+             514 CALL                 1
+             522 CALL                 2
+             530 STORE_FAST           (height)
+
+142:         532 LOAD_FAST            (cutout)
+             534 LOAD_ATTR            (NULL|self + resize)
+             554 LOAD_FAST            (width)
+             556 LOAD_FAST            (height)
+             558 BUILD_TUPLE          2
+             560 LOAD_GLOBAL          (Image)
+             570 LOAD_ATTR            (Resampling)
+             590 LOAD_ATTR            (LANCZOS)
+             610 CALL                 2
+             618 STORE_FAST           (cutout)
+
+143:         620 LOAD_DEREF           (plan)
+             622 LOAD_CONST           ("rotation_degrees")
+             624 BINARY_SUBSCR
+             628 POP_JUMP_IF_FALSE    (to 724)
+
+144:         630 LOAD_FAST            (cutout)
+             632 LOAD_ATTR            (NULL|self + rotate)
+             652 LOAD_DEREF           (plan)
+             654 LOAD_CONST           ("rotation_degrees")
+             656 BINARY_SUBSCR
+             660 LOAD_GLOBAL          (Image)
+             670 LOAD_ATTR            (Resampling)
+             690 LOAD_ATTR            (BICUBIC)
+             710 LOAD_CONST           (True)
+             712 KW_NAMES             (('resample', 'expand'))
+             714 CALL                 3
+             722 STORE_FAST           (cutout)
+
+145:     >>  724 LOAD_GLOBAL          (NULL + round)
+             734 LOAD_FAST            (image)
+             736 LOAD_ATTR            (width)
+             756 LOAD_DEREF           (plan)
+             758 LOAD_CONST           ("center_x")
+             760 BINARY_SUBSCR
+             764 BINARY_OP            (*)
+             768 LOAD_FAST            (cutout)
+             770 LOAD_ATTR            (width)
+             790 LOAD_CONST           (2)
+             792 BINARY_OP            (/)
+             796 BINARY_OP            (-)
+             800 CALL                 1
+             808 STORE_FAST           (x)
+
+146:         810 LOAD_GLOBAL          (NULL + round)
+             820 LOAD_FAST            (image)
+             822 LOAD_ATTR            (height)
+             842 LOAD_DEREF           (plan)
+             844 LOAD_CONST           ("center_y")
+             846 BINARY_SUBSCR
+             850 BINARY_OP            (*)
+             854 LOAD_FAST            (cutout)
+             856 LOAD_ATTR            (height)
+             876 LOAD_CONST           (2)
+             878 BINARY_OP            (/)
+             882 BINARY_OP            (-)
+             886 CALL                 1
+             894 STORE_FAST           (y)
+
+147:         896 LOAD_FAST            (x)
+             898 LOAD_CONST           (0)
+             900 COMPARE_OP           (<)
+             904 POP_JUMP_IF_TRUE     (to 1028)
+             906 LOAD_FAST            (y)
+             908 LOAD_CONST           (0)
+             910 COMPARE_OP           (<)
+             914 POP_JUMP_IF_TRUE     (to 1028)
+             916 LOAD_FAST            (x)
+             918 LOAD_FAST            (cutout)
+             920 LOAD_ATTR            (width)
+             940 BINARY_OP            (+)
+             944 LOAD_FAST            (image)
+             946 LOAD_ATTR            (width)
+             966 COMPARE_OP           (>)
+             970 POP_JUMP_IF_TRUE     (to 1028)
+             972 LOAD_FAST            (y)
+             974 LOAD_FAST            (cutout)
+             976 LOAD_ATTR            (height)
+             996 BINARY_OP            (+)
+            1000 LOAD_FAST            (image)
+            1002 LOAD_ATTR            (height)
+            1022 COMPARE_OP           (>)
+            1026 POP_JUMP_IF_FALSE    (to 1052)
+
+148:     >> 1028 LOAD_GLOBAL          (NULL + DomainError)
+            1038 LOAD_CONST           ("SCENE_PLACEMENT_OUTSIDE")
+            1040 LOAD_CONST           ("AI构图超出画面边界，未裁切产品。请重新规划位置和比例。")
+            1042 CALL                 2
+            1050 RAISE_VARARGS        (exception instance)
+
+149:     >> 1052 LOAD_GLOBAL          (NULL + Image)
+            1062 LOAD_ATTR            (new)
+            1082 LOAD_CONST           ("RGBA")
+            1084 LOAD_FAST            (image)
+            1086 LOAD_ATTR            (size)
+            1106 CALL                 2
+            1114 STORE_FAST           (shadow)
+
+150:        1116 LOAD_FAST            (cutout)
+            1118 LOAD_ATTR            (NULL|self + getchannel)
+            1138 LOAD_CONST           ("A")
+            1140 CALL                 1
+            1148 LOAD_ATTR            (NULL|self + point)
+            1168 LOAD_CLOSURE         (plan)
+            1170 BUILD_TUPLE          1
+            1172 LOAD_CONST           (<Code311 code object <lambda> at 0x10a248f30, file app\locked_scene.py>, line 150)
+            1174 MAKE_FUNCTION        (closure)
+            1176 CALL                 1
+            1184 STORE_FAST           (alpha)
+
+151:        1186 LOAD_FAST            (shadow)
+            1188 LOAD_ATTR            (NULL|self + paste)
+            1208 LOAD_GLOBAL          (NULL + Image)
+            1218 LOAD_ATTR            (new)
+            1238 LOAD_CONST           ("RGBA")
+            1240 LOAD_FAST            (cutout)
+            1242 LOAD_ATTR            (size)
+            1262 LOAD_CONST           ((0, 0, 0, 255))
+            1264 CALL                 3
+
+152:        1272 LOAD_FAST            (x)
+            1274 LOAD_GLOBAL          (NULL + round)
+            1284 LOAD_DEREF           (plan)
+            1286 LOAD_CONST           ("shadow_dx")
+            1288 BINARY_SUBSCR
+            1292 LOAD_FAST            (image)
+            1294 LOAD_ATTR            (width)
+            1314 BINARY_OP            (*)
+            1318 CALL                 1
+            1326 BINARY_OP            (+)
+            1330 LOAD_FAST            (y)
+            1332 LOAD_GLOBAL          (NULL + round)
+            1342 LOAD_DEREF           (plan)
+            1344 LOAD_CONST           ("shadow_dy")
+            1346 BINARY_SUBSCR
+            1350 LOAD_FAST            (image)
+            1352 LOAD_ATTR            (height)
+            1372 BINARY_OP            (*)
+            1376 CALL                 1
+            1384 BINARY_OP            (+)
+            1388 BUILD_TUPLE          2
+            1390 LOAD_FAST            (alpha)
+
+151:        1392 CALL                 3
+            1400 POP_TOP
+
+153:        1402 LOAD_GLOBAL          (NULL + Image)
+            1412 LOAD_ATTR            (alpha_composite)
+            1432 LOAD_FAST            (image)
+            1434 LOAD_FAST            (shadow)
+            1436 LOAD_ATTR            (NULL|self + filter)
+            1456 LOAD_GLOBAL          (NULL + ImageFilter)
+            1466 LOAD_ATTR            (GaussianBlur)
+            1486 LOAD_DEREF           (plan)
+            1488 LOAD_CONST           ("shadow_blur")
+            1490 BINARY_SUBSCR
+            1494 LOAD_GLOBAL          (NULL + max)
+            1504 LOAD_FAST            (image)
+            1506 LOAD_ATTR            (size)
+            1526 CALL                 1
+            1534 BINARY_OP            (*)
+            1538 CALL                 1
+            1546 CALL                 1
+            1554 CALL                 2
+            1562 STORE_FAST           (image)
+
+154:        1564 LOAD_FAST            (image)
+            1566 LOAD_ATTR            (NULL|self + alpha_composite)
+            1586 LOAD_FAST            (cutout)
+            1588 LOAD_FAST            (x)
+            1590 LOAD_FAST            (y)
+            1592 BUILD_TUPLE          2
+            1594 CALL                 2
+            1602 POP_TOP
+
+155:        1604 LOAD_FAST            (image)
+            1606 LOAD_DEREF           (plan)
+            1608 LOAD_FAST            (x)
+            1610 LOAD_FAST            (y)
+            1612 LOAD_FAST            (cutout)
+            1614 LOAD_ATTR            (width)
+            1634 LOAD_FAST            (cutout)
+            1636 LOAD_ATTR            (height)
+            1656 BUILD_LIST           4
+
+156:        1658 LOAD_FAST            (width)
+            1660 LOAD_FAST            (image)
+            1662 LOAD_ATTR            (width)
+            1682 BINARY_OP            (/)
+            1686 LOAD_DEREF           (plan)
+            1688 LOAD_CONST           ("camera")
+            1690 BINARY_SUBSCR
+            1694 LOAD_DEREF           (plan)
+            1696 LOAD_CONST           ("placement_plane")
+            1698 BINARY_SUBSCR
+
+157:        1702 LOAD_DEREF           (plan)
+            1704 LOAD_CONST           ("rotation_degrees")
+            1706 BINARY_SUBSCR
+            1710 LOAD_CONST           (False)
+            1712 LOAD_CONST           (False)
+            1714 LOAD_CONST           (False)
+
+158:        1716 LOAD_GLOBAL          (NULL + hashlib)
+            1726 LOAD_ATTR            (sha256)
+            1746 LOAD_GLOBAL          (NULL + png)
+            1756 LOAD_FAST            (product)
+            1758 CALL                 1
+            1766 CALL                 1
+            1774 LOAD_ATTR            (NULL|self + hexdigest)
+            1794 CALL                 0
+
+159:        1802 LOAD_CONST           ("SOURCE_LOCKED_VISUAL_REVIEW_REQUIRED")
+            1804 LOAD_CONST           ("VISUAL_PROPORTION_ONLY")
+
+155:        1806 LOAD_CONST           (('scene_execution', 'transform', 'actual_fraction', 'camera', 'plane', 'rotation', 'mirrored', 'nonuniform_scale', 'rgb_redrawn', 'source_cutout_sha256', 'fidelity_status', 'physical_scale'))
+            1808 BUILD_CONST_KEY_MAP  12
+            1810 BUILD_TUPLE          2
+            1812 RETURN_VALUE
+
+160:     >> 1814 LOAD_GLOBAL          (NULL + compose_scene)
+            1824 LOAD_FAST            (background)
+            1826 LOAD_FAST            (product)
+            1828 LOAD_FAST            (fraction)
+            1830 LOAD_CONST           ("front")
+            1832 LOAD_CONST           (False)
+            1834 LOAD_FAST            (placement)
+            1836 CALL                 6
+            1844 UNPACK_SEQUENCE      2
+            1848 STORE_FAST           (image)
+            1850 STORE_FAST           (transform)
+
+161:        1852 LOAD_FAST            (transform)
+            1854 LOAD_ATTR            (NULL|self + update)
+            1874 LOAD_CONST           ("LOCKED_PRODUCT_ASSET")
+            1876 LOAD_CONST           (False)
+            1878 LOAD_CONST           (0)
+
+162:        1880 LOAD_CONST           (False)
+            1882 LOAD_CONST           (False)
+
+163:        1884 LOAD_GLOBAL          (NULL + hashlib)
+            1894 LOAD_ATTR            (sha256)
+            1914 LOAD_GLOBAL          (NULL + png)
+            1924 LOAD_FAST            (product)
+            1926 CALL                 1
+            1934 CALL                 1
+            1942 LOAD_ATTR            (NULL|self + hexdigest)
+            1962 CALL                 0
+
+161:        1970 KW_NAMES             (('asset_role', 'mirrored', 'rotation', 'nonuniform_scale', 'rgb_redrawn', 'source_cutout_sha256'))
+            1972 CALL                 6
+            1980 POP_TOP
+
+164:        1982 LOAD_FAST            (image)
+            1984 LOAD_FAST            (transform)
+            1986 BUILD_TUPLE          2
+            1988 RETURN_VALUE
+
+
+# Method Name:       checked_product
+# Filename:          app\locked_scene.py
+# Argument count:    7
+# Position-only argument count: 0
+# Keyword-only arguments: 1
+# Number of locals:  66
+# Stack size:        16
+# Flags:             0x00000003 (NEWLOCALS | OPTIMIZED)
+# First Line:        167
+# Constants:
+#    0: 'Checkpoint extraction -> one AI alpha repair -> same-region fidelity check.'
+#    1: 0
+#    2: None
+#    3: 1
+#    4: ('Step',)
+#    5: ('select',)
+#    6: ('build_qa_contract', 'normalize_qa_result', 'QAResult')
+#    7: ('pack_evidence', 'add_comparison_images', 'verify_revision')
+#    8: 'surface_finish'
+#    9: ('verify_surface_finish',)
+#   10: 'SURFACE_FINISH_INVALID'
+#   11: '场景使用的配色文件与锁定结构不一致'
+#   12: 409
+#   13: <Code311 code object save at 0x10a249150, file app\locked_scene.py>, line 185
+#   14: <Code311 code object preview at 0x10a249260, file app\locked_scene.py>, line 194
+#   15: 'product_extraction'
+#   16: 'route'
+#   17: 'scene_product_workflow'
+#   18: 'SHARED_EXTRACTION_V1'
+#   19: 'PLAN'
+#   20: 'DONE'
+#   21: 'status'
+#   22: 'PASS'
+#   23: 'source_sha256'
+#   24: 'source_asset_id'
+#   25: 'SCENE_PRODUCT_NOT_READY'
+#   26: '本批产品分离尚未通过或对应原稿已改变；请先恢复产品检查，未重复调用提取接口。'
+#   27: 'shared_from_step_id'
+#   28: ('enabled',)
+#   29: 'RGBA'
+#   30: 'A'
+#   31: 255
+#   32: 'SOURCE_ALPHA'
+#   33: True
+#   34: ('method', 'rgb_unchanged')
+#   35: 'PRODUCT_PREVIEW_SOURCE'
+#   36: 'LOCAL_SOURCE_ALPHA'
+#   37: 'LOCAL_ISOLATION_FOR_HUMAN'
+#   38: 'human_review_contract'
+#   39: False
+#   40: ('source_asset_id', 'source_sha256', 'file_key', 'sha256', 'isolation', 'status', 'repair_count', 'asset_role', 'product_master_valid', 'proof_kind', 'human_review_contract', 'ai_review_performed', 'geometry_verified')
+#   41: 'file_key'
+#   42: 'sha256'
+#   43: 'STALE_VERSION'
+#   44: '场景产品文件已变化，请重新选择。'
+#   45: 3
+#   46: 'EXTRACTION_FAIL'
+#   47: '本机分离改变了原产品像素，未用于场景制作。'
+#   48: '场景分离不能改变原配色产品的轮廓或镂空。'
+#   49: 'qa_result'
+#   50: 'qa_contract_coverage'
+#   51: 'required'
+#   52: 'reported'
+#   53: 'constraint_checks'
+#   54: 'requirement_id'
+#   55: 'surface_finish_status'
+#   56: ('READY_FOR_SELECTION', 'ACCEPTED', 'HISTORY', 'LATER')
+#   57: 'qa_error'
+#   58: 'qa_pending'
+#   59: 'automatic_quality_rejected'
+#   60: 'appearance_check'
+#   61: 'blocking'
+#   62: 'qa_status'
+#   63: ('PASS', 'WARN')
+#   64: frozenset({'finish_artistic_quality', 'surface_finish', 'finish_product_fidelity'})
+#   65: <Code311 code object <genexpr> at 0x10a249480, file app\locked_scene.py>, line 261
+#   66: 'VERIFIED_SURFACE_FINISH_ALPHA'
+#   67: 'PRODUCT_MASTER'
+#   68: 'SOURCE_FINISH_QA_AND_EXACT_ALPHA'
+#   69: 'structure_sha256'
+#   70: 'mask_sha256'
+#   71: ('source_asset_id', 'source_sha256', 'file_key', 'sha256', 'isolation', 'status', 'repair_count', 'asset_role', 'product_master_valid', 'proof_kind', 'qa_result', 'qa_required_check_ids', 'qa_output_sha256', 'finish_structure_sha256', 'finish_mask_sha256')
+#   72: 'QA_PENDING'
+#   73: 'PRODUCT_EXTRACTION'
+#   74: ('source_sha256', 'file_key', 'sha256', 'source_asset_id', 'isolation', 'status', 'repair_count', 'asset_role', 'product_master_valid')
+#   75: '产品分离结果与原图不一致'
+#   76: 'qa_required_check_ids'
+#   77: ('product_fidelity', 'shape', 'holes', 'texture', 'color')
+#   78: 'product_master_valid'
+#   79: <Code311 code object <genexpr> at 0x10a249370, file app\locked_scene.py>, line 293
+#   80: 'qa_output_sha256'
+#   81: '产品分离缺少绑定当前文件的完整检查，未复用未核验产品。'
+#   82: 'proof_kind'
+#   83: 'finish_structure_sha256'
+#   84: 'finish_mask_sha256'
+#   85: '已验证配色依据发生变化，未沿用旧产品检查。'
+#   86: '产品分离文件已变化'
+#   87: 'RGB'
+#   88: '产品分离改变了原始产品像素，已阻止作为母版'
+#   89: '场景分离改变了已确认结构的镂空或轮廓，已停止生成'
+#   90: 128
+#   91: 4
+#   92: ('connectivity',)
+#   93: 'ALPHA_MASK_NOT_PRODUCT_COLOR_OR_CUT_GEOMETRY'
+#   94: <Code311 code object <genexpr> at 0x10a249590, file app\locked_scene.py>, line 323
+#   95: ('authority', 'material_regions', 'components', 'rgb_unchanged', 'retained_alpha_pixels', 'holes')
+#   96: 'REFERENCE'
+#   97: 'SOURCE_ORIGINAL'
+#   98: ('position', 'purpose', 'layer', 'sha256')
+#   99: 2
+#  100: 'FINAL_DELIVERY'
+#  101: ('mode', 'images')
+#  102: 'repair_plan'
+#  103: 'before_file_key'
+#  104: 'defect_targets'
+#  105: ('structure',)
+#  106: 'quality'
+#  107: 'evaluate_result'
+#  108: '产品分离保真检查'
+#  109: '只比较原产品与分离产品；检查全部轮廓/孔洞/部件/文字/纹理/数量/方向，背景残留不可通过'
+#  110: ('title', 'intent')
+#  111: ('capability', 'brain_operation', 'purpose', 'image_manifest', 'brief', 'task_plan', 'local_geometry', 'local_alpha_observation', 'post_revision_targets')
+#  112: 'required_checks'
+#  113: 'required_check_ids'
+#  114: 'qa_contract'
+#  115: <Code311 code object <genexpr> at 0x10a2496a0, file app\locked_scene.py>, line 350
+#  116: 'VISUAL_CHECK_COMPLETE'
+#  117: 'evidence_pack'
+#  118: ('status', 'qa_result', 'qa_required_check_ids', 'qa_output_sha256', 'local_alpha_observation', 'post_revision_verification', 'evidence_pack', 'product_master_valid', 'asset_role')
+#  119: '配色产品的场景保真检查未通过；原结构和配色已保留，请重新检查或换场景。镂空不能自动改形。'
+#  120: 'repair_count'
+#  121: 'extraction_repair_limit'
+#  122: '自动产品分离仍未通过完整性检查；原图及修复证据已保存，未使用失真母版生成场景'
+#  123: 'planner'
+#  124: 'planning'
+#  125: 'plan_mask_repair'
+#  126: 'product_extraction_repair'
+#  127: 'product_fingerprint'
+#  128: ('capability', 'brain_operation', 'purpose', 'image_manifest', 'source_product_fingerprint', 'local_alpha_observation', 'qa_result')
+#  129: ('before_file_key', 'before_sha256', 'before_qa_result', 'file_key', 'sha256', 'status', 'repair_count', 'product_master_valid')
+# Names:
+#    0: io
+#    1: models
+#    2: Step
+#    3: sqlalchemy
+#    4: select
+#    5: brain
+#    6: build_qa_contract
+#    7: normalize_qa_result
+#    8: QAResult
+#    9: visual_evidence
+#   10: pack_evidence
+#   11: add_comparison_images
+#   12: verify_revision
+#   13: _context
+#   14: hashlib
+#   15: sha256
+#   16: hexdigest
+#   17: bool
+#   18: info
+#   19: get
+#   20: surface_finish
+#   21: verify_surface_finish
+#   22: sessions
+#   23: DomainError
+#   24: result
+#   25: kind
+#   26: scalar
+#   27: where
+#   28: job_id
+#   29: workspace_id
+#   30: status
+#   31: order_by
+#   32: created_at
+#   33: desc
+#   34: id
+#   35: human_review
+#   36: enabled
+#   37: Image
+#   38: open
+#   39: BytesIO
+#   40: convert
+#   41: getchannel
+#   42: getextrema
+#   43: file_key
+#   44: isolate_product
+#   45: write_artifact
+#   46: png
+#   47: storage
+#   48: read
+#   49: size
+#   50: np
+#   51: array_equal
+#   52: asarray
+#   53: tobytes
+#   54: state
+#   55: issubset
+#   56: set
+#   57: all
+#   58: list
+#   59: dict
+#   60: array
+#   61: astype
+#   62: uint8
+#   63: cv2
+#   64: connectedComponentsWithStats
+#   65: findContours
+#   66: RETR_CCOMP
+#   67: CHAIN_APPROX_SIMPLE
+#   68: int
+#   69: sum
+#   70: call
+#   71: review_for_local_validation
+#   72: any
+#   73: repair_mask
+# Varnames:
+#	worker, step_id, token, context, original, diagnosis, source, product_asset, io, select, build_qa_contract, normalize_qa_result, QAResult, pack_evidence, add_comparison_images, verify_revision, snapshot, _, digest, trusted_finish, locked_finish, finish_proof, verify_surface_finish, db, save, preview, current_step, checkpoint, shared, shared_generation, plan_step, candidate, human_review_enabled, original_rgba, exact_alpha, cutout, isolation, key, sha, data, qa, coverage, required, reported, c, finish_ready, inherited, source_rgb, rgb_preserved, mask, count, stats, contours, hierarchy, mask_facts, manifest, content, comparisons, previous, qa_context, contract, result, verification, passed, plan, revised
+# Positional arguments:
+#	worker, step_id, token, context, original, diagnosis, source
+# Local variables:
+#    7: product_asset
+#    8: io
+#    9: select
+#   10: build_qa_contract
+#   11: normalize_qa_result
+#   12: QAResult
+#   13: pack_evidence
+#   14: add_comparison_images
+#   15: verify_revision
+#   16: snapshot
+#   17: _
+#   18: digest
+#   19: trusted_finish
+#   20: locked_finish
+#   21: finish_proof
+#   22: verify_surface_finish
+#   23: db
+#   24: save
+#   25: preview
+#   26: current_step
+#   27: checkpoint
+#   28: shared
+#   29: shared_generation
+#   30: plan_step
+#   31: candidate
+#   32: human_review_enabled
+#   33: original_rgba
+#   34: exact_alpha
+#   35: cutout
+#   36: isolation
+#   37: key
+#   38: sha
+#   39: data
+#   40: qa
+#   41: coverage
+#   42: required
+#   43: reported
+#   44: c
+#   45: finish_ready
+#   46: inherited
+#   47: source_rgb
+#   48: rgb_preserved
+#   49: mask
+#   50: count
+#   51: stats
+#   52: contours
+#   53: hierarchy
+#   54: mask_facts
+#   55: manifest
+#   56: content
+#   57: comparisons
+#   58: previous
+#   59: qa_context
+#   60: contract
+#   61: result
+#   62: verification
+#   63: passed
+#   64: plan
+#   65: revised
+# Cell variables:
+#    0: worker
+#    1: step_id
+#    2: token
+#    3: Step
+#    4: checks
+#    5: workspace_id
+               0 MAKE_CELL            (worker)
+               2 MAKE_CELL            (step_id)
+               4 MAKE_CELL            (token)
+               6 MAKE_CELL            (Step)
+               8 MAKE_CELL            (checks)
+              10 MAKE_CELL            (workspace_id)
+
+167:          12 RESUME               0
+
+169:          14 LOAD_CONST           (0)
+              16 LOAD_CONST           (None)
+              18 IMPORT_NAME          (io)
+              20 STORE_FAST           (io)
+
+170:          22 LOAD_CONST           (1)
+              24 LOAD_CONST           (('Step',))
+              26 IMPORT_NAME          (models)
+              28 IMPORT_FROM          (Step)
+              30 STORE_DEREF          (Step)
+              32 POP_TOP
+
+171:          34 LOAD_CONST           (0)
+              36 LOAD_CONST           (('select',))
+              38 IMPORT_NAME          (sqlalchemy)
+              40 IMPORT_FROM          (select)
+              42 STORE_FAST           (select)
+              44 POP_TOP
+
+172:          46 LOAD_CONST           (1)
+              48 LOAD_CONST           (('build_qa_contract', 'normalize_qa_result', 'QAResult'))
+              50 IMPORT_NAME          (brain)
+              52 IMPORT_FROM          (build_qa_contract)
+              54 STORE_FAST           (build_qa_contract)
+              56 IMPORT_FROM          (normalize_qa_result)
+              58 STORE_FAST           (normalize_qa_result)
+              60 IMPORT_FROM          (QAResult)
+              62 STORE_FAST           (QAResult)
+              64 POP_TOP
+
+173:          66 LOAD_CONST           (1)
+              68 LOAD_CONST           (('pack_evidence', 'add_comparison_images', 'verify_revision'))
+              70 IMPORT_NAME          (visual_evidence)
+              72 IMPORT_FROM          (pack_evidence)
+              74 STORE_FAST           (pack_evidence)
+              76 IMPORT_FROM          (add_comparison_images)
+              78 STORE_FAST           (add_comparison_images)
+              80 IMPORT_FROM          (verify_revision)
+              82 STORE_FAST           (verify_revision)
+              84 POP_TOP
+
+174:          86 LOAD_DEREF           (worker)
+              88 LOAD_ATTR            (NULL|self + _context)
+             108 LOAD_DEREF           (step_id)
+             110 CALL                 1
+             118 UNPACK_SEQUENCE      4
+             122 STORE_FAST           (snapshot)
+             124 STORE_FAST           (_)
+             126 STORE_FAST           (_)
+             128 STORE_DEREF          (workspace_id)
+
+175:         130 LOAD_GLOBAL          (NULL + hashlib)
+             140 LOAD_ATTR            (sha256)
+             160 LOAD_FAST            (original)
+             162 CALL                 1
+             170 LOAD_ATTR            (NULL|self + hexdigest)
+             190 CALL                 0
+             198 STORE_FAST           (digest)
+
+176:         200 LOAD_FAST            (product_asset)
+             202 COPY                 1
+             204 POP_JUMP_IF_TRUE     (to 210)
+             206 POP_TOP
+             208 LOAD_FAST            (source)
+         >>  210 STORE_FAST           (trusted_finish)
+
+177:         212 LOAD_GLOBAL          (NULL + bool)
+             222 LOAD_FAST            (trusted_finish)
+             224 COPY                 1
+             226 POP_JUMP_IF_FALSE    (to 282)
+             228 POP_TOP
+             230 LOAD_FAST            (trusted_finish)
+             232 LOAD_ATTR            (info)
+             252 LOAD_ATTR            (NULL|self + get)
+             272 LOAD_CONST           ("surface_finish")
+             274 CALL                 1
+         >>  282 CALL                 1
+             290 STORE_FAST           (locked_finish)
+
+178:         292 LOAD_CONST           (None)
+             294 STORE_FAST           (finish_proof)
+
+179:         296 LOAD_FAST            (locked_finish)
+             298 POP_JUMP_IF_FALSE    (to 438)
+
+180:         300 LOAD_CONST           (1)
+             302 LOAD_CONST           (('verify_surface_finish',))
+             304 IMPORT_NAME          (surface_finish)
+             306 IMPORT_FROM          (verify_surface_finish)
+             308 STORE_FAST           (verify_surface_finish)
+             310 POP_TOP
+
+181:         312 LOAD_DEREF           (worker)
+             314 LOAD_ATTR            (NULL|self + sessions)
+             334 CALL                 0
+             342 BEFORE_WITH
+             344 STORE_FAST           (db)
+
+182:         346 PUSH_NULL
+             348 LOAD_FAST            (verify_surface_finish)
+             350 LOAD_FAST            (db)
+             352 LOAD_DEREF           (workspace_id)
+             354 LOAD_FAST            (trusted_finish)
+             356 CALL                 3
+             364 STORE_FAST           (finish_proof)
+
+181:         366 LOAD_CONST           (None)
+             368 LOAD_CONST           (None)
+             370 LOAD_CONST           (None)
+             372 CALL                 2
+             380 POP_TOP
+
+183:         382 LOAD_FAST            (digest)
+             384 LOAD_FAST            (trusted_finish)
+             386 LOAD_ATTR            (sha256)
+             406 COMPARE_OP           (!=)
+             410 POP_JUMP_IF_FALSE    (to 438)
+
+184:         412 LOAD_GLOBAL          (NULL + DomainError)
+             422 LOAD_CONST           ("SURFACE_FINISH_INVALID")
+             424 LOAD_CONST           ("场景使用的配色文件与锁定结构不一致")
+             426 LOAD_CONST           (409)
+             428 CALL                 3
+             436 RAISE_VARARGS        (exception instance)
+
+185:     >>  438 LOAD_CLOSURE         (Step)
+             440 LOAD_CLOSURE         (step_id)
+             442 LOAD_CLOSURE         (token)
+             444 LOAD_CLOSURE         (worker)
+             446 LOAD_CLOSURE         (workspace_id)
+             448 BUILD_TUPLE          5
+             450 LOAD_CONST           (<Code311 code object save at 0x10a249150, file app\locked_scene.py>, line 185)
+             452 MAKE_FUNCTION        (closure)
+             454 STORE_FAST           (save)
+
+194:         456 LOAD_CONST           (<Code311 code object preview at 0x10a249260, file app\locked_scene.py>, line 194)
+             458 MAKE_FUNCTION        (No arguments)
+             460 STORE_FAST           (preview)
+
+198:         462 LOAD_DEREF           (worker)
+             464 LOAD_ATTR            (NULL|self + sessions)
+             484 CALL                 0
+             492 BEFORE_WITH
+             494 STORE_FAST           (db)
+
+199:         496 LOAD_FAST            (db)
+             498 LOAD_ATTR            (NULL|self + get)
+             518 LOAD_DEREF           (Step)
+             520 LOAD_DEREF           (step_id)
+             522 CALL                 2
+             530 STORE_FAST           (current_step)
+
+200:         532 LOAD_FAST            (current_step)
+             534 LOAD_ATTR            (result)
+             554 LOAD_ATTR            (NULL|self + get)
+             574 LOAD_CONST           ("product_extraction")
+             576 CALL                 1
+             584 STORE_FAST           (checkpoint)
+
+201:         586 LOAD_FAST            (snapshot)
+             588 LOAD_CONST           ("route")
+             590 BINARY_SUBSCR
+             594 LOAD_ATTR            (NULL|self + get)
+             614 LOAD_CONST           ("scene_product_workflow")
+             616 CALL                 1
+             624 LOAD_CONST           ("SHARED_EXTRACTION_V1")
+             626 COMPARE_OP           (==)
+             630 STORE_FAST           (shared)
+
+202:         632 LOAD_FAST            (shared)
+             634 COPY                 1
+             636 POP_JUMP_IF_FALSE    (to 668)
+             638 POP_TOP
+             640 LOAD_FAST            (current_step)
+             642 LOAD_ATTR            (kind)
+             662 LOAD_CONST           ("PLAN")
+             664 COMPARE_OP           (!=)
+         >>  668 STORE_FAST           (shared_generation)
+
+203:         670 LOAD_FAST            (shared_generation)
+             672 EXTENDED_ARG         (256)
+             674 POP_JUMP_IF_FALSE    (to 1236)
+
+206:         676 LOAD_FAST            (db)
+             678 LOAD_ATTR            (NULL|self + scalar)
+             698 PUSH_NULL
+             700 LOAD_FAST            (select)
+             702 LOAD_DEREF           (Step)
+             704 CALL                 1
+             712 LOAD_ATTR            (NULL|self + where)
+             732 LOAD_DEREF           (Step)
+             734 LOAD_ATTR            (job_id)
+             754 LOAD_FAST            (current_step)
+             756 LOAD_ATTR            (job_id)
+             776 COMPARE_OP           (==)
+
+207:         780 LOAD_DEREF           (Step)
+             782 LOAD_ATTR            (workspace_id)
+             802 LOAD_DEREF           (workspace_id)
+             804 COMPARE_OP           (==)
+             808 LOAD_DEREF           (Step)
+             810 LOAD_ATTR            (kind)
+             830 LOAD_CONST           ("PLAN")
+             832 COMPARE_OP           (==)
+             836 LOAD_DEREF           (Step)
+             838 LOAD_ATTR            (status)
+             858 LOAD_CONST           ("DONE")
+             860 COMPARE_OP           (==)
+
+206:         864 CALL                 4
+
+208:         872 LOAD_ATTR            (NULL|self + order_by)
+             892 LOAD_DEREF           (Step)
+             894 LOAD_ATTR            (created_at)
+             914 LOAD_ATTR            (NULL|self + desc)
+             934 CALL                 0
+             942 CALL                 1
+
+206:         950 CALL                 1
+             958 STORE_FAST           (plan_step)
+
+209:         960 LOAD_FAST            (plan_step)
+             962 POP_JUMP_IF_FALSE    (to 1026)
+             964 LOAD_FAST            (plan_step)
+             966 LOAD_ATTR            (result)
+             986 LOAD_ATTR            (NULL|self + get)
+            1006 LOAD_CONST           ("product_extraction")
+            1008 CALL                 1
+            1016 COPY                 1
+            1018 POP_JUMP_IF_TRUE     (to 1028)
+            1020 POP_TOP
+            1022 BUILD_MAP            0
+            1024 JUMP_FORWARD         (to 1028)
+         >> 1026 BUILD_MAP            0
+         >> 1028 STORE_FAST           (candidate)
+
+210:        1030 LOAD_FAST            (candidate)
+            1032 LOAD_ATTR            (NULL|self + get)
+            1052 LOAD_CONST           ("status")
+            1054 CALL                 1
+            1062 LOAD_CONST           ("PASS")
+            1064 COMPARE_OP           (!=)
+            1068 POP_JUMP_IF_TRUE     (to 1174)
+            1070 LOAD_FAST            (candidate)
+            1072 LOAD_ATTR            (NULL|self + get)
+            1092 LOAD_CONST           ("source_sha256")
+            1094 CALL                 1
+            1102 LOAD_FAST            (digest)
+            1104 COMPARE_OP           (!=)
+            1108 POP_JUMP_IF_TRUE     (to 1174)
+
+211:        1110 LOAD_FAST            (product_asset)
+            1112 POP_JUMP_IF_FALSE    (to 1174)
+            1114 LOAD_FAST            (candidate)
+            1116 LOAD_ATTR            (NULL|self + get)
+            1136 LOAD_CONST           ("source_asset_id")
+            1138 CALL                 1
+            1146 LOAD_FAST            (product_asset)
+            1148 LOAD_ATTR            (id)
+            1168 COMPARE_OP           (!=)
+            1172 POP_JUMP_IF_FALSE    (to 1200)
+
+212:     >> 1174 LOAD_GLOBAL          (NULL + DomainError)
+            1184 LOAD_CONST           ("SCENE_PRODUCT_NOT_READY")
+
+213:        1186 LOAD_CONST           ("本批产品分离尚未通过或对应原稿已改变；请先恢复产品检查，未重复调用提取接口。")
+            1188 LOAD_CONST           (409)
+
+212:        1190 CALL                 3
+            1198 RAISE_VARARGS        (exception instance)
+
+214:     >> 1200 BUILD_MAP            0
+            1202 LOAD_FAST            (candidate)
+            1204 DICT_UPDATE          1
+            1206 LOAD_CONST           ("shared_from_step_id")
+            1208 LOAD_FAST            (plan_step)
+            1210 LOAD_ATTR            (id)
+            1230 BUILD_MAP            1
+            1232 DICT_UPDATE          1
+            1234 STORE_FAST           (checkpoint)
+
+198:     >> 1236 LOAD_CONST           (None)
+            1238 LOAD_CONST           (None)
+            1240 LOAD_CONST           (None)
+            1242 CALL                 2
+            1250 POP_TOP
+
+215:        1252 LOAD_FAST_CHECK      (shared_generation)
+            1254 POP_JUMP_IF_FALSE    (to 1272)
+
+216:        1256 PUSH_NULL
+            1258 LOAD_FAST            (save)
+            1260 LOAD_FAST_CHECK      (checkpoint)
+            1262 CALL                 1
+            1270 POP_TOP
+
+217:     >> 1272 LOAD_CONST           (1)
+            1274 LOAD_CONST           (('enabled',))
+            1276 IMPORT_NAME          (human_review)
+            1278 IMPORT_FROM          (enabled)
+            1280 STORE_FAST           (human_review_enabled)
+            1282 POP_TOP
+
+218:        1284 PUSH_NULL
+            1286 LOAD_FAST            (human_review_enabled)
+            1288 LOAD_FAST            (snapshot)
+            1290 LOAD_CONST           ("route")
+            1292 BINARY_SUBSCR
+            1296 CALL                 1
+            1304 EXTENDED_ARG         (512)
+            1306 POP_JUMP_IF_FALSE    (to 2566)
+
+222:        1308 LOAD_FAST_CHECK      (checkpoint)
+            1310 POP_JUMP_IF_TRUE     (to 1768)
+
+223:        1312 LOAD_GLOBAL          (NULL + Image)
+            1322 LOAD_ATTR            (open)
+            1342 LOAD_FAST            (io)
+            1344 LOAD_ATTR            (NULL|self + BytesIO)
+            1364 LOAD_FAST            (original)
+            1366 CALL                 1
+            1374 CALL                 1
+            1382 LOAD_ATTR            (NULL|self + convert)
+            1402 LOAD_CONST           ("RGBA")
+            1404 CALL                 1
+            1412 STORE_FAST           (original_rgba)
+
+224:        1414 LOAD_FAST            (original_rgba)
+            1416 LOAD_ATTR            (NULL|self + getchannel)
+            1436 LOAD_CONST           ("A")
+            1438 CALL                 1
+            1446 LOAD_ATTR            (NULL|self + getextrema)
+            1466 CALL                 0
+            1474 LOAD_CONST           (0)
+            1476 BINARY_SUBSCR
+            1480 LOAD_CONST           (255)
+            1482 COMPARE_OP           (<)
+            1486 STORE_FAST           (exact_alpha)
+
+225:        1488 LOAD_FAST            (exact_alpha)
+            1490 POP_JUMP_IF_FALSE    (to 1536)
+
+226:        1492 LOAD_FAST            (original_rgba)
+            1494 LOAD_CONST           ("SOURCE_ALPHA")
+            1496 LOAD_CONST           (True)
+            1498 LOAD_CONST           (('method', 'rgb_unchanged'))
+            1500 BUILD_CONST_KEY_MAP  2
+            1502 STORE_FAST           (isolation)
+            1504 STORE_FAST           (cutout)
+
+227:        1506 LOAD_FAST            (trusted_finish)
+            1508 LOAD_ATTR            (file_key)
+            1528 LOAD_FAST            (digest)
+            1530 STORE_FAST           (sha)
+            1532 STORE_FAST           (key)
+            1534 JUMP_FORWARD         (to 1626)
+
+229:     >> 1536 LOAD_GLOBAL          (NULL + isolate_product)
+            1546 LOAD_FAST            (original_rgba)
+            1548 LOAD_FAST            (diagnosis)
+            1550 CALL                 2
+            1558 UNPACK_SEQUENCE      2
+            1562 STORE_FAST           (cutout)
+            1564 STORE_FAST           (isolation)
+
+230:        1566 LOAD_DEREF           (worker)
+            1568 LOAD_ATTR            (NULL|self + write_artifact)
+            1588 LOAD_DEREF           (workspace_id)
+            1590 LOAD_GLOBAL          (NULL + png)
+            1600 LOAD_FAST            (cutout)
+            1602 CALL                 1
+            1610 CALL                 2
+            1618 UNPACK_SEQUENCE      2
+            1622 STORE_FAST           (key)
+            1624 STORE_FAST           (sha)
+
+231:     >> 1626 LOAD_FAST            (product_asset)
+            1628 POP_JUMP_IF_FALSE    (to 1654)
+            1630 LOAD_FAST            (product_asset)
+            1632 LOAD_ATTR            (id)
+            1652 JUMP_FORWARD         (to 1684)
+         >> 1654 LOAD_FAST            (source)
+            1656 POP_JUMP_IF_FALSE    (to 1682)
+            1658 LOAD_FAST            (source)
+            1660 LOAD_ATTR            (id)
+            1680 JUMP_FORWARD         (to 1684)
+         >> 1682 LOAD_CONST           (None)
+
+232:     >> 1684 LOAD_FAST            (digest)
+            1686 LOAD_FAST            (key)
+            1688 LOAD_FAST            (sha)
+            1690 LOAD_FAST            (isolation)
+
+233:        1692 LOAD_CONST           ("PASS")
+            1694 LOAD_CONST           (0)
+            1696 LOAD_CONST           ("PRODUCT_PREVIEW_SOURCE")
+
+234:        1698 LOAD_GLOBAL          (NULL + bool)
+            1708 LOAD_FAST            (exact_alpha)
+            1710 CALL                 1
+            1718 LOAD_FAST            (exact_alpha)
+            1720 POP_JUMP_IF_FALSE    (to 1726)
+            1722 LOAD_CONST           ("LOCAL_SOURCE_ALPHA")
+            1724 JUMP_FORWARD         (to 1728)
+         >> 1726 LOAD_CONST           ("LOCAL_ISOLATION_FOR_HUMAN")
+
+235:     >> 1728 LOAD_FAST            (snapshot)
+            1730 LOAD_CONST           ("route")
+            1732 BINARY_SUBSCR
+            1736 LOAD_CONST           ("human_review_contract")
+            1738 BINARY_SUBSCR
+
+236:        1742 LOAD_CONST           (False)
+            1744 LOAD_CONST           (False)
+
+231:        1746 LOAD_CONST           (('source_asset_id', 'source_sha256', 'file_key', 'sha256', 'isolation', 'status', 'repair_count', 'asset_role', 'product_master_valid', 'proof_kind', 'human_review_contract', 'ai_review_performed', 'geometry_verified'))
+            1748 BUILD_CONST_KEY_MAP  13
+            1750 STORE_FAST           (checkpoint)
+
+237:        1752 PUSH_NULL
+            1754 LOAD_FAST            (save)
+            1756 LOAD_FAST            (checkpoint)
+            1758 CALL                 1
+            1766 POP_TOP
+
+238:     >> 1768 LOAD_DEREF           (worker)
+            1770 LOAD_ATTR            (storage)
+            1790 LOAD_ATTR            (NULL|self + read)
+            1810 LOAD_DEREF           (workspace_id)
+            1812 LOAD_FAST            (checkpoint)
+            1814 LOAD_CONST           ("file_key")
+            1816 BINARY_SUBSCR
+            1820 CALL                 2
+            1828 STORE_FAST           (data)
+
+239:        1830 LOAD_FAST            (checkpoint)
+            1832 LOAD_CONST           ("source_sha256")
+            1834 BINARY_SUBSCR
+            1838 LOAD_FAST            (digest)
+            1840 COMPARE_OP           (!=)
+            1844 POP_JUMP_IF_TRUE     (to 1928)
+            1846 LOAD_GLOBAL          (NULL + hashlib)
+            1856 LOAD_ATTR            (sha256)
+            1876 LOAD_FAST            (data)
+            1878 CALL                 1
+            1886 LOAD_ATTR            (NULL|self + hexdigest)
+            1906 CALL                 0
+            1914 LOAD_FAST            (checkpoint)
+            1916 LOAD_CONST           ("sha256")
+            1918 BINARY_SUBSCR
+            1922 COMPARE_OP           (!=)
+            1926 POP_JUMP_IF_FALSE    (to 1954)
+
+240:     >> 1928 LOAD_GLOBAL          (NULL + DomainError)
+            1938 LOAD_CONST           ("STALE_VERSION")
+            1940 LOAD_CONST           ("场景产品文件已变化，请重新选择。")
+            1942 LOAD_CONST           (409)
+            1944 CALL                 3
+            1952 RAISE_VARARGS        (exception instance)
+
+241:     >> 1954 LOAD_GLOBAL          (NULL + Image)
+            1964 LOAD_ATTR            (open)
+            1984 LOAD_FAST            (io)
+            1986 LOAD_ATTR            (NULL|self + BytesIO)
+            2006 LOAD_FAST            (data)
+            2008 CALL                 1
+            2016 CALL                 1
+            2024 LOAD_ATTR            (NULL|self + convert)
+            2044 LOAD_CONST           ("RGBA")
+            2046 CALL                 1
+            2054 STORE_FAST           (cutout)
+
+242:        2056 LOAD_GLOBAL          (NULL + Image)
+            2066 LOAD_ATTR            (open)
+            2086 LOAD_FAST            (io)
+            2088 LOAD_ATTR            (NULL|self + BytesIO)
+            2108 LOAD_FAST            (original)
+            2110 CALL                 1
+            2118 CALL                 1
+            2126 LOAD_ATTR            (NULL|self + convert)
+            2146 LOAD_CONST           ("RGBA")
+            2148 CALL                 1
+            2156 STORE_FAST           (original_rgba)
+
+243:        2158 LOAD_FAST            (cutout)
+            2160 LOAD_ATTR            (size)
+            2180 LOAD_FAST            (original_rgba)
+            2182 LOAD_ATTR            (size)
+            2202 COMPARE_OP           (!=)
+            2206 POP_JUMP_IF_TRUE     (to 2376)
+            2208 LOAD_GLOBAL          (NULL + np)
+            2218 LOAD_ATTR            (array_equal)
+            2238 LOAD_GLOBAL          (NULL + np)
+            2248 LOAD_ATTR            (asarray)
+            2268 LOAD_FAST            (cutout)
+            2270 CALL                 1
+            2278 LOAD_CONST           (None)
+            2280 LOAD_CONST           (None)
+            2282 BUILD_SLICE          2
+            2284 LOAD_CONST           (None)
+            2286 LOAD_CONST           (None)
+            2288 BUILD_SLICE          2
+            2290 LOAD_CONST           (None)
+            2292 LOAD_CONST           (3)
+            2294 BUILD_SLICE          2
+            2296 BUILD_TUPLE          3
+            2298 BINARY_SUBSCR
+            2302 LOAD_GLOBAL          (NULL + np)
+            2312 LOAD_ATTR            (asarray)
+            2332 LOAD_FAST            (original_rgba)
+            2334 CALL                 1
+            2342 LOAD_CONST           (None)
+            2344 LOAD_CONST           (None)
+            2346 BUILD_SLICE          2
+            2348 LOAD_CONST           (None)
+            2350 LOAD_CONST           (None)
+            2352 BUILD_SLICE          2
+            2354 LOAD_CONST           (None)
+            2356 LOAD_CONST           (3)
+            2358 BUILD_SLICE          2
+            2360 BUILD_TUPLE          3
+            2362 BINARY_SUBSCR
+            2366 CALL                 2
+            2374 POP_JUMP_IF_TRUE     (to 2402)
+
+244:     >> 2376 LOAD_GLOBAL          (NULL + DomainError)
+            2386 LOAD_CONST           ("EXTRACTION_FAIL")
+            2388 LOAD_CONST           ("本机分离改变了原产品像素，未用于场景制作。")
+            2390 LOAD_CONST           (409)
+            2392 CALL                 3
+            2400 RAISE_VARARGS        (exception instance)
+
+245:     >> 2402 LOAD_FAST            (locked_finish)
+            2404 POP_JUMP_IF_FALSE    (to 2558)
+            2406 LOAD_FAST            (cutout)
+            2408 LOAD_ATTR            (NULL|self + getchannel)
+            2428 LOAD_CONST           ("A")
+            2430 CALL                 1
+            2438 LOAD_ATTR            (NULL|self + tobytes)
+            2458 CALL                 0
+            2466 LOAD_FAST            (original_rgba)
+            2468 LOAD_ATTR            (NULL|self + getchannel)
+            2488 LOAD_CONST           ("A")
+            2490 CALL                 1
+            2498 LOAD_ATTR            (NULL|self + tobytes)
+            2518 CALL                 0
+            2526 COMPARE_OP           (!=)
+            2530 POP_JUMP_IF_FALSE    (to 2558)
+
+246:        2532 LOAD_GLOBAL          (NULL + DomainError)
+            2542 LOAD_CONST           ("SURFACE_FINISH_INVALID")
+            2544 LOAD_CONST           ("场景分离不能改变原配色产品的轮廓或镂空。")
+            2546 LOAD_CONST           (409)
+            2548 CALL                 3
+            2556 RAISE_VARARGS        (exception instance)
+
+247:     >> 2558 LOAD_FAST            (cutout)
+            2560 LOAD_FAST            (checkpoint)
+            2562 BUILD_TUPLE          2
+            2564 RETURN_VALUE
+
+248:     >> 2566 LOAD_FAST_CHECK      (checkpoint)
+            2568 EXTENDED_ARG         (256)
+            2570 POP_JUMP_IF_TRUE     (to 3528)
+            2572 LOAD_FAST_CHECK      (shared)
+            2574 EXTENDED_ARG         (256)
+            2576 POP_JUMP_IF_FALSE    (to 3528)
+            2578 LOAD_FAST            (locked_finish)
+            2580 EXTENDED_ARG         (256)
+            2582 POP_JUMP_IF_FALSE    (to 3528)
+
+251:        2584 LOAD_FAST            (trusted_finish)
+            2586 LOAD_ATTR            (info)
+            2606 LOAD_ATTR            (NULL|self + get)
+            2626 LOAD_CONST           ("qa_result")
+            2628 CALL                 1
+            2636 COPY                 1
+            2638 POP_JUMP_IF_TRUE     (to 2644)
+            2640 POP_TOP
+            2642 BUILD_MAP            0
+         >> 2644 STORE_FAST           (qa)
+
+252:        2646 LOAD_FAST            (trusted_finish)
+            2648 LOAD_ATTR            (info)
+            2668 LOAD_ATTR            (NULL|self + get)
+            2688 LOAD_CONST           ("qa_contract_coverage")
+            2690 CALL                 1
+            2698 COPY                 1
+            2700 POP_JUMP_IF_TRUE     (to 2706)
+            2702 POP_TOP
+            2704 BUILD_MAP            0
+         >> 2706 STORE_FAST           (coverage)
+
+253:        2708 LOAD_FAST            (coverage)
+            2710 LOAD_ATTR            (NULL|self + get)
+            2730 LOAD_CONST           ("required")
+            2732 CALL                 1
+            2740 COPY                 1
+            2742 POP_JUMP_IF_TRUE     (to 2748)
+            2744 POP_TOP
+            2746 BUILD_LIST           0
+         >> 2748 LOAD_FAST            (coverage)
+            2750 LOAD_ATTR            (NULL|self + get)
+            2770 LOAD_CONST           ("reported")
+            2772 CALL                 1
+            2780 COPY                 1
+            2782 POP_JUMP_IF_TRUE     (to 2788)
+            2784 POP_TOP
+            2786 BUILD_LIST           0
+         >> 2788 STORE_FAST           (reported)
+            2790 STORE_FAST           (required)
+
+254:        2792 LOAD_FAST            (qa)
+            2794 LOAD_ATTR            (NULL|self + get)
+            2814 LOAD_CONST           ("constraint_checks")
+            2816 BUILD_LIST           0
+            2818 CALL                 2
+            2826 GET_ITER
+            2828 LOAD_FAST_AND_CLEAR  (c)
+            2830 SWAP                 (TOS <-> TOS1)
+            2832 BUILD_MAP            0
+            2834 SWAP                 (TOS <-> TOS1)
+            2836 FOR_ITER             (to 2910)
+            2840 STORE_FAST           (c)
+            2842 LOAD_FAST            (c)
+            2844 LOAD_ATTR            (NULL|self + get)
+            2864 LOAD_CONST           ("requirement_id")
+            2866 CALL                 1
+            2874 LOAD_FAST            (c)
+            2876 LOAD_ATTR            (NULL|self + get)
+            2896 LOAD_CONST           ("status")
+            2898 CALL                 1
+            2906 MAP_ADD              2
+         >> 2908 JUMP_BACKWARD        (to 2836)
+            2910 END_FOR
+            2912 SWAP                 (TOS <-> TOS1)
+            2914 STORE_FAST           (c)
+            2916 STORE_DEREF          (checks)
+
+255:        2918 LOAD_FAST            (trusted_finish)
+            2920 LOAD_ATTR            (info)
+            2940 LOAD_ATTR            (NULL|self + get)
+            2960 LOAD_CONST           ("surface_finish_status")
+            2962 CALL                 1
+            2970 LOAD_CONST           ("PASS")
+            2972 COMPARE_OP           (==)
+            2976 COPY                 1
+            2978 POP_JUMP_IF_FALSE    (to 3394)
+            2980 POP_TOP
+
+256:        2982 LOAD_FAST            (trusted_finish)
+         >> 2984 LOAD_ATTR            (state)
+            3004 LOAD_CONST           (('READY_FOR_SELECTION', 'ACCEPTED', 'HISTORY', 'LATER'))
+            3006 CONTAINS_OP          (in)
+
+255:        3008 COPY                 1
+            3010 POP_JUMP_IF_FALSE    (to 3394)
+            3012 POP_TOP
+
+257:        3014 LOAD_FAST            (trusted_finish)
+            3016 LOAD_ATTR            (info)
+            3036 LOAD_ATTR            (NULL|self + get)
+            3056 LOAD_CONST           ("qa_error")
+            3058 CALL                 1
+            3066 UNARY_NOT
+
+255:        3068 COPY                 1
+            3070 POP_JUMP_IF_FALSE    (to 3394)
+            3072 POP_TOP
+
+257:        3074 LOAD_FAST            (trusted_finish)
+            3076 LOAD_ATTR            (info)
+            3096 LOAD_ATTR            (NULL|self + get)
+            3116 LOAD_CONST           ("qa_pending")
+            3118 CALL                 1
+            3126 UNARY_NOT
+
+255:        3128 COPY                 1
+            3130 POP_JUMP_IF_FALSE    (to 3394)
+            3132 POP_TOP
+
+258:        3134 LOAD_FAST            (trusted_finish)
+            3136 LOAD_ATTR            (info)
+            3156 LOAD_ATTR            (NULL|self + get)
+            3176 LOAD_CONST           ("automatic_quality_rejected")
+            3178 CALL                 1
+            3186 UNARY_NOT
+
+255:        3188 COPY                 1
+            3190 POP_JUMP_IF_FALSE    (to 3394)
+            3192 POP_TOP
+
+259:        3194 LOAD_FAST            (finish_proof)
+            3196 LOAD_CONST           ("appearance_check")
+            3198 BINARY_SUBSCR
+            3202 LOAD_CONST           ("blocking")
+            3204 BINARY_SUBSCR
+            3208 UNARY_NOT
+
+255:        3210 COPY                 1
+            3212 POP_JUMP_IF_FALSE    (to 3394)
+            3214 POP_TOP
+
+259:        3216 LOAD_FAST            (qa)
+            3218 LOAD_ATTR            (NULL|self + get)
+            3238 LOAD_CONST           ("qa_status")
+            3240 CALL                 1
+            3248 LOAD_CONST           (('PASS', 'WARN'))
+            3250 CONTAINS_OP          (in)
+
+255:        3252 COPY                 1
+            3254 POP_JUMP_IF_FALSE    (to 3394)
+            3256 POP_TOP
+
+260:        3258 BUILD_SET            0
+            3260 LOAD_CONST           (frozenset({'finish_artistic_quality', 'surface_finish', 'finish_product_fidelity'}))
+            3262 SET_UPDATE           1
+            3264 LOAD_ATTR            (NULL|self + issubset)
+            3284 LOAD_FAST            (required)
+            3286 CALL                 1
+
+255:        3294 COPY                 1
+            3296 POP_JUMP_IF_FALSE    (to 3394)
+            3298 POP_TOP
+
+261:        3300 LOAD_GLOBAL          (NULL + set)
+            3310 LOAD_FAST            (required)
+            3312 CALL                 1
+            3320 LOAD_ATTR            (NULL|self + issubset)
+            3340 LOAD_FAST            (reported)
+            3342 CALL                 1
+
+255:        3350 COPY                 1
+            3352 POP_JUMP_IF_FALSE    (to 3394)
+            3354 POP_TOP
+
+261:        3356 LOAD_GLOBAL          (NULL + all)
+            3366 LOAD_CLOSURE         (checks)
+            3368 BUILD_TUPLE          1
+            3370 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a249480, file app\locked_scene.py>, line 261)
+            3372 MAKE_FUNCTION        (closure)
+            3374 LOAD_FAST            (required)
+            3376 GET_ITER
+            3378 CALL                 0
+            3386 CALL                 1
+
+255:     >> 3394 STORE_FAST           (finish_ready)
+
+262:        3396 LOAD_FAST            (finish_ready)
+            3398 POP_JUMP_IF_FALSE    (to 3528)
+
+263:        3400 LOAD_FAST            (trusted_finish)
+            3402 LOAD_ATTR            (id)
+            3422 LOAD_FAST            (digest)
+
+264:        3424 LOAD_FAST            (trusted_finish)
+            3426 LOAD_ATTR            (file_key)
+            3446 LOAD_FAST            (digest)
+
+265:        3448 LOAD_CONST           ("VERIFIED_SURFACE_FINISH_ALPHA")
+            3450 LOAD_CONST           (True)
+            3452 LOAD_CONST           (('method', 'rgb_unchanged'))
+            3454 BUILD_CONST_KEY_MAP  2
+
+266:        3456 LOAD_CONST           ("PASS")
+            3458 LOAD_CONST           (0)
+            3460 LOAD_CONST           ("PRODUCT_MASTER")
+            3462 LOAD_CONST           (True)
+
+267:        3464 LOAD_CONST           ("SOURCE_FINISH_QA_AND_EXACT_ALPHA")
+            3466 LOAD_FAST            (qa)
+
+268:        3468 LOAD_GLOBAL          (NULL + list)
+            3478 LOAD_FAST            (required)
+            3480 CALL                 1
+            3488 LOAD_FAST            (digest)
+
+269:        3490 LOAD_FAST            (finish_proof)
+            3492 LOAD_CONST           ("structure_sha256")
+            3494 BINARY_SUBSCR
+
+270:        3498 LOAD_FAST            (finish_proof)
+            3500 LOAD_CONST           ("mask_sha256")
+            3502 BINARY_SUBSCR
+
+263:        3506 LOAD_CONST           (('source_asset_id', 'source_sha256', 'file_key', 'sha256', 'isolation', 'status', 'repair_count', 'asset_role', 'product_master_valid', 'proof_kind', 'qa_result', 'qa_required_check_ids', 'qa_output_sha256', 'finish_structure_sha256', 'finish_mask_sha256'))
+            3508 BUILD_CONST_KEY_MAP  15
+            3510 STORE_FAST           (checkpoint)
+
+271:        3512 PUSH_NULL
+            3514 LOAD_FAST            (save)
+            3516 LOAD_FAST            (checkpoint)
+            3518 CALL                 1
+            3526 POP_TOP
+
+272:     >> 3528 LOAD_FAST            (checkpoint)
+            3530 POP_JUMP_IF_TRUE     (to 3966)
+
+273:        3532 LOAD_FAST            (source)
+            3534 POP_JUMP_IF_FALSE    (to 3590)
+            3536 LOAD_FAST            (source)
+            3538 LOAD_ATTR            (info)
+            3558 LOAD_ATTR            (NULL|self + get)
+            3578 LOAD_CONST           ("product_extraction")
+            3580 CALL                 1
+            3588 JUMP_FORWARD         (to 3592)
+         >> 3590 LOAD_CONST           (None)
+         >> 3592 STORE_FAST           (inherited)
+
+274:        3594 LOAD_FAST            (inherited)
+            3596 POP_JUMP_IF_FALSE    (to 3740)
+            3598 LOAD_FAST            (inherited)
+            3600 LOAD_ATTR            (NULL|self + get)
+            3620 LOAD_CONST           ("source_sha256")
+            3622 CALL                 1
+            3630 LOAD_FAST            (digest)
+            3632 COMPARE_OP           (==)
+            3636 POP_JUMP_IF_FALSE    (to 3740)
+            3638 LOAD_FAST            (inherited)
+            3640 LOAD_ATTR            (NULL|self + get)
+            3660 LOAD_CONST           ("status")
+            3662 CALL                 1
+            3670 LOAD_CONST           ("PASS")
+            3672 COMPARE_OP           (==)
+            3676 POP_JUMP_IF_FALSE    (to 3740)
+
+275:        3678 LOAD_GLOBAL          (NULL + dict)
+            3688 LOAD_FAST            (inherited)
+            3690 CALL                 1
+            3698 STORE_FAST           (checkpoint)
+
+276:        3700 LOAD_FAST_CHECK      (shared)
+            3702 POP_JUMP_IF_FALSE    (to 3950)
+            3704 LOAD_FAST            (product_asset)
+            3706 POP_JUMP_IF_FALSE    (to 3950)
+
+277:        3708 LOAD_FAST            (product_asset)
+            3710 LOAD_ATTR            (id)
+            3730 LOAD_FAST            (checkpoint)
+            3732 LOAD_CONST           ("source_asset_id")
+            3734 STORE_SUBSCR
+            3738 JUMP_FORWARD         (to 3950)
+
+279:     >> 3740 LOAD_GLOBAL          (NULL + isolate_product)
+            3750 LOAD_GLOBAL          (NULL + Image)
+            3760 LOAD_ATTR            (open)
+            3780 LOAD_FAST            (io)
+            3782 LOAD_ATTR            (NULL|self + BytesIO)
+            3802 LOAD_FAST            (original)
+            3804 CALL                 1
+            3812 CALL                 1
+            3820 LOAD_FAST            (diagnosis)
+            3822 CALL                 2
+            3830 UNPACK_SEQUENCE      2
+            3834 STORE_FAST           (cutout)
+            3836 STORE_FAST           (isolation)
+
+280:        3838 LOAD_DEREF           (worker)
+            3840 LOAD_ATTR            (NULL|self + write_artifact)
+            3860 LOAD_DEREF           (workspace_id)
+            3862 LOAD_GLOBAL          (NULL + png)
+            3872 LOAD_FAST            (cutout)
+            3874 CALL                 1
+            3882 CALL                 2
+            3890 UNPACK_SEQUENCE      2
+            3894 STORE_FAST           (key)
+            3896 STORE_FAST           (sha)
+
+281:        3898 LOAD_FAST            (digest)
+            3900 LOAD_FAST            (key)
+            3902 LOAD_FAST            (sha)
+
+282:        3904 LOAD_FAST            (product_asset)
+            3906 POP_JUMP_IF_FALSE    (to 3932)
+            3908 LOAD_FAST            (product_asset)
+            3910 LOAD_ATTR            (id)
+            3930 JUMP_FORWARD         (to 3934)
+         >> 3932 LOAD_CONST           (None)
+
+283:     >> 3934 LOAD_FAST            (isolation)
+            3936 LOAD_CONST           ("QA_PENDING")
+            3938 LOAD_CONST           (0)
+
+284:        3940 LOAD_CONST           ("PRODUCT_EXTRACTION")
+            3942 LOAD_CONST           (False)
+
+281:        3944 LOAD_CONST           (('source_sha256', 'file_key', 'sha256', 'source_asset_id', 'isolation', 'status', 'repair_count', 'asset_role', 'product_master_valid'))
+            3946 BUILD_CONST_KEY_MAP  9
+            3948 STORE_FAST           (checkpoint)
+
+285:     >> 3950 PUSH_NULL
+            3952 LOAD_FAST            (save)
+            3954 LOAD_FAST            (checkpoint)
+            3956 CALL                 1
+            3964 POP_TOP
+
+286:     >> 3966 LOAD_FAST            (checkpoint)
+            3968 LOAD_CONST           ("source_sha256")
+            3970 BINARY_SUBSCR
+            3974 LOAD_FAST            (digest)
+            3976 COMPARE_OP           (!=)
+            3980 POP_JUMP_IF_FALSE    (to 4006)
+
+287:        3982 LOAD_GLOBAL          (NULL + DomainError)
+            3992 LOAD_CONST           ("STALE_VERSION")
+            3994 LOAD_CONST           ("产品分离结果与原图不一致")
+            3996 CALL                 2
+            4004 RAISE_VARARGS        (exception instance)
+
+288:     >> 4006 LOAD_FAST_CHECK      (shared)
+            4008 EXTENDED_ARG         (256)
+            4010 POP_JUMP_IF_FALSE    (to 5008)
+            4012 LOAD_FAST            (checkpoint)
+            4014 LOAD_ATTR            (NULL|self + get)
+            4034 LOAD_CONST           ("status")
+            4036 CALL                 1
+            4044 LOAD_CONST           ("PASS")
+            4046 COMPARE_OP           (==)
+            4050 EXTENDED_ARG         (256)
+            4052 POP_JUMP_IF_FALSE    (to 5008)
+
+289:        4054 LOAD_FAST            (checkpoint)
+            4056 LOAD_ATTR            (NULL|self + get)
+            4076 LOAD_CONST           ("qa_result")
+            4078 CALL                 1
+            4086 COPY                 1
+            4088 POP_JUMP_IF_TRUE     (to 4094)
+            4090 POP_TOP
+            4092 BUILD_MAP            0
+         >> 4094 STORE_FAST           (qa)
+
+290:        4096 LOAD_FAST            (checkpoint)
+            4098 LOAD_ATTR            (NULL|self + get)
+            4118 LOAD_CONST           ("qa_required_check_ids")
+            4120 CALL                 1
+            4128 COPY                 1
+            4130 POP_JUMP_IF_TRUE     (to 4140)
+            4132 POP_TOP
+            4134 BUILD_LIST           0
+            4136 LOAD_CONST           (('product_fidelity', 'shape', 'holes', 'texture', 'color'))
+            4138 LIST_EXTEND          1
+         >> 4140 STORE_FAST           (required)
+
+291:        4142 LOAD_FAST            (qa)
+            4144 LOAD_ATTR            (NULL|self + get)
+            4164 LOAD_CONST           ("constraint_checks")
+            4166 BUILD_LIST           0
+            4168 CALL                 2
+            4176 GET_ITER
+            4178 LOAD_FAST_AND_CLEAR  (c)
+            4180 SWAP                 (TOS <-> TOS1)
+            4182 BUILD_MAP            0
+            4184 SWAP                 (TOS <-> TOS1)
+            4186 FOR_ITER             (to 4260)
+            4190 STORE_FAST           (c)
+            4192 LOAD_FAST            (c)
+            4194 LOAD_ATTR            (NULL|self + get)
+            4214 LOAD_CONST           ("requirement_id")
+            4216 CALL                 1
+            4224 LOAD_FAST            (c)
+            4226 LOAD_ATTR            (NULL|self + get)
+            4246 LOAD_CONST           ("status")
+            4248 CALL                 1
+            4256 MAP_ADD              2
+         >> 4258 JUMP_BACKWARD        (to 4186)
+            4260 END_FOR
+            4262 SWAP                 (TOS <-> TOS1)
+            4264 STORE_FAST           (c)
+            4266 STORE_DEREF          (checks)
+
+292:        4268 LOAD_FAST            (checkpoint)
+            4270 LOAD_ATTR            (NULL|self + get)
+            4290 LOAD_CONST           ("product_master_valid")
+            4292 CALL                 1
+            4300 POP_JUMP_IF_FALSE    (to 4486)
+            4302 LOAD_FAST            (required)
+            4304 POP_JUMP_IF_FALSE    (to 4486)
+            4306 LOAD_FAST            (qa)
+            4308 LOAD_ATTR            (NULL|self + get)
+            4328 LOAD_CONST           ("qa_status")
+            4330 CALL                 1
+            4338 LOAD_CONST           (('PASS', 'WARN'))
+            4340 CONTAINS_OP          (not in)
+            4342 POP_JUMP_IF_TRUE     (to 4486)
+
+293:        4344 LOAD_GLOBAL          (NULL + all)
+            4354 LOAD_CLOSURE         (checks)
+            4356 BUILD_TUPLE          1
+            4358 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a249370, file app\locked_scene.py>, line 293)
+            4360 MAKE_FUNCTION        (closure)
+            4362 LOAD_FAST            (required)
+            4364 GET_ITER
+            4366 CALL                 0
+            4374 CALL                 1
+            4382 POP_JUMP_IF_FALSE    (to 4486)
+
+294:        4384 LOAD_FAST            (checkpoint)
+            4386 LOAD_ATTR            (NULL|self + get)
+            4406 LOAD_CONST           ("qa_output_sha256")
+            4408 LOAD_FAST            (checkpoint)
+            4410 LOAD_ATTR            (NULL|self + get)
+            4430 LOAD_CONST           ("sha256")
+            4432 CALL                 1
+            4440 CALL                 2
+            4448 LOAD_FAST            (checkpoint)
+            4450 LOAD_ATTR            (NULL|self + get)
+            4470 LOAD_CONST           ("sha256")
+            4472 CALL                 1
+            4480 COMPARE_OP           (!=)
+            4484 POP_JUMP_IF_FALSE    (to 4512)
+
+295:     >> 4486 LOAD_GLOBAL          (NULL + DomainError)
+            4496 LOAD_CONST           ("EXTRACTION_FAIL")
+            4498 LOAD_CONST           ("产品分离缺少绑定当前文件的完整检查，未复用未核验产品。")
+            4500 LOAD_CONST           (409)
+            4502 CALL                 3
+            4510 RAISE_VARARGS        (exception instance)
+
+296:     >> 4512 LOAD_FAST            (checkpoint)
+            4514 LOAD_ATTR            (NULL|self + get)
+            4534 LOAD_CONST           ("proof_kind")
+            4536 CALL                 1
+            4544 LOAD_CONST           ("SOURCE_FINISH_QA_AND_EXACT_ALPHA")
+            4546 COMPARE_OP           (==)
+            4550 POP_JUMP_IF_FALSE    (to 5008)
+
+297:        4552 LOAD_FAST            (finish_proof)
+            4554 POP_JUMP_IF_FALSE    (to 4982)
+            4556 LOAD_FAST            (finish_proof)
+            4558 LOAD_CONST           ("appearance_check")
+            4560 BINARY_SUBSCR
+            4564 LOAD_CONST           ("blocking")
+            4566 BINARY_SUBSCR
+            4570 POP_JUMP_IF_TRUE     (to 4982)
+
+298:        4572 LOAD_FAST            (finish_proof)
+            4574 LOAD_CONST           ("structure_sha256")
+            4576 BINARY_SUBSCR
+            4580 LOAD_FAST            (checkpoint)
+            4582 LOAD_ATTR            (NULL|self + get)
+            4602 LOAD_CONST           ("finish_structure_sha256")
+            4604 CALL                 1
+            4612 COMPARE_OP           (!=)
+            4616 POP_JUMP_IF_TRUE     (to 4982)
+
+299:        4618 LOAD_FAST            (finish_proof)
+            4620 LOAD_CONST           ("mask_sha256")
+            4622 BINARY_SUBSCR
+            4626 LOAD_FAST            (checkpoint)
+            4628 LOAD_ATTR            (NULL|self + get)
+            4648 LOAD_CONST           ("finish_mask_sha256")
+            4650 CALL                 1
+            4658 COMPARE_OP           (!=)
+            4662 POP_JUMP_IF_TRUE     (to 4982)
+
+300:        4664 LOAD_FAST            (trusted_finish)
+            4666 LOAD_ATTR            (info)
+            4686 LOAD_ATTR            (NULL|self + get)
+            4706 LOAD_CONST           ("qa_result")
+            4708 CALL                 1
+            4716 COPY                 1
+            4718 POP_JUMP_IF_TRUE     (to 4724)
+            4720 POP_TOP
+            4722 BUILD_MAP            0
+         >> 4724 LOAD_FAST            (qa)
+            4726 COMPARE_OP           (!=)
+            4730 POP_JUMP_IF_TRUE     (to 4982)
+
+301:        4732 LOAD_FAST            (trusted_finish)
+            4734 LOAD_ATTR            (info)
+            4754 LOAD_ATTR            (NULL|self + get)
+            4774 LOAD_CONST           ("qa_error")
+            4776 CALL                 1
+            4784 POP_JUMP_IF_TRUE     (to 4982)
+            4786 LOAD_FAST            (trusted_finish)
+            4788 LOAD_ATTR            (info)
+            4808 LOAD_ATTR            (NULL|self + get)
+            4828 LOAD_CONST           ("qa_pending")
+            4830 CALL                 1
+            4838 POP_JUMP_IF_TRUE     (to 4982)
+
+302:        4840 LOAD_FAST            (trusted_finish)
+            4842 LOAD_ATTR            (info)
+            4862 LOAD_ATTR            (NULL|self + get)
+            4882 LOAD_CONST           ("automatic_quality_rejected")
+            4884 CALL                 1
+            4892 POP_JUMP_IF_TRUE     (to 4982)
+
+303:        4894 LOAD_FAST            (trusted_finish)
+            4896 LOAD_ATTR            (state)
+            4916 LOAD_CONST           (('READY_FOR_SELECTION', 'ACCEPTED', 'HISTORY', 'LATER'))
+            4918 CONTAINS_OP          (not in)
+            4920 POP_JUMP_IF_TRUE     (to 4982)
+
+304:        4922 LOAD_FAST            (trusted_finish)
+            4924 LOAD_ATTR            (info)
+            4944 LOAD_ATTR            (NULL|self + get)
+            4964 LOAD_CONST           ("surface_finish_status")
+            4966 CALL                 1
+            4974 LOAD_CONST           ("PASS")
+            4976 COMPARE_OP           (!=)
+            4980 POP_JUMP_IF_FALSE    (to 5008)
+
+305:     >> 4982 LOAD_GLOBAL          (NULL + DomainError)
+            4992 LOAD_CONST           ("SURFACE_FINISH_INVALID")
+            4994 LOAD_CONST           ("已验证配色依据发生变化，未沿用旧产品检查。")
+            4996 LOAD_CONST           (409)
+            4998 CALL                 3
+            5006 RAISE_VARARGS        (exception instance)
+
+306:     >> 5008 NOP
+
+307:        5010 LOAD_DEREF           (worker)
+            5012 LOAD_ATTR            (storage)
+            5032 LOAD_ATTR            (NULL|self + read)
+            5052 LOAD_DEREF           (workspace_id)
+            5054 LOAD_FAST            (checkpoint)
+            5056 LOAD_CONST           ("file_key")
+            5058 BINARY_SUBSCR
+            5062 CALL                 2
+            5070 STORE_FAST           (data)
+
+308:        5072 LOAD_GLOBAL          (NULL + hashlib)
+            5082 LOAD_ATTR            (sha256)
+            5102 LOAD_FAST            (data)
+            5104 CALL                 1
+            5112 LOAD_ATTR            (NULL|self + hexdigest)
+            5132 CALL                 0
+            5140 LOAD_FAST            (checkpoint)
+            5142 LOAD_CONST           ("sha256")
+            5144 BINARY_SUBSCR
+            5148 COMPARE_OP           (!=)
+            5152 POP_JUMP_IF_FALSE    (to 5178)
+
+309:        5154 LOAD_GLOBAL          (NULL + DomainError)
+            5164 LOAD_CONST           ("STALE_VERSION")
+            5166 LOAD_CONST           ("产品分离文件已变化")
+            5168 CALL                 2
+            5176 RAISE_VARARGS        (exception instance)
+
+310:     >> 5178 LOAD_GLOBAL          (NULL + Image)
+            5188 LOAD_ATTR            (open)
+            5208 LOAD_FAST            (io)
+            5210 LOAD_ATTR            (NULL|self + BytesIO)
+            5230 LOAD_FAST            (data)
+            5232 CALL                 1
+            5240 CALL                 1
+            5248 LOAD_ATTR            (NULL|self + convert)
+            5268 LOAD_CONST           ("RGBA")
+            5270 CALL                 1
+            5278 STORE_FAST           (cutout)
+
+311:        5280 LOAD_GLOBAL          (NULL + Image)
+            5290 LOAD_ATTR            (open)
+            5310 LOAD_FAST            (io)
+            5312 LOAD_ATTR            (NULL|self + BytesIO)
+            5332 LOAD_FAST            (original)
+            5334 CALL                 1
+            5342 CALL                 1
+            5350 LOAD_ATTR            (NULL|self + convert)
+            5370 LOAD_CONST           ("RGB")
+            5372 CALL                 1
+            5380 STORE_FAST           (source_rgb)
+
+312:        5382 LOAD_FAST            (cutout)
+            5384 LOAD_ATTR            (size)
+            5404 LOAD_FAST            (source_rgb)
+            5406 LOAD_ATTR            (size)
+            5426 COMPARE_OP           (==)
+            5430 COPY                 1
+            5432 POP_JUMP_IF_FALSE    (to 5578)
+            5434 POP_TOP
+            5436 LOAD_GLOBAL          (NULL + np)
+            5446 LOAD_ATTR            (array_equal)
+            5466 LOAD_GLOBAL          (NULL + np)
+            5476 LOAD_ATTR            (array)
+            5496 LOAD_FAST            (cutout)
+            5498 CALL                 1
+            5506 LOAD_CONST           (None)
+            5508 LOAD_CONST           (None)
+            5510 BUILD_SLICE          2
+            5512 LOAD_CONST           (None)
+            5514 LOAD_CONST           (None)
+            5516 BUILD_SLICE          2
+            5518 LOAD_CONST           (None)
+            5520 LOAD_CONST           (3)
+            5522 BUILD_SLICE          2
+            5524 BUILD_TUPLE          3
+            5526 BINARY_SUBSCR
+            5530 LOAD_GLOBAL          (NULL + np)
+            5540 LOAD_ATTR            (array)
+            5560 LOAD_FAST            (source_rgb)
+            5562 CALL                 1
+            5570 CALL                 2
+         >> 5578 STORE_FAST           (rgb_preserved)
+
+313:        5580 LOAD_FAST            (rgb_preserved)
+            5582 POP_JUMP_IF_TRUE     (to 5608)
+
+314:        5584 LOAD_GLOBAL          (NULL + DomainError)
+            5594 LOAD_CONST           ("EXTRACTION_FAIL")
+            5596 LOAD_CONST           ("产品分离改变了原始产品像素，已阻止作为母版")
+            5598 CALL                 2
+            5606 RAISE_VARARGS        (exception instance)
+
+315:     >> 5608 LOAD_FAST            (locked_finish)
+            5610 POP_JUMP_IF_FALSE    (to 5832)
+            5612 LOAD_FAST            (cutout)
+            5614 LOAD_ATTR            (NULL|self + getchannel)
+            5634 LOAD_CONST           ("A")
+            5636 CALL                 1
+            5644 LOAD_ATTR            (NULL|self + tobytes)
+            5664 CALL                 0
+            5672 LOAD_GLOBAL          (NULL + Image)
+            5682 LOAD_ATTR            (open)
+            5702 LOAD_FAST            (io)
+            5704 LOAD_ATTR            (NULL|self + BytesIO)
+            5724 LOAD_FAST            (original)
+            5726 CALL                 1
+            5734 CALL                 1
+            5742 LOAD_ATTR            (NULL|self + getchannel)
+            5762 LOAD_CONST           ("A")
+            5764 CALL                 1
+            5772 LOAD_ATTR            (NULL|self + tobytes)
+            5792 CALL                 0
+            5800 COMPARE_OP           (!=)
+            5804 POP_JUMP_IF_FALSE    (to 5832)
+
+316:        5806 LOAD_GLOBAL          (NULL + DomainError)
+            5816 LOAD_CONST           ("SURFACE_FINISH_INVALID")
+            5818 LOAD_CONST           ("场景分离改变了已确认结构的镂空或轮廓，已停止生成")
+            5820 LOAD_CONST           (409)
+            5822 CALL                 3
+            5830 RAISE_VARARGS        (exception instance)
+
+317:     >> 5832 LOAD_GLOBAL          (NULL + np)
+            5842 LOAD_ATTR            (array)
+            5862 LOAD_FAST            (cutout)
+            5864 LOAD_ATTR            (NULL|self + getchannel)
+            5884 LOAD_CONST           ("A")
+            5886 CALL                 1
+            5894 CALL                 1
+            5902 LOAD_CONST           (128)
+            5904 COMPARE_OP           (>=)
+            5908 LOAD_ATTR            (NULL|self + astype)
+            5928 LOAD_GLOBAL          (np)
+            5938 LOAD_ATTR            (uint8)
+            5958 CALL                 1
+            5966 STORE_FAST           (mask)
+
+318:        5968 LOAD_GLOBAL          (NULL + cv2)
+            5978 LOAD_ATTR            (connectedComponentsWithStats)
+            5998 LOAD_FAST            (mask)
+            6000 LOAD_CONST           (4)
+            6002 KW_NAMES             (('connectivity',))
+            6004 CALL                 2
+            6012 UNPACK_SEQUENCE      4
+            6016 STORE_FAST           (count)
+            6018 STORE_FAST           (_)
+            6020 STORE_FAST           (stats)
+            6022 STORE_FAST           (_)
+
+319:        6024 LOAD_GLOBAL          (NULL + cv2)
+            6034 LOAD_ATTR            (findContours)
+            6054 LOAD_FAST            (mask)
+            6056 LOAD_GLOBAL          (cv2)
+            6066 LOAD_ATTR            (RETR_CCOMP)
+            6086 LOAD_GLOBAL          (cv2)
+            6096 LOAD_ATTR            (CHAIN_APPROX_SIMPLE)
+            6116 CALL                 3
+            6124 UNPACK_SEQUENCE      2
+            6128 STORE_FAST           (contours)
+            6130 STORE_FAST           (hierarchy)
+
+320:        6132 LOAD_CONST           ("ALPHA_MASK_NOT_PRODUCT_COLOR_OR_CUT_GEOMETRY")
+
+321:        6134 LOAD_FAST            (count)
+            6136 LOAD_CONST           (1)
+            6138 BINARY_OP            (-)
+            6142 BUILD_LIST           0
+            6144 LOAD_FAST            (rgb_preserved)
+
+322:        6146 LOAD_GLOBAL          (NULL + int)
+            6156 LOAD_FAST            (mask)
+            6158 LOAD_ATTR            (NULL|self + sum)
+            6178 CALL                 0
+            6186 CALL                 1
+
+323:        6194 LOAD_FAST            (hierarchy)
+            6196 POP_JUMP_IF_NONE     (to 6240)
+            6198 LOAD_GLOBAL          (NULL + sum)
+            6208 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a249590, file app\locked_scene.py>, line 323)
+            6210 MAKE_FUNCTION        (No arguments)
+            6212 LOAD_FAST            (hierarchy)
+            6214 LOAD_CONST           (0)
+            6216 BINARY_SUBSCR
+            6220 GET_ITER
+            6222 CALL                 0
+            6230 CALL                 1
+            6238 JUMP_FORWARD         (to 6242)
+         >> 6240 LOAD_CONST           (0)
+
+320:     >> 6242 LOAD_CONST           (('authority', 'material_regions', 'components', 'rgb_unchanged', 'retained_alpha_pixels', 'holes'))
+            6244 BUILD_CONST_KEY_MAP  6
+            6246 STORE_FAST           (mask_facts)
+
+324:        6248 LOAD_CONST           ("REFERENCE")
+
+325:        6250 LOAD_CONST           (1)
+            6252 LOAD_CONST           ("SOURCE_ORIGINAL")
+            6254 LOAD_CONST           ("REFERENCE")
+            6256 LOAD_FAST            (digest)
+            6258 LOAD_CONST           (('position', 'purpose', 'layer', 'sha256'))
+            6260 BUILD_CONST_KEY_MAP  4
+
+326:        6262 LOAD_CONST           (2)
+            6264 LOAD_CONST           ("PRODUCT_EXTRACTION")
+            6266 LOAD_CONST           ("FINAL_DELIVERY")
+            6268 LOAD_FAST            (checkpoint)
+            6270 LOAD_CONST           ("sha256")
+            6272 BINARY_SUBSCR
+            6276 LOAD_CONST           (('position', 'purpose', 'layer', 'sha256'))
+            6278 BUILD_CONST_KEY_MAP  4
+
+324:        6280 BUILD_LIST           2
+            6282 LOAD_CONST           (('mode', 'images'))
+            6284 BUILD_CONST_KEY_MAP  2
+            6286 STORE_FAST           (manifest)
+
+327:        6288 LOAD_FAST            (original)
+            6290 PUSH_NULL
+            6292 LOAD_FAST            (preview)
+            6294 LOAD_FAST            (cutout)
+            6296 CALL                 1
+            6304 BUILD_LIST           2
+            6306 STORE_FAST           (content)
+
+328:        6308 LOAD_CONST           (None)
+            6310 STORE_FAST           (comparisons)
+
+329:        6312 LOAD_FAST            (checkpoint)
+            6314 LOAD_ATTR            (NULL|self + get)
+            6334 LOAD_CONST           ("repair_plan")
+            6336 CALL                 1
+            6344 POP_JUMP_IF_FALSE    (to 6562)
+
+330:        6346 LOAD_DEREF           (worker)
+            6348 LOAD_ATTR            (storage)
+            6368 LOAD_ATTR            (NULL|self + read)
+            6388 LOAD_DEREF           (workspace_id)
+            6390 LOAD_FAST            (checkpoint)
+            6392 LOAD_CONST           ("before_file_key")
+            6394 BINARY_SUBSCR
+            6398 CALL                 2
+            6406 STORE_FAST           (previous)
+
+331:        6408 PUSH_NULL
+            6410 LOAD_FAST            (add_comparison_images)
+            6412 LOAD_FAST            (content)
+            6414 LOAD_FAST            (manifest)
+
+332:        6416 PUSH_NULL
+            6418 LOAD_FAST            (preview)
+            6420 LOAD_GLOBAL          (NULL + Image)
+            6430 LOAD_ATTR            (open)
+            6450 LOAD_FAST            (io)
+            6452 LOAD_ATTR            (NULL|self + BytesIO)
+            6472 LOAD_FAST            (previous)
+            6474 CALL                 1
+            6482 CALL                 1
+            6490 LOAD_ATTR            (NULL|self + convert)
+            6510 LOAD_CONST           ("RGBA")
+            6512 CALL                 1
+            6520 CALL                 1
+            6528 LOAD_FAST            (content)
+            6530 LOAD_CONST           (1)
+            6532 BINARY_SUBSCR
+            6536 LOAD_FAST            (checkpoint)
+            6538 LOAD_CONST           ("repair_plan")
+            6540 BINARY_SUBSCR
+            6544 LOAD_CONST           ("defect_targets")
+            6546 BINARY_SUBSCR
+
+331:        6550 CALL                 5
+            6558 STORE_FAST           (comparisons)
+            6560 JUMP_FORWARD         (to 6584)
+
+334:     >> 6562 PUSH_NULL
+            6564 LOAD_FAST            (pack_evidence)
+            6566 LOAD_FAST            (content)
+            6568 LOAD_FAST            (manifest)
+            6570 LOAD_FAST            (mask_facts)
+            6572 KW_NAMES             (('structure',))
+            6574 CALL                 3
+            6582 POP_TOP
+
+335:     >> 6584 LOAD_FAST            (checkpoint)
+            6586 LOAD_CONST           ("status")
+            6588 BINARY_SUBSCR
+            6592 LOAD_CONST           ("QA_PENDING")
+            6594 COMPARE_OP           (==)
+            6598 EXTENDED_ARG         (256)
+            6600 POP_JUMP_IF_FALSE    (to 7172)
+
+336:        6602 BUILD_MAP            0
+            6604 LOAD_FAST            (context)
+            6606 DICT_UPDATE          1
+            6608 LOAD_CONST           ("quality")
+            6610 LOAD_CONST           ("evaluate_result")
+
+337:        6612 LOAD_CONST           ("product_extraction")
+            6614 LOAD_FAST            (manifest)
+
+338:        6616 LOAD_CONST           ("产品分离保真检查")
+            6618 LOAD_CONST           ("只比较原产品与分离产品；检查全部轮廓/孔洞/部件/文字/纹理/数量/方向，背景残留不可通过")
+            6620 LOAD_CONST           (('title', 'intent'))
+            6622 BUILD_CONST_KEY_MAP  2
+
+339:        6624 BUILD_MAP            0
+            6626 BUILD_MAP            0
+            6628 LOAD_FAST            (mask_facts)
+
+340:        6630 LOAD_FAST            (comparisons)
+
+336:        6632 LOAD_CONST           (('capability', 'brain_operation', 'purpose', 'image_manifest', 'brief', 'task_plan', 'local_geometry', 'local_alpha_observation', 'post_revision_targets'))
+            6634 BUILD_CONST_KEY_MAP  9
+            6636 DICT_UPDATE          1
+            6638 STORE_FAST           (qa_context)
+
+341:        6640 PUSH_NULL
+            6642 LOAD_FAST            (build_qa_contract)
+            6644 LOAD_FAST            (qa_context)
+            6646 CALL                 1
+            6654 STORE_FAST           (contract)
+
+342:        6656 LOAD_FAST            (contract)
+            6658 LOAD_CONST           ("required_checks")
+            6660 BINARY_SUBSCR
+            6664 GET_ITER
+            6666 LOAD_FAST_AND_CLEAR  (c)
+            6668 SWAP                 (TOS <-> TOS1)
+            6670 BUILD_LIST           0
+            6672 SWAP                 (TOS <-> TOS1)
+            6674 FOR_ITER             (to 6702)
+            6678 STORE_FAST           (c)
+            6680 LOAD_FAST            (c)
+            6682 LOAD_CONST           ("requirement_id")
+            6684 BINARY_SUBSCR
+
+343:        6688 LOAD_CONST           (('product_fidelity', 'shape', 'holes', 'texture', 'color'))
+
+342:        6690 CONTAINS_OP          (in)
+            6692 POP_JUMP_IF_TRUE     (to 6696)
+            6694 JUMP_BACKWARD        (to 6674)
+         >> 6696 LOAD_FAST            (c)
+            6698 LIST_APPEND          2
+         >> 6700 JUMP_BACKWARD        (to 6674)
+            6702 END_FOR
+            6704 SWAP                 (TOS <-> TOS1)
+            6706 STORE_FAST           (c)
+            6708 LOAD_FAST            (contract)
+            6710 LOAD_CONST           ("required_checks")
+            6712 STORE_SUBSCR
+
+344:        6716 LOAD_FAST            (contract)
+         >> 6718 LOAD_CONST           ("required_checks")
+            6720 BINARY_SUBSCR
+            6724 GET_ITER
+            6726 LOAD_FAST_AND_CLEAR  (c)
+            6728 SWAP                 (TOS <-> TOS1)
+         >> 6730 BUILD_LIST           0
+            6732 SWAP                 (TOS <-> TOS1)
+            6734 FOR_ITER             (to 6752)
+            6738 STORE_FAST           (c)
+            6740 LOAD_FAST            (c)
+            6742 LOAD_CONST           ("requirement_id")
+            6744 BINARY_SUBSCR
+            6748 LIST_APPEND          2
+         >> 6750 JUMP_BACKWARD        (to 6734)
+            6752 END_FOR
+            6754 SWAP                 (TOS <-> TOS1)
+            6756 STORE_FAST           (c)
+            6758 LOAD_FAST            (contract)
+            6760 LOAD_CONST           ("required_check_ids")
+            6762 STORE_SUBSCR
+
+345:        6766 LOAD_FAST            (contract)
+            6768 LOAD_FAST            (qa_context)
+         >> 6770 LOAD_CONST           ("qa_contract")
+            6772 STORE_SUBSCR
+
+346:        6776 LOAD_DEREF           (worker)
+            6778 LOAD_ATTR            (NULL|self + call)
+            6798 LOAD_DEREF           (step_id)
+            6800 LOAD_CONST           ("quality")
+            6802 LOAD_FAST            (qa_context)
+            6804 LOAD_FAST            (content)
+            6806 CALL                 4
+            6814 STORE_FAST           (result)
+
+347:        6816 PUSH_NULL
+            6818 LOAD_FAST            (normalize_qa_result)
+            6820 LOAD_GLOBAL          (NULL + review_for_local_validation)
+            6830 LOAD_FAST            (result)
+            6832 CALL                 1
+            6840 LOAD_FAST            (contract)
+            6842 CALL                 2
+            6850 UNPACK_SEQUENCE      2
+            6854 STORE_FAST           (qa)
+            6856 STORE_FAST           (_)
+
+348:        6858 LOAD_FAST            (comparisons)
+            6860 POP_JUMP_IF_NONE     (to 6880)
+            6862 PUSH_NULL
+            6864 LOAD_FAST            (verify_revision)
+            6866 LOAD_FAST            (qa)
+            6868 LOAD_FAST            (comparisons)
+            6870 CALL                 2
+            6878 JUMP_FORWARD         (to 6882)
+         >> 6880 LOAD_CONST           (None)
+         >> 6882 STORE_FAST           (verification)
+
+349:        6884 LOAD_FAST            (qa)
+            6886 LOAD_CONST           ("constraint_checks")
+            6888 BINARY_SUBSCR
+            6892 GET_ITER
+            6894 LOAD_FAST_AND_CLEAR  (c)
+            6896 SWAP                 (TOS <-> TOS1)
+            6898 BUILD_MAP            0
+            6900 SWAP                 (TOS <-> TOS1)
+            6902 FOR_ITER             (to 6928)
+            6906 STORE_FAST           (c)
+            6908 LOAD_FAST            (c)
+            6910 LOAD_CONST           ("requirement_id")
+            6912 BINARY_SUBSCR
+            6916 LOAD_FAST            (c)
+            6918 LOAD_CONST           ("status")
+            6920 BINARY_SUBSCR
+            6924 MAP_ADD              2
+         >> 6926 JUMP_BACKWARD        (to 6902)
+            6928 END_FOR
+            6930 SWAP                 (TOS <-> TOS1)
+            6932 STORE_FAST           (c)
+            6934 STORE_DEREF          (checks)
+
+350:        6936 LOAD_FAST            (qa)
+            6938 LOAD_CONST           ("qa_status")
+            6940 BINARY_SUBSCR
+            6944 LOAD_CONST           (('PASS', 'WARN'))
+            6946 CONTAINS_OP          (in)
+            6948 COPY                 1
+            6950 POP_JUMP_IF_FALSE    (to 6998)
+            6952 POP_TOP
+         >> 6954 LOAD_GLOBAL          (NULL + all)
+            6964 LOAD_CLOSURE         (checks)
+            6966 BUILD_TUPLE          1
+            6968 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a2496a0, file app\locked_scene.py>, line 350)
+            6970 MAKE_FUNCTION        (closure)
+            6972 LOAD_FAST            (contract)
+            6974 LOAD_CONST           ("required_check_ids")
+            6976 BINARY_SUBSCR
+            6980 GET_ITER
+            6982 CALL                 0
+            6990 CALL                 1
+         >> 6998 STORE_FAST           (passed)
+
+351:        7000 LOAD_FAST            (passed)
+            7002 COPY                 1
+            7004 POP_JUMP_IF_FALSE    (to 7088)
+            7006 POP_TOP
+            7008 LOAD_GLOBAL          (NULL + bool)
+            7018 LOAD_FAST            (mask)
+            7020 LOAD_ATTR            (NULL|self + any)
+            7040 CALL                 0
+            7048 CALL                 1
+            7056 COPY                 1
+            7058 POP_JUMP_IF_FALSE    (to 7088)
+            7060 POP_TOP
+            7062 LOAD_FAST            (verification)
+            7064 LOAD_CONST           (None)
+            7066 IS_OP                (is)
+            7068 COPY                 1
+            7070 POP_JUMP_IF_TRUE     (to 7088)
+            7072 POP_TOP
+            7074 LOAD_FAST            (verification)
+            7076 LOAD_CONST           ("status")
+            7078 BINARY_SUBSCR
+            7082 LOAD_CONST           ("VISUAL_CHECK_COMPLETE")
+            7084 COMPARE_OP           (==)
+         >> 7088 STORE_FAST           (passed)
+
+352:        7090 BUILD_MAP            0
+            7092 LOAD_FAST            (checkpoint)
+            7094 DICT_UPDATE          1
+            7096 LOAD_FAST            (passed)
+            7098 POP_JUMP_IF_FALSE    (to 7104)
+            7100 LOAD_CONST           ("PASS")
+            7102 JUMP_FORWARD         (to 7106)
+         >> 7104 LOAD_CONST           ("EXTRACTION_FAIL")
+         >> 7106 LOAD_FAST            (qa)
+
+353:        7108 LOAD_FAST            (contract)
+            7110 LOAD_CONST           ("required_check_ids")
+            7112 BINARY_SUBSCR
+            7116 LOAD_FAST            (checkpoint)
+            7118 LOAD_CONST           ("sha256")
+            7120 BINARY_SUBSCR
+
+354:        7124 LOAD_FAST            (mask_facts)
+            7126 LOAD_FAST            (verification)
+
+355:        7128 LOAD_FAST            (manifest)
+            7130 LOAD_CONST           ("evidence_pack")
+            7132 BINARY_SUBSCR
+            7136 LOAD_FAST            (passed)
+
+356:        7138 LOAD_FAST            (passed)
+            7140 POP_JUMP_IF_FALSE    (to 7146)
+            7142 LOAD_CONST           ("PRODUCT_MASTER")
+            7144 JUMP_FORWARD         (to 7148)
+         >> 7146 LOAD_CONST           ("PRODUCT_EXTRACTION")
+
+352:     >> 7148 LOAD_CONST           (('status', 'qa_result', 'qa_required_check_ids', 'qa_output_sha256', 'local_alpha_observation', 'post_revision_verification', 'evidence_pack', 'product_master_valid', 'asset_role'))
+            7150 BUILD_CONST_KEY_MAP  9
+            7152 DICT_UPDATE          1
+            7154 STORE_FAST           (checkpoint)
+
+357:        7156 PUSH_NULL
+            7158 LOAD_FAST            (save)
+            7160 LOAD_FAST            (checkpoint)
+            7162 CALL                 1
+            7170 POP_TOP
+
+358:     >> 7172 LOAD_FAST            (checkpoint)
+            7174 LOAD_CONST           ("status")
+            7176 BINARY_SUBSCR
+            7180 LOAD_CONST           ("PASS")
+            7182 COMPARE_OP           (==)
+            7186 POP_JUMP_IF_FALSE    (to 7196)
+
+359:        7188 LOAD_FAST            (cutout)
+            7190 LOAD_FAST            (checkpoint)
+            7192 BUILD_TUPLE          2
+            7194 RETURN_VALUE
+
+360:     >> 7196 LOAD_FAST            (locked_finish)
+            7198 POP_JUMP_IF_FALSE    (to 7224)
+
+361:        7200 LOAD_GLOBAL          (NULL + DomainError)
+            7210 LOAD_CONST           ("EXTRACTION_FAIL")
+            7212 LOAD_CONST           ("配色产品的场景保真检查未通过；原结构和配色已保留，请重新检查或换场景。镂空不能自动改形。")
+            7214 CALL                 2
+            7222 RAISE_VARARGS        (exception instance)
+
+362:     >> 7224 LOAD_FAST            (checkpoint)
+            7226 LOAD_ATTR            (NULL|self + get)
+            7246 LOAD_CONST           ("repair_count")
+            7248 LOAD_CONST           (0)
+            7250 CALL                 2
+            7258 LOAD_CONST           (1)
+            7260 COMPARE_OP           (>=)
+            7264 POP_JUMP_IF_TRUE     (to 7306)
+            7266 LOAD_FAST            (snapshot)
+            7268 LOAD_CONST           ("route")
+            7270 BINARY_SUBSCR
+            7274 LOAD_ATTR            (NULL|self + get)
+            7294 LOAD_CONST           ("extraction_repair_limit")
+            7296 CALL                 1
+            7304 POP_JUMP_IF_TRUE     (to 7330)
+
+363:     >> 7306 LOAD_GLOBAL          (NULL + DomainError)
+            7316 LOAD_CONST           ("EXTRACTION_FAIL")
+            7318 LOAD_CONST           ("自动产品分离仍未通过完整性检查；原图及修复证据已保存，未使用失真母版生成场景")
+            7320 CALL                 2
+            7328 RAISE_VARARGS        (exception instance)
+
+365:     >> 7330 LOAD_FAST            (checkpoint)
+            7332 LOAD_ATTR            (NULL|self + get)
+            7352 LOAD_CONST           ("repair_plan")
+            7354 CALL                 1
+            7362 STORE_FAST           (plan)
+
+366:        7364 LOAD_FAST            (plan)
+            7366 POP_JUMP_IF_TRUE     (to 7500)
+
+367:        7368 LOAD_DEREF           (worker)
+            7370 LOAD_ATTR            (NULL|self + call)
+            7390 LOAD_DEREF           (step_id)
+            7392 LOAD_CONST           ("planner")
+            7394 BUILD_MAP            0
+            7396 LOAD_FAST            (context)
+            7398 DICT_UPDATE          1
+            7400 LOAD_CONST           ("planning")
+
+368:        7402 LOAD_CONST           ("plan_mask_repair")
+            7404 LOAD_CONST           ("product_extraction_repair")
+
+369:        7406 LOAD_FAST            (manifest)
+            7408 LOAD_FAST            (diagnosis)
+            7410 LOAD_ATTR            (NULL|self + get)
+            7430 LOAD_CONST           ("product_fingerprint")
+            7432 CALL                 1
+
+370:        7440 LOAD_FAST            (mask_facts)
+            7442 LOAD_FAST            (checkpoint)
+            7444 LOAD_CONST           ("qa_result")
+            7446 BINARY_SUBSCR
+
+367:        7450 LOAD_CONST           (('capability', 'brain_operation', 'purpose', 'image_manifest', 'source_product_fingerprint', 'local_alpha_observation', 'qa_result'))
+            7452 BUILD_CONST_KEY_MAP  7
+            7454 DICT_UPDATE          1
+
+370:        7456 LOAD_FAST            (content)
+
+367:        7458 CALL                 4
+            7466 STORE_FAST           (plan)
+
+371:        7468 BUILD_MAP            0
+            7470 LOAD_FAST            (checkpoint)
+            7472 DICT_UPDATE          1
+            7474 LOAD_CONST           ("repair_plan")
+            7476 LOAD_FAST            (plan)
+            7478 BUILD_MAP            1
+            7480 DICT_UPDATE          1
+            7482 STORE_FAST           (checkpoint)
+
+372:        7484 PUSH_NULL
+            7486 LOAD_FAST            (save)
+            7488 LOAD_FAST            (checkpoint)
+            7490 CALL                 1
+            7498 POP_TOP
+
+373:     >> 7500 LOAD_GLOBAL          (NULL + repair_mask)
+            7510 LOAD_GLOBAL          (NULL + Image)
+            7520 LOAD_ATTR            (open)
+            7540 LOAD_FAST            (io)
+            7542 LOAD_ATTR            (NULL|self + BytesIO)
+            7562 LOAD_FAST            (original)
+            7564 CALL                 1
+            7572 CALL                 1
+            7580 LOAD_FAST            (cutout)
+            7582 LOAD_FAST_CHECK      (plan)
+            7584 CALL                 3
+            7592 STORE_FAST           (revised)
+
+374:        7594 LOAD_DEREF           (worker)
+            7596 LOAD_ATTR            (NULL|self + write_artifact)
+            7616 LOAD_DEREF           (workspace_id)
+            7618 LOAD_GLOBAL          (NULL + png)
+            7628 LOAD_FAST            (revised)
+            7630 CALL                 1
+            7638 CALL                 2
+            7646 UNPACK_SEQUENCE      2
+            7650 STORE_FAST           (key)
+            7652 STORE_FAST           (sha)
+
+375:        7654 BUILD_MAP            0
+            7656 LOAD_FAST            (checkpoint)
+            7658 DICT_UPDATE          1
+            7660 LOAD_FAST            (checkpoint)
+            7662 LOAD_CONST           ("file_key")
+            7664 BINARY_SUBSCR
+            7668 LOAD_FAST            (checkpoint)
+            7670 LOAD_CONST           ("sha256")
+            7672 BINARY_SUBSCR
+
+376:        7676 LOAD_FAST            (checkpoint)
+            7678 LOAD_CONST           ("qa_result")
+            7680 BINARY_SUBSCR
+            7684 LOAD_FAST            (key)
+            7686 LOAD_FAST            (sha)
+
+377:        7688 LOAD_CONST           ("QA_PENDING")
+            7690 LOAD_CONST           (1)
+            7692 LOAD_CONST           (False)
+
+375:        7694 LOAD_CONST           (('before_file_key', 'before_sha256', 'before_qa_result', 'file_key', 'sha256', 'status', 'repair_count', 'product_master_valid'))
+            7696 BUILD_CONST_KEY_MAP  8
+            7698 DICT_UPDATE          1
+            7700 STORE_FAST           (checkpoint)
+
+378:        7702 PUSH_NULL
+            7704 LOAD_FAST            (save)
+            7706 LOAD_FAST            (checkpoint)
+            7708 CALL                 1
+            7716 POP_TOP
+
+306:        7718 EXTENDED_ARG         (1280)
+            7720 JUMP_BACKWARD        (to 5010)
+
+181:        7722 PUSH_EXC_INFO
+            7724 WITH_EXCEPT_START
+            7726 POP_JUMP_IF_TRUE     (to 7730)
+            7728 RERAISE              2
+         >> 7730 POP_TOP
+            7732 POP_EXCEPT
+            7734 POP_TOP
+            7736 POP_TOP
+            7738 EXTENDED_ARG         (3584)
+            7740 JUMP_BACKWARD        (to 382)
+            7742 COPY                 3
+            7744 POP_EXCEPT
+            7746 RERAISE              1
+
+198:        7748 PUSH_EXC_INFO
+            7750 WITH_EXCEPT_START
+            7752 POP_JUMP_IF_TRUE     (to 7756)
+            7754 RERAISE              2
+         >> 7756 POP_TOP
+            7758 POP_EXCEPT
+            7760 POP_TOP
+            7762 POP_TOP
+            7764 EXTENDED_ARG         (3072)
+            7766 JUMP_BACKWARD        (to 1252)
+            7768 COPY                 3
+            7770 POP_EXCEPT
+            7772 RERAISE              1
+            7774 SWAP                 (TOS <-> TOS1)
+            7776 POP_TOP
+
+254:        7778 SWAP                 (TOS <-> TOS1)
+            7780 STORE_FAST           (c)
+            7782 RERAISE              0
+            7784 SWAP                 (TOS <-> TOS1)
+            7786 POP_TOP
+
+291:        7788 SWAP                 (TOS <-> TOS1)
+            7790 STORE_FAST           (c)
+            7792 RERAISE              0
+            7794 SWAP                 (TOS <-> TOS1)
+            7796 POP_TOP
+
+342:        7798 SWAP                 (TOS <-> TOS1)
+            7800 STORE_FAST           (c)
+            7802 RERAISE              0
+            7804 SWAP                 (TOS <-> TOS1)
+            7806 POP_TOP
+
+344:        7808 SWAP                 (TOS <-> TOS1)
+            7810 STORE_FAST           (c)
+            7812 RERAISE              0
+            7814 SWAP                 (TOS <-> TOS1)
+            7816 POP_TOP
+
+349:        7818 SWAP                 (TOS <-> TOS1)
+            7820 STORE_FAST           (c)
+            7822 RERAISE              0
+
+ExceptionTable:
+  344 to 364 -> 7722 [1] lasti
+  494 to 1234 -> 7748 [1] lasti
+  2832 to 2910 -> 7774 [2]
+  4182 to 4260 -> 7784 [2]
+  6670 to 6692 -> 7794 [2]
+  6696 to 6702 -> 7794 [2]
+  6730 to 6752 -> 7804 [2]
+  6898 to 6928 -> 7814 [2]
+  7722 to 7730 -> 7742 [3] lasti
+  7748 to 7756 -> 7768 [3] lasti
+
+# Method Name:       points
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  3
+# Stack size:        12
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        45
+# Constants:
+#    0: None
+#    1: 1
+#    2: 'x'
+#    3: 1000
+#    4: 'y'
+#    5: <Code311 code object <genexpr> at 0x10a1af110, file app\locked_scene.py>, line 47
+#    6: 'REVISION_LOCALIZATION_REQUIRED'
+#    7: '蒙版动作超出对应缺陷区域'
+# Names:
+#    0: min
+#    1: round
+#    2: any
+#    3: DomainError
+# Varnames:
+#	values, p, pts
+# Positional arguments:
+#	values
+# Local variables:
+#    1: p
+#    2: pts
+# Free variables:
+#    0: h
+#    1: w
+#    2: x0
+#    3: x1
+#    4: y0
+#    5: y1
+               0 COPY_FREE_VARS       6
+
+ 45:           2 RESUME               0
+
+ 46:           4 LOAD_FAST            (values)
+               6 GET_ITER
+               8 LOAD_FAST_AND_CLEAR  (p)
+              10 SWAP                 (TOS <-> TOS1)
+              12 BUILD_LIST           0
+              14 SWAP                 (TOS <-> TOS1)
+              16 FOR_ITER             (to 168)
+              20 STORE_FAST           (p)
+              22 LOAD_GLOBAL          (NULL + min)
+              32 LOAD_DEREF           (w)
+              34 LOAD_CONST           (1)
+              36 BINARY_OP            (-)
+              40 LOAD_GLOBAL          (NULL + round)
+              50 LOAD_FAST            (p)
+              52 LOAD_CONST           ("x")
+              54 BINARY_SUBSCR
+              58 LOAD_DEREF           (w)
+              60 LOAD_CONST           (1)
+              62 BINARY_OP            (-)
+              66 BINARY_OP            (*)
+              70 LOAD_CONST           (1000)
+              72 BINARY_OP            (/)
+              76 CALL                 1
+              84 CALL                 2
+              92 LOAD_GLOBAL          (NULL + min)
+             102 LOAD_DEREF           (h)
+             104 LOAD_CONST           (1)
+             106 BINARY_OP            (-)
+             110 LOAD_GLOBAL          (NULL + round)
+             120 LOAD_FAST            (p)
+             122 LOAD_CONST           ("y")
+             124 BINARY_SUBSCR
+             128 LOAD_DEREF           (h)
+             130 LOAD_CONST           (1)
+             132 BINARY_OP            (-)
+             136 BINARY_OP            (*)
+             140 LOAD_CONST           (1000)
+             142 BINARY_OP            (/)
+             146 CALL                 1
+             154 CALL                 2
+             162 BUILD_TUPLE          2
+             164 LIST_APPEND          2
+         >>  166 JUMP_BACKWARD        (to 16)
+             168 END_FOR
+             170 STORE_FAST           (pts)
+             172 STORE_FAST           (p)
+
+ 47:         174 LOAD_GLOBAL          (NULL + any)
+             184 LOAD_CLOSURE         (x0)
+             186 LOAD_CLOSURE         (x1)
+             188 LOAD_CLOSURE         (y0)
+             190 LOAD_CLOSURE         (y1)
+             192 BUILD_TUPLE          4
+             194 LOAD_CONST           (<Code311 code object <genexpr> at 0x10a1af110, file app\locked_scene.py>, line 47)
+             196 MAKE_FUNCTION        (closure)
+             198 LOAD_FAST            (pts)
+             200 GET_ITER
+             202 CALL                 0
+             210 CALL                 1
+             218 POP_JUMP_IF_FALSE    (to 244)
+
+ 48:         220 LOAD_GLOBAL          (NULL + DomainError)
+             230 LOAD_CONST           ("REVISION_LOCALIZATION_REQUIRED")
+             232 LOAD_CONST           ("蒙版动作超出对应缺陷区域")
+             234 CALL                 2
+             242 RAISE_VARARGS        (exception instance)
+
+ 49:     >>  244 LOAD_FAST            (pts)
+             246 RETURN_VALUE
+             248 SWAP                 (TOS <-> TOS1)
+             250 POP_TOP
+
+ 46:         252 SWAP                 (TOS <-> TOS1)
+             254 STORE_FAST           (p)
+             256 RERAISE              0
+
+ExceptionTable:
+  12 to 168 -> 248 [2]
+
+# Method Name:       point
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        9
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        101
+# Constants:
+#    0: None
+#    1: 1
+#    2: 'x'
+#    3: 1000
+#    4: 'y'
+# Names:
+#    0: min
+#    1: round
+# Varnames:
+#	p
+# Positional arguments:
+#	p
+# Free variables:
+#    0: h
+#    1: w
+               0 COPY_FREE_VARS       2
+
+101:           2 RESUME               0
+
+102:           4 LOAD_GLOBAL          (NULL + min)
+              14 LOAD_DEREF           (w)
+              16 LOAD_CONST           (1)
+              18 BINARY_OP            (-)
+              22 LOAD_GLOBAL          (NULL + round)
+              32 LOAD_FAST            (p)
+              34 LOAD_CONST           ("x")
+              36 BINARY_SUBSCR
+              40 LOAD_DEREF           (w)
+              42 LOAD_CONST           (1)
+              44 BINARY_OP            (-)
+              48 BINARY_OP            (*)
+              52 LOAD_CONST           (1000)
+              54 BINARY_OP            (/)
+              58 CALL                 1
+              66 CALL                 2
+              74 LOAD_GLOBAL          (NULL + min)
+              84 LOAD_DEREF           (h)
+              86 LOAD_CONST           (1)
+              88 BINARY_OP            (-)
+              92 LOAD_GLOBAL          (NULL + round)
+             102 LOAD_FAST            (p)
+             104 LOAD_CONST           ("y")
+             106 BINARY_SUBSCR
+             110 LOAD_DEREF           (h)
+             112 LOAD_CONST           (1)
+             114 BINARY_OP            (-)
+             118 BINARY_OP            (*)
+             122 LOAD_CONST           (1000)
+             124 BINARY_OP            (/)
+             128 CALL                 1
+             136 CALL                 2
+             144 BUILD_TUPLE          2
+             146 RETURN_VALUE
+
+
+# Method Name:       <lambda>
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  1
+# Stack size:        5
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        150
+# Constants:
+#    0: None
+#    1: 'shadow_opacity'
+# Names:
+#    0: round
+# Varnames:
+#	v
+# Positional arguments:
+#	v
+# Free variables:
+#    0: plan
+               0 COPY_FREE_VARS       1
+
+150:           2 RESUME               0
+               4 LOAD_GLOBAL          (NULL + round)
+              14 LOAD_FAST            (v)
+              16 LOAD_DEREF           (plan)
+              18 LOAD_CONST           ("shadow_opacity")
+              20 BINARY_SUBSCR
+              24 BINARY_OP            (*)
+              28 CALL                 1
+              36 RETURN_VALUE
+
+
+# Method Name:       save
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  5
+# Stack size:        8
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        185
+# Constants:
+#    0: None
+#    1: 'STALE_VERSION'
+#    2: '产品分离节点已失效'
+#    3: 'product_extraction'
+#    4: 'file_key'
+# Names:
+#    0: sessions
+#    1: begin
+#    2: get
+#    3: _live_state
+#    4: lease_token
+#    5: DomainError
+#    6: result
+#    7: pending_files
+# Varnames:
+#	checkpoint, db, step, w, k
+# Positional arguments:
+#	checkpoint
+# Local variables:
+#    1: db
+#    2: step
+#    3: w
+#    4: k
+# Free variables:
+#    0: Step
+#    1: step_id
+#    2: token
+#    3: worker
+#    4: workspace_id
+               0 COPY_FREE_VARS       5
+
+185:           2 RESUME               0
+
+186:           4 LOAD_DEREF           (worker)
+               6 LOAD_ATTR            (sessions)
+              26 LOAD_ATTR            (NULL|self + begin)
+              46 CALL                 0
+              54 BEFORE_WITH
+              56 STORE_FAST           (db)
+
+187:          58 LOAD_FAST            (db)
+              60 LOAD_ATTR            (NULL|self + get)
+              80 LOAD_DEREF           (Step)
+              82 LOAD_DEREF           (step_id)
+              84 CALL                 2
+              92 STORE_FAST           (step)
+
+188:          94 LOAD_DEREF           (worker)
+              96 LOAD_ATTR            (NULL|self + _live_state)
+             116 LOAD_FAST            (db)
+             118 LOAD_FAST            (step)
+             120 CALL                 2
+             128 POP_TOP
+
+189:         130 LOAD_FAST            (step)
+             132 LOAD_ATTR            (lease_token)
+             152 LOAD_DEREF           (token)
+             154 COMPARE_OP           (!=)
+             158 POP_JUMP_IF_FALSE    (to 184)
+
+190:         160 LOAD_GLOBAL          (NULL + DomainError)
+             170 LOAD_CONST           ("STALE_VERSION")
+             172 LOAD_CONST           ("产品分离节点已失效")
+             174 CALL                 2
+             182 RAISE_VARARGS        (exception instance)
+
+191:     >>  184 BUILD_MAP            0
+             186 LOAD_FAST            (step)
+             188 LOAD_ATTR            (result)
+             208 DICT_UPDATE          1
+             210 LOAD_CONST           ("product_extraction")
+             212 LOAD_FAST            (checkpoint)
+             214 BUILD_MAP            1
+             216 DICT_UPDATE          1
+             218 LOAD_FAST            (step)
+             220 STORE_ATTR           (result)
+
+186:         230 LOAD_CONST           (None)
+             232 LOAD_CONST           (None)
+             234 LOAD_CONST           (None)
+             236 CALL                 2
+             244 POP_TOP
+
+192:         246 LOAD_DEREF           (worker)
+             248 LOAD_ATTR            (pending_files)
+             268 GET_ITER
+             270 LOAD_FAST_AND_CLEAR  (w)
+             272 LOAD_FAST_AND_CLEAR  (k)
+             274 SWAP                 (TOS <-> TOS2)
+             276 BUILD_LIST           0
+             278 SWAP                 (TOS <-> TOS1)
+             280 FOR_ITER             (to 326)
+             284 UNPACK_SEQUENCE      2
+             288 STORE_FAST           (w)
+             290 STORE_FAST           (k)
+
+193:         292 LOAD_FAST            (w)
+             294 LOAD_FAST            (k)
+             296 BUILD_TUPLE          2
+             298 LOAD_DEREF           (workspace_id)
+             300 LOAD_FAST            (checkpoint)
+             302 LOAD_CONST           ("file_key")
+             304 BINARY_SUBSCR
+             308 BUILD_TUPLE          2
+             310 COMPARE_OP           (!=)
+             314 POP_JUMP_IF_FALSE    (to 324)
+
+192:         316 LOAD_FAST            (w)
+             318 LOAD_FAST            (k)
+             320 BUILD_TUPLE          2
+             322 LIST_APPEND          2
+         >>  324 JUMP_BACKWARD        (to 280)
+             326 END_FOR
+             328 SWAP                 (TOS <-> TOS2)
+             330 STORE_FAST           (k)
+             332 STORE_FAST           (w)
+             334 LOAD_DEREF           (worker)
+             336 STORE_ATTR           (pending_files)
+             346 RETURN_CONST         (None)
+
+186:         348 PUSH_EXC_INFO
+             350 WITH_EXCEPT_START
+             352 POP_JUMP_IF_TRUE     (to 356)
+             354 RERAISE              2
+         >>  356 POP_TOP
+             358 POP_EXCEPT
+             360 POP_TOP
+             362 POP_TOP
+             364 JUMP_BACKWARD        (to 246)
+             366 COPY                 3
+             368 POP_EXCEPT
+             370 RERAISE              1
+         >>  372 SWAP                 (TOS <-> TOS1)
+             374 POP_TOP
+
+192:         376 SWAP                 (TOS <-> TOS2)
+             378 STORE_FAST           (k)
+             380 STORE_FAST           (w)
+             382 RERAISE              0
+
+ExceptionTable:
+  56 to 228 -> 348 [1] lasti
+  276 to 326 -> 372 [3]
+  348 to 356 -> 366 [3] lasti
+
+# Method Name:       preview
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000013 (NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        194
+# Constants:
+#    0: None
+#    1: 'RGBA'
+#    2: '#ced7dc'
+# Names:
+#    0: Image
+#    1: new
+#    2: size
+#    3: alpha_composite
+#    4: png
+# Varnames:
+#	cutout, canvas
+# Positional arguments:
+#	cutout
+# Local variables:
+#    1: canvas
+
+194:           0 RESUME               0
+
+195:           2 LOAD_GLOBAL          (NULL + Image)
+              12 LOAD_ATTR            (new)
+              32 LOAD_CONST           ("RGBA")
+              34 LOAD_FAST            (cutout)
+              36 LOAD_ATTR            (size)
+              56 LOAD_CONST           ("#ced7dc")
+              58 CALL                 3
+              66 STORE_FAST           (canvas)
+
+196:          68 LOAD_FAST            (canvas)
+              70 LOAD_ATTR            (NULL|self + alpha_composite)
+              90 LOAD_FAST            (cutout)
+              92 CALL                 1
+             100 POP_TOP
+
+197:         102 LOAD_GLOBAL          (NULL + png)
+             112 LOAD_FAST            (canvas)
+             114 CALL                 1
+             122 RETURN_VALUE
+
+
+# Method Name:       <genexpr>
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        261
+# Constants:
+#    0: 'PASS'
+#    1: None
+# Names:
+#    0: get
+# Varnames:
+#	.0, key
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: key
+# Free variables:
+#    0: checks
+               0 COPY_FREE_VARS       1
+
+261:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 62)
+              14 STORE_FAST           (key)
+              16 LOAD_DEREF           (checks)
+              18 LOAD_ATTR            (NULL|self + get)
+              38 LOAD_FAST            (key)
+              40 CALL                 1
+              48 LOAD_CONST           ("PASS")
+              50 COMPARE_OP           (==)
+              54 YIELD_VALUE          1
+              56 RESUME               1
+              58 POP_TOP
+         >>   60 JUMP_BACKWARD        (to 10)
+              62 END_FOR
+              64 RETURN_CONST         (None)
+              66 CALL_INTRINSIC_1     3
+              68 RERAISE              1
+
+ExceptionTable:
+  6 to 64 -> 66 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        293
+# Constants:
+#    0: 'PASS'
+#    1: None
+# Names:
+#    0: get
+# Varnames:
+#	.0, key
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: key
+# Free variables:
+#    0: checks
+               0 COPY_FREE_VARS       1
+
+293:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 62)
+              14 STORE_FAST           (key)
+              16 LOAD_DEREF           (checks)
+              18 LOAD_ATTR            (NULL|self + get)
+              38 LOAD_FAST            (key)
+              40 CALL                 1
+              48 LOAD_CONST           ("PASS")
+              50 COMPARE_OP           (==)
+              54 YIELD_VALUE          1
+              56 RESUME               1
+              58 POP_TOP
+         >>   60 JUMP_BACKWARD        (to 10)
+              62 END_FOR
+              64 RETURN_CONST         (None)
+              66 CALL_INTRINSIC_1     3
+              68 RERAISE              1
+
+ExceptionTable:
+  6 to 64 -> 66 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        5
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        323
+# Constants:
+#    0: 3
+#    1: 0
+#    2: None
+# Names:
+#    0: int
+# Varnames:
+#	.0, r
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: r
+
+323:           0 RETURN_GENERATOR
+               2 POP_TOP
+               4 RESUME               0
+               6 LOAD_FAST            (.0)
+               8 FOR_ITER             (to 54)
+              12 STORE_FAST           (r)
+              14 LOAD_GLOBAL          (NULL + int)
+              24 LOAD_FAST            (r)
+              26 LOAD_CONST           (3)
+              28 BINARY_SUBSCR
+              32 CALL                 1
+              40 LOAD_CONST           (0)
+              42 COMPARE_OP           (>=)
+              46 YIELD_VALUE          1
+              48 RESUME               1
+              50 POP_TOP
+         >>   52 JUMP_BACKWARD        (to 8)
+              54 END_FOR
+              56 RETURN_CONST         (None)
+              58 CALL_INTRINSIC_1     3
+              60 RERAISE              1
+
+ExceptionTable:
+  4 to 56 -> 58 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  2
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        350
+# Constants:
+#    0: 'PASS'
+#    1: None
+# Names:
+#    0: get
+# Varnames:
+#	.0, k
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: k
+# Free variables:
+#    0: checks
+               0 COPY_FREE_VARS       1
+
+350:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 62)
+              14 STORE_FAST           (k)
+              16 LOAD_DEREF           (checks)
+              18 LOAD_ATTR            (NULL|self + get)
+              38 LOAD_FAST            (k)
+              40 CALL                 1
+              48 LOAD_CONST           ("PASS")
+              50 COMPARE_OP           (==)
+              54 YIELD_VALUE          1
+              56 RESUME               1
+              58 POP_TOP
+         >>   60 JUMP_BACKWARD        (to 10)
+              62 END_FOR
+              64 RETURN_CONST         (None)
+              66 CALL_INTRINSIC_1     3
+              68 RERAISE              1
+
+ExceptionTable:
+  6 to 64 -> 66 [0] lasti
+
+# Method Name:       <genexpr>
+# Filename:          app\locked_scene.py
+# Argument count:    1
+# Position-only argument count: 0
+# Keyword-only arguments: 0
+# Number of locals:  3
+# Stack size:        4
+# Flags:             0x00000033 (GENERATOR | NESTED | NEWLOCALS | OPTIMIZED)
+# First Line:        47
+# Constants:
+#    0: None
+# Varnames:
+#	.0, x, y
+# Positional arguments:
+#	.0
+# Local variables:
+#    1: x
+#    2: y
+# Free variables:
+#    0: x0
+#    1: x1
+#    2: y0
+#    3: y1
+               0 COPY_FREE_VARS       4
+
+ 47:           2 RETURN_GENERATOR
+               4 POP_TOP
+               6 RESUME               0
+               8 LOAD_FAST            (.0)
+              10 FOR_ITER             (to 98)
+              14 UNPACK_SEQUENCE      2
+              18 STORE_FAST           (x)
+              20 STORE_FAST           (y)
+              22 LOAD_DEREF           (x0)
+              24 LOAD_FAST            (x)
+              26 SWAP                 (TOS <-> TOS1)
+              28 COPY                 2
+              30 COMPARE_OP           (<=)
+              34 COPY                 1
+              36 POP_JUMP_IF_FALSE    (to 48)
+              38 POP_TOP
+              40 LOAD_DEREF           (x1)
+              42 COMPARE_OP           (<)
+              46 JUMP_FORWARD         (to 52)
+         >>   48 SWAP                 (TOS <-> TOS1)
+              50 POP_TOP
+         >>   52 COPY                 1
+              54 POP_JUMP_IF_FALSE    (to 88)
+              56 POP_TOP
+              58 LOAD_DEREF           (y0)
+              60 LOAD_FAST            (y)
+              62 SWAP                 (TOS <-> TOS1)
+              64 COPY                 2
+              66 COMPARE_OP           (<=)
+              70 COPY                 1
+              72 POP_JUMP_IF_FALSE    (to 84)
+              74 POP_TOP
+              76 LOAD_DEREF           (y1)
+              78 COMPARE_OP           (<)
+              82 JUMP_FORWARD         (to 88)
+         >>   84 SWAP                 (TOS <-> TOS1)
+              86 POP_TOP
+         >>   88 UNARY_NOT
+              90 YIELD_VALUE          1
+              92 RESUME               1
+              94 POP_TOP
+         >>   96 JUMP_BACKWARD        (to 10)
+              98 END_FOR
+             100 RETURN_CONST         (None)
+             102 CALL_INTRINSIC_1     3
+             104 RERAISE              1
+
+ExceptionTable:
+  6 to 100 -> 102 [0] lasti
