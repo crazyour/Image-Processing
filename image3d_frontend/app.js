@@ -66,6 +66,7 @@ function setBusy(button, busy, text = "处理中…") {
   if (busy) { button.dataset.label = button.textContent; button.textContent = text; }
   else if (button.dataset.label) button.textContent = button.dataset.label;
   button.disabled = busy;
+  if (!busy) syncControls();
 }
 
 async function compressedFile(file) {
@@ -111,21 +112,26 @@ function renderViews(views = {}) {
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
 }
 
+function syncControls() {
+  const status = state?.status;
+  const uploaded = state?.view_source === "uploaded";
+  const canEditPrompt = Boolean(state) && !uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"].includes(status);
+  const canGenerateViews = canEditPrompt;
+  $("#prompt-editor").disabled = !canEditPrompt;
+  $("#save-prompt").disabled = !canEditPrompt;
+  $("#generate-views").disabled = !canGenerateViews;
+  $("#regenerate-views").disabled = !canGenerateViews;
+  $("#confirm-views").disabled = !state || state.views_stale || status !== "VIEWS_REVIEW";
+  $("#generate-3d").disabled = status !== "CONFIRMED";
+}
+
 function render(next) {
   state = next;
-  $("#prompt-step").classList.toggle("hidden", !state || state.view_source === "uploaded");
-  if (!state) return;
-  renderAnalysis(state.analysis);
-  $("#prompt-editor").value = state.user_prompt || "";
-  const hasGenerated = ["left", "right", "back"].some((view) => state.views?.[view]);
-  $("#prompt-step").open = !hasGenerated && ["PROMPT_REVIEW", "VIEWS_REVIEW"].includes(state.status);
-  $("#views-step").classList.toggle("hidden", !hasGenerated);
-  if (hasGenerated) renderViews(state.views);
-  $("#regenerate-views").classList.toggle("hidden", state.view_source === "uploaded");
-  const canGenerate = ["CONFIRMED", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED"].includes(state.status);
-  $("#generate-step").classList.toggle("hidden", !canGenerate);
-  $("#confirm-views").disabled = state.views_stale || state.status !== "VIEWS_REVIEW";
-  $("#generate-3d").disabled = state.status !== "CONFIRMED";
+  renderAnalysis(state?.analysis || {});
+  $("#prompt-editor").value = state?.user_prompt || "";
+  $("#prompt-step").open = true;
+  renderViews(state?.views || {});
+  syncControls();
   renderTask();
 }
 
@@ -135,7 +141,7 @@ function renderTask() {
   $("#task-progress").classList.toggle("hidden", !running);
   $("#task-progress span").textContent = state?.status === "SUBMITTING_3D" ? "正在提交腾讯混元…" : "正在生成 3D，页面会自动刷新状态…";
   const models = task?.models || {};
-  $("#model-results").innerHTML = Object.entries(models).map(([type, model]) =>
+  $("#model-results").innerHTML = Object.entries(models).filter(([type]) => type.toLowerCase() === "stl").map(([type, model]) =>
     `<a class="model-link" href="${model.url}" target="_blank" rel="noopener"><span>${type.toUpperCase()} 模型</span><span>下载 ↗</span></a>`
   ).join("");
   if (running && !polling) polling = setInterval(refreshTask, 8000);
@@ -145,7 +151,7 @@ function renderTask() {
 async function refresh() {
   if (!session) return;
   try { render(await api(`/api/sessions/${session.id}`)); }
-  catch (error) { localStorage.removeItem("image3d-session"); session = null; notify(error.message, true); }
+  catch (error) { localStorage.removeItem("image3d-session"); session = null; render(null); notify(error.message, true); }
 }
 
 async function refreshTask() {
@@ -216,7 +222,6 @@ $("#upload-form").addEventListener("submit", async (event) => {
       }));
       notify("左、右、背三视图已生成");
     }
-    $("#views-step").scrollIntoView({ behavior: "smooth" });
   } catch (error) { notify(error.message, true); await refresh(); }
   finally { setBusy(button, false); }
 });
@@ -246,7 +251,6 @@ async function generateViews(button) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ views: ["left", "right", "back"] }),
     }));
-    $("#views-step").scrollIntoView({ behavior: "smooth" });
   } catch (error) { notify(error.message, true); await refresh(); }
   finally { setBusy(button, false); }
 }
@@ -271,7 +275,6 @@ $("#confirm-views").addEventListener("click", async (event) => {
     setBusy(event.currentTarget, true);
     render(await api(`/api/sessions/${session.id}/confirm`, { method: "POST" }));
     notify("三张生成视图已确认；原图仅作为正面参考");
-    $("#generate-step").scrollIntoView({ behavior: "smooth" });
   } catch (error) { notify(error.message, true); }
   finally { setBusy(event.currentTarget, false); }
 });
@@ -289,4 +292,5 @@ $("#generate-3d").addEventListener("click", async (event) => {
 
 initializeModelSettings();
 updateViewSource();
+render(null);
 refresh();

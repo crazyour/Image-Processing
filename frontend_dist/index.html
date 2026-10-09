@@ -12,34 +12,42 @@
 </head>
 <body>
   <div id="root"></div>
-  <div id="image3d-modal" class="image3d-modal" role="dialog" aria-modal="true" aria-labelledby="image3d-title" hidden>
-    <div class="image3d-window">
-      <header class="image3d-toolbar">
-        <div><small>灵界工作台</small><strong id="image3d-title">图生 3D</strong></div>
-        <button id="image3d-close" type="button" aria-label="关闭图生 3D">×</button>
-      </header>
-      <iframe id="image3d-frame" title="灵界图生 3D" loading="lazy"></iframe>
-    </div>
-  </div>
+  <section id="image3d-panel" class="image3d-panel" aria-labelledby="image3d-title" hidden>
+    <header class="image3d-toolbar">
+      <div><small>灵界工作台</small><strong id="image3d-title">图生 3D</strong></div>
+      <button id="image3d-close" type="button" aria-label="返回工作台">返回工作台</button>
+    </header>
+    <iframe id="image3d-frame" title="灵界图生 3D" loading="lazy"></iframe>
+  </section>
   <style>
-    .image3d-nav-entry b{background:#f1c75b;color:#514216}.image3d-modal[hidden]{display:none}.image3d-modal{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:20px;background:rgba(20,35,28,.52);backdrop-filter:blur(8px)}.image3d-window{width:min(1180px,100%);height:min(900px,calc(100vh - 40px));display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid rgba(47,107,87,.22);border-radius:18px;background:#f2f5f1;box-shadow:0 28px 90px rgba(12,35,26,.32)}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{width:34px;height:34px;padding:0;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:500 24px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-window iframe{width:100%;height:100%;border:0;background:#f2f5f1}@media(max-width:720px){.image3d-modal{padding:0}.image3d-window{width:100%;height:100vh;border:0;border-radius:0}}
+    .image3d-nav-entry b{background:#f1c75b;color:#514216}.image3d-panel[hidden]{display:none}.image3d-panel{position:fixed;z-index:9;right:0;bottom:0;display:grid;grid-template-rows:auto 1fr;overflow:hidden;border-left:1px solid #dce4df;background:#f2f5f1}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{padding:9px 13px;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:700 13px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-panel iframe{width:100%;height:100%;border:0;background:#f2f5f1}.image3d-nav-entry.image3d-active{color:#204e3e;background:#e6eee5;font-weight:650}
   </style>
   <script>
     (() => {
-      const modal = document.getElementById('image3d-modal');
+      const panel = document.getElementById('image3d-panel');
       const frame = document.getElementById('image3d-frame');
       const close = document.getElementById('image3d-close');
+      const place = () => {
+        const sidebar = document.querySelector('aside.sidebar');
+        if (!sidebar || panel.hidden) return;
+        const rect = sidebar.getBoundingClientRect();
+        const horizontal = getComputedStyle(sidebar).position === 'fixed';
+        panel.style.left = horizontal ? `${Math.max(0, rect.right)}px` : '0';
+        panel.style.top = horizontal ? '0' : `${Math.max(0, rect.bottom)}px`;
+      };
       const open = () => {
         if (!frame.dataset.loaded) {
           frame.src = '/image-to-3d?embedded=1';
           frame.dataset.loaded = '1';
         }
-        modal.hidden = false;
+        panel.hidden = false;
+        entry.classList.add('image3d-active');
         document.body.style.overflow = 'hidden';
-        close.focus();
+        place();
       };
       const dismiss = () => {
-        modal.hidden = true;
+        panel.hidden = true;
+        entry.classList.remove('image3d-active');
         document.body.style.overflow = '';
         entry.focus();
       };
@@ -58,8 +66,9 @@
       new MutationObserver(attach).observe(document.getElementById('root'), {childList:true, subtree:true});
       attach();
       close.addEventListener('click', dismiss);
-      modal.addEventListener('click', event => { if (event.target === modal) dismiss(); });
-      document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) dismiss(); });
+      window.addEventListener('resize', place);
+      new MutationObserver(place).observe(document.body, {attributes:true, attributeFilter:['class']});
+      document.addEventListener('keydown', event => { if (event.key === 'Escape' && !panel.hidden) dismiss(); });
     })();
   </script>
 </body>
