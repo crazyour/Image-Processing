@@ -22,6 +22,8 @@ body {
 }
 .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0 96px; }
 .hero { max-width: 760px; margin-bottom: 38px; }
+.back-link { display: inline-flex; margin-bottom: 18px; color: var(--teal); font-size: 14px; font-weight: 800; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
 .eyebrow { color: var(--accent-dark); font-size: 12px; letter-spacing: .18em; font-weight: 800; }
 h1 { margin: 8px 0 16px; font-size: clamp(38px, 7vw, 72px); line-height: .98; letter-spacing: -.055em; }
 .hero > p:last-child { color: var(--muted); font-size: 18px; line-height: 1.7; }

@@ -42,6 +42,7 @@ from vercel_app.workflow import (
 
 
 ROOT = Path(__file__).resolve().parent
+ORIGINAL_FRONTEND = ROOT / "frontend_dist"
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 VALID_STATES = {
     "PROMPT_REVIEW", "GENERATING_VIEWS", "VIEWS_REVIEW", "CONFIRMED",
@@ -428,9 +429,16 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     return _response(state)
 
 
-@app.get("/", include_in_schema=False)
-def index():
+@app.get("/image-to-3d", include_in_schema=False)
+def image_to_3d_page():
     return FileResponse(ROOT / "public" / "index.html")
 
 
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(ORIGINAL_FRONTEND / "index.html")
+
+
+app.mount("/assets", StaticFiles(directory=ORIGINAL_FRONTEND / "assets"), name="original-assets")
+app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), name="original-branding")
 app.mount("/static", StaticFiles(directory=ROOT / "public"), name="static")

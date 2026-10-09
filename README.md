@@ -19,17 +19,18 @@
 - 自动反编译会丢失原注释、排版，并可能错误重排控制流；通过语法检查不代表与原程序语义完全一致。
 - React 前端只能从已经压缩的 JavaScript 构建产物重建，不能无损转换成 `.py`。
 
-## Vercel 独立版
+## Vercel 集成版
 
-仓库根目录现在包含一个不依赖反编译旧系统的独立应用，可以部署到 Vercel：
+仓库根目录包含一个可部署到 Vercel 的集成应用：
 
 - `app.py`：Vercel 自动识别的 FastAPI 入口；
 - `vercel_app/`：OpenAI、腾讯混元、PostgreSQL 和 Vercel Blob 工作流；
-- `public/`：上传、提示词确认、多视图确认和结果下载页面；
+- `frontend_dist/`：从原安装包恢复的 React 前端构建产物，作为网站首页；
+- `public/`：新增的图生 3D 页面，路径为 `/image-to-3d`；
 - `requirements.txt`、`vercel.json`：Python 依赖和 5 分钟函数时限；
 - `.vercelignore`：部署时排除旧后端、字节码和恢复证据。
 
-旧的 `backend/app/main.py` 仍有反编译语法错误，但它不会被打包进 Vercel，也不会影响这个独立应用。
+首页恢复原“灵界 · 工艺设计工作台”的已编译界面，并增加“图生 3D”入口。旧的 `backend/app/main.py` 仍有反编译语法错误，因此原工作台中依赖旧 API 的功能在 Vercel 上暂不可用；新增的图生 3D 工作流可独立运行。
 
 ## 图生 3D 流程
 
