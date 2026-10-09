@@ -49,6 +49,7 @@ textarea:focus, select:focus { outline: 3px solid rgba(25,122,120,.14); border-c
 button { border: 0; border-radius: 13px; padding: 13px 19px; font: inherit; font-weight: 800; cursor: pointer; transition: transform .15s, opacity .15s; }
 button:hover { transform: translateY(-1px); }
 button:disabled { opacity: .5; cursor: wait; transform: none; }
+button.pending:disabled { opacity: 1; color: white; background: #6f9b8c; }
 .primary { background: var(--accent); color: white; box-shadow: 0 7px 20px rgba(47,107,87,.2); }
 .secondary { background: #e8eeea; color: var(--ink); }
 .inline-settings { padding: 15px 17px; border: 1px solid var(--line); border-radius: 14px; background: #f8faf8; }

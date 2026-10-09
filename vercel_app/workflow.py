@@ -124,6 +124,40 @@ def _provider_error(provider: str, response: httpx.Response) -> WorkflowError:
     return WorkflowError(f"{provider.upper()}_ERROR", message, 502)
 
 
+def _provider_payload_error(provider: str, body: dict) -> WorkflowError:
+    """Translate a 2xx business-error envelope without exposing request data."""
+    response_body = body.get("Response") if isinstance(body.get("Response"), dict) else {}
+    error = body.get("error") or body.get("Error") or response_body.get("Error") or {}
+    if not isinstance(error, dict):
+        error = {"message": error}
+    code = str(
+        error.get("code") or error.get("Code") or body.get("error_code")
+        or body.get("code") or body.get("status_code") or ""
+    ).strip()
+    detail = str(
+        error.get("message") or error.get("Message") or body.get("error_message")
+        or body.get("message") or body.get("status_msg") or ""
+    ).strip()
+    request_id = str(
+        body.get("request_id") or body.get("RequestId") or response_body.get("RequestId") or ""
+    ).strip()
+    combined = f"{code} {detail}".lower()
+    if "balance" in combined or "余额" in combined or "积分不足" in combined:
+        summary = "余额或积分不足"
+    elif code or detail:
+        summary = "请求被拒绝"
+    else:
+        summary = "返回内容缺少任务编号"
+    message = f"{provider}{summary}"
+    if code:
+        message += f"（{code}）"
+    if detail:
+        message += f"：{detail[:300]}"
+    if request_id:
+        message += f"；Request ID：{request_id[:128]}"
+    return WorkflowError(f"{provider.upper()}_ERROR", message, 502)
+
+
 def _extract_output_text(body: dict) -> str:
     for item in body.get("output", []):
         for content in item.get("content", []):
@@ -278,9 +312,12 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
     if response.status_code >= 400:
         raise _provider_error("腾讯混元", response)
     try:
-        return response.json(), model
+        body = response.json()
     except ValueError:
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元返回内容无法解析", 502)
+    if not isinstance(body, dict) or not body.get("id"):
+        raise _provider_payload_error("腾讯混元", body if isinstance(body, dict) else {})
+    return body, model
 
 
 def query_hunyuan(task_id: str, model: str) -> dict:
@@ -295,9 +332,12 @@ def query_hunyuan(task_id: str, model: str) -> dict:
     if response.status_code >= 400:
         raise _provider_error("腾讯混元", response)
     try:
-        return response.json()
+        body = response.json()
     except ValueError:
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元返回内容无法解析", 502)
+    if not isinstance(body, dict) or (not body.get("status") and (body.get("error") or body.get("Error") or body.get("Response"))):
+        raise _provider_payload_error("腾讯混元", body if isinstance(body, dict) else {})
+    return body
 
 
 def model_suffix(url: str, model_type: str) -> str:

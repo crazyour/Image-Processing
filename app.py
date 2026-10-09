@@ -472,12 +472,13 @@ def generate_3d(session_id: str, data: Generate3DRequest,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
-    if state["status"] != "CONFIRMED" or not state.get("confirmed_snapshot"):
+    if state["status"] not in {"CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
         raise WorkflowError("NOT_CONFIRMED", "请先确认左、右、背三视图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     options = data.model_dump()
     state["status"] = "SUBMITTING_3D"
+    state["hunyuan_task"] = None
     state["last_error"] = None
     version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
@@ -507,10 +508,10 @@ def generate_3d(session_id: str, data: Generate3DRequest,
         raise
     task_id = str(created.get("id", ""))
     if not TASK_ID.fullmatch(task_id):
-        state["status"] = "FAILED"
+        state["status"] = "CONFIRMED"
         state["last_error"] = {
             "code": "HUNYUAN_INVALID_RESPONSE",
-            "message": "腾讯混元没有返回任务编号，请勿立即重复提交",
+            "message": "腾讯混元没有返回任务编号，请检查错误信息后重试",
         }
         _save(state, version)
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元没有返回任务编号", 502)

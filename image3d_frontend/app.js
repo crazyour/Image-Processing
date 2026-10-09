@@ -69,8 +69,8 @@ async function api(path, options = {}) {
 
 function setBusy(button, busy, text = "处理中…") {
   if (!button) return;
-  if (busy) { button.dataset.label = button.textContent; button.textContent = text; }
-  else if (button.dataset.label) button.textContent = button.dataset.label;
+  if (busy) { button.dataset.label = button.textContent; button.dataset.busy = "1"; button.textContent = text; }
+  else if (button.dataset.label) { button.textContent = button.dataset.label; delete button.dataset.label; delete button.dataset.busy; }
   button.disabled = busy;
   if (!busy) syncControls();
 }
@@ -128,7 +128,14 @@ function syncControls() {
   $("#generate-views").disabled = !canGenerateViews;
   $("#regenerate-views").disabled = !canGenerateViews;
   $("#confirm-views").disabled = !state || state.views_stale || status !== "VIEWS_REVIEW";
-  $("#generate-3d").disabled = status !== "CONFIRMED";
+  const generateButton = $("#generate-3d");
+  const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(status);
+  const canSubmit3d = ["CONFIRMED", "FAILED"].includes(status) && Boolean(state?.confirmed_at);
+  generateButton.disabled = !canSubmit3d;
+  generateButton.classList.toggle("pending", running);
+  if (!generateButton.dataset.busy) {
+    generateButton.textContent = running ? "正在生成 STL…" : status === "FAILED" ? "重新生成 STL" : "提交 STL 任务";
+  }
 }
 
 function render(next) {
