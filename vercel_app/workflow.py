@@ -223,6 +223,19 @@ def generate_view(reference_images: list[bytes], prompt: str) -> tuple[bytes, di
 
 
 def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
+    if url.startswith("/local-blobs/"):
+        from .store import local_blob_path
+
+        path = local_blob_path(url)
+        if path is None or not path.is_file():
+            raise WorkflowError("REMOTE_FILE_UNAVAILABLE", "本地文件不存在", 404)
+        try:
+            if path.stat().st_size > limit:
+                raise WorkflowError("REMOTE_FILE_TOO_LARGE", "本地文件超过保存限制", 502)
+            return path.read_bytes()
+        except OSError as exc:
+            raise WorkflowError("REMOTE_FILE_UNAVAILABLE", f"本地文件读取失败：{exc}", 502) from exc
+
     chunks: list[bytes] = []
     total = 0
     try:

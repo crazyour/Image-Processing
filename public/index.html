@@ -12,13 +12,13 @@
       <a class="back-link" href="/">← 返回灵界工作台</a>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
-      <p>分析主体、生成多视图，经你确认后再提交混元生成 3D 模型。</p>
+      <p>上传一张正面图，自动生成左、右、背面图，确认后再提交生成 3D 模型。</p>
     </header>
 
     <div id="notice" class="notice hidden" role="status"></div>
 
     <section id="upload-step" class="panel">
-      <div class="step-title"><span>01</span><div><h2>上传正面图</h2><p>建议主体完整、背景干净、无遮挡。</p></div></div>
+      <div class="step-title"><span>01</span><div><h2>上传正面图</h2><p>上传后会直接生成其余三个视角。</p></div></div>
       <form id="upload-form" class="stack">
         <label class="dropzone" for="image-input">
           <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
@@ -28,33 +28,35 @@
         <label>补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
-        <button class="primary" type="submit">分析图片</button>
+        <button class="primary" type="submit">生成三视图</button>
       </form>
     </section>
 
-    <section id="prompt-step" class="panel hidden">
-      <div class="step-title"><span>02</span><div><h2>确认主体与提示词</h2><p>提示词可以直接使用中文。</p></div></div>
-      <div id="analysis" class="analysis-grid"></div>
-      <label>主体提示词
-        <textarea id="prompt-editor" rows="6"></textarea>
-      </label>
-      <div class="actions">
-        <button id="save-prompt" class="secondary" type="button">保存提示词</button>
-        <button id="generate-views" class="primary" type="button">生成左、右、背面图</button>
+    <details id="prompt-step" class="panel prompt-details hidden">
+      <summary><strong>识别结果与提示词</strong><span>高级调整（可选）</span></summary>
+      <div class="prompt-content">
+        <div id="analysis" class="analysis-grid"></div>
+        <label>主体提示词
+          <textarea id="prompt-editor" rows="6"></textarea>
+        </label>
+        <div class="actions">
+          <button id="save-prompt" class="secondary" type="button">保存提示词</button>
+          <button id="generate-views" class="primary" type="button">按修改后的提示词生成</button>
+        </div>
       </div>
-    </section>
+    </details>
 
     <section id="views-step" class="panel hidden">
-      <div class="step-title"><span>03</span><div><h2>确认多角度图片</h2><p>每张生成图都可以用中文单独微调。</p></div></div>
+      <div class="step-title"><span>02</span><div><h2>确认多角度图片</h2><p>每张生成图都可以用中文单独微调。</p></div></div>
       <div id="views-grid" class="views-grid"></div>
       <div class="actions">
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
-        <button id="confirm-views" class="primary" type="button">确认提示词和四视图</button>
+        <button id="confirm-views" class="primary" type="button">确认四视图</button>
       </div>
     </section>
 
     <section id="generate-step" class="panel hidden">
-      <div class="step-title"><span>04</span><div><h2>生成 3D</h2><p>确认后才提交腾讯混元。</p></div></div>
+      <div class="step-title"><span>03</span><div><h2>生成 3D</h2><p>确认后才提交腾讯混元。</p></div></div>
       <div class="options">
         <label>类型
           <select id="generate-type"><option value="Normal">完整模型与纹理</option><option value="Geometry">仅几何白模</option></select>

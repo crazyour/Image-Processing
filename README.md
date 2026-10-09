@@ -35,16 +35,15 @@
 
 ## 图生 3D 流程
 
-Vercel 应用采用必须经过用户确认的两阶段流程：
+Vercel 应用采用自动多视图生成、提交 3D 前人工确认的流程：
 
 1. 上传正面图片，安全解码并统一为 PNG；
-2. GPT 分析主体、几何、材质、颜色、遮挡区域和不可见面假设，生成可编辑的中文提示词；
-3. 用户确认或修改提示词；
-4. GPT Image 根据正面图和中文提示词生成左、右、后三个视角；
-5. 用户预览多视图，可用中文指令单独微调任意生成视图；
-6. 用户确认后锁定提示词与四张图片的版本；
-7. 将 Vercel Blob 的公网图片地址提交给腾讯 TokenHub `hy-3d-3.1`；
-8. 查询异步任务，并在成功后把 GLB/OBJ 等临时结果转存到 Vercel Blob。
+2. GPT 分析主体、几何、材质、颜色、遮挡区域和不可见面假设，在后台生成中文提示词；
+3. GPT Image 立即根据正面图和中文提示词生成左、右、后三个视角；
+4. 用户预览多视图，可用中文指令单独微调，也可在“高级调整”中修改提示词后重新生成；
+5. 用户确认后锁定提示词与四张图片的版本；
+6. 将 Vercel Blob 的公网图片地址提交给腾讯 TokenHub `hy-3d-3.1`；
+7. 查询异步任务，并在成功后把 GLB/OBJ 等临时结果转存到 Vercel Blob。
 
 复制 `.env.example` 为 `.env` 并配置：
 
@@ -59,7 +58,13 @@ HUNYUAN_3D_MODEL=hy-3d-3.1
 
 BLOB_READ_WRITE_TOKEN=Vercel自动提供
 DATABASE_URL=PostgreSQL连接字符串
+LOCAL_DATA_DIR=可选的本地数据目录（默认为项目下的 var）
 ```
+
+本地开发时可以留空 `BLOB_READ_WRITE_TOKEN` 和 `DATABASE_URL`。应用会自动改用
+`var/image3d.sqlite3` 保存会话，并将图片与模型文件保存到 `var/blobs/`。这些文件已被
+`.gitignore` 排除。本地图片可用于界面预览和 GPT 多视图流程，但腾讯混元 3D 需要公网可访问的图片 URL，
+因此提交 3D 任务前仍需配置 Public Vercel Blob。
 
 模型名、图片质量和供应商端点没有代码内默认值，运行时只从环境变量读取。以后更换模型只需修改 Vercel Environment Variables 或本地 `.env`，不需要同步修改 Python 全局常量。缺少必要值时接口会返回 `NOT_CONFIGURED`，而不会静默使用过期模型。
 

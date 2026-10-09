@@ -82,6 +82,7 @@ function render(next) {
   renderAnalysis(state.analysis);
   $("#prompt-editor").value = state.user_prompt || "";
   const hasGenerated = ["left", "right", "back"].some((view) => state.views?.[view]);
+  $("#prompt-step").open = !hasGenerated && ["PROMPT_REVIEW", "VIEWS_REVIEW"].includes(state.status);
   $("#views-step").classList.toggle("hidden", !hasGenerated);
   if (hasGenerated) renderViews(state.views);
   const canGenerate = ["CONFIRMED", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED"].includes(state.status);
@@ -142,8 +143,14 @@ $("#upload-form").addEventListener("submit", async (event) => {
     session = { id: result.session_id, token: result.access_token };
     localStorage.setItem("image3d-session", JSON.stringify(session));
     render(result);
-    $("#prompt-step").scrollIntoView({ behavior: "smooth" });
-  } catch (error) { notify(error.message, true); }
+    button.textContent = "正在生成三个视角…";
+    render(await api(`/api/sessions/${session.id}/views`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ views: ["left", "right", "back"] }),
+    }));
+    notify("左、右、背面图已生成");
+    $("#views-step").scrollIntoView({ behavior: "smooth" });
+  } catch (error) { notify(error.message, true); await refresh(); }
   finally { setBusy(button, false); }
 });
 

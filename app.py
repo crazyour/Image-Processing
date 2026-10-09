@@ -10,7 +10,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Header, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -21,8 +21,10 @@ from vercel_app.store import (
     SessionNotFound,
     StoreError,
     create_session,
+    local_blob_path,
     load_session,
     save_session,
+    storage_status,
 )
 from vercel_app.workflow import (
     GENERATED_VIEWS,
@@ -145,6 +147,7 @@ def health():
         "workflow": "gpt-multiview-to-hunyuan-3d",
         "openai_image_model": os.getenv("OPENAI_IMAGE_MODEL"),
         "hunyuan_model": os.getenv("HUNYUAN_3D_MODEL"),
+        "storage": storage_status(),
     }
 
 
@@ -400,6 +403,18 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     state["last_error"] = None
     version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
+    if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
+        state["status"] = "CONFIRMED"
+        state["last_error"] = {
+            "code": "PUBLIC_BLOB_REQUIRED",
+            "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
+        }
+        _save(state, version)
+        raise WorkflowError(
+            "PUBLIC_BLOB_REQUIRED",
+            "本地图片无法被腾讯混元访问，请配置 BLOB_READ_WRITE_TOKEN 后重新创建会话",
+            409,
+        )
     try:
         created, hunyuan_model = submit_hunyuan(
             snapshot["views"]["front"]["url"],
@@ -488,6 +503,14 @@ def image_to_3d_page():
         ROOT / "public" / "index.html",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@app.get("/local-blobs/{blob_path:path}", include_in_schema=False)
+def local_blob(blob_path: str):
+    path = local_blob_path(f"/local-blobs/{blob_path}")
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="本地文件不存在")
+    return FileResponse(path)
 
 
 @app.get("/", include_in_schema=False)
