@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 if (new URLSearchParams(location.search).get("embedded") === "1") {
   document.body.classList.add("embedded");
 }
-const labels = { front: "正面（原图）", left: "左面", right: "右面", back: "背面" };
+const labels = { left: "左视图", right: "右视图", back: "背视图" };
 const defaultModelSettings = {
   vision_model: "gpt-6-luna",
   image_model: "gpt-image-2.5-flare",
@@ -102,10 +102,10 @@ function escapeHtml(value) {
 }
 
 function renderViews(views = {}) {
-  $("#views-grid").innerHTML = ["front", "left", "right", "back"].map((view) => {
+  $("#views-grid").innerHTML = ["left", "right", "back"].map((view) => {
     const item = views[view];
     if (!item) return `<article class="view-card"><h3>${labels[view]}</h3><p>尚未生成</p></article>`;
-    const refinement = view === "front" ? "" : `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>`;
+    const refinement = `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>`;
     return `<article class="view-card"><h3>${labels[view]}</h3><img src="${item.url}" alt="${labels[view]}">${refinement}</article>`;
   }).join("");
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
@@ -245,7 +245,7 @@ $("#confirm-views").addEventListener("click", async (event) => {
   try {
     setBusy(event.currentTarget, true);
     render(await api(`/api/sessions/${session.id}/confirm`, { method: "POST" }));
-    notify("提示词和四视图已锁定");
+    notify("三张生成视图已确认；原图仅作为正面参考");
     $("#generate-step").scrollIntoView({ behavior: "smooth" });
   } catch (error) { notify(error.message, true); }
   finally { setBusy(event.currentTarget, false); }

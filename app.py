@@ -411,7 +411,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
 def confirm_views(session_id: str, x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     if state["status"] != "VIEWS_REVIEW" or not _views_current(state):
-        raise WorkflowError("VIEWS_NOT_READY", "请生成并检查当前提示词版本的全部四个视角", 409)
+        raise WorkflowError("VIEWS_NOT_READY", "请生成并检查当前提示词版本的左、右、背三视图", 409)
     state["views_stale"] = False
     state["confirmed_snapshot"] = {
         "prompt_revision": state["prompt_revision"],
@@ -431,7 +431,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
     if state["status"] != "CONFIRMED" or not state.get("confirmed_snapshot"):
-        raise WorkflowError("NOT_CONFIRMED", "请先确认提示词和全部多视图", 409)
+        raise WorkflowError("NOT_CONFIRMED", "请先确认左、右、背三视图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     if data.result_format not in RESULT_FORMATS:
