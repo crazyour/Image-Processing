@@ -26,7 +26,7 @@
 - `app.py`：Vercel 自动识别的 FastAPI 入口；
 - `vercel_app/`：OpenAI、腾讯混元、PostgreSQL 和 Vercel Blob 工作流；
 - `frontend_dist/`：从原安装包恢复的 React 前端构建产物，作为网站首页；
-- `public/`：图生 3D 工作流，由原灵界侧边栏入口在站内弹层中打开；
+- `image3d_frontend/`：图生 3D 工作流，由原灵界侧边栏入口在站内弹层中打开；
 - `requirements.txt`、`vercel.json`：Python 依赖和 5 分钟函数时限；
 - `.vercelignore`：部署时排除旧后端、字节码和恢复证据。
 

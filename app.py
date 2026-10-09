@@ -44,6 +44,7 @@ from vercel_app.workflow import (
 
 ROOT = Path(__file__).resolve().parent
 ORIGINAL_FRONTEND = ROOT / "frontend_dist"
+IMAGE3D_FRONTEND = ROOT / "image3d_frontend"
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
@@ -539,7 +540,7 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
 @app.get("/image-to-3d", include_in_schema=False)
 def image_to_3d_page():
     return FileResponse(
-        ROOT / "public" / "index.html",
+        IMAGE3D_FRONTEND / "index.html",
         headers={"Cache-Control": "no-store"},
     )
 
@@ -562,4 +563,4 @@ def index():
 
 app.mount("/assets", StaticFiles(directory=ORIGINAL_FRONTEND / "assets"), name="original-assets")
 app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), name="original-branding")
-app.mount("/static", StaticFiles(directory=ROOT / "public"), name="static")
+app.mount("/static", StaticFiles(directory=IMAGE3D_FRONTEND), name="static")
