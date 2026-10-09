@@ -95,9 +95,9 @@
       <div class="step-title"><span>03</span><div><h2>生成 STL</h2><p>确认后提交腾讯混元，最终只保留 STL 模型。</p></div></div>
       <div class="options">
         <label>类型
-          <select id="generate-type"><option value="Normal">完整模型与纹理</option><option value="Geometry">仅几何白模</option></select>
+          <select id="generate-type"><option value="Geometry" selected>仅几何白模</option><option value="Normal">完整模型与纹理</option></select>
         </label>
-        <label class="check"><input id="enable-pbr" type="checkbox"> 生成 PBR 材质（额外计费）</label>
+        <label class="check"><input id="enable-pbr" type="checkbox" disabled> 生成 PBR 材质（额外计费）</label>
       </div>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
       <div id="task-progress" class="progress hidden"><div class="spinner"></div><span></span></div>

@@ -97,7 +97,7 @@ GET   /api/sessions/{id}/3d
 GET   /api/sessions/{id}
 ```
 
-浏览器会把会话访问令牌保存在 `localStorage`，后续请求通过 `X-Session-Token` 发送。服务器数据库只保存令牌哈希。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。
+浏览器只在当前标签页的 `sessionStorage` 中保存会话访问令牌，后续请求通过 `X-Session-Token` 发送；关闭标签页后不会恢复上一次任务。服务器数据库只保存令牌哈希。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。
 
 网页默认使用 `gpt-6-luna` 做图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成三个补充视角，并使用 `hy-3d-3.1` 生成 3D。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可在网页把多视图生成模型改为 `gpt-image-2.5-sunburst`。
 

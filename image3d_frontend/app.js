@@ -9,7 +9,13 @@ const defaultModelSettings = {
   image_quality: "medium",
   hunyuan_model: "hy-3d-3.1",
 };
-let session = JSON.parse(localStorage.getItem("image3d-session") || "null");
+localStorage.removeItem("image3d-session");
+let session = null;
+try {
+  session = JSON.parse(sessionStorage.getItem("image3d-session") || "null");
+} catch (_) {
+  sessionStorage.removeItem("image3d-session");
+}
 let state = null;
 let polling = null;
 
@@ -151,7 +157,7 @@ function renderTask() {
 async function refresh() {
   if (!session) return;
   try { render(await api(`/api/sessions/${session.id}`)); }
-  catch (error) { localStorage.removeItem("image3d-session"); session = null; render(null); notify(error.message, true); }
+  catch (error) { sessionStorage.removeItem("image3d-session"); session = null; render(null); notify(error.message, true); }
 }
 
 async function refreshTask() {
@@ -179,6 +185,14 @@ function updateViewSource() {
 
 $("#view-source").addEventListener("change", updateViewSource);
 
+function updateGenerateType() {
+  const geometryOnly = $("#generate-type").value === "Geometry";
+  $("#enable-pbr").disabled = geometryOnly;
+  if (geometryOnly) $("#enable-pbr").checked = false;
+}
+
+$("#generate-type").addEventListener("change", updateGenerateType);
+
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.submitter;
@@ -204,7 +218,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
     localStorage.setItem("image3d-model-settings", JSON.stringify(models));
     const result = await api("/api/sessions", { method: "POST", body: form });
     session = { id: result.session_id, token: result.access_token };
-    localStorage.setItem("image3d-session", JSON.stringify(session));
+    sessionStorage.setItem("image3d-session", JSON.stringify(session));
     render(result);
     if (viewSource === "uploaded") {
       for (const view of ["left", "right", "back"]) {
@@ -292,5 +306,6 @@ $("#generate-3d").addEventListener("click", async (event) => {
 
 initializeModelSettings();
 updateViewSource();
+updateGenerateType();
 render(null);
 refresh();
