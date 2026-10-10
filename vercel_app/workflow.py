@@ -18,7 +18,6 @@ VIEW_TYPES = ("front", "left", "right", "back")
 GENERATED_VIEWS = ("left", "right", "back")
 VIEW_NAMES = {"front": "正视图", "left": "左视图", "right": "右视图", "back": "背视图"}
 GENERATE_TYPES = {"Normal", "Geometry"}
-RESULT_FORMATS = {"", "stl", "usdz", "fbx"}
 MAX_UPLOAD_BYTES = 4_000_000
 MAX_PIXELS = 20_000_000
 MAX_MODEL_BYTES = 250_000_000

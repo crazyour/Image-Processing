@@ -72,7 +72,7 @@ class Generate3DRequest(BaseModel):
     generate_type: str = "Normal"
     enable_pbr: bool = False
     face_count: int | None = Field(default=None, ge=3000, le=1500000)
-    result_format: Literal["stl"] = "stl"
+    result_format: Literal["STL"] = "STL"
 
 
 @app.exception_handler(WorkflowError)

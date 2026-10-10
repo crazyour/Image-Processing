@@ -305,7 +305,7 @@ $("#generate-3d").addEventListener("click", async (event) => {
     setBusy(event.currentTarget, true, "正在提交…");
     render(await api(`/api/sessions/${session.id}/generate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked, result_format: "stl" }),
+      body: JSON.stringify({ generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked, result_format: "STL" }),
     }));
   } catch (error) { notify(error.message, true); await refresh(); }
   finally { setBusy(event.currentTarget, false); }
