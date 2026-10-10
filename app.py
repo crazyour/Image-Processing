@@ -28,6 +28,7 @@ from vercel_app.store import (
     storage_status,
 )
 from vercel_app.workflow import (
+    AI_GENERATED_VIEWS,
     GENERATED_VIEWS,
     GENERATE_TYPES,
     VIEW_NAMES,
@@ -67,7 +68,7 @@ class PromptUpdate(BaseModel):
 
 
 class ViewGenerationRequest(BaseModel):
-    views: list[str] = Field(default_factory=lambda: list(GENERATED_VIEWS))
+    views: list[str] = Field(default_factory=lambda: list(AI_GENERATED_VIEWS))
 
 
 class ViewRefinementRequest(BaseModel):
@@ -146,9 +147,9 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
 
 def _views_current(state: dict) -> bool:
     views = state.get("views", {})
-    return "front" in views and all(
+    return all(
         view in views and views[view].get("prompt_revision") == state.get("prompt_revision")
-        for view in GENERATED_VIEWS
+        for view in AI_GENERATED_VIEWS
     )
 
 
@@ -286,9 +287,19 @@ def new_session(
 
     session_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
-    front_url = PublicBlobStore().put(
-        f"image3d/{session_id}/views/front-r1.png", normalized, "image/png",
+    reference_url = PublicBlobStore().put(
+        f"image3d/{session_id}/reference/source.png", normalized, "image/png",
     )
+    initial_views = {}
+    if view_source == "uploaded":
+        initial_views["front"] = {
+            "url": reference_url,
+            "sha256": hashlib.sha256(normalized).hexdigest(),
+            "revision": 1,
+            "prompt_revision": 1,
+            "generated": False,
+            "uploaded": True,
+        }
     now = int(time.time())
     state = {
         "session_id": session_id,
@@ -298,13 +309,11 @@ def new_session(
         "effective_prompt": effective_prompt(user_prompt),
         "prompt_revision": 1,
         "views_stale": True,
-        "views": {"front": {
-            "url": front_url,
+        "views": initial_views,
+        "reference_image": {
+            "url": reference_url,
             "sha256": hashlib.sha256(normalized).hexdigest(),
-            "revision": 1,
-            "prompt_revision": 0,
-            "generated": False,
-        }},
+        },
         "source_image": image_info,
         "confirmed_snapshot": None,
         "hunyuan_task": None,
@@ -323,7 +332,7 @@ def upload_view(session_id: str, view: str, image: UploadFile = File(...),
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     if state.get("view_source") != "uploaded":
-        raise WorkflowError("UPLOAD_MODE_REQUIRED", "当前会话使用 AI 生成三视图", 409)
+        raise WorkflowError("UPLOAD_MODE_REQUIRED", "当前会话使用 AI 生成四视图", 409)
     if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"}:
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能上传三视图", 409)
     if view not in GENERATED_VIEWS:
@@ -387,16 +396,18 @@ def create_views(session_id: str, data: ViewGenerationRequest,
                  x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
+    if state.get("view_source") != "generated":
+        raise WorkflowError("GENERATED_MODE_REQUIRED", "当前会话使用手动上传视图", 409)
     if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"}:
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能生成多视图", 409)
     requested = list(dict.fromkeys(data.views))
-    if not requested or any(view not in GENERATED_VIEWS for view in requested):
-        raise WorkflowError("INVALID_VIEW", "可生成视角为 left、right、back", 422)
+    if not requested or any(view not in AI_GENERATED_VIEWS for view in requested):
+        raise WorkflowError("INVALID_VIEW", "可生成视角为 front、left、right、back", 422)
     source_view = (state.get("analysis") or {}).get("source_view")
     if state.get("view_source") == "generated" and source_view in {"SIDE", "BACK", "TOP"}:
         raise WorkflowError(
             "FRONT_VIEW_REQUIRED",
-            "当前主图不是正面或斜前方视角，请更换接近正面的图片后再生成补充视角",
+            "当前主图不是正面或斜前方视角，请更换接近正面的图片后再生成四视图",
             422,
         )
 
@@ -408,12 +419,20 @@ def create_views(session_id: str, data: ViewGenerationRequest,
     generated_views = {}
     failures: list[tuple[str, Exception]] = []
     try:
-        front = fetch_bytes(state["views"]["front"]["url"], 20_000_000)
-        with ThreadPoolExecutor(max_workers=min(3, len(requested))) as executor:
+        reference = state.get("reference_image") or {}
+        reference_url = reference.get("url")
+        if not reference_url:
+            reference_url = state.get("views", {}).get("front", {}).get("url")
+            if reference_url:
+                state["reference_image"] = {"url": reference_url}
+        if not reference_url:
+            raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
+        source = fetch_bytes(reference_url, 20_000_000)
+        with ThreadPoolExecutor(max_workers=min(4, len(requested))) as executor:
             futures = {
                 executor.submit(
                     generate_view,
-                    [front],
+                    [source],
                     view_prompt(state["user_prompt"], view),
                     models["image_model"],
                     models["image_quality"],
@@ -486,15 +505,16 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
     models = _session_model_settings(state)
     if state["status"] != "VIEWS_REVIEW":
         raise WorkflowError("INVALID_SESSION_STATE", "只有待确认图片可以微调", 409)
-    if view not in GENERATED_VIEWS or view not in state.get("views", {}):
-        raise WorkflowError("INVALID_VIEW", "只能微调已生成的 left、right 或 back", 422)
-    references = [
-        fetch_bytes(state["views"]["front"]["url"], 20_000_000),
-        fetch_bytes(state["views"][view]["url"], 20_000_000),
-    ]
+    if (state.get("view_source") != "generated" or view not in AI_GENERATED_VIEWS
+            or view not in state.get("views", {})):
+        raise WorkflowError("INVALID_VIEW", "只能微调已由 AI 生成的正、左、右或背视图", 422)
+    reference_url = (state.get("reference_image") or {}).get("url")
+    if not reference_url:
+        raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
+    references = [fetch_bytes(reference_url, 20_000_000), fetch_bytes(state["views"][view]["url"], 20_000_000)]
     references.extend(
         fetch_bytes(state["views"][other]["url"], 20_000_000)
-        for other in GENERATED_VIEWS if other != view and other in state["views"]
+        for other in AI_GENERATED_VIEWS if other != view and other in state["views"]
     )
     generated, usage = generate_view(
         references, view_prompt(state["user_prompt"], view, data.prompt),
@@ -523,12 +543,12 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
 def confirm_views(session_id: str, x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     if state["status"] != "VIEWS_REVIEW" or not _views_current(state):
-        raise WorkflowError("VIEWS_NOT_READY", "请生成并检查当前提示词版本的左、右、背三视图", 409)
+        raise WorkflowError("VIEWS_NOT_READY", "请生成并检查当前提示词版本的正、左、右、背四视图", 409)
     state["views_stale"] = False
     state["confirmed_snapshot"] = {
         "prompt_revision": state["prompt_revision"],
         "user_prompt": state["user_prompt"],
-        "views": {view: dict(state["views"][view]) for view in ("front", *GENERATED_VIEWS)},
+        "views": {view: dict(state["views"][view]) for view in AI_GENERATED_VIEWS},
         "confirmed_at": int(time.time()),
     }
     state["status"] = "CONFIRMED"
@@ -543,7 +563,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
     if state["status"] not in {"CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
-        raise WorkflowError("NOT_CONFIRMED", "请先确认左、右、背三视图", 409)
+        raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     options = data.model_dump()

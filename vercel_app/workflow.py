@@ -16,6 +16,7 @@ from vercel_app.settings import SettingsError, hunyuan_settings, openai_settings
 
 VIEW_TYPES = ("front", "left", "right", "back")
 GENERATED_VIEWS = ("left", "right", "back")
+AI_GENERATED_VIEWS = VIEW_TYPES
 VIEW_NAMES = {"front": "正视图", "left": "左视图", "right": "右视图", "back": "背视图"}
 GENERATE_TYPES = {"Normal", "Geometry"}
 MAX_UPLOAD_BYTES = 4_000_000
@@ -213,7 +214,7 @@ def view_prompt(user_prompt: str, view: str, refinement: str = "") -> str:
     prompt = (
         f"请编辑参考图片，生成同一个主体的{VIEW_NAMES[view]}。\n"
         f"{effective_prompt(user_prompt)}\n"
-        "第一张参考图是原始正面主体，其他参考图只用于核对跨视角一致性。"
+        "第一张参考图是用户上传的原始主体参考，其他参考图只用于核对跨视角一致性。"
     )
     if refinement.strip():
         prompt += f"\n\n本次仅修改{VIEW_NAMES[view]}：\n{refinement.strip()}"

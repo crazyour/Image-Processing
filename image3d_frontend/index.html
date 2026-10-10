@@ -10,9 +10,10 @@
   <main class="shell">
     <header class="hero">
       <a class="back-link" href="/">← 返回灵界工作台</a>
+      <button id="guide-toggle" class="guide-toggle" type="button" aria-controls="usage-guide" aria-expanded="false">？ 使用说明</button>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
-      <p>上传一张正面主图，可由 AI 生成或由你上传左、右、背三个补充视角，确认后生成 STL 模型。</p>
+      <p>上传一张参考图，可由 AI 生成正、左、右、背四个统一视角，确认后生成 STL 模型。</p>
     </header>
 
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
@@ -22,7 +23,7 @@
     </div>
 
     <section id="upload-step" class="panel">
-      <div class="step-title"><span>01</span><div><h2>上传正面主图</h2><p>由 AI 生成三个补充视角，或自行上传左、右、背面图。</p></div><b id="upload-state" class="step-state active">等待上传</b></div>
+      <div class="step-title"><span>01</span><div><h2>上传参考图</h2><p>AI 会重新生成正、左、右、背四视图；也可自行上传一套四视图。</p></div><b id="upload-state" class="step-state active">等待上传</b></div>
       <form id="upload-form" class="stack">
         <label class="dropzone" for="image-input">
           <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
@@ -30,7 +31,7 @@
           <span id="drop-copy">选择 PNG、JPEG 或 WebP 图片</span>
         </label>
         <p class="input-help">建议使用：单一主体、轮廓完整、接近正面、背景简洁的图片。上限 4 MB，最小 128 × 128 像素。</p>
-        <label>补充视角来源
+        <label>视图来源
           <select id="view-source">
             <option value="generated">AI 自动生成</option>
             <option value="uploaded">我自己上传</option>
@@ -70,7 +71,7 @@
           </div>
           <p class="settings-note">设置仅保存在当前浏览器，并在新任务创建时锁定。任务开始后的修改只对下一任务生效。</p>
         </details>
-        <button id="upload-submit" class="primary" type="submit">生成三个补充视角</button>
+        <button id="upload-submit" class="primary" type="submit">生成正、左、右、背四视图</button>
       </form>
     </section>
 
@@ -83,17 +84,17 @@
           <textarea id="prompt-editor" rows="6"></textarea>
         </label>
         <div class="actions">
-          <button id="generate-views" class="primary" type="button">应用修改并生成三个视角</button>
+          <button id="generate-views" class="primary" type="button">应用修改并生成四个视角</button>
         </div>
       </div>
     </details>
 
     <section id="views-step" class="panel">
-      <div class="step-title"><span>02</span><div><h2>检查并确认补充视角</h2><p>对照正面参考图检查左、右、背三张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
+      <div class="step-title"><span>02</span><div><h2>检查并确认四视图</h2><p>检查 AI 生成或手动上传的正、左、右、背四张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
       <div id="views-grid" class="views-grid"></div>
       <div class="actions">
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
-        <button id="confirm-views" class="primary" type="button">确认三个视角</button>
+        <button id="confirm-views" class="primary" type="button">确认四个视角</button>
       </div>
     </section>
 
@@ -122,6 +123,88 @@
       <div id="model-results" class="model-results"></div>
     </section>
   </main>
+
+  <aside id="usage-guide" class="guide-drawer" aria-hidden="true" aria-labelledby="guide-title" inert>
+    <header class="guide-header">
+      <div><small>IMAGE TO 3D</small><h2 id="guide-title">使用说明</h2></div>
+      <button id="guide-close" type="button" aria-label="关闭使用说明">关闭 ×</button>
+    </header>
+    <div class="guide-content">
+      <section class="guide-quick">
+        <strong>最快操作流程</strong>
+        <ol>
+          <li>上传清晰的参考图</li>
+          <li>生成并检查正、左、右、背视图</li>
+          <li>点击“确认四个视角”</li>
+          <li>保持“仅几何白模”并提交</li>
+          <li>预览并下载 STL</li>
+        </ol>
+      </section>
+
+      <details open>
+        <summary>1. 图片要求</summary>
+        <ul>
+          <li>使用单一主体、轮廓完整、接近正面的图片。</li>
+          <li>背景尽量简单，避免大面积遮挡或裁切。</li>
+          <li>支持 PNG、JPEG、WebP，单张不超过 4 MB。</li>
+          <li>明显的侧面、背面或顶部图片会被要求更换。</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>2. AI 自动生成视图</summary>
+        <ol>
+          <li>选择一张正面主图。</li>
+          <li>补充视角来源保持“AI 自动生成”。</li>
+          <li>按需填写补充要求。</li>
+          <li>点击“生成正、左、右、背四视图”。</li>
+        </ol>
+        <p>系统会根据参考图重新生成正、左、右、背四视图。AI 分析和四张图片生成都会产生模型调用费用。</p>
+      </details>
+
+      <details>
+        <summary>3. 自己上传视图</summary>
+        <p>当前手动模式需要四张输入图片：</p>
+        <ul><li>正面主图</li><li>左视图</li><li>右视图</li><li>背视图</li></ul>
+        <p>此模式不会调用 GPT 分析或生成图片，但生成 STL 仍会调用腾讯混元。</p>
+      </details>
+
+      <details>
+        <summary>4. 检查和确认</summary>
+        <ul>
+          <li>点击图片可以打开大图检查。</li>
+          <li>检查零件数量、比例、颜色和标识是否一致。</li>
+          <li>AI 结果可逐张“微调”；手动图片可逐张“替换”。</li>
+          <li>修改主体描述后，需要重新生成对应视图。</li>
+        </ul>
+        <p>确认无误后点击“确认四个视角”，按钮会显示“已确认 ✓”。</p>
+      </details>
+
+      <details>
+        <summary>5. 生成、预览和下载 STL</summary>
+        <ul>
+          <li>只需要几何结构时，保持默认“仅几何白模”。</li>
+          <li>点击“提交 STL 任务”后等待腾讯混元完成。</li>
+          <li>页面会显示任务状态、等待时间和任务编号。</li>
+          <li>完成后可拖动预览模型，滚轮缩放，然后下载 STL。</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>6. 常见问题</summary>
+        <h3>按钮不能点击</h3>
+        <p>检查上一步是否完成。正、左、右、背四视图齐全并确认后，才能提交 STL。</p>
+        <h3>一直显示处理中</h3>
+        <p>查看步骤状态和错误卡片；网络中断时可点击“立即刷新”。超时任务会自动解除锁定。</p>
+        <h3>腾讯混元提交失败</h3>
+        <p>检查 API Key、余额、模型名、接口地址和 Vercel Blob。反馈问题时请一并提供错误编号和 Request ID。</p>
+        <h3>刷新后任务是否还在</h3>
+        <p>同一标签页刷新可以继续；关闭标签页后不会自动恢复上一次内容。</p>
+      </details>
+
+      <p class="guide-footnote">生成图片和 STL 都可能产生供应商费用，请避免重复提交。</p>
+    </div>
+  </aside>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

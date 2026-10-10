@@ -2,7 +2,8 @@ const $ = (selector) => document.querySelector(selector);
 if (new URLSearchParams(location.search).get("embedded") === "1") {
   document.body.classList.add("embedded");
 }
-const labels = { front: "正面参考图", left: "左视图", right: "右视图", back: "背视图" };
+const labels = { front: "正视图", left: "左视图", right: "右视图", back: "背视图" };
+const allViews = ["front", "left", "right", "back"];
 const defaultModelSettings = {
   vision_model: "gpt-6-luna",
   image_model: "gpt-image-2.5-flare",
@@ -25,6 +26,32 @@ let transientError = null;
 let dismissedErrorKey = null;
 let loadedPreviewUrl = null;
 let stlPreview = null;
+
+function initializeUsageGuide() {
+  const toggle = $("#guide-toggle");
+  const drawer = $("#usage-guide");
+  const close = $("#guide-close");
+
+  function setOpen(open, returnFocus = false) {
+    document.body.classList.toggle("guide-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    drawer.setAttribute("aria-hidden", String(!open));
+    drawer.inert = !open;
+    if (open) close.focus();
+    else if (returnFocus) toggle.focus();
+  }
+
+  toggle.addEventListener("click", () => {
+    const open = toggle.getAttribute("aria-expanded") !== "true";
+    setOpen(open, !open);
+  });
+  close.addEventListener("click", () => setOpen(false, true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.body.classList.contains("guide-open")) {
+      setOpen(false, true);
+    }
+  });
+}
 
 function loadModelSettings() {
   try {
@@ -183,20 +210,21 @@ function escapeHtml(value) {
 }
 
 function renderViews(views = {}) {
-  $("#views-grid").innerHTML = ["front", "left", "right", "back"].map((view) => {
+  const uploaded = state?.view_source === "uploaded";
+  $("#views-grid").innerHTML = allViews.map((view) => {
     const item = views[view];
     if (!item) {
-      const upload = view !== "front" && state?.view_source === "uploaded"
+      const upload = view !== "front" && uploaded
         ? `<label class="replace-view">上传${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
       return `<article class="view-card"><h3>${labels[view]}</h3><p>尚未生成</p>${upload}</article>`;
     }
-    const isFront = view === "front";
-    const refinement = !isFront && state?.view_source !== "uploaded" && state?.status === "VIEWS_REVIEW"
+    const fixedManualFront = uploaded && view === "front";
+    const refinement = !uploaded && state?.status === "VIEWS_REVIEW"
       ? `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>` : "";
-    const replacement = !isFront && state?.view_source === "uploaded" && ["PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"].includes(state?.status)
+    const replacement = !fixedManualFront && uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"].includes(state?.status)
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
-    const titleNote = isFront ? "<small>仅作主参考</small>" : "";
-    return `<article class="view-card${isFront ? " reference" : ""}"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${refinement}${replacement}</article>`;
+    const titleNote = view === "front" ? (uploaded ? "<small>上传主图</small>" : "<small>AI 生成</small>") : "";
+    return `<article class="view-card${fixedManualFront ? " reference" : ""}"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${refinement}${replacement}</article>`;
   }).join("");
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
   document.querySelectorAll("[data-replace-view]").forEach((input) => input.addEventListener("change", () => replaceUploadedView(input.dataset.replaceView, input)));
@@ -206,7 +234,7 @@ function renderViews(views = {}) {
 function syncControls() {
   const status = state?.status;
   const uploaded = state?.view_source === "uploaded";
-  const viewsReady = ["left", "right", "back"].every((view) => state?.views?.[view]?.prompt_revision === state?.prompt_revision);
+  const viewsReady = allViews.every((view) => state?.views?.[view]?.prompt_revision === state?.prompt_revision);
   const canEditPrompt = Boolean(state) && !uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"].includes(status);
   const canGenerateViews = canEditPrompt;
   $("#prompt-editor").disabled = !canEditPrompt;
@@ -214,7 +242,7 @@ function syncControls() {
   $("#regenerate-views").disabled = !canGenerateViews || actionInFlight;
   $("#confirm-views").disabled = !state || state.views_stale || status !== "VIEWS_REVIEW" || actionInFlight;
   if (!$("#confirm-views").dataset.busy) {
-    $("#confirm-views").textContent = status === "CONFIRMED" || state?.confirmed_at ? "已确认 ✓" : "确认三个视角";
+    $("#confirm-views").textContent = status === "CONFIRMED" || state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
   }
   const generateButton = $("#generate-3d");
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(status);
@@ -464,7 +492,7 @@ $("#image-input").addEventListener("change", (event) => {
 function updateViewSource() {
   const uploaded = $("#view-source").value === "uploaded";
   $("#manual-views").classList.toggle("hidden", !uploaded);
-  $("#upload-submit").textContent = uploaded ? "上传主图与三个补充视角" : "生成三个补充视角";
+  $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "生成正、左、右、背四视图";
 }
 
 $("#view-source").addEventListener("change", updateViewSource);
@@ -488,7 +516,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
     if (viewSource === "uploaded" && Object.values(uploadedViews).some((file) => !file)) {
       throw new Error("请分别选择左视图、右视图和背视图");
     }
-    setBusy(button, true, viewSource === "uploaded" ? "正在上传三视图…" : "GPT 正在分析…");
+    setBusy(button, true, viewSource === "uploaded" ? "正在上传四视图…" : "GPT 正在分析…");
     const source = $("#image-input").files?.[0];
     if (!source) throw new Error("请选择图片");
     const file = await compressedFile(source);
@@ -518,15 +546,15 @@ $("#upload-form").addEventListener("submit", async (event) => {
         body.set("image", await compressedFile(uploadedViews[view]));
         render(await api(`/api/sessions/${session.id}/views/${view}/upload`, { method: "POST", body, timeout: 90_000 }));
       }
-      notify("左、右、背三视图已上传");
+      notify("正、左、右、背四视图已上传");
     } else {
-      button.textContent = "正在生成三个视角…";
+      button.textContent = "正在生成四个视角…";
       render(await api(`/api/sessions/${session.id}/views`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ views: ["left", "right", "back"] }),
+        body: JSON.stringify({ views: allViews }),
         timeout: 295_000,
       }));
-      notify("左、右、背三视图已生成");
+      notify("正、左、右、背四视图已生成");
     }
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
@@ -536,7 +564,7 @@ async function generateViews(button, regenerateAll = false) {
   try {
     clearError();
     setActionInFlight(true);
-    setBusy(button, true, "正在生成三个视角…");
+    setBusy(button, true, "正在生成四个视角…");
     const prompt = $("#prompt-editor").value.trim();
     if (!prompt) throw new Error("主体描述不能为空");
     if (prompt !== state.user_prompt) {
@@ -544,9 +572,9 @@ async function generateViews(button, regenerateAll = false) {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }),
       }));
     }
-    const missing = ["left", "right", "back"].filter((view) => state?.views?.[view]?.prompt_revision !== state?.prompt_revision);
-    const views = regenerateAll || missing.length === 0 ? ["left", "right", "back"] : missing;
-    button.textContent = views.length === 3 ? "正在生成三个视角…" : `正在重试${views.map((view) => labels[view]).join("、")}…`;
+    const missing = allViews.filter((view) => state?.views?.[view]?.prompt_revision !== state?.prompt_revision);
+    const views = regenerateAll || missing.length === 0 ? allViews : missing;
+    button.textContent = views.length === 4 ? "正在生成四个视角…" : `正在重试${views.map((view) => labels[view]).join("、")}…`;
     render(await api(`/api/sessions/${session.id}/views`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ views }), timeout: 295_000,
@@ -598,7 +626,7 @@ $("#confirm-views").addEventListener("click", async (event) => {
     setActionInFlight(true);
     setBusy(button, true);
     render(await api(`/api/sessions/${session.id}/confirm`, { method: "POST" }));
-    notify("左、右、背三个视角已确认；正面主图仅作为参考");
+    notify("正、左、右、背四个视角已确认");
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
 });
@@ -658,6 +686,7 @@ function initializeStlPreview() {
 
 initializeModelSettings();
 initializeStlPreview();
+initializeUsageGuide();
 updateViewSource();
 updateGenerateType();
 render(null);
