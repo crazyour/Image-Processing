@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -29,6 +30,7 @@ from vercel_app.store import (
 from vercel_app.workflow import (
     GENERATED_VIEWS,
     GENERATE_TYPES,
+    VIEW_NAMES,
     WorkflowError,
     analyze_image,
     effective_prompt,
@@ -51,6 +53,10 @@ IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
 VALID_STATES = {
     "PROMPT_REVIEW", "GENERATING_VIEWS", "VIEWS_REVIEW", "CONFIRMED",
     "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED",
+}
+TRANSIENT_STATE_TIMEOUTS = {
+    "GENERATING_VIEWS": 330,
+    "SUBMITTING_3D": 150,
 }
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
@@ -95,6 +101,19 @@ def store_error(_, exc: StoreError):
     return JSONResponse({"code": "STORAGE_ERROR", "message": str(exc)}, status_code=503)
 
 
+@app.exception_handler(RequestValidationError)
+def validation_error(_, exc: RequestValidationError):
+    messages = []
+    for error in exc.errors():
+        field = ".".join(str(part) for part in error.get("loc", ())[1:])
+        detail = str(error.get("msg", "输入内容无效"))
+        messages.append(f"{field}：{detail}" if field else detail)
+    return JSONResponse(
+        {"code": "INVALID_INPUT", "message": "；".join(messages)[:500]},
+        status_code=422,
+    )
+
+
 def _require_token(token: str | None) -> str:
     if not token or len(token) < 32:
         raise SessionNotFound("缺少有效的会话访问令牌")
@@ -105,6 +124,23 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
     state, version = load_session(session_id, _require_token(token))
     if state.get("status") not in VALID_STATES:
         raise WorkflowError("INVALID_SESSION", "会话状态无效", 500)
+    timeout = TRANSIENT_STATE_TIMEOUTS.get(state["status"])
+    updated_at = int(state.get("updated_at") or state.get("created_at") or 0)
+    if timeout and updated_at and int(time.time()) - updated_at > timeout:
+        previous_status = state["status"]
+        if previous_status == "GENERATING_VIEWS":
+            state["status"] = "VIEWS_REVIEW" if len(state.get("views", {})) > 1 else "PROMPT_REVIEW"
+            state["last_error"] = {
+                "code": "VIEW_GENERATION_TIMEOUT",
+                "message": "多视图生成等待超时，已解除锁定；已完成的视图会保留，可重试未完成视图。",
+            }
+        else:
+            state["status"] = "CONFIRMED"
+            state["last_error"] = {
+                "code": "HUNYUAN_SUBMIT_TIMEOUT",
+                "message": "3D 任务提交结果未能确认，已解除锁定。重新提交前请先核对腾讯混元任务，避免重复计费。",
+            }
+        version = _save(state, version)
     return state, version
 
 
@@ -288,7 +324,7 @@ def upload_view(session_id: str, view: str, image: UploadFile = File(...),
     state, version = _load(session_id, x_session_token)
     if state.get("view_source") != "uploaded":
         raise WorkflowError("UPLOAD_MODE_REQUIRED", "当前会话使用 AI 生成三视图", 409)
-    if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"}:
+    if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"}:
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能上传三视图", 409)
     if view not in GENERATED_VIEWS:
         raise WorkflowError("INVALID_VIEW", "可上传视角为 left、right、back", 422)
@@ -331,7 +367,10 @@ def update_prompt(session_id: str, data: PromptUpdate,
     state, version = _load(session_id, x_session_token)
     if state["status"] in {"SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"}:
         raise WorkflowError("SESSION_LOCKED", "3D任务提交后不能修改提示词", 409)
-    state["user_prompt"] = data.prompt.strip()
+    prompt = data.prompt.strip()
+    if prompt == state.get("user_prompt", ""):
+        return _response(state)
+    state["user_prompt"] = prompt
     state["effective_prompt"] = effective_prompt(state["user_prompt"])
     state["prompt_revision"] += 1
     state["views_stale"] = True
@@ -353,15 +392,23 @@ def create_views(session_id: str, data: ViewGenerationRequest,
     requested = list(dict.fromkeys(data.views))
     if not requested or any(view not in GENERATED_VIEWS for view in requested):
         raise WorkflowError("INVALID_VIEW", "可生成视角为 left、right、back", 422)
+    source_view = (state.get("analysis") or {}).get("source_view")
+    if state.get("view_source") == "generated" and source_view in {"SIDE", "BACK", "TOP"}:
+        raise WorkflowError(
+            "FRONT_VIEW_REQUIRED",
+            "当前主图不是正面或斜前方视角，请更换接近正面的图片后再生成补充视角",
+            422,
+        )
 
     state["status"] = "GENERATING_VIEWS"
     state["confirmed_snapshot"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     version = _save(state, version)
+    generated_views = {}
+    failures: list[tuple[str, Exception]] = []
     try:
         front = fetch_bytes(state["views"]["front"]["url"], 20_000_000)
-        generated_views = {}
         with ThreadPoolExecutor(max_workers=min(3, len(requested))) as executor:
             futures = {
                 executor.submit(
@@ -374,38 +421,61 @@ def create_views(session_id: str, data: ViewGenerationRequest,
                 for view in requested
             }
             for future in as_completed(futures):
-                generated_views[futures[future]] = future.result()
+                view = futures[future]
+                try:
+                    generated_views[view] = future.result()
+                except Exception as exc:  # retain other paid results when one view fails
+                    failures.append((view, exc))
+    except Exception as exc:
+        failures.append(("all", exc))
 
-        blobs = PublicBlobStore()
-        for view in requested:
-            generated, usage = generated_views[view]
-            previous = state["views"].get(view, {})
-            revision = int(previous.get("revision", 0)) + 1
-            url = blobs.put(
-                f"image3d/{session_id}/views/{view}-r{revision}.png",
-                generated,
-                "image/png",
-            )
-            state["views"][view] = {
-                "url": url,
-                "sha256": hashlib.sha256(generated).hexdigest(),
-                "revision": revision,
-                "prompt_revision": state["prompt_revision"],
-                "generated": True,
-                "refinement_prompt": "",
-                "usage": usage,
-            }
-    except (WorkflowError, StoreError) as exc:
-        state["status"] = "VIEWS_REVIEW"
-        state["last_error"] = {
-            "code": getattr(exc, "code", "VIEW_GENERATION_FAILED"),
-            "message": str(exc),
-        }
-        _save(state, version)
-        raise
+    if generated_views:
+        try:
+            blobs = PublicBlobStore()
+            for view, (generated, usage) in generated_views.items():
+                previous = state["views"].get(view, {})
+                revision = int(previous.get("revision", 0)) + 1
+                url = blobs.put(
+                    f"image3d/{session_id}/views/{view}-r{revision}.png",
+                    generated,
+                    "image/png",
+                )
+                state["views"][view] = {
+                    "url": url,
+                    "sha256": hashlib.sha256(generated).hexdigest(),
+                    "revision": revision,
+                    "prompt_revision": state["prompt_revision"],
+                    "generated": True,
+                    "refinement_prompt": "",
+                    "usage": usage,
+                }
+        except Exception as exc:
+            failures.append(("storage", exc))
+
     state["views_stale"] = not _views_current(state)
     state["status"] = "VIEWS_REVIEW"
+    if failures:
+        failed_names = "、".join(
+            VIEW_NAMES.get(view, "视图") for view, _ in failures if view not in {"all", "storage"}
+        )
+        first_error = failures[0][1]
+        message = str(first_error) if isinstance(first_error, (WorkflowError, StoreError)) else "多视图生成发生意外错误"
+        if failed_names:
+            message = f"{failed_names}生成失败：{message}；其他已完成视图已保留"
+        state["last_error"] = {
+            "code": getattr(first_error, "code", "VIEW_GENERATION_FAILED"),
+            "message": message,
+        }
+    else:
+        state["last_error"] = None
     _save(state, version)
+    if failures:
+        first_error = failures[0][1]
+        raise WorkflowError(
+            state["last_error"]["code"],
+            state["last_error"]["message"],
+            first_error.status if isinstance(first_error, WorkflowError) else 502,
+        )
     return _response(state)
 
 
@@ -520,6 +590,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
         "model": hunyuan_model,
         "status": str(created.get("status", "queued")),
         "request_id": created.get("request_id"),
+        "submitted_at": int(time.time()),
         "request": options,
         "models": {},
     }
@@ -537,16 +608,22 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     result = query_hunyuan(task["id"], task["model"])
     provider_status = str(result.get("status", "")).lower()
     status_map = {
-        "queued": "GENERATING_3D", "in_progress": "GENERATING_3D",
+        "queued": "GENERATING_3D", "pending": "GENERATING_3D",
+        "in_progress": "GENERATING_3D", "processing": "GENERATING_3D", "running": "GENERATING_3D",
         "completed": "SUCCEEDED", "failed": "FAILED",
     }
     if provider_status not in status_map:
-        raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元返回未知任务状态", 502)
+        state["status"] = "FAILED"
+        state["last_error"] = {
+            "code": "HUNYUAN_INVALID_RESPONSE",
+            "message": f"腾讯混元返回未知任务状态：{provider_status or '空'}",
+        }
+        _save(state, version)
+        raise WorkflowError("HUNYUAN_INVALID_RESPONSE", state["last_error"]["message"], 502)
     task["status"] = provider_status
     task["request_id"] = result.get("request_id", task.get("request_id"))
     task["completed_at"] = result.get("completed_at")
     task["credit_details"] = result.get("result_credit_details")
-    state["status"] = status_map[provider_status]
     if provider_status == "completed":
         blobs = PublicBlobStore()
         for item in result.get("data") or []:
@@ -568,12 +645,25 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
             task["models"][model_type] = {
                 "url": url,
                 "preview_image_url": item.get("preview_image_url"),
+                "size_bytes": len(raw),
+            }
+        if task["models"].get("stl", {}).get("url"):
+            state["status"] = "SUCCEEDED"
+            state["last_error"] = None
+        else:
+            state["status"] = "FAILED"
+            state["last_error"] = {
+                "code": "HUNYUAN_STL_MISSING",
+                "message": "腾讯混元任务已完成，但没有返回可下载的 STL 文件，请重试或核对模型输出格式。",
             }
     elif provider_status == "failed":
+        state["status"] = "FAILED"
         state["last_error"] = {
             "code": "HUNYUAN_GENERATION_FAILED",
             "message": str(result.get("error", result.get("message", "腾讯混元生成失败")))[:500],
         }
+    else:
+        state["status"] = "GENERATING_3D"
     state["hunyuan_task"] = task
     _save(state, version)
     return _response(state)

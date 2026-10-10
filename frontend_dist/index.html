@@ -12,7 +12,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <section id="image3d-panel" class="image3d-panel" aria-labelledby="image3d-title" hidden>
+  <section id="image3d-panel" class="image3d-panel" aria-labelledby="image3d-title" role="region" tabindex="-1" hidden>
     <header class="image3d-toolbar">
       <div><small>灵界工作台</small><strong id="image3d-title">图生 3D</strong></div>
       <button id="image3d-close" type="button" aria-label="返回工作台">返回工作台</button>
@@ -20,7 +20,7 @@
     <iframe id="image3d-frame" title="灵界图生 3D" loading="lazy"></iframe>
   </section>
   <style>
-    .image3d-nav-entry b{background:#f1c75b;color:#514216}.image3d-panel[hidden]{display:none}.image3d-panel{position:fixed;z-index:9;right:0;bottom:0;display:grid;grid-template-rows:auto 1fr;overflow:hidden;border-left:1px solid #dce4df;background:#f2f5f1}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{padding:9px 13px;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:700 13px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-panel iframe{width:100%;height:100%;border:0;background:#f2f5f1}.image3d-nav-entry.image3d-active{color:#204e3e;background:#e6eee5;font-weight:650}
+    .image3d-nav-entry b{background:#f1c75b;color:#514216}.image3d-panel[hidden]{display:none}.image3d-panel{position:fixed;z-index:9;right:0;bottom:0;display:grid;grid-template-rows:auto 1fr;overflow:hidden;border-left:1px solid #dce4df;background:#f2f5f1}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{padding:9px 13px;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:700 13px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-panel iframe{width:100%;height:100%;border:0;background:#f2f5f1}.image3d-nav-entry.image3d-active{color:#204e3e;background:#e6eee5;font-weight:650}@media(max-width:700px){.image3d-panel{inset:0!important;border-left:0}.image3d-toolbar{padding:10px 13px}}
   </style>
   <script>
     (() => {
@@ -44,6 +44,7 @@
         entry.classList.add('image3d-active');
         document.body.style.overflow = 'hidden';
         place();
+        panel.focus();
       };
       const dismiss = () => {
         panel.hidden = true;

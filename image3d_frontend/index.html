@@ -12,26 +12,32 @@
       <a class="back-link" href="/">← 返回灵界工作台</a>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
-      <p>上传一张正面图，可自动生成或自行上传左、右、背面图，确认后生成 STL 模型。</p>
+      <p>上传一张正面主图，可由 AI 生成或由你上传左、右、背三个补充视角，确认后生成 STL 模型。</p>
     </header>
 
-    <div id="notice" class="notice hidden" role="status"></div>
+    <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+    <div id="workflow-error" class="error-panel hidden" role="alert">
+      <div><strong id="workflow-error-title">操作未完成</strong><p id="workflow-error-message"></p><code id="workflow-error-code"></code></div>
+      <button id="dismiss-error" type="button">知道了</button>
+    </div>
 
     <section id="upload-step" class="panel">
-      <div class="step-title"><span>01</span><div><h2>上传正面图</h2><p>选择由 AI 生成三视图，或自行上传三张视图。</p></div></div>
+      <div class="step-title"><span>01</span><div><h2>上传正面主图</h2><p>由 AI 生成三个补充视角，或自行上传左、右、背面图。</p></div><b id="upload-state" class="step-state active">等待上传</b></div>
       <form id="upload-form" class="stack">
         <label class="dropzone" for="image-input">
           <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
-          <img id="upload-preview" class="hidden" alt="上传预览">
+          <img id="upload-preview" class="hidden" alt="上传的正面主图预览">
           <span id="drop-copy">选择 PNG、JPEG 或 WebP 图片</span>
         </label>
-        <label>三视图来源
+        <p class="input-help">建议使用：单一主体、轮廓完整、接近正面、背景简洁的图片。上限 4 MB，最小 128 × 128 像素。</p>
+        <label>补充视角来源
           <select id="view-source">
             <option value="generated">AI 自动生成</option>
             <option value="uploaded">我自己上传</option>
           </select>
         </label>
         <div id="manual-views" class="manual-views hidden">
+          <p>与上方正面主图一起提交；此模式共使用 4 张图片，不调用 GPT 分析或生成图片。</p>
           <label>左视图<input id="left-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
           <label>右视图<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
           <label>背视图<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
@@ -40,7 +46,7 @@
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
         <details class="inline-settings">
-          <summary>模型设置</summary>
+          <summary>模型设置（高级）</summary>
           <div class="settings-grid">
             <label>图片理解模型
               <input id="vision-model" type="text" maxlength="128" required>
@@ -50,49 +56,49 @@
             </label>
             <label>生成质量
               <select id="image-quality">
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-                <option value="xhigh">xhigh</option>
-                <option value="max">max</option>
-                <option value="auto">auto</option>
+                <option value="low">低 · 更快</option>
+                <option value="medium">中 · 推荐</option>
+                <option value="high">高</option>
+                <option value="xhigh">超高</option>
+                <option value="max">最高</option>
+                <option value="auto">自动</option>
               </select>
             </label>
             <label>3D 生成模型
               <input id="hunyuan-model" type="text" maxlength="128" required>
             </label>
           </div>
-          <p class="settings-note">设置仅保存在当前浏览器，新建会话时锁定；API Key 仍由 Vercel 环境变量保管。</p>
+          <p class="settings-note">设置仅保存在当前浏览器，并在新任务创建时锁定。任务开始后的修改只对下一任务生效。</p>
         </details>
-        <button id="upload-submit" class="primary" type="submit">生成三视图</button>
+        <button id="upload-submit" class="primary" type="submit">生成三个补充视角</button>
       </form>
     </section>
 
-    <details id="prompt-step" class="panel prompt-details" open>
-      <summary><strong>识别结果与提示词</strong><span>高级调整（可选）</span></summary>
+    <details id="prompt-step" class="panel prompt-details">
+      <summary><strong>AI 识别与内部指令</strong><span>高级调整（可选）</span></summary>
       <div class="prompt-content">
+        <p id="analysis-empty" class="empty-copy">上传正面主图后显示识别结果。手动上传模式不会进行 AI 分析。</p>
         <div id="analysis" class="analysis-grid"></div>
-        <label>主体提示词
+        <label id="prompt-label">主体描述
           <textarea id="prompt-editor" rows="6"></textarea>
         </label>
         <div class="actions">
-          <button id="save-prompt" class="secondary" type="button">保存提示词</button>
-          <button id="generate-views" class="primary" type="button">按修改后的提示词生成</button>
+          <button id="generate-views" class="primary" type="button">应用修改并生成三个视角</button>
         </div>
       </div>
     </details>
 
     <section id="views-step" class="panel">
-      <div class="step-title"><span>02</span><div><h2>确认三视图</h2><p>检查左、右、背三张图片；原图仅作为正面参考。</p></div></div>
+      <div class="step-title"><span>02</span><div><h2>检查并确认补充视角</h2><p>对照正面参考图检查左、右、背三张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
       <div id="views-grid" class="views-grid"></div>
       <div class="actions">
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
-        <button id="confirm-views" class="primary" type="button">确认三视图</button>
+        <button id="confirm-views" class="primary" type="button">确认三个视角</button>
       </div>
     </section>
 
     <section id="generate-step" class="panel">
-      <div class="step-title"><span>03</span><div><h2>生成 STL</h2><p>确认后提交腾讯混元，最终只保留 STL 模型。</p></div></div>
+      <div class="step-title"><span>03</span><div><h2>生成 STL</h2><p>确认图片后提交腾讯混元，最终只保留 STL 模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <div class="options">
         <label>类型
           <select id="generate-type"><option value="Geometry" selected>仅几何白模</option><option value="Normal">完整模型与纹理</option></select>
@@ -100,7 +106,19 @@
         <label class="check"><input id="enable-pbr" type="checkbox" disabled> 生成 PBR 材质（额外计费）</label>
       </div>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
-      <div id="task-progress" class="progress hidden"><div class="spinner"></div><span></span></div>
+      <p class="cost-note">此操作会调用腾讯混元并产生费用。仅几何白模默认关闭 PBR。</p>
+      <div id="task-progress" class="progress hidden">
+        <div class="spinner"></div>
+        <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
+        <button id="refresh-task" class="secondary" type="button">立即刷新</button>
+      </div>
+      <div id="model-preview" class="model-preview hidden">
+        <div><strong>STL 已生成</strong><span id="model-meta"></span><span>拖动模型可旋转，滚轮可缩放。</span></div>
+        <div class="preview-surface">
+          <canvas id="stl-canvas" class="hidden" aria-label="STL 模型交互预览"></canvas>
+          <img id="model-preview-image" class="hidden" alt="腾讯混元生成的模型预览图">
+        </div>
+      </div>
       <div id="model-results" class="model-results"></div>
     </section>
   </main>

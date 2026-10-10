@@ -33,12 +33,16 @@ ANALYSIS_SCHEMA = {
         "occlusion_regions": {"type": "array", "items": {"type": "string"}},
         "hidden_geometry_assumptions": {"type": "array", "items": {"type": "string"}},
         "image_suitability": {"type": "string", "enum": ["GOOD", "USABLE", "POOR"]},
+        "source_view": {
+            "type": "string",
+            "enum": ["FRONT", "FRONT_THREE_QUARTER", "SIDE", "BACK", "TOP", "UNKNOWN"],
+        },
         "warnings": {"type": "array", "items": {"type": "string"}},
         "suggested_prompt_zh": {"type": "string"},
     },
     "required": [
         "subject", "geometry", "materials", "colors", "occlusion_regions",
-        "hidden_geometry_assumptions", "image_suitability", "warnings", "suggested_prompt_zh",
+        "hidden_geometry_assumptions", "image_suitability", "source_view", "warnings", "suggested_prompt_zh",
     ],
 }
 
@@ -169,7 +173,8 @@ def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
     config = _openai_config()
     instruction = (
         "你正在为单图转多视图再转3D分析输入图片。请使用中文，只描述可见证据，将遮挡区域"
-        "与不可见面的推测分开。分析主体、几何、材质、颜色、反光、透明、裁切和背景风险。"
+        "与不可见面的推测分开。判断输入是正面、斜前方、侧面、背面、顶部或无法判断，并分析主体、"
+        "几何、材质、颜色、反光、透明、裁切和背景风险。"
         "suggested_prompt_zh 是用户可修改的中文主体提示词，描述所有视角必须保持一致的特征。"
         "不要虚构精确尺寸。用户补充："
         + (user_prompt.strip() or "忠实还原主体，制作通用3D资产")

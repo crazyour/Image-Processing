@@ -72,7 +72,9 @@ def storage_status() -> dict[str, str]:
 
 
 def _connect_postgres():
-    connection = psycopg.connect(_configured("DATABASE_URL"), row_factory=dict_row)
+    connection = psycopg.connect(
+        _configured("DATABASE_URL"), row_factory=dict_row, connect_timeout=10,
+    )
     _ensure_postgres_schema(connection)
     return connection
 
