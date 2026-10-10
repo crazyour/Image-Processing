@@ -27,28 +27,38 @@
     </div>
 
     <section id="upload-step" class="panel">
-      <div class="step-title"><span>01</span><div><h2>上传参考图</h2><p>AI 会重新生成正、左、右、背四视图；也可自行上传一套四视图。</p></div><b id="upload-state" class="step-state active">等待上传</b></div>
+      <div class="step-title"><span>01</span><div><h2>四视图生成</h2><p>选择 AI 自动生成或用户上传，两种方式只能选择一种。</p></div><b id="upload-state" class="step-state active">等待选择</b></div>
       <form id="upload-form" class="stack">
-        <label class="dropzone" for="image-input">
-          <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
-          <img id="upload-preview" class="hidden" alt="上传的正面主图预览">
-          <span id="drop-copy">选择 PNG、JPEG 或 WebP 图片</span>
-        </label>
-        <p class="input-help">建议使用：单一主体、轮廓完整、接近正面、背景简洁的图片。上限 4 MB，最小 128 × 128 像素。</p>
-        <label>视图来源
-          <select id="view-source">
-            <option value="generated">站内 AI 自动生成（约 ¥1/张）</option>
-            <option value="uploaded">使用豆包等生成后上传（本站免费）</option>
-          </select>
-        </label>
+        <fieldset class="view-source-options">
+          <legend>选择四视图来源</legend>
+          <label class="source-option">
+            <input type="radio" name="view-source" value="generated" checked>
+            <span><strong>AI 自动生成四视图</strong><small>上传一张任意参考图，AI 重新生成正、左、右、背四张图。</small></span>
+            <b>约 ¥4/次</b>
+          </label>
+          <label class="source-option">
+            <input type="radio" name="view-source" value="uploaded">
+            <span><strong>用户上传四视图</strong><small>在豆包等网页 AI 生成后，分别上传正、左、右、背四张图。</small></span>
+            <b>本站免费</b>
+          </label>
+        </fieldset>
         <p class="input-help source-fee-note">站内 AI 会生成 4 张图，约 ¥4/次；自行上传不会调用本站的图片生成模型。实际费用与外部平台额度以各平台账单为准。</p>
+        <div id="reference-upload" class="reference-upload">
+          <p><strong>上传一张参考图</strong><span>不要求它本身是正视图，AI 会重新生成正、左、右、背四张图。</span></p>
+          <label class="dropzone" for="image-input">
+            <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
+            <img id="upload-preview" class="hidden" alt="上传的主体参考图预览">
+            <span id="drop-copy">选择 PNG、JPEG 或 WebP 参考图</span>
+          </label>
+        </div>
         <div id="manual-views" class="manual-views hidden">
-          <p>与上方正面主图一起提交；此模式共使用 4 张图片，不调用 GPT 分析或生成图片。</p>
+          <p><strong>分别上传完整四视图</strong><span>这里的四张图片会直接提交，不再使用上方参考图，也不会调用 GPT 分析或生成图片。</span></p>
+          <label>正视图<input id="front-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
           <label>左视图<input id="left-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
           <label>右视图<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
           <label>背视图<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
         </div>
-        <label>补充要求（可选）
+        <label id="prompt-requirement">补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
         <details class="inline-settings">
@@ -81,11 +91,11 @@
     </section>
 
     <details id="prompt-step" class="panel prompt-details">
-      <summary><strong>AI 识别与内部指令</strong><span>高级调整（可选）</span></summary>
+      <summary><strong>AI 对图片的描述</strong><span>可检查和修改（可选）</span></summary>
       <div class="prompt-content">
-        <p id="analysis-empty" class="empty-copy">上传正面主图后显示识别结果。手动上传模式不会进行 AI 分析。</p>
+        <p id="analysis-empty" class="empty-copy">上传参考图后，显示 AI 对主体、结构、材质和颜色的描述。用户上传四视图模式不会进行 AI 分析。</p>
         <div id="analysis" class="analysis-grid"></div>
-        <label id="prompt-label">主体描述
+        <label id="prompt-label">用于生成四视图的主体描述
           <textarea id="prompt-editor" rows="6"></textarea>
         </label>
         <div class="actions">
@@ -186,7 +196,7 @@
         <h3>网站 AI 生成结果需要调整</h3>
         <ul>
           <li>在对应视图下输入修改要求，然后点击“微调”。</li>
-          <li>如果主体描述需要修改，展开“AI 识别与内部指令”，修改后点击“应用修改并生成四个视角”。</li>
+          <li>如果主体描述需要修改，展开“AI 对图片的描述”，修改后点击“应用修改并生成四个视角”。</li>
           <li>点击“重新生成全部”会重新调用四个视角，可能再次产生费用。</li>
           <li>如果只有一张生成失败，系统会保留已经成功的图片；再次操作时只重试未完成视图。</li>
         </ul>

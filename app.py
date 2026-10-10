@@ -334,9 +334,9 @@ def upload_view(session_id: str, view: str, image: UploadFile = File(...),
     if state.get("view_source") != "uploaded":
         raise WorkflowError("UPLOAD_MODE_REQUIRED", "当前会话使用 AI 生成四视图", 409)
     if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"}:
-        raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能上传三视图", 409)
-    if view not in GENERATED_VIEWS:
-        raise WorkflowError("INVALID_VIEW", "可上传视角为 left、right、back", 422)
+        raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能上传四视图", 409)
+    if view not in AI_GENERATED_VIEWS:
+        raise WorkflowError("INVALID_VIEW", "可上传视角为 front、left、right、back", 422)
 
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
     previous = state["views"].get(view, {})

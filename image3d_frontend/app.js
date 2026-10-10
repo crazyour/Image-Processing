@@ -214,17 +214,16 @@ function renderViews(views = {}) {
   $("#views-grid").innerHTML = allViews.map((view) => {
     const item = views[view];
     if (!item) {
-      const upload = view !== "front" && uploaded
+      const upload = uploaded
         ? `<label class="replace-view">上传${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
       return `<article class="view-card"><h3>${labels[view]}</h3><p>尚未生成</p>${upload}</article>`;
     }
-    const fixedManualFront = uploaded && view === "front";
     const refinement = !uploaded && state?.status === "VIEWS_REVIEW"
       ? `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>` : "";
-    const replacement = !fixedManualFront && uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"].includes(state?.status)
+    const replacement = uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"].includes(state?.status)
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
-    const titleNote = view === "front" ? (uploaded ? "<small>上传主图</small>" : "<small>AI 生成</small>") : "";
-    return `<article class="view-card${fixedManualFront ? " reference" : ""}"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${refinement}${replacement}</article>`;
+    const titleNote = view === "front" ? (uploaded ? "<small>自行上传</small>" : "<small>AI 生成</small>") : "";
+    return `<article class="view-card"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${refinement}${replacement}</article>`;
   }).join("");
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
   document.querySelectorAll("[data-replace-view]").forEach((input) => input.addEventListener("change", () => replaceUploadedView(input.dataset.replaceView, input)));
@@ -253,7 +252,7 @@ function syncControls() {
     generateButton.textContent = running ? "正在生成 STL…" : status === "FAILED" ? "重新生成 STL" : "提交 STL 任务";
   }
 
-  setStepState("#upload-state", !state ? "等待上传" : status === "GENERATING_VIEWS" ? "正在生成" : "主图已上传", Boolean(state), false);
+  setStepState("#upload-state", !state ? "等待上传" : status === "GENERATING_VIEWS" ? "正在生成" : uploaded ? "四视图已上传" : "参考图已上传", Boolean(state), false);
   if (!state) setStepState("#views-state", "等待生成", false, false);
   else if (status === "GENERATING_VIEWS") setStepState("#views-state", "正在生成", true, false);
   else if (state.views_stale || !viewsReady) setStepState("#views-state", "尚未完成", false, Boolean(state.last_error));
@@ -490,12 +489,18 @@ $("#image-input").addEventListener("change", (event) => {
 });
 
 function updateViewSource() {
-  const uploaded = $("#view-source").value === "uploaded";
+  const sourceInputs = [...document.querySelectorAll('input[name="view-source"]')];
+  const uploaded = sourceInputs.find((input) => input.checked).value === "uploaded";
+  sourceInputs.forEach((input) => input.closest(".source-option").classList.toggle("selected", input.checked));
+  $("#reference-upload").classList.toggle("hidden", uploaded);
   $("#manual-views").classList.toggle("hidden", !uploaded);
+  $("#prompt-requirement").classList.toggle("hidden", uploaded);
+  $("#image-input").required = !uploaded;
+  allViews.forEach((view) => { $(`#${view}-input`).required = uploaded; });
   $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "生成正、左、右、背四视图";
 }
 
-$("#view-source").addEventListener("change", updateViewSource);
+document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
 
 function updateGenerateType() {
   const geometryOnly = $("#generate-type").value === "Geometry";
@@ -511,13 +516,13 @@ $("#upload-form").addEventListener("submit", async (event) => {
   try {
     clearError();
     setActionInFlight(true);
-    const viewSource = $("#view-source").value;
-    const uploadedViews = Object.fromEntries(["left", "right", "back"].map((view) => [view, $(`#${view}-input`).files?.[0]]));
+    const viewSource = document.querySelector('input[name="view-source"]:checked').value;
+    const uploadedViews = Object.fromEntries(allViews.map((view) => [view, $(`#${view}-input`).files?.[0]]));
     if (viewSource === "uploaded" && Object.values(uploadedViews).some((file) => !file)) {
-      throw new Error("请分别选择左视图、右视图和背视图");
+      throw new Error("请分别选择正视图、左视图、右视图和背视图");
     }
     setBusy(button, true, viewSource === "uploaded" ? "正在上传四视图…" : "GPT 正在分析…");
-    const source = $("#image-input").files?.[0];
+    const source = viewSource === "uploaded" ? uploadedViews.front : $("#image-input").files?.[0];
     if (!source) throw new Error("请选择图片");
     const file = await compressedFile(source);
     const form = new FormData();
