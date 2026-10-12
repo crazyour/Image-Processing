@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import secrets
 import time
@@ -33,9 +34,11 @@ from vercel_app.workflow import (
     GENERATE_TYPES,
     VIEW_NAMES,
     WorkflowError,
-    analyze_image,
+    analyze_images,
+    assembly_plan_prompt,
     effective_prompt,
     fetch_bytes,
+    generate_image,
     generate_view,
     model_suffix,
     normalize_image,
@@ -48,17 +51,25 @@ from vercel_app.workflow import (
 ROOT = Path(__file__).resolve().parent
 ORIGINAL_FRONTEND = ROOT / "frontend_dist"
 IMAGE3D_FRONTEND = ROOT / "image3d_frontend"
+TEXT2IMAGE_FRONTEND = ROOT / "text2image_frontend"
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
 VALID_STATES = {
-    "PROMPT_REVIEW", "GENERATING_VIEWS", "VIEWS_REVIEW", "CONFIRMED",
+    "REFERENCES_READY", "ANALYZING_REFERENCES", "PROMPT_REVIEW", "DESCRIPTION_CONFIRMED",
+    "GENERATING_VIEWS", "VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED",
+    "GENERATING_ASSEMBLY", "ASSEMBLY_REVIEW", "ASSEMBLY_CONFIRMED",
     "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED",
 }
+TEXT_IMAGE_STATES = {"QUEUED", "GENERATING", "PARTIAL", "SUCCEEDED"}
 TRANSIENT_STATE_TIMEOUTS = {
+    "ANALYZING_REFERENCES": 150,
     "GENERATING_VIEWS": 330,
+    "GENERATING_ASSEMBLY": 330,
     "SUBMITTING_3D": 150,
 }
+
+MAX_REFERENCE_IMAGES = 6
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
 
@@ -75,11 +86,22 @@ class ViewRefinementRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
 
 
+class AssemblyPlanRequest(BaseModel):
+    prompt: str = Field(default="", max_length=4000)
+
+
 class Generate3DRequest(BaseModel):
     generate_type: str = "Normal"
     enable_pbr: bool = False
     face_count: int | None = Field(default=None, ge=3000, le=1500000)
     result_format: Literal["STL"] = "STL"
+
+
+class TextImageTaskRequest(BaseModel):
+    prompts: list[str] = Field(min_length=1, max_length=5)
+    model: str = Field(min_length=1, max_length=128)
+    quality: str = Field(default="medium", max_length=16)
+    size: Literal["1024x1024", "1536x1024", "1024x1536"] = "1024x1024"
 
 
 @app.exception_handler(WorkflowError)
@@ -129,14 +151,28 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
     updated_at = int(state.get("updated_at") or state.get("created_at") or 0)
     if timeout and updated_at and int(time.time()) - updated_at > timeout:
         previous_status = state["status"]
-        if previous_status == "GENERATING_VIEWS":
-            state["status"] = "VIEWS_REVIEW" if len(state.get("views", {})) > 1 else "PROMPT_REVIEW"
+        if previous_status == "ANALYZING_REFERENCES":
+            state["status"] = "REFERENCES_READY"
+            state["last_error"] = {
+                "code": "REFERENCE_ANALYSIS_TIMEOUT",
+                "message": "参考图分析等待超时，已解除锁定，可重新分析。",
+            }
+        elif previous_status == "GENERATING_VIEWS":
+            state["status"] = (
+                "VIEWS_REVIEW" if state.get("views") else "DESCRIPTION_CONFIRMED"
+            )
             state["last_error"] = {
                 "code": "VIEW_GENERATION_TIMEOUT",
                 "message": "多视图生成等待超时，已解除锁定；已完成的视图会保留，可重试未完成视图。",
             }
+        elif previous_status == "GENERATING_ASSEMBLY":
+            state["status"] = "ASSEMBLY_REVIEW" if state.get("assembly_plan") else "VIEWS_CONFIRMED"
+            state["last_error"] = {
+                "code": "ASSEMBLY_GENERATION_TIMEOUT",
+                "message": "切片拼装图生成等待超时，已解除锁定，可重试。",
+            }
         else:
-            state["status"] = "CONFIRMED"
+            state["status"] = "ASSEMBLY_CONFIRMED"
             state["last_error"] = {
                 "code": "HUNYUAN_SUBMIT_TIMEOUT",
                 "message": "3D 任务提交结果未能确认，已解除锁定。重新提交前请先核对腾讯混元任务，避免重复计费。",
@@ -158,12 +194,17 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "session_id": state["session_id"],
         "status": state["status"],
         "analysis": state.get("analysis"),
+        "reference_images": state.get("reference_images") or (
+            [state["reference_image"]] if state.get("reference_image") else []
+        ),
         "user_prompt": state.get("user_prompt", ""),
         "effective_prompt": state.get("effective_prompt", ""),
         "prompt_revision": state.get("prompt_revision", 1),
         "views_stale": state.get("views_stale", True),
         "views": state.get("views", {}),
         "confirmed_at": (state.get("confirmed_snapshot") or {}).get("confirmed_at"),
+        "description_confirmed_at": state.get("description_confirmed_at"),
+        "assembly_plan": state.get("assembly_plan"),
         "hunyuan_task": state.get("hunyuan_task"),
         "last_error": state.get("last_error"),
         "created_at": state.get("created_at"),
@@ -179,6 +220,52 @@ def _response(state: dict, *, token: str | None = None) -> dict:
 def _save(state: dict, version: int) -> int:
     state["updated_at"] = int(time.time())
     return save_session(state["session_id"], state, version)
+
+
+def _text_image_status(items: list[dict]) -> str:
+    statuses = {item.get("status") for item in items}
+    if statuses == {"SUCCEEDED"}:
+        return "SUCCEEDED"
+    if "GENERATING" in statuses:
+        return "GENERATING"
+    if "FAILED" in statuses:
+        return "PARTIAL"
+    return "QUEUED"
+
+
+def _text_image_response(state: dict, *, token: str | None = None) -> dict:
+    result = {
+        "task_id": state["session_id"],
+        "status": state["status"],
+        "items": state["items"],
+        "model_settings": state["model_settings"],
+        "created_at": state["created_at"],
+        "updated_at": state["updated_at"],
+    }
+    if token:
+        result["access_token"] = token
+    return result
+
+
+def _load_text_image_task(task_id: str, token: str | None) -> tuple[dict, int]:
+    state, version = load_session(task_id, _require_token(token))
+    if state.get("workflow") != "text-to-image" or state.get("status") not in TEXT_IMAGE_STATES:
+        raise SessionNotFound("文生图任务不存在")
+    now = int(time.time())
+    changed = False
+    for item in state.get("items", []):
+        started_at = int(item.get("started_at") or 0)
+        if item.get("status") == "GENERATING" and started_at and now - started_at > 330:
+            item["status"] = "FAILED"
+            item["error"] = {
+                "code": "IMAGE_GENERATION_TIMEOUT",
+                "message": "本张图片生成等待超时，已解除锁定，可以单独重试。",
+            }
+            changed = True
+    if changed:
+        state["status"] = _text_image_status(state["items"])
+        version = _save(state, version)
+    return state, version
 
 
 def _model_settings(vision_model: str, image_model: str,
@@ -220,6 +307,10 @@ def legacy_bootstrap_status():
 
 @app.get("/api/me", include_in_schema=False)
 def legacy_cloud_workspace():
+    image_api_ready = bool(
+        os.getenv("OPENAI_API_KEY", "").strip()
+        and os.getenv("OPENAI_BASE_URL", "").strip()
+    )
     return {
         "user": {"id": "cloud-user", "name": "云端访客", "role": "member"},
         "desktop": False,
@@ -234,13 +325,13 @@ def legacy_cloud_workspace():
         },
         "assistant": {"id": "cloud-assistant", "name": "灵界助手"},
         "private_workspace": True,
-        "key_bound": False,
-        "api_setup_required": True,
+        "key_bound": image_api_ready,
+        "api_setup_required": not image_api_ready,
         "free_services": {},
-        "provider": "mock",
-        "mode": "CLOUD_COMPATIBILITY",
+        "provider": "openai" if image_api_ready else "unconfigured",
+        "mode": "SERVER_MANAGED" if image_api_ready else "CLOUD_COMPATIBILITY",
         "budget_scope": "LOCAL",
-        "live_enabled": False,
+        "live_enabled": image_api_ready,
         "styles": [],
         "compatibility_mode": True,
     }
@@ -266,6 +357,141 @@ def legacy_budget():
     }
 
 
+@app.get("/api/learning", include_in_schema=False)
+def legacy_learning():
+    return {
+        "rules": [], "evidence": [], "snapshots": [],
+        "active_snapshot_id": None, "pending": 0, "failures": [],
+    }
+
+
+@app.get("/api/schedules", include_in_schema=False)
+@app.get("/api/recipes", include_in_schema=False)
+def legacy_empty_settings_collections():
+    return []
+
+
+@app.get("/api/connections", include_in_schema=False)
+def legacy_connections():
+    return {"items": [], "inactive": [], "templates": [], "protocols": {}}
+
+
+@app.get("/api/ai-connections", include_in_schema=False)
+def legacy_ai_connections():
+    return {"items": []}
+
+
+@app.post("/api/text-image/tasks", status_code=201)
+def create_text_image_task(data: TextImageTaskRequest):
+    prompts = [prompt.strip() for prompt in data.prompts]
+    if any(not prompt for prompt in prompts):
+        raise WorkflowError("PROMPT_REQUIRED", "每一条图片要求都不能为空", 422)
+    if any(len(prompt) > 2000 for prompt in prompts):
+        raise WorkflowError("PROMPT_TOO_LONG", "每一条图片要求不能超过 2000 字", 422)
+    if not MODEL_NAME.fullmatch(data.model.strip()):
+        raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
+    if data.quality not in IMAGE_QUALITIES:
+        raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
+
+    task_id = uuid.uuid4().hex
+    token = secrets.token_urlsafe(32)
+    now = int(time.time())
+    state = {
+        "session_id": task_id,
+        "workflow": "text-to-image",
+        "status": "QUEUED",
+        "items": [
+            {
+                "index": index,
+                "prompt": prompt,
+                "status": "QUEUED",
+                "url": None,
+                "sha256": None,
+                "size_bytes": None,
+                "usage": {},
+                "error": None,
+                "started_at": None,
+                "completed_at": None,
+            }
+            for index, prompt in enumerate(prompts)
+        ],
+        "model_settings": {
+            "model": data.model.strip(),
+            "quality": data.quality,
+            "size": data.size,
+        },
+        "created_at": now,
+        "updated_at": now,
+    }
+    create_session(task_id, token, state)
+    return _text_image_response(state, token=token)
+
+
+@app.get("/api/text-image/tasks/{task_id}")
+def read_text_image_task(task_id: str, x_session_token: str | None = Header(default=None)):
+    state, _ = _load_text_image_task(task_id, x_session_token)
+    return _text_image_response(state)
+
+
+@app.post("/api/text-image/tasks/{task_id}/items/{item_index}/generate")
+def generate_text_image_item(task_id: str, item_index: int,
+                             x_session_token: str | None = Header(default=None)):
+    state, version = _load_text_image_task(task_id, x_session_token)
+    if not 0 <= item_index < len(state["items"]):
+        raise WorkflowError("IMAGE_ITEM_NOT_FOUND", "图片任务不存在", 404)
+    item = state["items"][item_index]
+    if item["status"] == "SUCCEEDED":
+        return _text_image_response(state)
+    if item["status"] == "GENERATING":
+        raise WorkflowError("IMAGE_ALREADY_GENERATING", "这张图片正在生成，请勿重复提交", 409)
+
+    item["status"] = "GENERATING"
+    item["error"] = None
+    item["started_at"] = int(time.time())
+    state["status"] = "GENERATING"
+    version = _save(state, version)
+    try:
+        settings = state["model_settings"]
+        generated, usage = generate_image(
+            item["prompt"], settings["model"], settings["quality"], settings["size"],
+        )
+        url = PublicBlobStore().put(
+            f"text-image/{task_id}/{item_index + 1}.png",
+            generated,
+            "image/png",
+        )
+        state, version = _load_text_image_task(task_id, x_session_token)
+        item = state["items"][item_index]
+        item.update({
+            "status": "SUCCEEDED",
+            "url": url,
+            "sha256": hashlib.sha256(generated).hexdigest(),
+            "size_bytes": len(generated),
+            "usage": usage,
+            "error": None,
+            "completed_at": int(time.time()),
+        })
+        state["status"] = _text_image_status(state["items"])
+        _save(state, version)
+        return _text_image_response(state)
+    except Exception as exc:
+        try:
+            state, version = _load_text_image_task(task_id, x_session_token)
+            item = state["items"][item_index]
+            item["status"] = "FAILED"
+            item["error"] = {
+                "code": getattr(exc, "code", "IMAGE_GENERATION_FAILED"),
+                "message": str(exc)[:500] or "图片生成失败",
+            }
+            state["status"] = _text_image_status(state["items"])
+            _save(state, version)
+        except StoreError:
+            pass
+        if isinstance(exc, (WorkflowError, StoreError)):
+            raise
+        raise WorkflowError("IMAGE_GENERATION_FAILED", "图片生成发生意外错误", 502) from exc
+
+
 @app.post("/api/sessions")
 def new_session(
     image: UploadFile = File(...),
@@ -278,18 +504,21 @@ def new_session(
 ):
     models = _model_settings(vision_model, image_model, image_quality, hunyuan_model)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
-    analysis = analyze_image(normalized, prompt, models["vision_model"]) if view_source == "generated" else {}
-    user_prompt = prompt.strip() or analysis.get("suggested_prompt_zh", "").strip()
+    user_prompt = prompt.strip()
     if view_source == "uploaded" and not user_prompt:
         user_prompt = "保持用户提交的各视图主体、结构、比例、材质和颜色一致"
-    if not user_prompt:
-        raise WorkflowError("OPENAI_INVALID_RESPONSE", "没有生成可编辑提示词", 502)
 
     session_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
     reference_url = PublicBlobStore().put(
-        f"image3d/{session_id}/reference/source.png", normalized, "image/png",
+        f"image3d/{session_id}/reference/01-primary.png", normalized, "image/png",
     )
+    reference = {
+        "url": reference_url,
+        "sha256": hashlib.sha256(normalized).hexdigest(),
+        "role": "primary",
+        "index": 1,
+    }
     initial_views = {}
     if view_source == "uploaded":
         initial_views["front"] = {
@@ -303,19 +532,20 @@ def new_session(
     now = int(time.time())
     state = {
         "session_id": session_id,
-        "status": "PROMPT_REVIEW",
-        "analysis": analysis,
+        "status": "REFERENCES_READY" if view_source == "generated" else "VIEWS_REVIEW",
+        "analysis": {},
+        "input_notes": prompt.strip(),
         "user_prompt": user_prompt,
-        "effective_prompt": effective_prompt(user_prompt),
+        "effective_prompt": effective_prompt(user_prompt) if user_prompt else "",
         "prompt_revision": 1,
         "views_stale": True,
         "views": initial_views,
-        "reference_image": {
-            "url": reference_url,
-            "sha256": hashlib.sha256(normalized).hexdigest(),
-        },
+        "reference_image": reference,
+        "reference_images": [reference],
         "source_image": image_info,
+        "description_confirmed_at": None,
         "confirmed_snapshot": None,
+        "assembly_plan": None,
         "hunyuan_task": None,
         "last_error": None,
         "model_settings": models,
@@ -327,13 +557,90 @@ def new_session(
     return _response(state, token=token)
 
 
+@app.post("/api/sessions/{session_id}/references")
+def upload_reference(session_id: str, image: UploadFile = File(...),
+                     x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    if state.get("view_source") != "generated":
+        raise WorkflowError("GENERATED_MODE_REQUIRED", "手动四视图模式不使用补充参考图", 409)
+    if state["status"] != "REFERENCES_READY":
+        raise WorkflowError("INVALID_SESSION_STATE", "只能在 AI 分析前添加补充参考图", 409)
+    references = state.setdefault("reference_images", [])
+    if len(references) >= MAX_REFERENCE_IMAGES:
+        raise WorkflowError("TOO_MANY_REFERENCES", f"最多上传 {MAX_REFERENCE_IMAGES} 张参考图", 422)
+    normalized, image_info = normalize_image(image.file.read(), image.content_type)
+    index = len(references) + 1
+    url = PublicBlobStore().put(
+        f"image3d/{session_id}/reference/{index:02d}-supplemental.png",
+        normalized,
+        "image/png",
+    )
+    references.append({
+        "url": url,
+        "sha256": hashlib.sha256(normalized).hexdigest(),
+        "role": "supplemental",
+        "index": index,
+        "source_image": image_info,
+    })
+    state["last_error"] = None
+    _save(state, version)
+    return _response(state)
+
+
+@app.post("/api/sessions/{session_id}/analyze")
+def analyze_references(session_id: str, x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    models = _session_model_settings(state)
+    if state.get("view_source") != "generated" or state["status"] != "REFERENCES_READY":
+        raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能分析参考图", 409)
+    references = state.get("reference_images") or []
+    if not references:
+        raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少上传一张参考图", 409)
+    state["status"] = "ANALYZING_REFERENCES"
+    state["last_error"] = None
+    version = _save(state, version)
+    try:
+        images = [fetch_bytes(item["url"], 20_000_000) for item in references[:MAX_REFERENCE_IMAGES]]
+        analysis = analyze_images(images, state.get("input_notes", ""), models["vision_model"])
+    except Exception as exc:
+        state["status"] = "REFERENCES_READY"
+        state["last_error"] = {
+            "code": getattr(exc, "code", "REFERENCE_ANALYSIS_FAILED"),
+            "message": str(exc)[:500] or "参考图分析失败",
+        }
+        _save(state, version)
+        if isinstance(exc, (WorkflowError, StoreError)):
+            raise
+        raise WorkflowError("REFERENCE_ANALYSIS_FAILED", "参考图分析发生意外错误", 502) from exc
+    user_prompt = analysis.get("suggested_prompt_zh", "").strip()
+    if not user_prompt:
+        state["status"] = "REFERENCES_READY"
+        state["last_error"] = {
+            "code": "OPENAI_INVALID_RESPONSE",
+            "message": "AI 没有返回可确认的图片描述",
+        }
+        _save(state, version)
+        raise WorkflowError("OPENAI_INVALID_RESPONSE", state["last_error"]["message"], 502)
+    state["analysis"] = analysis
+    state["user_prompt"] = user_prompt
+    state["effective_prompt"] = effective_prompt(user_prompt)
+    state["description_confirmed_at"] = None
+    state["status"] = "PROMPT_REVIEW"
+    state["last_error"] = None
+    _save(state, version)
+    return _response(state)
+
+
 @app.post("/api/sessions/{session_id}/views/{view}/upload")
 def upload_view(session_id: str, view: str, image: UploadFile = File(...),
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     if state.get("view_source") != "uploaded":
         raise WorkflowError("UPLOAD_MODE_REQUIRED", "当前会话使用 AI 生成四视图", 409)
-    if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"}:
+    if state["status"] not in {
+        "VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW",
+        "ASSEMBLY_CONFIRMED", "FAILED",
+    }:
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能上传四视图", 409)
     if view not in AI_GENERATED_VIEWS:
         raise WorkflowError("INVALID_VIEW", "可上传视角为 front、left、right、back", 422)
@@ -358,6 +665,7 @@ def upload_view(session_id: str, view: str, image: UploadFile = File(...),
     state["status"] = "VIEWS_REVIEW"
     state["views_stale"] = not _views_current(state)
     state["confirmed_snapshot"] = None
+    state["assembly_plan"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     _save(state, version)
@@ -374,7 +682,9 @@ def get_session(session_id: str, x_session_token: str | None = Header(default=No
 def update_prompt(session_id: str, data: PromptUpdate,
                   x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
-    if state["status"] in {"SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"}:
+    if state.get("view_source") != "generated":
+        raise WorkflowError("GENERATED_MODE_REQUIRED", "手动上传四视图无需修改 AI 描述", 409)
+    if state["status"] in {"REFERENCES_READY", "ANALYZING_REFERENCES", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"}:
         raise WorkflowError("SESSION_LOCKED", "3D任务提交后不能修改提示词", 409)
     prompt = data.prompt.strip()
     if prompt == state.get("user_prompt", ""):
@@ -383,10 +693,26 @@ def update_prompt(session_id: str, data: PromptUpdate,
     state["effective_prompt"] = effective_prompt(state["user_prompt"])
     state["prompt_revision"] += 1
     state["views_stale"] = True
+    state["description_confirmed_at"] = None
     state["confirmed_snapshot"] = None
+    state["assembly_plan"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     state["status"] = "PROMPT_REVIEW"
+    _save(state, version)
+    return _response(state)
+
+
+@app.post("/api/sessions/{session_id}/description/confirm")
+def confirm_description(session_id: str, x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    if state.get("view_source") != "generated" or state["status"] != "PROMPT_REVIEW":
+        raise WorkflowError("INVALID_SESSION_STATE", "请先上传参考图并完成 AI 分析", 409)
+    if not state.get("user_prompt", "").strip():
+        raise WorkflowError("EMPTY_DESCRIPTION", "AI 图片描述不能为空", 422)
+    state["description_confirmed_at"] = int(time.time())
+    state["status"] = "DESCRIPTION_CONFIRMED"
+    state["last_error"] = None
     _save(state, version)
     return _response(state)
 
@@ -398,41 +724,33 @@ def create_views(session_id: str, data: ViewGenerationRequest,
     models = _session_model_settings(state)
     if state.get("view_source") != "generated":
         raise WorkflowError("GENERATED_MODE_REQUIRED", "当前会话使用手动上传视图", 409)
-    if state["status"] not in {"PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"}:
+    if state["status"] not in {"DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"}:
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能生成多视图", 409)
+    if not state.get("description_confirmed_at"):
+        raise WorkflowError("DESCRIPTION_NOT_CONFIRMED", "请先确认 AI 对图片的描述", 409)
     requested = list(dict.fromkeys(data.views))
     if not requested or any(view not in AI_GENERATED_VIEWS for view in requested):
         raise WorkflowError("INVALID_VIEW", "可生成视角为 front、left、right、back", 422)
-    source_view = (state.get("analysis") or {}).get("source_view")
-    if state.get("view_source") == "generated" and source_view in {"SIDE", "BACK", "TOP"}:
-        raise WorkflowError(
-            "FRONT_VIEW_REQUIRED",
-            "当前主图不是正面或斜前方视角，请更换接近正面的图片后再生成四视图",
-            422,
-        )
-
     state["status"] = "GENERATING_VIEWS"
     state["confirmed_snapshot"] = None
+    state["assembly_plan"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     version = _save(state, version)
     generated_views = {}
     failures: list[tuple[str, Exception]] = []
     try:
-        reference = state.get("reference_image") or {}
-        reference_url = reference.get("url")
-        if not reference_url:
-            reference_url = state.get("views", {}).get("front", {}).get("url")
-            if reference_url:
-                state["reference_image"] = {"url": reference_url}
-        if not reference_url:
+        references = state.get("reference_images") or []
+        if not references and state.get("reference_image"):
+            references = [state["reference_image"]]
+        if not references:
             raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
-        source = fetch_bytes(reference_url, 20_000_000)
+        sources = [fetch_bytes(item["url"], 20_000_000) for item in references[:MAX_REFERENCE_IMAGES]]
         with ThreadPoolExecutor(max_workers=min(4, len(requested))) as executor:
             futures = {
                 executor.submit(
                     generate_view,
-                    [source],
+                    sources,
                     view_prompt(state["user_prompt"], view),
                     models["image_model"],
                     models["image_quality"],
@@ -508,10 +826,13 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
     if (state.get("view_source") != "generated" or view not in AI_GENERATED_VIEWS
             or view not in state.get("views", {})):
         raise WorkflowError("INVALID_VIEW", "只能微调已由 AI 生成的正、左、右或背视图", 422)
-    reference_url = (state.get("reference_image") or {}).get("url")
-    if not reference_url:
+    uploaded_references = state.get("reference_images") or []
+    if not uploaded_references and state.get("reference_image"):
+        uploaded_references = [state["reference_image"]]
+    if not uploaded_references:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
-    references = [fetch_bytes(reference_url, 20_000_000), fetch_bytes(state["views"][view]["url"], 20_000_000)]
+    references = [fetch_bytes(item["url"], 20_000_000) for item in uploaded_references[:MAX_REFERENCE_IMAGES]]
+    references.append(fetch_bytes(state["views"][view]["url"], 20_000_000))
     references.extend(
         fetch_bytes(state["views"][other]["url"], 20_000_000)
         for other in AI_GENERATED_VIEWS if other != view and other in state["views"]
@@ -534,6 +855,8 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
         "usage": usage,
     }
     state["views_stale"] = not _views_current(state)
+    state["confirmed_snapshot"] = None
+    state["assembly_plan"] = None
     state["last_error"] = None
     _save(state, version)
     return _response(state)
@@ -551,7 +874,81 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
         "views": {view: dict(state["views"][view]) for view in AI_GENERATED_VIEWS},
         "confirmed_at": int(time.time()),
     }
-    state["status"] = "CONFIRMED"
+    state["status"] = "VIEWS_CONFIRMED"
+    state["assembly_plan"] = None
+    state["last_error"] = None
+    _save(state, version)
+    return _response(state)
+
+
+@app.post("/api/sessions/{session_id}/assembly-plan")
+def create_assembly_plan(session_id: str, data: AssemblyPlanRequest,
+                         x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    models = _session_model_settings(state)
+    if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW"}:
+        raise WorkflowError("VIEWS_NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
+    snapshot = state.get("confirmed_snapshot") or {}
+    if not all(view in snapshot.get("views", {}) for view in AI_GENERATED_VIEWS):
+        raise WorkflowError("VIEWS_NOT_CONFIRMED", "已确认的四视图不完整", 409)
+    previous_status = state["status"]
+    state["status"] = "GENERATING_ASSEMBLY"
+    state["last_error"] = None
+    version = _save(state, version)
+    try:
+        references = [
+            fetch_bytes(snapshot["views"][view]["url"], 20_000_000)
+            for view in AI_GENERATED_VIEWS
+        ]
+        generated, usage = generate_view(
+            references,
+            assembly_plan_prompt(snapshot.get("user_prompt") or state["user_prompt"], data.prompt),
+            models["image_model"],
+            models["image_quality"],
+            "1536x1024",
+        )
+        previous = state.get("assembly_plan") or {}
+        revision = int(previous.get("revision", 0)) + 1
+        url = PublicBlobStore().put(
+            f"image3d/{session_id}/assembly/plan-r{revision}.png",
+            generated,
+            "image/png",
+        )
+        state["assembly_plan"] = {
+            "url": url,
+            "sha256": hashlib.sha256(generated).hexdigest(),
+            "revision": revision,
+            "prompt": data.prompt.strip(),
+            "usage": usage,
+            "confirmed_at": None,
+        }
+        state["status"] = "ASSEMBLY_REVIEW"
+        state["hunyuan_task"] = None
+        state["last_error"] = None
+        _save(state, version)
+        return _response(state)
+    except Exception as exc:
+        state["status"] = "ASSEMBLY_REVIEW" if state.get("assembly_plan") else (
+            "VIEWS_CONFIRMED" if previous_status != "CONFIRMED" else "CONFIRMED"
+        )
+        state["last_error"] = {
+            "code": getattr(exc, "code", "ASSEMBLY_GENERATION_FAILED"),
+            "message": str(exc)[:500] or "切片拼装图生成失败",
+        }
+        _save(state, version)
+        if isinstance(exc, (WorkflowError, StoreError)):
+            raise
+        raise WorkflowError("ASSEMBLY_GENERATION_FAILED", "切片拼装图生成发生意外错误", 502) from exc
+
+
+@app.post("/api/sessions/{session_id}/assembly-plan/confirm")
+def confirm_assembly_plan(session_id: str, x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    plan = state.get("assembly_plan") or {}
+    if state["status"] != "ASSEMBLY_REVIEW" or not plan.get("url"):
+        raise WorkflowError("ASSEMBLY_NOT_READY", "请先生成并检查切片拼装图", 409)
+    plan["confirmed_at"] = int(time.time())
+    state["status"] = "ASSEMBLY_CONFIRMED"
     state["last_error"] = None
     _save(state, version)
     return _response(state)
@@ -562,8 +959,10 @@ def generate_3d(session_id: str, data: Generate3DRequest,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
-    if state["status"] not in {"CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
-        raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
+    if (state["status"] not in {"ASSEMBLY_CONFIRMED", "FAILED"}
+            or not state.get("confirmed_snapshot")
+            or not (state.get("assembly_plan") or {}).get("confirmed_at")):
+        raise WorkflowError("NOT_CONFIRMED", "请先确认四视图和切片拼装图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     options = data.model_dump()
@@ -573,7 +972,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
-        state["status"] = "CONFIRMED"
+        state["status"] = "ASSEMBLY_CONFIRMED"
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
             "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
@@ -592,13 +991,13 @@ def generate_3d(session_id: str, data: Generate3DRequest,
             models["hunyuan_model"],
         )
     except WorkflowError as exc:
-        state["status"] = "CONFIRMED"
+        state["status"] = "ASSEMBLY_CONFIRMED"
         state["last_error"] = {"code": exc.code, "message": exc.message}
         _save(state, version)
         raise
     task_id = str(created.get("id", ""))
     if not TASK_ID.fullmatch(task_id):
-        state["status"] = "CONFIRMED"
+        state["status"] = "ASSEMBLY_CONFIRMED"
         state["last_error"] = {
             "code": "HUNYUAN_INVALID_RESPONSE",
             "message": "腾讯混元没有返回任务编号，请检查错误信息后重试",
@@ -697,6 +1096,14 @@ def image_to_3d_page():
     )
 
 
+@app.get("/text-to-image", include_in_schema=False)
+def text_to_image_page():
+    return FileResponse(
+        TEXT2IMAGE_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/local-blobs/{blob_path:path}", include_in_schema=False)
 def local_blob(blob_path: str):
     path = local_blob_path(f"/local-blobs/{blob_path}")
@@ -716,3 +1123,4 @@ def index():
 app.mount("/assets", StaticFiles(directory=ORIGINAL_FRONTEND / "assets"), name="original-assets")
 app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), name="original-branding")
 app.mount("/static", StaticFiles(directory=IMAGE3D_FRONTEND), name="static")
+app.mount("/text-image-static", StaticFiles(directory=TEXT2IMAGE_FRONTEND), name="text-image-static")

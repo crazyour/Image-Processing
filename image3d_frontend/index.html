@@ -13,7 +13,7 @@
       <button id="guide-toggle" class="guide-toggle" type="button" aria-controls="usage-guide" aria-expanded="false">？ 使用说明</button>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
-      <p class="hero-copy">上传一张参考图，可由 AI 生成正、左、右、背四个统一视角，确认后生成 STL 模型。</p>
+      <p class="hero-copy">上传多张同一个对象的参考图，先确认 AI 对主体的理解，再依次确认四视图、切片拼装图和 STL 模型。</p>
       <div class="view-source-intro" aria-label="四视图来源说明">
         <p><strong>站内 AI 自动生成</strong><span>约 ¥1/张，四视图约 ¥4/次</span></p>
         <p><strong>自行上传四视图</strong><span>可先用豆包等网页 AI 生成；本站不收图片生成费</span></p>
@@ -27,13 +27,13 @@
     </div>
 
     <section id="upload-step" class="panel">
-      <div class="step-title"><span>01</span><div><h2>四视图生成</h2><p>选择 AI 自动生成或用户上传，两种方式只能选择一种。</p></div><b id="upload-state" class="step-state active">等待选择</b></div>
+      <div class="step-title"><span>01</span><div><h2>上传输入图片</h2><p>AI 模式可上传 1–6 张同一个对象的参考图；也可直接上传现成四视图。</p></div><b id="upload-state" class="step-state active">等待选择</b></div>
       <form id="upload-form" class="stack">
         <fieldset class="view-source-options">
           <legend>选择四视图来源</legend>
           <label class="source-option">
             <input type="radio" name="view-source" value="generated" checked>
-            <span><strong>AI 自动生成四视图</strong><small>上传一张任意参考图，AI 重新生成正、左、右、背四张图。</small></span>
+            <span><strong>AI 自动生成四视图</strong><small>上传 1–6 张同一个对象的不同角度或细节图，先确认 AI 描述，再生成四视图。</small></span>
             <b>约 ¥4/次</b>
           </label>
           <label class="source-option">
@@ -44,12 +44,12 @@
         </fieldset>
         <p class="input-help source-fee-note">站内 AI 会生成 4 张图，约 ¥4/次；自行上传不会调用本站的图片生成模型。实际费用与外部平台额度以各平台账单为准。</p>
         <div id="reference-upload" class="reference-upload">
-          <p><strong>上传一张参考图</strong><span>不要求它本身是正视图，AI 会重新生成正、左、右、背四张图。</span></p>
+          <p><strong>上传多张参考图</strong><span>第一张作为主参考，其余图片补充侧面、背面、底部、局部结构或材质信息。请勿混入不同物体。</span></p>
           <label class="dropzone" for="image-input">
-            <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
-            <img id="upload-preview" class="hidden" alt="上传的主体参考图预览">
-            <span id="drop-copy">选择 PNG、JPEG 或 WebP 参考图</span>
+            <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" multiple required>
+            <span id="drop-copy">选择 1–6 张 PNG、JPEG 或 WebP 参考图</span>
           </label>
+          <div id="upload-previews" class="reference-previews"></div>
         </div>
         <div id="manual-views" class="manual-views hidden">
           <p><strong>分别上传完整四视图</strong><span>这里的四张图片会直接提交，不再使用上方参考图，也不会调用 GPT 分析或生成图片。</span></p>
@@ -86,35 +86,51 @@
           </div>
           <p class="settings-note">设置仅保存在当前浏览器，并在新任务创建时锁定。任务开始后的修改只对下一任务生效。</p>
         </details>
-        <button id="upload-submit" class="primary" type="submit">生成正、左、右、背四视图</button>
+        <button id="upload-submit" class="primary" type="submit">上传并分析参考图</button>
       </form>
     </section>
 
-    <details id="prompt-step" class="panel prompt-details">
-      <summary><strong>AI 对图片的描述</strong><span>可检查和修改（可选）</span></summary>
-      <div class="prompt-content">
+    <section id="prompt-step" class="panel">
+      <div class="step-title"><span>02</span><div><h2>确认 AI 对图片的描述</h2><p>先确认 AI 是否正确理解主体、结构、材质和遮挡部分。</p></div><b id="description-state" class="step-state">等待分析</b></div>
+      <div class="prompt-content plain">
+        <div id="server-reference-previews" class="reference-previews reviewed"></div>
         <p id="analysis-empty" class="empty-copy">上传参考图后，显示 AI 对主体、结构、材质和颜色的描述。用户上传四视图模式不会进行 AI 分析。</p>
         <div id="analysis" class="analysis-grid"></div>
         <label id="prompt-label">用于生成四视图的主体描述
           <textarea id="prompt-editor" rows="6"></textarea>
         </label>
         <div class="actions">
-          <button id="generate-views" class="primary" type="button">应用修改并生成四个视角</button>
+          <button id="confirm-description" class="primary" type="button">确认描述</button>
         </div>
       </div>
-    </details>
+    </section>
 
     <section id="views-step" class="panel">
-      <div class="step-title"><span>02</span><div><h2>检查并确认四视图</h2><p>检查 AI 生成或手动上传的正、左、右、背四张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
+      <div class="step-title"><span>03</span><div><h2>生成并确认四视图</h2><p>描述确认后再生成，并检查正、左、右、背四张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
       <div id="views-grid" class="views-grid"></div>
       <div class="actions">
+        <button id="generate-views" class="primary" type="button">生成四视图</button>
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
         <button id="confirm-views" class="primary" type="button">确认四个视角</button>
       </div>
     </section>
 
+    <section id="assembly-step" class="panel">
+      <div class="step-title"><span>04</span><div><h2>生成并确认切片拼装图</h2><p>根据已确认的四视图，生成平板切片、龙骨和槽口的拼装方案预览。</p></div><b id="assembly-state" class="step-state">等待四视图</b></div>
+      <div id="assembly-empty" class="assembly-empty">确认四视图后，才能生成切片拼装图。</div>
+      <img id="assembly-image" class="assembly-image hidden" alt="AI 生成的切片拼装图">
+      <label>切片拼装补充要求（可选）
+        <textarea id="assembly-prompt" rows="3" placeholder="例如：使用 3 mm 板材的概念槽口，尽量减少零件数量"></textarea>
+      </label>
+      <p class="engineering-note">这是 AI 生成的概念性工艺确认图，不包含可直接生产的精确尺寸。腾讯混元生成 STL 时仍使用已确认的四视图，不会把此图当作第五视图。</p>
+      <div class="actions">
+        <button id="generate-assembly" class="secondary" type="button">生成切片拼装图</button>
+        <button id="confirm-assembly" class="primary" type="button">确认切片拼装图</button>
+      </div>
+    </section>
+
     <section id="generate-step" class="panel">
-      <div class="step-title"><span>03</span><div><h2>生成 STL</h2><p>确认图片后提交腾讯混元，最终只保留 STL 模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>05</span><div><h2>生成 STL</h2><p>四视图和切片拼装图都确认后，再提交腾讯混元。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <div class="options">
         <label>类型
           <select id="generate-type"><option value="Geometry" selected>仅几何白模</option><option value="Normal">完整模型与纹理</option></select>
@@ -145,10 +161,10 @@
       <button id="guide-close" type="button" aria-label="关闭使用说明">关闭 ×</button>
     </header>
     <div class="guide-content">
-      <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以让 AI 根据一张参考图重新生成正、左、右、背四个统一视角，也可以自行上传这四个视角，再交给腾讯混元生成模型。</p>
+      <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以上传 1–6 张同一个对象的参考图，先确认 AI 对图片的描述，再依次确认四视图、切片拼装图和 STL。也可以自行上传现成四视图。</p>
       <section class="guide-source-choice">
         <strong>四视图有两种来源</strong>
-        <p><b>站内 AI 自动生成：</b>上传一张参考图，由本站生成正、左、右、背四张图，约 1 元/张，四视图约 4 元/次。</p>
+        <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图，约 1 元/张，四视图约 4 元/次。</p>
         <p><b>自行上传：</b>先使用豆包等网页 AI 生成四视图，再上传到本站；本站不收图片生成费。</p>
         <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 仍会调用腾讯混元并产生相应费用。</small>
       </section>
@@ -160,15 +176,15 @@
           <li>点击左侧导航中的“图生 3D”。</li>
           <li>页面右侧会显示完整的图生 3D 工作区。</li>
         </ol>
-        <p>页面分为三个步骤：</p>
-        <ol><li>上传参考图</li><li>检查并确认四视图</li><li>生成 STL</li></ol>
+        <p>页面分为五个步骤：</p>
+        <ol><li>上传参考图或四视图</li><li>确认 AI 图片描述</li><li>生成并确认四视图</li><li>生成并确认切片拼装图</li><li>生成 STL</li></ol>
       </details>
 
       <details>
         <summary>二、准备初始图片</summary>
         <p>参考图建议满足以下条件：</p>
         <ul>
-          <li>图片中只有一个主要物体。</li>
+          <li>可上传 1–6 张图，但所有图片必须是同一个物体。</li>
           <li>物体轮廓完整，没有被大面积遮挡或裁切。</li>
           <li>尽量使用正面或斜前方视角。</li>
           <li>背景简单，主体与背景容易区分。</li>
@@ -176,7 +192,7 @@
           <li>图片至少为 128 × 128 像素。</li>
           <li>单张上传文件不超过 4 MB；网页会自动压缩较大的图片。</li>
         </ul>
-        <p>如果 AI 判断主图明显是侧面、背面或顶部视角，系统会要求更换接近正面的图片，以免后续视图和模型出现结构错误。</p>
+        <p>建议把信息最完整的图放在第一张，再用侧面、背面、底部和局部细节图补充不可见结构。</p>
       </details>
 
       <details>
@@ -196,7 +212,7 @@
         <h3>网站 AI 生成结果需要调整</h3>
         <ul>
           <li>在对应视图下输入修改要求，然后点击“微调”。</li>
-          <li>如果主体描述需要修改，展开“AI 对图片的描述”，修改后点击“应用修改并生成四个视角”。</li>
+          <li>先检查“AI 对图片的描述”，必要时直接修改，确认后才能生成四视图。</li>
           <li>点击“重新生成全部”会重新调用四个视角，可能再次产生费用。</li>
           <li>如果只有一张生成失败，系统会保留已经成功的图片；再次操作时只重试未完成视图。</li>
         </ul>
@@ -206,7 +222,13 @@
       </details>
 
       <details>
-        <summary>五、生成 STL</summary>
+        <summary>五、切片拼装图</summary>
+        <p>确认四视图后，点击“生成切片拼装图”。可在补充要求中说明板材厚度、零件数量或排版偏好，不满意可重新生成。</p>
+        <p>该图是概念性工艺确认稿，不包含可直接生产的精确尺寸。腾讯混元仅接收规定角度的四视图，因此生成 STL 时不会把此图当作第五视图。</p>
+      </details>
+
+      <details>
+        <summary>六、生成 STL</summary>
         <h3>1. 选择生成类型</h3>
         <ul>
           <li><b>仅几何白模：</b>默认选项，适合只需要几何结构和 STL 文件的情况。</li>
@@ -225,7 +247,7 @@
       </details>
 
       <details>
-        <summary>六、预览和下载</summary>
+        <summary>七、预览和下载</summary>
         <p>生成成功后：</p>
         <ul>
           <li>页面显示“STL 已生成”。</li>
@@ -238,7 +260,7 @@
       </details>
 
       <details>
-        <summary>七、常见问题</summary>
+        <summary>八、常见问题</summary>
         <h3>一直显示“处理中”怎么办？</h3>
         <p>先观察右上角步骤状态：</p>
         <ul>
@@ -254,8 +276,8 @@
           <li>某一张视图生成失败，需要单独重试。</li>
           <li>当前正在进行另一个生成或上传操作。</li>
         </ul>
-        <h3>为什么提示主图不是正面图？</h3>
-        <p>AI 检测到图片可能是侧面、背面或顶部视角。请重新上传正面或斜前方图片，再生成补充视角。</p>
+        <h3>多张参考图应该怎么选？</h3>
+        <p>第一张放信息最完整的主参考，其余图补充侧面、背面、底部和局部结构。不要混入不同版本或不同物体，否则 AI 会在风险提示中标记冲突。</p>
         <h3>为什么腾讯混元提交失败？</h3>
         <p>常见原因包括：</p>
         <ul>
@@ -278,13 +300,15 @@
       </details>
 
       <details>
-        <summary>八、推荐的最简操作流程</summary>
+        <summary>九、推荐的最简操作流程</summary>
         <p>如果你只想快速得到 STL：</p>
         <ol>
-          <li>上传一张清晰的正面产品图。</li>
+          <li>上传同一产品的 1–6 张清晰参考图。</li>
           <li>保持“AI 自动生成”。</li>
-          <li>点击“生成正、左、右、背四视图”。</li>
+          <li>检查并确认 AI 对图片的描述。</li>
+          <li>点击“生成四视图”。</li>
           <li>检查正、左、右、背视图并点击“确认四个视角”。</li>
+          <li>生成、检查并确认切片拼装图。</li>
           <li>保持“仅几何白模”。</li>
           <li>点击“提交 STL 任务”。</li>
           <li>等待完成后预览并下载 STL。</li>

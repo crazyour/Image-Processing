@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>灵界 · 文生图</title>
+  <link rel="stylesheet" href="/text-image-static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <a class="back-link" href="/">← 返回灵界工作台</a>
+      <p class="eyebrow">LINGJIE · TEXT TO IMAGE</p>
+      <h1>文生图</h1>
+      <p>输入 1–5 条不同的图片要求，系统会按队列逐张生成。每张完成后立即保存，某一张失败不会影响已经成功的结果。</p>
+    </header>
+
+    <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+    <div id="error-panel" class="error-panel hidden" role="alert">
+      <div><strong>操作未完成</strong><p id="error-message"></p><code id="error-code"></code></div>
+      <button id="dismiss-error" type="button">知道了</button>
+    </div>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div><span>01</span><div><h2>填写图片要求</h2><p>每条要求生成一张图片，最多 5 张。</p></div></div>
+        <b id="task-state">等待输入</b>
+      </div>
+      <form id="task-form">
+        <div id="prompt-list" class="prompt-list"></div>
+        <div class="prompt-actions">
+          <button id="add-prompt" class="secondary" type="button">＋ 添加一条要求</button>
+          <span id="prompt-count">1 / 5</span>
+        </div>
+        <details class="settings">
+          <summary>模型设置（高级）</summary>
+          <div class="settings-grid">
+            <label>图片生成模型<input id="image-model" type="text" maxlength="128" required></label>
+            <label>图片质量
+              <select id="image-quality">
+                <option value="low">低 · 更快</option>
+                <option value="medium">中 · 推荐</option>
+                <option value="high">高</option>
+                <option value="xhigh">超高</option>
+                <option value="max">最高</option>
+                <option value="auto">自动</option>
+              </select>
+            </label>
+            <label>画面尺寸
+              <select id="image-size">
+                <option value="1024x1024">方图 · 1024 × 1024</option>
+                <option value="1536x1024">横图 · 1536 × 1024</option>
+                <option value="1024x1536">竖图 · 1024 × 1536</option>
+              </select>
+            </label>
+          </div>
+          <p>设置只保存在当前浏览器。任务创建后，本批图片固定使用相同模型、质量和尺寸。</p>
+        </details>
+        <div class="submit-row">
+          <p>生成图片会调用 API 并产生费用。系统按队列逐张提交，不会因刷新读取而重复生成。</p>
+          <button id="submit-task" class="primary" type="submit">开始生成</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div><span>02</span><div><h2>生成结果</h2><p>成功图片立即保存，可单独下载；失败项可以单独重试。</p></div></div>
+        <div class="header-actions">
+          <button id="refresh-task" class="secondary" type="button" disabled>刷新状态</button>
+          <button id="new-task" class="secondary" type="button">新建任务</button>
+        </div>
+      </div>
+      <div id="queue-summary" class="queue-summary">尚未提交任务。</div>
+      <div id="result-grid" class="result-grid"></div>
+    </section>
+  </main>
+  <script src="/text-image-static/app.js"></script>
+</body>
+</html>

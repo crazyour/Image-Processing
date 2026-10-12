@@ -27,27 +27,33 @@
 - `vercel_app/`：OpenAI、腾讯混元、PostgreSQL 和 Vercel Blob 工作流；
 - `frontend_dist/`：从原安装包恢复的 React 前端构建产物，作为网站首页；
 - `image3d_frontend/`：图生 3D 工作流，由原灵界侧边栏入口在站内弹层中打开；
+- `text2image_frontend/`：云端文生图工作流，支持 1–5 条独立提示词排队生成；
 - `requirements.txt`、`vercel.json`：Python 依赖和 5 分钟函数时限；
 - `.vercelignore`：部署时排除旧后端、字节码和恢复证据。
 
 首页恢复原“灵界 · 工艺设计工作台”的已编译界面，并增加“图生 3D”入口。旧的 `backend/app/main.py` 仍有反编译语法错误，因此原工作台中依赖旧 API 的功能在 Vercel 上暂不可用；新增的图生 3D 工作流可独立运行。
 为避免已编译前端因缺少桌面后端而阻断启动，Vercel 入口提供了明确标记的云端兼容状态和空集合读取接口。它只用于展示原工作台外壳，不会伪造或覆盖原桌面数据。
 
+## 文生图流程
+
+左侧“文生图”入口打开独立云端工作区。用户可以填写 1–5 条不同提示词，并选择图片模型、质量与尺寸。系统按队列逐张调用图片生成接口，每张完成后立即转存到 Vercel Blob；任务状态、提示词、用量和文件地址保存在 PostgreSQL。单张失败不会清除已成功结果，可在对应卡片上单独重试。浏览器只在当前标签页保存任务 ID 和访问令牌，刷新后可以继续当前任务，关闭标签页后不会自动载入上一次内容。
+
 ## 图生 3D 流程
 
 面向普通用户的操作步骤和故障排查见 [图生 3D 功能使用说明](IMAGE_TO_3D_USER_GUIDE.md)。
 
-Vercel 应用支持 AI 生成或用户上传正、左、右、背四视图，并在提交 3D 前人工确认：
+Vercel 应用支持 AI 生成或用户上传正、左、右、背四视图，并在提交 3D 前分阶段人工确认：
 
 - 站内 AI 自动生成约 1 元/张，四视图约 4 元/次；
 - 也可先用豆包等网页 AI 生成四视图后自行上传，此时本站不收图片生成费（外部平台额度与费用以其规则为准）。
 
-1. 上传参考图片，安全解码并统一为 PNG；
-2. 选择 AI 模式时，GPT 先判断参考图视角与适用性，再由 GPT Image 生成正、左、右、背四个统一视角；明显的侧面、背面或顶部参考图会要求更换；选择手动模式时，用户直接上传正、左、右、背四张图片且不会调用 GPT；
-3. 用户并排检查四视图；AI 模式还可用中文指令单独微调任一视图，或修改内部主体描述后重新生成；
-4. 用户确认后锁定四视图的版本；
-5. 将 Vercel Blob 的公网图片地址提交给腾讯 TokenHub `hy-3d-3.1`；
-6. 固定请求 STL，查询异步任务，并在成功后把 STL 文件转存到 Vercel Blob；网页提供 STL 旋转、缩放预览和下载。
+1. AI 模式上传 1–6 张同一对象的参考图；图片逐张上传，安全解码并统一为 PNG；
+2. GPT 综合所有参考图输出可编辑的主体、结构、材质、遮挡与风险描述；用户必须先确认描述，才能生成四视图；
+3. GPT Image 使用全部参考图生成正、左、右、背四个统一视角；用户可单独微调任一视图；
+4. 选择手动模式时，用户直接上传四张图，跳过 GPT 分析和四视图生成；
+5. 用户确认四视图后，GPT Image 生成一张概念性切片拼装图，用户可按补充要求重新生成并确认；
+6. 四视图和切片拼装图均确认后，将四视图的 Vercel Blob 公网地址提交给腾讯 TokenHub `hy-3d-3.1`；切片图是人工确认稿，不冒充为混元的第五视图；
+7. 固定请求 STL，查询异步任务，成功后把 STL 转存到 Vercel Blob，并提供旋转、缩放预览和下载。
 
 复制 `.env.example` 为 `.env` 并配置：
 
@@ -92,18 +98,26 @@ uvicorn app:app --reload
 
 ```text
 POST  /api/sessions
+POST  /api/sessions/{id}/references
+POST  /api/sessions/{id}/analyze
 PATCH /api/sessions/{id}/prompt
+POST  /api/sessions/{id}/description/confirm
 POST  /api/sessions/{id}/views
 POST  /api/sessions/{id}/views/{view}/upload
 POST  /api/sessions/{id}/views/{view}/refine
 POST  /api/sessions/{id}/confirm
+POST  /api/sessions/{id}/assembly-plan
+POST  /api/sessions/{id}/assembly-plan/confirm
 POST  /api/sessions/{id}/generate
 GET   /api/sessions/{id}/3d
 GET   /api/sessions/{id}
+POST  /api/text-image/tasks
+GET   /api/text-image/tasks/{id}
+POST  /api/text-image/tasks/{id}/items/{index}/generate
 ```
 
 浏览器只在当前标签页的 `sessionStorage` 中保存会话访问令牌，后续请求通过 `X-Session-Token` 发送；关闭标签页后不会恢复上一次任务。服务器数据库只保存令牌哈希。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。
 
 网页默认使用 `gpt-6-luna` 做图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成正、左、右、背四视图，并使用 `hy-3d-3.1` 生成 3D。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可在网页把多视图生成模型改为 `gpt-image-2.5-sunburst`。
 
-确认与提交是两个独立操作。AI 模式会把上传原图作为内部参考并重新生成正、左、右、背四视图；手动模式则直接使用用户上传的四视图，不调用 GPT 分析或图片生成。四视图齐全并确认后才能调用 `generate`。混元任务固定请求 STL，应用也只保存和展示 STL 输出。部分视图生成失败时会保留已成功结果，用户只需重试未完成视图；提交或生成状态超时后也会自动解除页面锁定并给出明确错误。
+描述确认、四视图确认、切片拼装图确认和 STL 提交是独立门禁。修改上游内容会自动使后续确认失效。混元任务固定请求 STL，应用也只保存和展示 STL 输出。部分视图生成失败时会保留已成功结果；分析、图片生成或 3D 提交超时后会自动解除页面锁定并显示明确错误。

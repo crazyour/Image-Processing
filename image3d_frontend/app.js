@@ -187,7 +187,7 @@ function renderAnalysis(analysis = {}) {
   const empty = $("#analysis-empty");
   empty.textContent = state?.view_source === "uploaded"
     ? "手动上传模式不进行 AI 分析，也不会调用图片生成模型。"
-    : "上传正面主图后显示识别结果。";
+    : "上传参考图后，AI 会综合多张图片显示识别结果。";
   empty.classList.toggle("hidden", available);
   $("#analysis").classList.toggle("hidden", !available);
   $("#prompt-label").classList.toggle("hidden", !state || state.view_source === "uploaded");
@@ -202,6 +202,14 @@ function renderAnalysis(analysis = {}) {
   ];
   $("#analysis").innerHTML = entries.map(([title, value]) =>
     `<article class="analysis-card"><strong>${title}</strong><p>${escapeHtml(value || "—")}</p></article>`
+  ).join("");
+}
+
+function renderReferences(references = []) {
+  const box = $("#server-reference-previews");
+  if (!box) return;
+  box.innerHTML = references.map((item, index) =>
+    `<article><img src="${item.url}" alt="参考图 ${index + 1}"><span>${index === 0 ? "主参考" : `补充 ${index}`}</span></article>`
   ).join("");
 }
 
@@ -220,7 +228,7 @@ function renderViews(views = {}) {
     }
     const refinement = !uploaded && state?.status === "VIEWS_REVIEW"
       ? `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>` : "";
-    const replacement = uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "CONFIRMED", "FAILED"].includes(state?.status)
+    const replacement = uploaded && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW", "ASSEMBLY_CONFIRMED", "FAILED"].includes(state?.status)
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
     const titleNote = view === "front" ? (uploaded ? "<small>自行上传</small>" : "<small>AI 生成</small>") : "";
     return `<article class="view-card"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${refinement}${replacement}</article>`;
@@ -230,39 +238,80 @@ function renderViews(views = {}) {
   document.querySelectorAll("[data-zoom]").forEach((image) => image.addEventListener("click", () => window.open(image.src, "_blank", "noopener")));
 }
 
+function renderAssembly(plan) {
+  const available = Boolean(plan?.url);
+  $("#assembly-empty").classList.toggle("hidden", available);
+  $("#assembly-image").classList.toggle("hidden", !available);
+  if (available) {
+    $("#assembly-image").src = plan.url;
+    $("#assembly-image").onclick = () => window.open(plan.url, "_blank", "noopener");
+  }
+  if (document.activeElement !== $("#assembly-prompt")) {
+    $("#assembly-prompt").value = plan?.prompt || "";
+  }
+}
+
 function syncControls() {
   const status = state?.status;
   const uploaded = state?.view_source === "uploaded";
   const viewsReady = allViews.every((view) => state?.views?.[view]?.prompt_revision === state?.prompt_revision);
-  const canEditPrompt = Boolean(state) && !uploaded && ["PROMPT_REVIEW", "VIEWS_REVIEW", "FAILED"].includes(status);
-  const canGenerateViews = canEditPrompt;
+  const descriptionConfirmed = Boolean(state?.description_confirmed_at);
+  const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
+  const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
   $("#prompt-editor").disabled = !canEditPrompt;
+  $("#confirm-description").disabled = !canEditPrompt || actionInFlight;
+  $("#confirm-description").classList.toggle("hidden", uploaded);
+  $("#generate-views").classList.toggle("hidden", uploaded);
+  $("#regenerate-views").classList.toggle("hidden", uploaded);
   $("#generate-views").disabled = !canGenerateViews || actionInFlight;
-  $("#regenerate-views").disabled = !canGenerateViews || actionInFlight;
+  $("#regenerate-views").disabled = !canGenerateViews || !viewsReady || actionInFlight;
   $("#confirm-views").disabled = !state || state.views_stale || status !== "VIEWS_REVIEW" || actionInFlight;
   if (!$("#confirm-views").dataset.busy) {
-    $("#confirm-views").textContent = status === "CONFIRMED" || state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
+    $("#confirm-views").textContent = state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
+  }
+  const canGenerateAssembly = Boolean(state?.confirmed_at) && ["VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW"].includes(status);
+  $("#generate-assembly").disabled = !canGenerateAssembly || actionInFlight;
+  $("#confirm-assembly").disabled = status !== "ASSEMBLY_REVIEW" || !state?.assembly_plan?.url || actionInFlight;
+  $("#assembly-prompt").disabled = !canGenerateAssembly || actionInFlight;
+  if (!$("#confirm-assembly").dataset.busy) {
+    $("#confirm-assembly").textContent = state?.assembly_plan?.confirmed_at ? "已确认 ✓" : "确认切片拼装图";
+  }
+  if (!$("#generate-assembly").dataset.busy) {
+    $("#generate-assembly").textContent = state?.assembly_plan?.url ? "按新要求重新生成" : "生成切片拼装图";
   }
   const generateButton = $("#generate-3d");
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(status);
-  const canSubmit3d = ["CONFIRMED", "FAILED"].includes(status) && Boolean(state?.confirmed_at);
+  const canSubmit3d = ["ASSEMBLY_CONFIRMED", "FAILED"].includes(status) && Boolean(state?.assembly_plan?.confirmed_at);
   generateButton.disabled = !canSubmit3d || actionInFlight;
   generateButton.classList.toggle("pending", running);
   if (!generateButton.dataset.busy) {
     generateButton.textContent = running ? "正在生成 STL…" : status === "FAILED" ? "重新生成 STL" : "提交 STL 任务";
   }
 
-  setStepState("#upload-state", !state ? "等待上传" : status === "GENERATING_VIEWS" ? "正在生成" : uploaded ? "四视图已上传" : "参考图已上传", Boolean(state), false);
+  setStepState("#upload-state", !state ? "等待上传" : uploaded ? "四视图已上传" : `${state.reference_images?.length || 1} 张已上传`, Boolean(state), false, Boolean(state));
+  if (!state) setStepState("#description-state", "等待分析", false, false);
+  else if (uploaded) setStepState("#description-state", "无需分析", false, false, true);
+  else if (status === "ANALYZING_REFERENCES") setStepState("#description-state", "正在分析", true, false);
+  else if (descriptionConfirmed) setStepState("#description-state", "已确认", false, false, true);
+  else if (status === "PROMPT_REVIEW") setStepState("#description-state", "等待确认", true, false);
+  else setStepState("#description-state", "等待分析", false, Boolean(state.last_error));
   if (!state) setStepState("#views-state", "等待生成", false, false);
   else if (status === "GENERATING_VIEWS") setStepState("#views-state", "正在生成", true, false);
+  else if (status === "DESCRIPTION_CONFIRMED") setStepState("#views-state", "可以生成", true, false);
   else if (state.views_stale || !viewsReady) setStepState("#views-state", "尚未完成", false, Boolean(state.last_error));
   else if (state.confirmed_at) setStepState("#views-state", "已确认", true, false, true);
   else setStepState("#views-state", "等待确认", true, false);
 
+  if (!state || !state.confirmed_at) setStepState("#assembly-state", "等待四视图", false, false);
+  else if (status === "GENERATING_ASSEMBLY") setStepState("#assembly-state", "正在生成", true, false);
+  else if (state.assembly_plan?.confirmed_at) setStepState("#assembly-state", "已确认", false, false, true);
+  else if (state.assembly_plan?.url) setStepState("#assembly-state", "等待确认", true, false);
+  else setStepState("#assembly-state", "可以生成", true, false);
+
   if (status === "SUCCEEDED") setStepState("#generate-state", "已完成", true, false, true);
   else if (status === "FAILED") setStepState("#generate-state", "生成失败", false, true);
   else if (running) setStepState("#generate-state", "生成中", true, false);
-  else if (state?.confirmed_at) setStepState("#generate-state", "可以提交", true, false);
+  else if (state?.assembly_plan?.confirmed_at) setStepState("#generate-state", "可以提交", true, false);
   else setStepState("#generate-state", "等待确认", false, false);
 }
 
@@ -277,8 +326,10 @@ function setStepState(selector, text, active = false, error = false, success = f
 function render(next) {
   state = next;
   renderAnalysis(state?.analysis || {});
+  renderReferences(state?.reference_images || []);
   $("#prompt-editor").value = state?.user_prompt || "";
   renderViews(state?.views || {});
+  renderAssembly(state?.assembly_plan || null);
   syncControls();
   renderTask();
   renderError();
@@ -481,11 +532,16 @@ async function refreshTask() {
 }
 
 $("#image-input").addEventListener("change", (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  $("#upload-preview").src = URL.createObjectURL(file);
-  $("#upload-preview").classList.remove("hidden");
-  $("#drop-copy").classList.add("hidden");
+  const files = [...(event.target.files || [])];
+  if (files.length > 6) {
+    event.target.value = "";
+    $("#upload-previews").innerHTML = "";
+    return notify("最多选择 6 张参考图", true);
+  }
+  $("#upload-previews").innerHTML = files.map((file, index) =>
+    `<article><img src="${URL.createObjectURL(file)}" alt="待上传参考图 ${index + 1}"><span>${index === 0 ? "主参考" : `补充 ${index}`}</span></article>`
+  ).join("");
+  $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击可重新选择` : "选择 1–6 张 PNG、JPEG 或 WebP 参考图";
 });
 
 function updateViewSource() {
@@ -497,7 +553,7 @@ function updateViewSource() {
   $("#prompt-requirement").classList.toggle("hidden", uploaded);
   $("#image-input").required = !uploaded;
   allViews.forEach((view) => { $(`#${view}-input`).required = uploaded; });
-  $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "生成正、左、右、背四视图";
+  $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "上传并分析参考图";
 }
 
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
@@ -521,8 +577,10 @@ $("#upload-form").addEventListener("submit", async (event) => {
     if (viewSource === "uploaded" && Object.values(uploadedViews).some((file) => !file)) {
       throw new Error("请分别选择正视图、左视图、右视图和背视图");
     }
-    setBusy(button, true, viewSource === "uploaded" ? "正在上传四视图…" : "GPT 正在分析…");
-    const source = viewSource === "uploaded" ? uploadedViews.front : $("#image-input").files?.[0];
+    setBusy(button, true, viewSource === "uploaded" ? "正在上传四视图…" : "正在上传参考图…");
+    const referenceFiles = [...($("#image-input").files || [])];
+    if (viewSource === "generated" && referenceFiles.length > 6) throw new Error("最多上传 6 张参考图");
+    const source = viewSource === "uploaded" ? uploadedViews.front : referenceFiles[0];
     if (!source) throw new Error("请选择图片");
     const file = await compressedFile(source);
     const form = new FormData();
@@ -539,11 +597,6 @@ $("#upload-form").addEventListener("submit", async (event) => {
     session = { id: result.session_id, token: result.access_token };
     sessionStorage.setItem("image3d-session", JSON.stringify(session));
     render(result);
-    if (viewSource === "generated" && ["SIDE", "BACK", "TOP"].includes(result.analysis?.source_view)) {
-      const error = new Error("当前图片不是正面或斜前方视角，请重新选择接近正面的主图");
-      error.code = "FRONT_VIEW_REQUIRED";
-      throw error;
-    }
     if (viewSource === "uploaded") {
       for (const view of ["left", "right", "back"]) {
         button.textContent = `正在上传${labels[view]}…`;
@@ -553,13 +606,16 @@ $("#upload-form").addEventListener("submit", async (event) => {
       }
       notify("正、左、右、背四视图已上传");
     } else {
-      button.textContent = "正在生成四个视角…";
-      render(await api(`/api/sessions/${session.id}/views`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ views: allViews }),
-        timeout: 295_000,
-      }));
-      notify("正、左、右、背四视图已生成");
+      for (let index = 1; index < referenceFiles.length; index += 1) {
+        button.textContent = `正在上传参考图 ${index + 1}/${referenceFiles.length}…`;
+        const body = new FormData();
+        body.set("image", await compressedFile(referenceFiles[index]));
+        render(await api(`/api/sessions/${session.id}/references`, { method: "POST", body, timeout: 90_000 }));
+      }
+      button.textContent = `AI 正在综合分析 ${referenceFiles.length} 张图…`;
+      render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
+      notify("AI 描述已生成，请检查并确认");
+      $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
     }
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
@@ -587,6 +643,26 @@ async function generateViews(button, regenerateAll = false) {
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
 }
+
+$("#confirm-description").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    clearError();
+    setActionInFlight(true);
+    setBusy(button, true, "正在确认…");
+    const prompt = $("#prompt-editor").value.trim();
+    if (!prompt) throw new Error("AI 图片描述不能为空");
+    if (prompt !== state.user_prompt) {
+      render(await api(`/api/sessions/${session.id}/prompt`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }),
+      }));
+    }
+    render(await api(`/api/sessions/${session.id}/description/confirm`, { method: "POST" }));
+    notify("AI 对图片的描述已确认，现在可以生成四视图");
+    $("#views-step").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { showError(error); await refresh(); }
+  finally { setBusy(button, false); setActionInFlight(false); }
+});
 
 $("#generate-views").addEventListener("click", (event) => generateViews(event.currentTarget));
 $("#regenerate-views").addEventListener("click", (event) => generateViews(event.currentTarget, true));
@@ -632,6 +708,35 @@ $("#confirm-views").addEventListener("click", async (event) => {
     setBusy(button, true);
     render(await api(`/api/sessions/${session.id}/confirm`, { method: "POST" }));
     notify("正、左、右、背四个视角已确认");
+    $("#assembly-step").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { showError(error); await refresh(); }
+  finally { setBusy(button, false); setActionInFlight(false); }
+});
+
+$("#generate-assembly").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    clearError();
+    setActionInFlight(true);
+    setBusy(button, true, "正在生成切片拼装图…");
+    render(await api(`/api/sessions/${session.id}/assembly-plan`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: $("#assembly-prompt").value.trim() }), timeout: 295_000,
+    }));
+    notify("切片拼装图已生成，请检查后确认");
+  } catch (error) { showError(error); await refresh(); }
+  finally { setBusy(button, false); setActionInFlight(false); }
+});
+
+$("#confirm-assembly").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    clearError();
+    setActionInFlight(true);
+    setBusy(button, true, "正在确认…");
+    render(await api(`/api/sessions/${session.id}/assembly-plan/confirm`, { method: "POST" }));
+    notify("切片拼装图已确认，现在可以生成 STL");
+    $("#generate-step").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
 });

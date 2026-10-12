@@ -170,11 +170,15 @@ def _extract_output_text(body: dict) -> str:
     raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回图片分析结果", 502)
 
 
-def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
+def analyze_images(images: list[bytes], user_prompt: str, model: str) -> dict:
+    if not images:
+        raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少上传一张参考图", 422)
     config = _openai_config()
     instruction = (
-        "你正在为单图转多视图再转3D分析输入图片。请使用中文，只描述可见证据，将遮挡区域"
-        "与不可见面的推测分开。判断输入是正面、斜前方、侧面、背面、顶部或无法判断，并分析主体、"
+        "你正在为多张参考图转多视图再转3D分析输入图片。请使用中文，第一张是主参考图，"
+        "其余图片是同一个对象的补充证据。综合所有图片描述同一个主体；如果图片之间冲突，"
+        "明确写入 warnings，不要自行拼凑不同物体。只描述可见证据，将遮挡区域与不可见面的推测分开。"
+        "source_view 表示第一张主参考图的视角。分析主体、"
         "几何、材质、颜色、反光、透明、裁切和背景风险。"
         "suggested_prompt_zh 是用户可修改的中文主体提示词，描述所有视角必须保持一致的特征。"
         "不要虚构精确尺寸。用户补充："
@@ -185,7 +189,10 @@ def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
         "reasoning": {"effort": "none"},
         "input": [{"role": "user", "content": [
             {"type": "input_text", "text": instruction},
-            {"type": "input_image", "image_url": data_uri(image), "detail": "high"},
+            *[
+                {"type": "input_image", "image_url": data_uri(image), "detail": "high"}
+                for image in images[:6]
+            ],
         ]}],
         "text": {"format": {
             "type": "json_schema", "name": "image_to_3d_analysis",
@@ -206,6 +213,11 @@ def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 图片分析结果格式无效", 502)
 
 
+def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
+    """保留单图调用兼容性。"""
+    return analyze_images([image], user_prompt, model)
+
+
 def effective_prompt(user_prompt: str) -> str:
     return f"主体要求：\n{user_prompt.strip()}\n\n跨视角固定约束：\n{CONSISTENCY_CONSTRAINT}"
 
@@ -214,10 +226,25 @@ def view_prompt(user_prompt: str, view: str, refinement: str = "") -> str:
     prompt = (
         f"请编辑参考图片，生成同一个主体的{VIEW_NAMES[view]}。\n"
         f"{effective_prompt(user_prompt)}\n"
-        "第一张参考图是用户上传的原始主体参考，其他参考图只用于核对跨视角一致性。"
+        "所有参考图都是同一个主体的证据；第一张是主参考，其他图用于补充被遮挡的结构、"
+        "材质和比例。不要把不同参考图排版到输出图中。"
     )
     if refinement.strip():
         prompt += f"\n\n本次仅修改{VIEW_NAMES[view]}：\n{refinement.strip()}"
+    return prompt
+
+
+def assembly_plan_prompt(user_prompt: str, refinement: str = "") -> str:
+    prompt = (
+        "根据输入的正、左、右、背四视图，为同一个主体制作一张横向的切片拼装方案图。\n"
+        "将主体拆分为可由平板切割的连续截面片、纵向龙骨和必要连接件，通过相互咬合的槽口组装。\n"
+        "输出应像激光切割/CNC 排版预览：白色背景、细灰色轮廓线、各零件不重叠、排列整齐，"
+        "清楚显示槽口位置和对称件。不添加色彩、材质渲染、场景、文字、尺寸标注或水印。\n"
+        "只能根据四视图推导概念性结构，不要伪造精确工程尺寸。\n"
+        f"{effective_prompt(user_prompt)}"
+    )
+    if refinement.strip():
+        prompt += f"\n\n本次切片拼装图的补充要求：\n{refinement.strip()}"
     return prompt
 
 
@@ -233,14 +260,55 @@ def _validate_generated_image(encoded: str) -> bytes:
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 返回的多视图图片无效", 502)
 
 
-def generate_view(reference_images: list[bytes], prompt: str, model: str, quality: str) -> tuple[bytes, dict]:
+def generate_image(prompt: str, model: str, quality: str,
+                   size: str = "1024x1024") -> tuple[bytes, dict]:
+    """Generate one standalone image from text without holding a database transaction."""
+    config = _openai_config()
+    payload = {
+        "model": model,
+        "prompt": prompt.strip(),
+        "quality": quality,
+        "size": size,
+        "background": "opaque",
+        "output_format": "png",
+        "moderation": "auto",
+        "n": 1,
+    }
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=280) as client:
+            response = client.post(
+                "/images/generations",
+                headers={"Authorization": f"Bearer {config.api_key}"},
+                json=payload,
+            )
+    except httpx.RequestError as exc:
+        raise WorkflowError("OPENAI_UNAVAILABLE", f"OpenAI 图片生成连接失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("OpenAI", response)
+    try:
+        body = response.json()
+        item = body["data"][0]
+        if item.get("b64_json"):
+            image = _validate_generated_image(item["b64_json"])
+        elif isinstance(item.get("url"), str) and item["url"].startswith("https://"):
+            image = fetch_bytes(item["url"], 25_000_000)
+            image, _ = normalize_image(image, None)
+        else:
+            raise KeyError("image")
+        return image, body.get("usage", {})
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回有效生成图片", 502)
+
+
+def generate_view(reference_images: list[bytes], prompt: str, model: str, quality: str,
+                  size: str = "1024x1024") -> tuple[bytes, dict]:
     config = _openai_config()
     payload = {
         "model": model,
         "images": [{"image_url": data_uri(image)} for image in reference_images[:16]],
         "prompt": prompt,
         "quality": quality,
-        "size": "1024x1024",
+        "size": size,
         "background": "opaque",
         "output_format": "png",
         "moderation": "auto",
