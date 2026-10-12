@@ -25,9 +25,9 @@ h1 { margin: 7px 0 10px; font-size: clamp(34px, 5vw, 48px); letter-spacing: -.04
 .section-heading > div:first-child > span { display: grid; flex: 0 0 auto; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: #fff; background: var(--accent); font-weight: 800; }
 .section-heading h2 { margin: 0 0 5px; font-size: 23px; }
 .section-heading p { margin: 0; color: var(--muted); line-height: 1.55; }
-#task-state { padding: 6px 10px; border-radius: 999px; color: var(--muted); background: #edf1ee; font-size: 12px; white-space: nowrap; }
-#task-state.running { color: #725128; background: #fff0cf; }
-#task-state.success { color: #17623f; background: #dff3e8; }
+#task-state, #animal-task-state { padding: 6px 10px; border-radius: 999px; color: var(--muted); background: #edf1ee; font-size: 12px; white-space: nowrap; }
+#task-state.running, #animal-task-state.running { color: #725128; background: #fff0cf; }
+#task-state.success, #animal-task-state.success { color: #17623f; background: #dff3e8; }
 .prompt-list { display: grid; gap: 12px; }
 .prompt-row { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; align-items: start; gap: 10px; }
 .prompt-number { display: grid; place-items: center; min-height: 48px; border-radius: 12px; color: var(--accent-dark); background: #e8f0eb; font-weight: 800; }
@@ -96,7 +96,7 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .animal-comparison figcaption { margin-bottom: 8px; color: var(--muted); font-size: 13px; font-weight: 800; }
 .animal-comparison img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: #f2f4f2; }
 .animal-comparison .image-frame { aspect-ratio: 1; }
-.animal-result-section .card-actions { margin-top: 14px; }
+.animal-result-section .card-actions { flex-wrap: wrap; margin-top: 14px; }
 .hidden { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {

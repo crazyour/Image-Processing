@@ -251,6 +251,9 @@ function setAnimalBusy(value) {
   $("#animal-image-model").disabled = value;
   $("#animal-image-quality").disabled = value;
   $("#animal-image-size").disabled = value;
+  $("#retry-animal").disabled = value;
+  $("#manual-repair-animal").disabled = value;
+  $("#restore-animal").disabled = value;
 }
 
 function animalPlaceholder(message, spinning = false) {
@@ -272,13 +275,41 @@ function applyAnimalState(state) {
   animalTask.state = state;
   $("#animal-result-section").classList.remove("hidden");
   $("#animal-source-result").src = state.source_url;
-  const labels = { READY: "等待生成", GENERATING: "正在生成", SUCCEEDED: "已完成", FAILED: "生成失败" };
+  const labels = {
+    READY: "等待生成",
+    GENERATING: state.operation === "repair" ? "AI 修复中" : "正在生成并检测",
+    REPAIR_REQUIRED: "等待自动修复",
+    REVIEW_REQUIRED: "需要人工处理",
+    SUCCEEDED: "连通性检测通过",
+    FAILED: "生成失败",
+  };
   const status = $("#animal-task-state");
   status.textContent = labels[state.status] || state.status;
   status.className = state.status === "SUCCEEDED" ? "success" : state.status === "GENERATING" ? "running" : "";
   $("#retry-animal").classList.toggle("hidden", state.status !== "FAILED");
+  $("#manual-repair-animal").classList.toggle("hidden", state.status !== "REVIEW_REQUIRED" || !state.can_manual_repair);
+  $("#restore-animal").classList.toggle("hidden", state.status === "GENERATING" || !state.can_restore_original);
   $("#download-animal").classList.add("hidden");
-  if (state.status === "SUCCEEDED" && state.result?.url) {
+  const connectivity = state.connectivity;
+  const connectivityStatus = $("#animal-connectivity-status");
+  if (state.status === "SUCCEEDED" && connectivity?.passed) {
+    const repairs = state.repair_attempts || 0;
+    connectivityStatus.textContent = repairs
+      ? `检测通过：全部黑色材料已连通，共完成 ${repairs} 次修复。`
+      : "检测通过：全部黑色材料属于同一连通主体，未调用 AI 修复。";
+  } else if (state.status === "REVIEW_REQUIRED" && connectivity) {
+    const count = connectivity.island_count || 0;
+    connectivityStatus.textContent = count
+      ? `自动修复已停止，仍有 ${count} 个孤岛或单像素薄弱连接，请手动再次修复或恢复原图。`
+      : "未检测到有效黑色主体，请恢复原图或重新生成后人工处理。";
+  } else if (state.status === "GENERATING") {
+    connectivityStatus.textContent = state.operation === "repair"
+      ? `检测未通过，正在进行第 ${(state.automatic_repair_attempts || 0)} 次 AI 修复并将在完成后复检…`
+      : "正在生成黑白图；生成后将立即在本地检测连通性…";
+  } else {
+    connectivityStatus.textContent = "生成后会自动检测黑色连通性；仅检测不通过时调用 AI 修复。";
+  }
+  if (["SUCCEEDED", "REVIEW_REQUIRED"].includes(state.status) && state.result?.url) {
     const image = document.createElement("img");
     image.src = state.result.url;
     image.alt = "根据动物照片生成的黑白镂空设计候选";
@@ -286,12 +317,40 @@ function applyAnimalState(state) {
     $("#download-animal").href = state.result.url;
     $("#download-animal").classList.remove("hidden");
   } else if (state.status === "GENERATING") {
-    animalPlaceholder("正在提取动物并生成连通的黑白镂空图…", true);
+    animalPlaceholder(
+      state.operation === "repair"
+        ? "检测到孤岛，正在 AI 修复并重新检测…"
+        : "正在提取动物并生成黑白镂空图…",
+      true,
+    );
+  } else if (state.status === "REPAIR_REQUIRED") {
+    animalPlaceholder("检测到孤岛，准备自动修复…", true);
   } else if (state.status === "FAILED") {
     animalPlaceholder(state.last_error?.message || "生成失败，可以重试");
   } else {
     animalPlaceholder("参考照片已保存，等待生成");
   }
+}
+
+async function runAutomaticAnimalRepairs(initialState) {
+  let state = initialState;
+  while (state.status === "REPAIR_REQUIRED") {
+    const pending = {
+      ...state,
+      status: "GENERATING",
+      operation: "repair",
+      automatic_repair_attempts: (state.automatic_repair_attempts || 0) + 1,
+    };
+    applyAnimalState(pending);
+    state = await api(
+      `/api/animal-cutout/tasks/${animalTask.id}/repair`,
+      { method: "POST", body: JSON.stringify({ automatic: true }) },
+      290_000,
+      animalTask.token,
+    );
+  }
+  applyAnimalState(state);
+  return state;
 }
 
 async function refreshAnimalTask() {
@@ -312,12 +371,55 @@ async function generateAnimalCutout() {
       290_000,
       animalTask.token,
     );
-    applyAnimalState(state);
-    notify("动物黑白镂空设计候选已经生成并保存");
+    const finalState = await runAutomaticAnimalRepairs(state);
+    notify(finalState.status === "SUCCEEDED"
+      ? "最终结果已通过黑色连通性检测"
+      : "自动修复已停止，请查看剩余问题并人工处理");
   } catch (error) {
     showError(error);
     try { await refreshAnimalTask(); }
     catch { applyAnimalState({ ...animalTask.state, status: "FAILED", last_error: { message: error.message } }); }
+  } finally {
+    setAnimalBusy(false);
+  }
+}
+
+async function repairAnimalCutoutManually() {
+  if (!animalTask || animalBusy) return;
+  setAnimalBusy(true);
+  applyAnimalState({ ...animalTask.state, status: "GENERATING", operation: "repair" });
+  try {
+    const state = await api(
+      `/api/animal-cutout/tasks/${animalTask.id}/repair`,
+      { method: "POST", body: JSON.stringify({ automatic: false }) },
+      290_000,
+      animalTask.token,
+    );
+    applyAnimalState(state);
+    notify(state.status === "SUCCEEDED" ? "本次修复已通过检测" : "本次修复后仍有连通性问题");
+  } catch (error) {
+    showError(error);
+    try { await refreshAnimalTask(); }
+    catch { applyAnimalState({ ...animalTask.state, status: "REVIEW_REQUIRED", last_error: { message: error.message } }); }
+  } finally {
+    setAnimalBusy(false);
+  }
+}
+
+async function restoreOriginalAnimalCutout() {
+  if (!animalTask || animalBusy) return;
+  setAnimalBusy(true);
+  try {
+    const state = await api(
+      `/api/animal-cutout/tasks/${animalTask.id}/restore-original`,
+      { method: "POST" },
+      30_000,
+      animalTask.token,
+    );
+    applyAnimalState(state);
+    notify("已恢复首次生成的原图");
+  } catch (error) {
+    showError(error);
   } finally {
     setAnimalBusy(false);
   }
@@ -398,6 +500,8 @@ $("#animal-form").addEventListener("submit", async (event) => {
   await generateAnimalCutout();
 });
 $("#retry-animal").addEventListener("click", generateAnimalCutout);
+$("#manual-repair-animal").addEventListener("click", repairAnimalCutoutManually);
+$("#restore-animal").addEventListener("click", restoreOriginalAnimalCutout);
 $("#dismiss-error").addEventListener("click", () => $("#error-panel").classList.add("hidden"));
 $("#refresh-task").addEventListener("click", () => refreshTask().catch(showError));
 $("#new-task").addEventListener("click", resetTask);
@@ -421,9 +525,17 @@ const previousAnimal = savedAnimalSession();
 if (previousAnimal) {
   animalTask = previousAnimal;
   showWorkflow("animal");
-  refreshAnimalTask().catch((error) => {
-    showError(error);
-    animalTask = null;
-    sessionStorage.removeItem("animal-cutout-task");
-  });
+  refreshAnimalTask()
+    .then(async (state) => {
+      if (state.status !== "REPAIR_REQUIRED") return;
+      setAnimalBusy(true);
+      try { await runAutomaticAnimalRepairs(state); }
+      catch (error) { showError(error); await refreshAnimalTask().catch(() => {}); }
+      finally { setAnimalBusy(false); }
+    })
+    .catch((error) => {
+      showError(error);
+      animalTask = null;
+      sessionStorage.removeItem("animal-cutout-task");
+    });
 }
