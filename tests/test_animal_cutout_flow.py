@@ -111,18 +111,18 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             self.assertTrue(body["can_restore_original"])
             self.assertEqual(len(body["process_details"]["repairs"]), 2)
             self.assertEqual(body["process_details"]["repairs"][0]["status"], "COMPLETED")
-            self.assertIn("1 个红圈孤岛", body["process_details"]["repairs"][0]["prompt"])
+            self.assertIn("依据这张彩色连通图重新生成", body["process_details"]["repairs"][0]["prompt"])
 
             self.assertEqual(image_edit.call_count, 3)
             first_repair_inputs = image_edit.call_args_list[1].args[0]
-            self.assertEqual(len(first_repair_inputs), 2)
-            repair_guide = cv2.imdecode(
-                np.frombuffer(first_repair_inputs[1], np.uint8), cv2.IMREAD_COLOR,
+            self.assertEqual(len(first_repair_inputs), 1)
+            diagnostic = cv2.imdecode(
+                np.frombuffer(first_repair_inputs[0], np.uint8), cv2.IMREAD_COLOR,
             )
-            guide_colors = {tuple(pixel) for row in repair_guide for pixel in row}
-            self.assertIn((0, 0, 255), guide_colors)
-            self.assertIn((0, 0, 0), guide_colors)
-            self.assertIn("1 个红圈孤岛", image_edit.call_args_list[1].args[1])
+            diagnostic_colors = {tuple(pixel) for row in diagnostic for pixel in row}
+            self.assertIn((235, 99, 37), diagnostic_colors)
+            self.assertIn((68, 68, 239), diagnostic_colors)
+            self.assertIn("依据这张彩色连通图重新生成", image_edit.call_args_list[1].args[1])
 
         restored = self.client.post(
             f"/api/animal-cutout/tasks/{task_id}/restore-original", headers=headers,

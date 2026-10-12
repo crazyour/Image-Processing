@@ -316,10 +316,10 @@ function processRecordCard(title, result, options = {}) {
   images.className = "process-image-grid";
   if (result?.url) images.appendChild(processImageFigure(options.resultLabel || "输出结果", result.url));
   if (connectivity?.diagnostic_url) {
-    images.appendChild(processImageFigure("彩色连通性诊断图", connectivity.diagnostic_url));
+    images.appendChild(processImageFigure("发送给 AI 的彩色连通图", connectivity.diagnostic_url));
   }
   if (connectivity?.repair_guide_url) {
-    images.appendChild(processImageFigure("AI 圈注修复指引图", connectivity.repair_guide_url));
+    images.appendChild(processImageFigure("圈注参考图（仅页面展示）", connectivity.repair_guide_url));
   }
   if (images.childElementCount) card.appendChild(images);
 
@@ -375,12 +375,12 @@ function renderAnimalProcessDetails(state) {
   const initialImages = [];
   if (original.connectivity?.diagnostic_url) {
     initialImages.push(processImageFigure(
-      "首次彩色连通性诊断图", original.connectivity.diagnostic_url,
+      "首次发送给 AI 的彩色连通图", original.connectivity.diagnostic_url,
     ));
   }
   if (original.connectivity?.repair_guide_url) {
     initialImages.push(processImageFigure(
-      "首次 AI 圈注修复指引图", original.connectivity.repair_guide_url,
+      "首次圈注参考图（仅页面展示）", original.connectivity.repair_guide_url,
     ));
   }
   $("#animal-initial-analysis-block").classList.toggle("hidden", !initialImages.length);
