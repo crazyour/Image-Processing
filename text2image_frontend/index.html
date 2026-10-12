@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 文生图</title>
-  <link rel="stylesheet" href="/text-image-static/styles.css">
+  <link rel="stylesheet" href="/text-image-static/styles.css?v=20261012-4">
 </head>
 <body>
   <main class="shell">
@@ -133,38 +133,50 @@
       </form>
       <div id="animal-result-section" class="animal-result-section hidden">
         <div class="section-heading compact-heading">
-          <div><span>02</span><div><h2>最终结果</h2><p id="animal-connectivity-status">生成后会自动检测黑色连通性；仅检测不通过时调用 AI 修复。</p></div></div>
+          <div><span>02</span><div><h2>首次生成图片</h2><p id="animal-initial-connectivity-status">生成后会立即执行本地黑色连通性检测。</p></div></div>
           <button id="retry-animal" class="secondary hidden" type="button">重新生成</button>
         </div>
         <div class="animal-comparison">
           <figure><figcaption>原始照片</figcaption><img id="animal-source-result" alt="上传的动物原始照片"></figure>
-          <figure><figcaption>黑白镂空设计候选</figcaption><div id="animal-result-frame" class="image-frame"><div class="placeholder">等待生成</div></div></figure>
+          <figure><figcaption>首次生成的黑白镂空图</figcaption><div id="animal-original-result-frame" class="image-frame"><div class="placeholder">等待生成</div></div></figure>
+        </div>
+        <div id="animal-initial-analysis-block" class="visible-process-block hidden">
+          <h3>首次本地检测图片</h3>
+          <div id="animal-initial-analysis-images" class="process-image-grid"></div>
+        </div>
+        <div class="visible-process-block">
+          <h3>本次生成提示词</h3>
+          <pre id="animal-generation-prompt"></pre>
+        </div>
+      </div>
+
+      <div id="animal-repair-section" class="animal-result-section hidden">
+        <div class="section-heading compact-heading">
+          <div><span>03</span><div><h2>后续连通性修复</h2><p id="animal-connectivity-status">首次检测完成后，这里会展示修复过程和最终结果。</p></div></div>
+        </div>
+        <div class="repair-final-result">
+          <figure><figcaption>当前最终结果</figcaption><div id="animal-result-frame" class="image-frame"><div class="placeholder">等待首次检测</div></div></figure>
         </div>
         <div class="card-actions">
           <button id="manual-repair-animal" class="secondary hidden" type="button">手动再次修复</button>
           <button id="restore-animal" class="secondary hidden" type="button">恢复原图</button>
-          <a id="download-animal" class="hidden" download>下载 PNG</a>
+          <a id="download-animal" class="hidden" download>下载最终 PNG</a>
         </div>
-        <details id="animal-process-details" class="process-details hidden">
-          <summary>查看生成与修复过程</summary>
+        <div id="animal-process-details" class="process-details hidden">
           <div class="process-details-body">
-            <section>
-              <h3>原始生成提示词</h3>
-              <pre id="animal-generation-prompt"></pre>
-            </section>
             <section>
               <h3>AI 修复提示词模板</h3>
               <pre id="animal-repair-prompt-template"></pre>
             </section>
             <section>
-              <h3>图片与检测记录</h3>
+              <h3>每轮修复与复检记录</h3>
               <div id="animal-process-records" class="process-records"></div>
             </section>
           </div>
-        </details>
+        </div>
       </div>
     </section>
   </main>
-  <script src="/text-image-static/app.js"></script>
+  <script src="/text-image-static/app.js?v=20261012-4"></script>
 </body>
 </html>

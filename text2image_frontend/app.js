@@ -256,8 +256,8 @@ function setAnimalBusy(value) {
   $("#restore-animal").disabled = value;
 }
 
-function animalPlaceholder(message, spinning = false) {
-  const frame = $("#animal-result-frame");
+function animalFramePlaceholder(selector, message, spinning = false) {
+  const frame = $(selector);
   frame.replaceChildren();
   const placeholder = document.createElement("div");
   placeholder.className = "placeholder";
@@ -271,9 +271,13 @@ function animalPlaceholder(message, spinning = false) {
   frame.appendChild(placeholder);
 }
 
+function animalPlaceholder(message, spinning = false) {
+  animalFramePlaceholder("#animal-result-frame", message, spinning);
+}
+
 function animalConnectivitySummary(connectivity) {
   if (!connectivity) return "尚未检测";
-  if (connectivity.passed) return "复检通过 · 黑色材料整体连通";
+  if (connectivity.passed) return "检测通过 · 黑色材料整体连通";
   if (connectivity.status === "NO_BLACK_MATERIAL") return "未检测到有效黑色主体";
   return `未通过 · ${connectivity.island_count || 0} 个孤岛或薄弱连接`;
 }
@@ -320,10 +324,10 @@ function processRecordCard(title, result, options = {}) {
   if (images.childElementCount) card.appendChild(images);
 
   if (options.prompt) {
-    const promptDetails = document.createElement("details");
+    const promptDetails = document.createElement("div");
     promptDetails.className = "process-prompt";
-    const summary = document.createElement("summary");
-    summary.textContent = "查看本次实际发送的 AI 修复提示词";
+    const summary = document.createElement("strong");
+    summary.textContent = "本次实际发送的 AI 修复提示词";
     const prompt = document.createElement("pre");
     prompt.textContent = options.prompt;
     promptDetails.append(summary, prompt);
@@ -342,19 +346,47 @@ function renderAnimalProcessDetails(state) {
   const details = $("#animal-process-details");
   const process = state.process_details;
   const original = process?.original_result;
+  $("#animal-generation-prompt").textContent = process?.generation_prompt || state.prompt || "未记录";
+  $("#animal-repair-section").classList.toggle("hidden", !original);
   details.classList.toggle("hidden", !original);
-  if (!original) return;
+  const initialStatus = $("#animal-initial-connectivity-status");
+  const originalFrame = $("#animal-original-result-frame");
+  if (!original) {
+    $("#animal-initial-analysis-block").classList.add("hidden");
+    $("#animal-initial-analysis-images").replaceChildren();
+    initialStatus.textContent = state.status === "GENERATING"
+      ? "正在生成黑白镂空图，完成后立即执行本地连通性检测…"
+      : "生成后会立即执行本地黑色连通性检测。";
+    animalFramePlaceholder(
+      "#animal-original-result-frame",
+      state.status === "GENERATING" ? "正在生成首次黑白图…" : "等待生成",
+      state.status === "GENERATING",
+    );
+    return;
+  }
 
-  const wasOpen = details.open;
   const repairs = process.repairs || [];
-  details.querySelector(":scope > summary").textContent = `查看生成与修复过程（${repairs.length + 1} 条记录）`;
-  $("#animal-generation-prompt").textContent = process.generation_prompt || "未记录";
   $("#animal-repair-prompt-template").textContent = process.repair_prompt_template || "未记录";
+  initialStatus.textContent = `首次检测：${animalConnectivitySummary(original.connectivity)}`;
+  const originalImage = document.createElement("img");
+  originalImage.src = original.url;
+  originalImage.alt = "首次生成的黑白镂空设计";
+  originalFrame.replaceChildren(originalImage);
+  const initialImages = [];
+  if (original.connectivity?.diagnostic_url) {
+    initialImages.push(processImageFigure(
+      "首次彩色连通性诊断图", original.connectivity.diagnostic_url,
+    ));
+  }
+  if (original.connectivity?.repair_guide_url) {
+    initialImages.push(processImageFigure(
+      "首次 AI 圈注修复指引图", original.connectivity.repair_guide_url,
+    ));
+  }
+  $("#animal-initial-analysis-block").classList.toggle("hidden", !initialImages.length);
+  $("#animal-initial-analysis-images").replaceChildren(...initialImages);
 
-  const records = [processRecordCard("首次生成与本地检测", original, {
-    resultLabel: "首次生成图",
-    connectivity: original.connectivity,
-  })];
+  const records = [];
   repairs.forEach((repair) => {
     const result = repair.result || (repair.url ? {
       url: repair.url,
@@ -371,8 +403,15 @@ function renderAnimalProcessDetails(state) {
       },
     ));
   });
+  if (!records.length) {
+    const empty = document.createElement("article");
+    empty.className = "process-record process-empty";
+    empty.textContent = original.connectivity?.passed
+      ? "首次检测已经通过，没有调用 AI 修复。"
+      : "已检测到连通性问题，正在等待或执行第一轮 AI 修复。";
+    records.push(empty);
+  }
   $("#animal-process-records").replaceChildren(...records);
-  details.open = wasOpen;
 }
 
 function applyAnimalState(state) {
