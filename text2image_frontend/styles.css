@@ -82,6 +82,8 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .animal-input-grid input[type="file"] { padding: 12px; border: 1px dashed #9eb5aa; border-radius: 13px; background: #f8faf8; }
 .upload-preview { display: grid; place-items: center; min-height: 220px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: #f3f5f3; text-align: center; }
 .upload-preview img { width: 100%; height: 280px; object-fit: contain; }
+.generation-choice { display: grid; grid-template-columns: minmax(180px,240px) minmax(0,1fr); align-items: end; gap: 16px; margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f8faf8; }
+.generation-choice p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .prompt-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 8px; }
 .prompt-heading label { font-weight: 800; }
 .prompt-heading button { padding: 8px 11px; font-size: 12px; }
@@ -91,6 +93,14 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .cutout-rules p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .animal-result-section { margin-top: 30px; padding-top: 25px; border-top: 1px solid var(--line); }
 .compact-heading { margin-bottom: 16px; }
+.candidate-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.candidate-empty { grid-column: 1 / -1; display: grid; place-items: center; min-height: 180px; padding: 24px; border: 1px dashed #aec0b6; border-radius: 14px; color: var(--muted); background: #f8faf8; text-align: center; }
+.candidate-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.candidate-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,107,87,.12); }
+.candidate-card strong { display: block; margin-bottom: 9px; }
+.candidate-card img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 11px; background: #f2f4f2; }
+.candidate-card button { width: 100%; margin-top: 10px; }
+#animal-selected-review { margin-top: 22px; }
 .animal-comparison { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .animal-comparison figure { min-width: 0; margin: 0; }
 .animal-comparison figcaption { margin-bottom: 8px; color: var(--muted); font-size: 13px; font-weight: 800; }
@@ -117,6 +127,7 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .process-image-grid figcaption { margin-bottom: 6px; color: var(--muted); font-size: 11px; font-weight: 800; }
 .process-image-grid a { display: block; }
 .process-image-grid img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 9px; background: #f2f4f2; }
+.process-image-grid .mask-preview img { background-color: #fff; background-image: linear-gradient(45deg,#dfe4e0 25%,transparent 25%),linear-gradient(-45deg,#dfe4e0 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dfe4e0 75%),linear-gradient(-45deg,transparent 75%,#dfe4e0 75%); background-position: 0 0,0 8px,8px -8px,-8px 0; background-size: 16px 16px; }
 .process-prompt { margin-top: 11px; }
 .process-prompt > strong { display: block; color: var(--accent-dark); font-size: 12px; }
 .process-prompt pre { margin-top: 8px; }
@@ -124,7 +135,7 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .hidden { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
-  .settings-grid, .result-grid, .animal-input-grid, .animal-comparison, .process-image-grid { grid-template-columns: 1fr; }
+  .settings-grid, .result-grid, .animal-input-grid, .animal-comparison, .process-image-grid, .candidate-grid, .generation-choice { grid-template-columns: 1fr; }
   .section-heading, .submit-row { align-items: stretch; flex-direction: column; }
   .header-actions { flex-wrap: wrap; }
 }

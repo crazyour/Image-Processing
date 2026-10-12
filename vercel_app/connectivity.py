@@ -6,16 +6,7 @@ import numpy as np
 
 
 _MAIN_COLOR = (235, 99, 37)  # RGB #2563eb in OpenCV BGR order.
-_ISLAND_COLORS = (
-    (68, 68, 239),    # red
-    (94, 163, 34),    # green
-    (168, 85, 247),   # magenta
-    (11, 158, 245),   # orange
-    (211, 191, 6),    # cyan
-    (246, 130, 147),  # purple
-)
-_ISLAND_RING_COLOR = (0, 0, 255)      # red in BGR
-_FRAGILE_RING_COLOR = (0, 140, 255)   # orange in BGR
+_ISSUE_COLOR = (68, 68, 239)  # RGB #ef4444 in OpenCV BGR order.
 
 
 class ConnectivityError(ValueError):
@@ -50,21 +41,11 @@ def _components(mask: np.ndarray) -> tuple[int, np.ndarray, np.ndarray]:
     return count, labels, stats
 
 
-def _draw_issue_ring(canvas: np.ndarray, issue_mask: np.ndarray,
-                     color: tuple[int, int, int]) -> list[int]:
+def _issue_bbox(issue_mask: np.ndarray) -> list[int]:
     points = cv2.findNonZero(issue_mask)
     if points is None:
         return [0, 0, 0, 0]
     x, y, width, height = cv2.boundingRect(points)
-    scale = min(canvas.shape[:2])
-    padding = max(6, round(scale * 0.012))
-    thickness = max(2, round(scale * 0.004))
-    center = (x + width // 2, y + height // 2)
-    axes = (
-        max(padding * 2, width // 2 + padding),
-        max(padding * 2, height // 2 + padding),
-    )
-    cv2.ellipse(canvas, center, axes, 0, 0, 360, color, thickness, cv2.LINE_AA)
     return [int(x), int(y), int(width), int(height)]
 
 
@@ -75,8 +56,94 @@ def _encode_png(image: np.ndarray, message: str) -> bytes:
     return encoded.tobytes()
 
 
-def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes, bytes]:
-    """Return a report, color diagnostic, and circle-annotated repair guide.
+def _open_edit_corridor(editable: np.ndarray, issue_mask: np.ndarray,
+                        target_mask: np.ndarray) -> None:
+    """Open a compact masked corridor between an issue and the nearest target."""
+    scale = min(editable.shape[:2])
+    radius = max(10, round(scale * 0.018))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (radius * 2 + 1, radius * 2 + 1))
+    editable[:] = cv2.bitwise_or(editable, cv2.dilate(issue_mask, kernel))
+
+    issue_y, issue_x = np.where(issue_mask > 0)
+    target_y, target_x = np.where(target_mask > 0)
+    if not len(issue_x) or not len(target_x):
+        return
+
+    distance_input = np.where(target_mask > 0, 0, 255).astype(np.uint8)
+    distances, nearest_labels = cv2.distanceTransformWithLabels(
+        distance_input, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL,
+    )
+    source_index = int(np.argmin(distances[issue_y, issue_x]))
+    source = (int(issue_x[source_index]), int(issue_y[source_index]))
+    nearest_label = int(nearest_labels[source[1], source[0]])
+    matching_targets = np.flatnonzero(nearest_labels[target_y, target_x] == nearest_label)
+    if not len(matching_targets):
+        return
+    target_index = int(matching_targets[0])
+    target = (int(target_x[target_index]), int(target_y[target_index]))
+    thickness = max(14, round(scale * 0.028))
+    cv2.line(editable, source, target, 255, thickness, cv2.LINE_8)
+    cv2.circle(editable, source, thickness, 255, -1, cv2.LINE_8)
+    cv2.circle(editable, target, thickness, 255, -1, cv2.LINE_8)
+
+
+def create_repair_mask(image_bytes: bytes) -> bytes:
+    """Create an RGBA mask whose transparent pixels are safe to regenerate."""
+    mask = _black_mask(image_bytes)
+    component_count, labels, stats = _components(mask)
+    component_labels = list(range(1, component_count))
+    component_labels.sort(key=lambda label: int(stats[label, cv2.CC_STAT_AREA]), reverse=True)
+    editable = np.zeros_like(mask)
+    if not component_labels:
+        rgba = np.zeros((*mask.shape, 4), dtype=np.uint8)
+        rgba[:, :, 3] = 255
+        return _encode_png(rgba, "无法生成局部修复蒙版")
+
+    main_label = component_labels[0]
+    main_mask = np.where(labels == main_label, 255, 0).astype(np.uint8)
+    for label in component_labels[1:]:
+        issue_mask = np.where(labels == label, 255, 0).astype(np.uint8)
+        _open_edit_corridor(editable, issue_mask, main_mask)
+
+    eroded = cv2.erode(
+        main_mask,
+        cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)),
+        iterations=1,
+    )
+    eroded_count, eroded_labels, eroded_stats = _components(eroded)
+    robust_labels = list(range(1, eroded_count))
+    robust_labels.sort(
+        key=lambda label: int(eroded_stats[label, cv2.CC_STAT_AREA]), reverse=True,
+    )
+    if not robust_labels and int(stats[main_label, cv2.CC_STAT_AREA]) > 0:
+        radius = max(10, round(min(mask.shape) * 0.018))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (radius * 2 + 1, radius * 2 + 1))
+        editable = cv2.dilate(main_mask, kernel)
+    elif len(robust_labels) > 1:
+        robust_main = np.where(eroded_labels == robust_labels[0], 255, 0).astype(np.uint8)
+        for label in robust_labels[1:]:
+            issue_mask = np.where(eroded_labels == label, 255, 0).astype(np.uint8)
+            _open_edit_corridor(editable, issue_mask, robust_main)
+
+    rgba = np.zeros((*mask.shape, 4), dtype=np.uint8)
+    rgba[:, :, 3] = 255 - editable
+    return _encode_png(rgba, "无法生成局部修复蒙版")
+
+
+def remove_disconnected_islands(image_bytes: bytes) -> bytes:
+    """Return a hard black/white PNG containing only the largest component."""
+    mask = _black_mask(image_bytes)
+    component_count, labels, stats = _components(mask)
+    component_labels = list(range(1, component_count))
+    component_labels.sort(key=lambda label: int(stats[label, cv2.CC_STAT_AREA]), reverse=True)
+    cleaned = np.full(mask.shape, 255, dtype=np.uint8)
+    if component_labels:
+        cleaned[labels == component_labels[0]] = 0
+    return _encode_png(cleaned, "无法执行本地孤岛清理")
+
+
+def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes]:
+    """Return a connectivity report and color diagnostic.
 
     The largest 8-connected black component is the subject. Every other black
     component is an island. The subject is also eroded by one pixel to expose
@@ -86,7 +153,6 @@ def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes, bytes]:
     mask = _black_mask(image_bytes)
     component_count, labels, stats = _components(mask)
     diagnostic = np.full((*mask.shape, 3), 255, dtype=np.uint8)
-    repair_guide = cv2.cvtColor(255 - mask, cv2.COLOR_GRAY2BGR)
     issue_regions: list[dict] = []
 
     component_labels = list(range(1, component_count))
@@ -102,20 +168,18 @@ def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes, bytes]:
             "main_area": 0,
             "island_areas": [],
             "issue_regions": [],
-        }, _encode_png(diagnostic, "无法生成连通性诊断图"), _encode_png(
-            repair_guide, "无法生成 AI 修复指引图",
-        )
+        }, _encode_png(diagnostic, "无法生成连通性诊断图")
 
     main_label = component_labels[0]
     diagnostic[labels == main_label] = _MAIN_COLOR
     island_areas: list[int] = []
-    for index, label in enumerate(component_labels[1:]):
+    for label in component_labels[1:]:
         issue_mask = np.where(labels == label, 255, 0).astype(np.uint8)
-        diagnostic[labels == label] = _ISLAND_COLORS[index % len(_ISLAND_COLORS)]
+        diagnostic[labels == label] = _ISSUE_COLOR
         island_areas.append(int(stats[label, cv2.CC_STAT_AREA]))
         issue_regions.append({
             "type": "island",
-            "bbox": _draw_issue_ring(repair_guide, issue_mask, _ISLAND_RING_COLOR),
+            "bbox": _issue_bbox(issue_mask),
             "area": int(stats[label, cv2.CC_STAT_AREA]),
         })
 
@@ -136,18 +200,18 @@ def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes, bytes]:
         # A subject that disappears after one erosion consists entirely of
         # one-pixel material and is not safe as a cutout.
         fragile_count = 1
+        diagnostic[main_mask > 0] = _ISSUE_COLOR
         issue_regions.append({
             "type": "fragile_connection",
-            "bbox": _draw_issue_ring(repair_guide, main_mask, _FRAGILE_RING_COLOR),
+            "bbox": _issue_bbox(main_mask),
             "area": int(stats[main_label, cv2.CC_STAT_AREA]),
         })
-    for index, label in enumerate(robust_labels[1:]):
-        color_index = len(island_areas) + index
-        diagnostic[eroded_labels == label] = _ISLAND_COLORS[color_index % len(_ISLAND_COLORS)]
+    for label in robust_labels[1:]:
+        diagnostic[eroded_labels == label] = _ISSUE_COLOR
         issue_mask = np.where(eroded_labels == label, 255, 0).astype(np.uint8)
         issue_regions.append({
             "type": "fragile_connection",
-            "bbox": _draw_issue_ring(repair_guide, issue_mask, _FRAGILE_RING_COLOR),
+            "bbox": _issue_bbox(issue_mask),
             "area": int(eroded_stats[label, cv2.CC_STAT_AREA]),
         })
 
@@ -163,6 +227,4 @@ def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes, bytes]:
         "main_area": int(stats[main_label, cv2.CC_STAT_AREA]),
         "island_areas": island_areas,
         "issue_regions": issue_regions,
-    }, _encode_png(diagnostic, "无法生成连通性诊断图"), _encode_png(
-        repair_guide, "无法生成 AI 修复指引图",
-    )
+    }, _encode_png(diagnostic, "无法生成连通性诊断图")

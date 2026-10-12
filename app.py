@@ -28,7 +28,12 @@ from vercel_app.store import (
     save_session,
     storage_status,
 )
-from vercel_app.connectivity import ConnectivityError, analyze_connectivity
+from vercel_app.connectivity import (
+    ConnectivityError,
+    analyze_connectivity,
+    create_repair_mask,
+    remove_disconnected_islands,
+)
 from vercel_app.workflow import (
     AI_GENERATED_VIEWS,
     GENERATED_VIEWS,
@@ -64,7 +69,7 @@ VALID_STATES = {
 }
 TEXT_IMAGE_STATES = {"QUEUED", "GENERATING", "PARTIAL", "SUCCEEDED"}
 ANIMAL_CUTOUT_STATES = {
-    "READY", "GENERATING", "REPAIR_REQUIRED", "REVIEW_REQUIRED", "SUCCEEDED", "FAILED",
+    "READY", "GENERATING", "CANDIDATES_READY", "REPAIR_REQUIRED", "REVIEW_REQUIRED", "SUCCEEDED", "FAILED",
 }
 TRANSIENT_STATE_TIMEOUTS = {
     "ANALYZING_REFERENCES": 150,
@@ -75,6 +80,8 @@ TRANSIENT_STATE_TIMEOUTS = {
 
 MAX_REFERENCE_IMAGES = 6
 MAX_AUTOMATIC_CUTOUT_REPAIRS = 2
+CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
+CUTOUT_REPAIR_QUALITY = "high"
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
 
@@ -111,6 +118,10 @@ class TextImageTaskRequest(BaseModel):
 
 class AnimalCutoutRepairRequest(BaseModel):
     automatic: bool = False
+
+
+class CutoutCandidateSelectRequest(BaseModel):
+    candidate_index: int = Field(ge=0, le=4)
 
 
 @app.exception_handler(WorkflowError)
@@ -286,6 +297,9 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
         "status": state["status"],
         "prompt": state["prompt"],
         "source_url": state["source"]["url"],
+        "generation_count": state.get("generation_count", 1),
+        "candidates": state.get("candidates", []),
+        "selected_candidate_index": state.get("selected_candidate_index"),
         "result": current_result,
         "connectivity": connectivity,
         "repair_attempts": state.get("repair_attempts", 0),
@@ -305,6 +319,8 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
         "process_details": {
             "generation_prompt": state.get("prompt", ""),
             "repair_prompt_template": ANIMAL_CUTOUT_REPAIR_PROMPT,
+            "repair_model": state["model_settings"].get("repair_model", CUTOUT_REPAIR_MODEL),
+            "repair_quality": state["model_settings"].get("repair_quality", CUTOUT_REPAIR_QUALITY),
             "original_result": original_result,
             "repairs": state.get("repair_history", []),
         },
@@ -321,17 +337,26 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
 def _load_animal_cutout_task(task_id: str, token: str | None) -> tuple[dict, int]:
     state, version = load_session(task_id, _require_token(token))
     if state.get("workflow") != "animal-photo-cutout" or state.get("status") not in ANIMAL_CUTOUT_STATES:
-        raise SessionNotFound("动物镂空图任务不存在")
+        raise SessionNotFound("照片转镂空剪影任务不存在")
     started_at = int(state.get("started_at") or 0)
     if state["status"] == "GENERATING" and started_at and int(time.time()) - started_at > 330:
-        repairing = state.get("operation") == "repair" and state.get("result")
-        state["status"] = "REVIEW_REQUIRED" if repairing else "FAILED"
+        operation = state.get("operation")
+        repairing = operation == "repair" and state.get("result")
+        selecting = operation == "select" and state.get("candidates")
+        state["status"] = (
+            "REVIEW_REQUIRED" if repairing else
+            "CANDIDATES_READY" if selecting else
+            "FAILED"
+        )
         state["last_error"] = ({
             "code": "ANIMAL_REPAIR_TIMEOUT",
             "message": "AI 修复等待超时，已保留当前结果，可手动再次修复。",
         } if repairing else {
+            "code": "CUTOUT_SELECTION_TIMEOUT",
+            "message": "候选图连通性检测超时，已保留候选图，可重新选择。",
+        } if selecting else {
             "code": "ANIMAL_CUTOUT_TIMEOUT",
-            "message": "图片生成等待超时，已解除锁定，可以重试。",
+            "message": "镂空剪影候选生成等待超时，已解除锁定，可以重试。",
         })
         state["operation"] = None
         version = _save(state, version)
@@ -340,35 +365,35 @@ def _load_animal_cutout_task(task_id: str, token: str | None) -> tuple[dict, int
 
 ANIMAL_CUTOUT_PROMPT = """
 核心目标
-把图片中的主要动物转换为可用于激光切割 / CNC 制图的单片平面黑白镂空设计。
+把照片转换为可用于激光切割 / CNC 制图的单片平面黑白镂空剪影设计。
 
 主体要求
-- 只保留主要动物，删除人物、手、牵引绳、家具、地面、风景、界面、文字和其他背景内容。
-- 若用户明确要求多个动物，则保持准确数量和相互姿态。
-- 保留原动物的外轮廓、头身比例、姿态、耳形、口鼻、尾巴、主要毛色分区，以及 1–3 个最有辨识力的特征。
-- 不要替换成其他品种或另一只动物。
+- 识别并保留照片中的主要视觉主体；主体可以是人物、动物、植物、器物、车辆、建筑、风景或它们的组合。
+- 删除用户未要求保留的背景杂物、界面、文字和水印；若主体本身是风景或场景，则保留最有辨识力的地形、建筑、植物和空间层次。
+- 保持原照片中主体的准确数量、外轮廓、比例、姿态、朝向、相互位置，以及 1–5 个最有辨识力的结构或纹理分区。
+- 不得把主体替换成另一种人物、动物、物体、建筑或场景。
 
 画面要求
-- 正视、居中。
+- 构图清楚、主体突出，尽量保持原照片的视角和构图关系。
 - 纯白背景。
 - 纯黑表示保留材料，纯白表示去除区域。
 - 只能使用硬边纯黑和纯白。
-- 不使用灰度、彩色、阴影、渐变、照片纹理、立体效果、场景、边框、文字、水印、尺寸线。
+- 不使用灰度、彩色、阴影、渐变、照片纹理、立体效果、装饰性边框、文字、水印或尺寸线。
 
 结构硬约束（最高优先级）
 - 所有黑色保留材料必须整体连通，形成一个连续稳定的单片结构。
 - 不得出现任何悬空黑色孤岛。
-- 所有内部黑色线条、毛发块、眼鼻嘴细节、斑纹和局部黑块，必须通过清晰且足够宽的连接点连接到主体。
+- 所有内部黑色线条、纹理块、五官、零件、枝叶、建筑或风景层次，必须通过清晰且足够宽的连接点连接到主体。
 - 不得出现：
   - 断开的黑线
   - 被白色完全包围的小黑块
   - 极细细颈或单像素连接
-  - 耳朵、毛发边缘、脸部等位置的漂浮黑块
-  - 切割后会脱落的眼珠、鼻尖、毛发尖端等局部细节
+  - 轮廓、纹理、五官、枝叶、零件或景物中的漂浮黑块
+  - 切割后会脱落的细小局部细节
 - 若某处细节无法自然连回主体，则宁可简化、合并或删除，也不要保留为独立黑块。
 
 风格要求
-- 连接方式尽量顺着自然毛流、轮廓走势和动物结构。
+- 连接方式尽量顺着主体的自然轮廓、结构走势、纹理方向或景物层次。
 - 不要使用生硬横杆、机械式桥接，也不要大面积涂黑粗暴吞掉细节。
 - 整体轮廓和内部负形简洁清楚，适合后续人工检查与矢量化。
 
@@ -380,27 +405,29 @@ ANIMAL_CUTOUT_PROMPT = """
 
 
 ANIMAL_CUTOUT_REPAIR_PROMPT = """
-请依据这张彩色连通图重新生成一张纯黑白镂空图：蓝色是主体，将白色背景之外所有非蓝色彩色区域用符合动物结构的自然方式连接进蓝色主体，无法自然连接就删除。
-尽量保持蓝色主体的轮廓、姿态和细节不变，只重新生成必要的连接区域；最终只输出硬边纯黑与纯白，不保留任何颜色、标记或文字。
+图片1是必须保留的当前纯黑白镂空图，透明蒙版是唯一允许修改的局部。请在每个透明区域内，让断开的黑色部分跨过白色断缝，并顺着当前主体的轮廓、结构、纹理或景物层次自然连接到附近主体；无法自然连接就删除该孤岛，不能只重新描绘原图。
+输出一张硬边纯黑白镂空图；蒙版外保持图片1不变，只修改蒙版内的连接，最终不得含灰度、颜色、标记或文字。
 """.strip()
 
 
 def _inspect_and_store_cutout(task_id: str, image: bytes, stem: str) -> dict:
     try:
-        report, diagnostic, repair_guide = analyze_connectivity(image)
+        report, diagnostic = analyze_connectivity(image)
     except ConnectivityError as exc:
         raise WorkflowError("CONNECTIVITY_CHECK_FAILED", str(exc), 422) from exc
     report["diagnostic_url"] = PublicBlobStore().put(
         f"animal-cutout/{task_id}/{stem}-diagnostic.png", diagnostic, "image/png",
     )
-    report["repair_guide_url"] = PublicBlobStore().put(
-        f"animal-cutout/{task_id}/{stem}-repair-guide.png", repair_guide, "image/png",
-    )
     return report
 
 
-def _cutout_repair_prompt(_: dict) -> str:
-    return ANIMAL_CUTOUT_REPAIR_PROMPT
+def _cutout_repair_prompt(connectivity: dict) -> str:
+    disconnected = int(connectivity.get("disconnected_island_count", 0))
+    fragile = int(connectivity.get("fragile_connection_count", 0))
+    issue_summary = f"本图有 {disconnected} 个断开孤岛"
+    if fragile:
+        issue_summary += f"和 {fragile} 处薄弱连接"
+    return f"{issue_summary}。{ANIMAL_CUTOUT_REPAIR_PROMPT}"
 
 
 def _cutout_result(image: bytes, url: str, usage: dict, connectivity: dict,
@@ -656,13 +683,21 @@ def create_animal_cutout_task(
     prompt: str = Form("", max_length=4000),
     image_model: str = Form(..., max_length=128),
     image_quality: str = Form("medium", max_length=16),
+    repair_model: str = Form(CUTOUT_REPAIR_MODEL, max_length=128),
+    repair_quality: str = Form(CUTOUT_REPAIR_QUALITY, max_length=16),
+    generation_count: int = Form(3, ge=1, le=5),
     size: Literal["1024x1024", "1536x1024", "1024x1536"] = Form("1024x1024"),
 ):
     model = image_model.strip()
+    repair_model = repair_model.strip()
     if not MODEL_NAME.fullmatch(model):
         raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
+    if not MODEL_NAME.fullmatch(repair_model):
+        raise WorkflowError("INVALID_MODEL", "修复模型名称格式无效", 422)
     if image_quality not in IMAGE_QUALITIES:
         raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
+    if repair_quality not in IMAGE_QUALITIES:
+        raise WorkflowError("INVALID_QUALITY", "修复质量设置无效", 422)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
     task_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
@@ -682,6 +717,9 @@ def create_animal_cutout_task(
         },
         "result": None,
         "original_result": None,
+        "generation_count": generation_count,
+        "candidates": [],
+        "selected_candidate_index": None,
         "connectivity": None,
         "repair_attempts": 0,
         "automatic_repair_attempts": 0,
@@ -692,6 +730,8 @@ def create_animal_cutout_task(
         "model_settings": {
             "model": model,
             "quality": image_quality,
+            "repair_model": repair_model,
+            "repair_quality": repair_quality,
             "size": size,
         },
         "created_at": now,
@@ -715,10 +755,10 @@ def read_animal_cutout_task(task_id: str, x_session_token: str | None = Header(d
 @app.post("/api/animal-cutout/tasks/{task_id}/generate")
 def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Header(default=None)):
     state, version = _load_animal_cutout_task(task_id, x_session_token)
-    if state["status"] in {"SUCCEEDED", "REPAIR_REQUIRED", "REVIEW_REQUIRED"} and state.get("result"):
+    if state.get("candidates"):
         return _animal_cutout_response(state)
     if state["status"] == "GENERATING":
-        raise WorkflowError("ANIMAL_CUTOUT_ALREADY_GENERATING", "动物镂空图正在生成，请勿重复提交", 409)
+        raise WorkflowError("CUTOUT_ALREADY_GENERATING", "镂空剪影候选正在生成，请勿重复提交", 409)
     state["status"] = "GENERATING"
     state["operation"] = "generate"
     state["started_at"] = int(time.time())
@@ -727,28 +767,67 @@ def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Head
     try:
         source = fetch_bytes(state["source"]["url"], 20_000_000)
         settings = state["model_settings"]
-        generated, usage = generate_view(
-            [source],
-            state["prompt"],
-            settings["model"],
-            settings["quality"],
-            settings["size"],
-        )
-        result_url = PublicBlobStore().put(
-            f"animal-cutout/{task_id}/original.png", generated, "image/png",
-        )
-        connectivity = _inspect_and_store_cutout(task_id, generated, "original")
-        result = _cutout_result(generated, result_url, usage, connectivity, revision=0)
+        generation_count = int(state.get("generation_count", 1))
+
+        def generate_candidate(index: int) -> dict:
+            generated, usage = generate_view(
+                [source],
+                state["prompt"],
+                settings["model"],
+                settings["quality"],
+                settings["size"],
+            )
+            candidate_url = PublicBlobStore().put(
+                f"animal-cutout/{task_id}/candidate-{index + 1}.png",
+                generated,
+                "image/png",
+            )
+            return {
+                "index": index,
+                "url": candidate_url,
+                "sha256": hashlib.sha256(generated).hexdigest(),
+                "size_bytes": len(generated),
+                "usage": usage,
+            }
+
+        candidates: list[dict] = []
+        failures: list[dict] = []
+        with ThreadPoolExecutor(max_workers=min(generation_count, 3)) as executor:
+            futures = {
+                executor.submit(generate_candidate, index): index
+                for index in range(generation_count)
+            }
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    candidates.append(future.result())
+                except Exception as exc:
+                    failures.append({
+                        "index": index,
+                        "code": getattr(exc, "code", "CUTOUT_CANDIDATE_FAILED"),
+                        "message": str(exc)[:300] or "候选图生成失败",
+                    })
+        candidates.sort(key=lambda item: item["index"])
+        if not candidates:
+            first_error = failures[0] if failures else {"message": "候选图生成失败"}
+            raise WorkflowError("CUTOUT_CANDIDATES_FAILED", first_error["message"], 502)
+
         state, version = _load_animal_cutout_task(task_id, x_session_token)
-        state["status"] = _cutout_status(connectivity, 0)
-        state["result"] = result
-        state["original_result"] = result
-        state["connectivity"] = connectivity
+        state["status"] = "CANDIDATES_READY"
+        state["candidates"] = candidates
+        state["candidate_failures"] = failures
+        state["selected_candidate_index"] = None
+        state["result"] = None
+        state["original_result"] = None
+        state["connectivity"] = None
         state["repair_attempts"] = 0
         state["automatic_repair_attempts"] = 0
         state["repair_history"] = []
         state["operation"] = None
-        state["last_error"] = None
+        state["last_error"] = ({
+            "code": "CUTOUT_CANDIDATES_PARTIAL",
+            "message": f"{len(failures)} 张候选生成失败，其余候选仍可选择。",
+        } if failures else None)
         state["completed_at"] = int(time.time())
         _save(state, version)
         return _animal_cutout_response(state)
@@ -758,15 +837,81 @@ def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Head
             state["status"] = "FAILED"
             state["operation"] = None
             state["last_error"] = {
-                "code": getattr(exc, "code", "ANIMAL_CUTOUT_FAILED"),
-                "message": str(exc)[:500] or "动物镂空图生成失败",
+                "code": getattr(exc, "code", "CUTOUT_GENERATION_FAILED"),
+                "message": str(exc)[:500] or "镂空剪影候选生成失败",
             }
             _save(state, version)
         except StoreError:
             pass
         if isinstance(exc, (WorkflowError, StoreError)):
             raise
-        raise WorkflowError("ANIMAL_CUTOUT_FAILED", "动物镂空图生成发生意外错误", 502) from exc
+        raise WorkflowError("CUTOUT_GENERATION_FAILED", "镂空剪影候选生成发生意外错误", 502) from exc
+
+
+@app.post("/api/animal-cutout/tasks/{task_id}/select")
+def select_cutout_candidate(
+    task_id: str,
+    data: CutoutCandidateSelectRequest,
+    x_session_token: str | None = Header(default=None),
+):
+    state, version = _load_animal_cutout_task(task_id, x_session_token)
+    if state["status"] == "GENERATING":
+        raise WorkflowError("CUTOUT_ALREADY_GENERATING", "当前任务正在处理，请稍后再选择", 409)
+    candidate = next(
+        (item for item in state.get("candidates", []) if int(item.get("index", -1)) == data.candidate_index),
+        None,
+    )
+    if not candidate:
+        raise WorkflowError("CUTOUT_CANDIDATE_NOT_FOUND", "所选候选图不存在", 404)
+
+    state["status"] = "GENERATING"
+    state["operation"] = "select"
+    state["started_at"] = int(time.time())
+    state["last_error"] = None
+    version = _save(state, version)
+    try:
+        selected = fetch_bytes(candidate["url"], 25_000_000)
+        connectivity = _inspect_and_store_cutout(
+            task_id,
+            selected,
+            f"candidate-{data.candidate_index + 1}-selected",
+        )
+        result = _cutout_result(
+            selected,
+            candidate["url"],
+            candidate.get("usage", {}),
+            connectivity,
+            revision=0,
+        )
+        state, version = _load_animal_cutout_task(task_id, x_session_token)
+        state["selected_candidate_index"] = data.candidate_index
+        state["result"] = result
+        state["original_result"] = result
+        state["connectivity"] = connectivity
+        state["repair_attempts"] = 0
+        state["automatic_repair_attempts"] = 0
+        state["repair_history"] = []
+        state["status"] = _cutout_status(connectivity, 0)
+        state["operation"] = None
+        state["last_error"] = None
+        state["completed_at"] = int(time.time())
+        _save(state, version)
+        return _animal_cutout_response(state)
+    except Exception as exc:
+        try:
+            state, version = _load_animal_cutout_task(task_id, x_session_token)
+            state["status"] = "CANDIDATES_READY"
+            state["operation"] = None
+            state["last_error"] = {
+                "code": getattr(exc, "code", "CUTOUT_SELECTION_FAILED"),
+                "message": str(exc)[:500] or "候选图检测失败",
+            }
+            _save(state, version)
+        except StoreError:
+            pass
+        if isinstance(exc, (WorkflowError, StoreError)):
+            raise
+        raise WorkflowError("CUTOUT_SELECTION_FAILED", "候选图检测发生意外错误", 502) from exc
 
 
 @app.post("/api/animal-cutout/tasks/{task_id}/repair")
@@ -777,7 +922,7 @@ def repair_animal_cutout_task(
 ):
     state, version = _load_animal_cutout_task(task_id, x_session_token)
     if state["status"] == "GENERATING":
-        raise WorkflowError("ANIMAL_CUTOUT_ALREADY_GENERATING", "动物镂空图正在处理，请勿重复提交", 409)
+        raise WorkflowError("ANIMAL_CUTOUT_ALREADY_GENERATING", "镂空剪影正在处理，请勿重复提交", 409)
     result = state.get("result")
     connectivity = state.get("connectivity") or (result or {}).get("connectivity")
     if not result or not connectivity:
@@ -807,22 +952,38 @@ def repair_animal_cutout_task(
     repair_prompt = ""
     try:
         current = fetch_bytes(result["url"], 25_000_000)
-        repair_connectivity = connectivity
-        diagnostic_url = connectivity.get("diagnostic_url")
-        if diagnostic_url:
-            diagnostic = fetch_bytes(diagnostic_url, 25_000_000)
-        else:
-            # Compatibility for tasks created before diagnostic URLs were stored.
-            repair_connectivity, diagnostic, _ = analyze_connectivity(current)
+        # Always rebuild the guide so older tasks also use the current
+        # blue-subject/red-issue diagnostic convention.
+        repair_connectivity, _ = analyze_connectivity(current)
+        repair_mask = create_repair_mask(current)
+        mask_url = PublicBlobStore().put(
+            f"animal-cutout/{task_id}/repair-{attempt}-mask.png",
+            repair_mask,
+            "image/png",
+        )
         settings = state["model_settings"]
+        repair_model = settings.get("repair_model", CUTOUT_REPAIR_MODEL)
+        repair_quality = settings.get("repair_quality", CUTOUT_REPAIR_QUALITY)
         repair_prompt = _cutout_repair_prompt(repair_connectivity)
         repaired, usage = generate_view(
-            [diagnostic],
+            [current],
             repair_prompt,
-            settings["model"],
-            settings["quality"],
+            repair_model,
+            repair_quality,
             settings["size"],
+            repair_mask,
         )
+        ai_repaired_url = PublicBlobStore().put(
+            f"animal-cutout/{task_id}/repair-{attempt}-ai.png", repaired, "image/png",
+        )
+        repaired_connectivity, _ = analyze_connectivity(repaired)
+        local_cleanup_applied = False
+        if repaired_connectivity.get("disconnected_island_count", 0) > 0:
+            cleaned = remove_disconnected_islands(repaired)
+            cleaned_connectivity, _ = analyze_connectivity(cleaned)
+            if cleaned_connectivity.get("island_count", 0) < repaired_connectivity.get("island_count", 0):
+                repaired = cleaned
+                local_cleanup_applied = True
         repaired_url = PublicBlobStore().put(
             f"animal-cutout/{task_id}/repair-{attempt}.png", repaired, "image/png",
         )
@@ -839,6 +1000,12 @@ def repair_animal_cutout_task(
             "automatic": data.automatic,
             "status": "COMPLETED",
             "prompt": repair_prompt,
+            "model": repair_model,
+            "quality": repair_quality,
+            "input_url": result["url"],
+            "mask_url": mask_url,
+            "ai_result_url": ai_repaired_url,
+            "local_cleanup_applied": local_cleanup_applied,
             "url": repaired_url,
             "result": repaired_result,
             "connectivity": repaired_connectivity,
@@ -888,7 +1055,7 @@ def restore_original_animal_cutout(
 ):
     state, version = _load_animal_cutout_task(task_id, x_session_token)
     if state["status"] == "GENERATING":
-        raise WorkflowError("ANIMAL_CUTOUT_ALREADY_GENERATING", "动物镂空图正在处理，请稍后再恢复", 409)
+        raise WorkflowError("ANIMAL_CUTOUT_ALREADY_GENERATING", "镂空剪影正在处理，请稍后再恢复", 409)
     original = state.get("original_result")
     if not original:
         raise WorkflowError("ORIGINAL_RESULT_NOT_FOUND", "原始生成图不可用", 404)

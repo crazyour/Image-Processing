@@ -301,7 +301,7 @@ def generate_image(prompt: str, model: str, quality: str,
 
 
 def generate_view(reference_images: list[bytes], prompt: str, model: str, quality: str,
-                  size: str = "1024x1024") -> tuple[bytes, dict]:
+                  size: str = "1024x1024", mask: bytes | None = None) -> tuple[bytes, dict]:
     config = _openai_config()
     payload = {
         "model": model,
@@ -314,6 +314,8 @@ def generate_view(reference_images: list[bytes], prompt: str, model: str, qualit
         "moderation": "auto",
         "n": 1,
     }
+    if mask is not None:
+        payload["mask"] = {"image_url": data_uri(mask)}
     try:
         with httpx.Client(base_url=config.base_url, timeout=280) as client:
             response = client.post("/images/edits", headers={"Authorization": f"Bearer {config.api_key}"}, json=payload)

@@ -14,6 +14,14 @@ const defaultSettings = {
   quality: "medium",
   size: "1024x1024",
 };
+const defaultAnimalSettings = {
+  generation_model: "gpt-image-2.5-flare",
+  generation_quality: "medium",
+  repair_model: "gpt-image-2.5-sunburst",
+  repair_quality: "high",
+  size: "1024x1024",
+  generation_count: 3,
+};
 let defaultAnimalPrompt = "";
 let task = null;
 let busy = false;
@@ -244,16 +252,20 @@ async function loadAnimalPromptTemplate() {
 function setAnimalBusy(value) {
   animalBusy = value;
   $("#submit-animal").disabled = value;
-  $("#submit-animal").textContent = value ? "正在生成…" : "确认提示词并生成";
+  $("#submit-animal").textContent = value ? "正在处理…" : "上传并生成候选";
   $("#animal-image").disabled = value;
   $("#animal-prompt").disabled = value;
   $("#animal-consent").disabled = value;
   $("#animal-image-model").disabled = value;
   $("#animal-image-quality").disabled = value;
+  $("#animal-repair-model").disabled = value;
+  $("#animal-repair-quality").disabled = value;
   $("#animal-image-size").disabled = value;
+  $("#animal-generation-count").disabled = value;
   $("#retry-animal").disabled = value;
   $("#manual-repair-animal").disabled = value;
   $("#restore-animal").disabled = value;
+  if (animalTask?.state) renderCutoutCandidates(animalTask.state);
 }
 
 function animalFramePlaceholder(selector, message, spinning = false) {
@@ -280,6 +292,44 @@ function animalConnectivitySummary(connectivity) {
   if (connectivity.passed) return "检测通过 · 黑色材料整体连通";
   if (connectivity.status === "NO_BLACK_MATERIAL") return "未检测到有效黑色主体";
   return `未通过 · ${connectivity.island_count || 0} 个孤岛或薄弱连接`;
+}
+
+function renderCutoutCandidates(state) {
+  const grid = $("#animal-candidate-grid");
+  const candidates = state.candidates || [];
+  if (!candidates.length) {
+    const empty = document.createElement("div");
+    empty.className = "candidate-empty";
+    if (state.status === "GENERATING" && state.operation === "generate") {
+      const spinner = document.createElement("div");
+      spinner.className = "spinner";
+      empty.append(spinner, `正在并行生成 ${state.generation_count || 1} 张候选…`);
+    } else {
+      empty.textContent = "上传照片并开始生成后，候选图会显示在这里。";
+    }
+    grid.replaceChildren(empty);
+    return;
+  }
+
+  grid.replaceChildren(...candidates.map((candidate) => {
+    const selected = candidate.index === state.selected_candidate_index;
+    const card = document.createElement("article");
+    card.className = `candidate-card${selected ? " selected" : ""}`;
+    const title = document.createElement("strong");
+    title.textContent = `候选 ${candidate.index + 1}`;
+    const image = document.createElement("img");
+    image.src = candidate.url;
+    image.alt = `黑白镂空剪影候选 ${candidate.index + 1}`;
+    image.loading = "lazy";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = selected ? "secondary" : "primary";
+    button.textContent = selected ? "已选择" : "选择并开始检测";
+    button.disabled = animalBusy || selected || state.status === "GENERATING";
+    button.addEventListener("click", () => selectCutoutCandidate(candidate.index));
+    card.append(title, image, button);
+    return card;
+  }));
 }
 
 function processImageFigure(label, url) {
@@ -315,11 +365,13 @@ function processRecordCard(title, result, options = {}) {
   const images = document.createElement("div");
   images.className = "process-image-grid";
   if (result?.url) images.appendChild(processImageFigure(options.resultLabel || "输出结果", result.url));
-  if (connectivity?.diagnostic_url) {
-    images.appendChild(processImageFigure("发送给 AI 的彩色连通图", connectivity.diagnostic_url));
+  if (options.maskUrl) {
+    const maskFigure = processImageFigure("本轮局部修复 Mask（透明区可修改）", options.maskUrl);
+    maskFigure.classList.add("mask-preview");
+    images.appendChild(maskFigure);
   }
-  if (connectivity?.repair_guide_url) {
-    images.appendChild(processImageFigure("圈注参考图（仅页面展示）", connectivity.repair_guide_url));
+  if (connectivity?.diagnostic_url) {
+    images.appendChild(processImageFigure("修复结果的复检图", connectivity.diagnostic_url));
   }
   if (images.childElementCount) card.appendChild(images);
 
@@ -348,39 +400,38 @@ function renderAnimalProcessDetails(state) {
   const original = process?.original_result;
   $("#animal-generation-prompt").textContent = process?.generation_prompt || state.prompt || "未记录";
   $("#animal-repair-section").classList.toggle("hidden", !original);
+  $("#animal-selected-review").classList.toggle("hidden", !original);
   details.classList.toggle("hidden", !original);
   const initialStatus = $("#animal-initial-connectivity-status");
   const originalFrame = $("#animal-original-result-frame");
   if (!original) {
     $("#animal-initial-analysis-block").classList.add("hidden");
     $("#animal-initial-analysis-images").replaceChildren();
-    initialStatus.textContent = state.status === "GENERATING"
-      ? "正在生成黑白镂空图，完成后立即执行本地连通性检测…"
-      : "生成后会立即执行本地黑色连通性检测。";
+    initialStatus.textContent = state.status === "GENERATING" && state.operation === "generate"
+      ? `正在生成 ${state.generation_count || 1} 张候选，生成阶段不执行连通性检测…`
+      : "请选择一张候选，再开始本地黑色连通性检测。";
     animalFramePlaceholder(
       "#animal-original-result-frame",
-      state.status === "GENERATING" ? "正在生成首次黑白图…" : "等待生成",
-      state.status === "GENERATING",
+      state.operation === "select" ? "正在检测所选候选…" : "请先选择候选",
+      state.operation === "select",
     );
     return;
   }
 
   const repairs = process.repairs || [];
   $("#animal-repair-prompt-template").textContent = process.repair_prompt_template || "未记录";
-  initialStatus.textContent = `首次检测：${animalConnectivitySummary(original.connectivity)}`;
+  $("#animal-repair-runtime").textContent = process.repair_model
+    ? `修复专用模型：${process.repair_model} · 质量：${process.repair_quality || "未记录"}`
+    : "修复专用模型：未记录";
+  initialStatus.textContent = `已选候选 ${Number(state.selected_candidate_index) + 1} · 首次检测：${animalConnectivitySummary(original.connectivity)}`;
   const originalImage = document.createElement("img");
   originalImage.src = original.url;
-  originalImage.alt = "首次生成的黑白镂空设计";
+  originalImage.alt = "已选择的黑白镂空剪影候选";
   originalFrame.replaceChildren(originalImage);
   const initialImages = [];
   if (original.connectivity?.diagnostic_url) {
     initialImages.push(processImageFigure(
-      "首次发送给 AI 的彩色连通图", original.connectivity.diagnostic_url,
-    ));
-  }
-  if (original.connectivity?.repair_guide_url) {
-    initialImages.push(processImageFigure(
-      "首次圈注参考图（仅页面展示）", original.connectivity.repair_guide_url,
+      "所选候选的本地连通诊断图（未发送给 AI）", original.connectivity.diagnostic_url,
     ));
   }
   $("#animal-initial-analysis-block").classList.toggle("hidden", !initialImages.length);
@@ -399,6 +450,7 @@ function renderAnimalProcessDetails(state) {
         resultLabel: "本轮修复结果",
         connectivity: repair.connectivity,
         prompt: repair.prompt,
+        maskUrl: repair.mask_url,
         error: repair.error,
       },
     ));
@@ -418,9 +470,11 @@ function applyAnimalState(state) {
   animalTask.state = state;
   $("#animal-result-section").classList.remove("hidden");
   $("#animal-source-result").src = state.source_url;
+  renderCutoutCandidates(state);
   const labels = {
     READY: "等待生成",
-    GENERATING: state.operation === "repair" ? "AI 修复中" : "正在生成并检测",
+    GENERATING: state.operation === "repair" ? "AI 修复中" : state.operation === "select" ? "本地检测中" : "候选生成中",
+    CANDIDATES_READY: "请选择候选",
     REPAIR_REQUIRED: "等待自动修复",
     REVIEW_REQUIRED: "需要人工处理",
     SUCCEEDED: "连通性检测通过",
@@ -449,14 +503,16 @@ function applyAnimalState(state) {
   } else if (state.status === "GENERATING") {
     connectivityStatus.textContent = state.operation === "repair"
       ? `检测未通过，正在进行第 ${(state.automatic_repair_attempts || 0)} 次 AI 修复并将在完成后复检…`
-      : "正在生成黑白图；生成后将立即在本地检测连通性…";
+      : state.operation === "select"
+        ? "正在对所选候选执行本地 OpenCV 连通性检测…"
+        : "正在生成候选，需要选择一张后才会检测。";
   } else {
     connectivityStatus.textContent = "生成后会自动检测黑色连通性；仅检测不通过时调用 AI 修复。";
   }
   if (["SUCCEEDED", "REVIEW_REQUIRED"].includes(state.status) && state.result?.url) {
     const image = document.createElement("img");
     image.src = state.result.url;
-    image.alt = "根据动物照片生成的黑白镂空设计候选";
+    image.alt = "根据照片生成的黑白镂空剪影";
     $("#animal-result-frame").replaceChildren(image);
     $("#download-animal").href = state.result.url;
     $("#download-animal").classList.remove("hidden");
@@ -464,7 +520,7 @@ function applyAnimalState(state) {
     animalPlaceholder(
       state.operation === "repair"
         ? "检测到孤岛，正在 AI 修复并重新检测…"
-        : "正在提取动物并生成黑白镂空图…",
+        : state.operation === "select" ? "正在检测所选候选…" : "正在生成黑白镂空剪影候选…",
       true,
     );
   } else if (state.status === "REPAIR_REQUIRED") {
@@ -472,7 +528,7 @@ function applyAnimalState(state) {
   } else if (state.status === "FAILED") {
     animalPlaceholder(state.last_error?.message || "生成失败，可以重试");
   } else {
-    animalPlaceholder("参考照片已保存，等待生成");
+    animalPlaceholder(state.status === "CANDIDATES_READY" ? "请在第 02 步选择一张候选" : "参考照片已保存，等待生成");
   }
 }
 
@@ -507,7 +563,7 @@ async function refreshAnimalTask() {
 async function generateAnimalCutout() {
   if (!animalTask || animalBusy) return;
   setAnimalBusy(true);
-  applyAnimalState({ ...animalTask.state, status: "GENERATING", last_error: null });
+  applyAnimalState({ ...animalTask.state, status: "GENERATING", operation: "generate", last_error: null });
   try {
     const state = await api(
       `/api/animal-cutout/tasks/${animalTask.id}/generate`,
@@ -515,16 +571,38 @@ async function generateAnimalCutout() {
       290_000,
       animalTask.token,
     );
-    const finalState = await runAutomaticAnimalRepairs(state);
-    notify(finalState.status === "SUCCEEDED"
-      ? "最终结果已通过黑色连通性检测"
-      : "自动修复已停止，请查看剩余问题并人工处理");
+    applyAnimalState(state);
+    notify(`已生成 ${state.candidates?.length || 0} 张候选，请选择一张开始连通性检测`);
   } catch (error) {
     showError(error);
     try { await refreshAnimalTask(); }
     catch { applyAnimalState({ ...animalTask.state, status: "FAILED", last_error: { message: error.message } }); }
   } finally {
     setAnimalBusy(false);
+  }
+}
+
+async function selectCutoutCandidate(candidateIndex) {
+  if (!animalTask || animalBusy) return;
+  setAnimalBusy(true);
+  applyAnimalState({ ...animalTask.state, status: "GENERATING", operation: "select", last_error: null });
+  try {
+    const state = await api(
+      `/api/animal-cutout/tasks/${animalTask.id}/select`,
+      { method: "POST", body: JSON.stringify({ candidate_index: candidateIndex }) },
+      60_000,
+      animalTask.token,
+    );
+    const finalState = await runAutomaticAnimalRepairs(state);
+    notify(finalState.status === "SUCCEEDED"
+      ? "所选候选已通过黑色连通性检测"
+      : "自动修复已停止，请查看剩余问题并人工处理");
+  } catch (error) {
+    showError(error);
+    await refreshAnimalTask().catch(() => {});
+  } finally {
+    setAnimalBusy(false);
+    if (animalTask?.state) applyAnimalState(animalTask.state);
   }
 }
 
@@ -561,7 +639,7 @@ async function restoreOriginalAnimalCutout() {
       animalTask.token,
     );
     applyAnimalState(state);
-    notify("已恢复首次生成的原图");
+    notify("已恢复所选候选的原图");
   } catch (error) {
     showError(error);
   } finally {
@@ -613,7 +691,7 @@ $("#animal-image").addEventListener("change", (event) => {
   animalPreviewUrl = URL.createObjectURL(file);
   const image = document.createElement("img");
   image.src = animalPreviewUrl;
-  image.alt = "待处理的动物参考照片";
+  image.alt = "待处理的参考照片";
   preview.replaceChildren(image);
 });
 $("#animal-form").addEventListener("submit", async (event) => {
@@ -621,14 +699,30 @@ $("#animal-form").addEventListener("submit", async (event) => {
   if (animalBusy) return;
   $("#error-panel").classList.add("hidden");
   const file = $("#animal-image").files?.[0];
-  if (!file) return showError({ message: "请上传一张动物参考照片", code: "ANIMAL_IMAGE_REQUIRED" });
+  if (!file) return showError({ message: "请上传一张参考照片", code: "CUTOUT_IMAGE_REQUIRED" });
   if (!$("#animal-consent").checked) return showError({ message: "请先确认照片使用授权", code: "PHOTO_CONSENT_REQUIRED" });
+  const generationModel = $("#animal-image-model").value.trim();
+  const generationQuality = $("#animal-image-quality").value;
+  const repairModel = $("#animal-repair-model").value.trim();
+  const repairQuality = $("#animal-repair-quality").value;
+  const animalSettings = {
+    generation_model: generationModel,
+    generation_quality: generationQuality,
+    repair_model: repairModel,
+    repair_quality: repairQuality,
+    size: $("#animal-image-size").value,
+    generation_count: Number($("#animal-generation-count").value),
+  };
+  localStorage.setItem("animal-cutout-settings", JSON.stringify(animalSettings));
   const form = new FormData();
   form.append("image", file);
   form.append("prompt", $("#animal-prompt").value.trim() || defaultAnimalPrompt);
-  form.append("image_model", $("#animal-image-model").value.trim());
-  form.append("image_quality", $("#animal-image-quality").value);
-  form.append("size", $("#animal-image-size").value);
+  form.append("image_model", generationModel);
+  form.append("image_quality", generationQuality);
+  form.append("repair_model", repairModel);
+  form.append("repair_quality", repairQuality);
+  form.append("size", animalSettings.size);
+  form.append("generation_count", String(animalSettings.generation_count));
   setAnimalBusy(true);
   try {
     const state = await api("/api/animal-cutout/tasks", { method: "POST", body: form }, 60_000, null);
@@ -651,12 +745,16 @@ $("#refresh-task").addEventListener("click", () => refreshTask().catch(showError
 $("#new-task").addEventListener("click", resetTask);
 
 const initialSettings = savedSettings();
+const initialAnimalSettings = { ...defaultAnimalSettings, ...JSON.parse(localStorage.getItem("animal-cutout-settings") || "{}") };
 $("#image-model").value = initialSettings.model;
 $("#image-quality").value = initialSettings.quality;
 $("#image-size").value = initialSettings.size;
-$("#animal-image-model").value = initialSettings.model;
-$("#animal-image-quality").value = initialSettings.quality;
-$("#animal-image-size").value = initialSettings.size;
+$("#animal-image-model").value = initialAnimalSettings.generation_model;
+$("#animal-image-quality").value = initialAnimalSettings.generation_quality;
+$("#animal-repair-model").value = initialAnimalSettings.repair_model;
+$("#animal-repair-quality").value = initialAnimalSettings.repair_quality;
+$("#animal-image-size").value = initialAnimalSettings.size;
+$("#animal-generation-count").value = String(initialAnimalSettings.generation_count);
 $("#reset-animal-prompt").disabled = true;
 loadAnimalPromptTemplate();
 addPrompt();

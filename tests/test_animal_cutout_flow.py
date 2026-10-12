@@ -33,6 +33,15 @@ def connected_image() -> bytes:
     return png(lambda canvas: cv2.rectangle(canvas, (15, 15), (110, 110), (0, 0, 0), -1))
 
 
+def image_with_fragile_connection() -> bytes:
+    def shapes(canvas):
+        cv2.rectangle(canvas, (15, 25), (48, 100), (0, 0, 0), -1)
+        cv2.rectangle(canvas, (78, 25), (112, 100), (0, 0, 0), -1)
+        cv2.line(canvas, (48, 62), (78, 62), (0, 0, 0), 1)
+
+    return png(shapes)
+
+
 class AnimalCutoutFlowTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -48,16 +57,17 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             os.environ["LOCAL_DATA_DIR"] = self.previous_data_dir
         self.tempdir.cleanup()
 
-    def create_task(self) -> tuple[str, dict[str, str]]:
+    def create_task(self, generation_count: int = 1) -> tuple[str, dict[str, str]]:
         source = connected_image()
         created = self.client.post(
             "/api/animal-cutout/tasks",
             files={"image": ("animal.png", source, "image/png")},
             data={
-                "prompt": "保留动物",
+                "prompt": "保留照片中的主要视觉主体",
                 "image_model": "test-image-model",
                 "image_quality": "medium",
                 "size": "1024x1024",
+                "generation_count": str(generation_count),
             },
         )
         self.assertEqual(created.status_code, 201)
@@ -66,11 +76,18 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         headers = {"X-Session-Token": task["access_token"]}
         return task_id, headers
 
+    def select_candidate(self, task_id: str, headers: dict[str, str], index: int = 0):
+        return self.client.post(
+            f"/api/animal-cutout/tasks/{task_id}/select",
+            headers=headers,
+            json={"candidate_index": index},
+        )
+
     def test_generation_two_automatic_repairs_and_restore(self):
         task_id, headers = self.create_task()
 
         generated = image_with_island()
-        still_broken = image_with_island()
+        still_broken = image_with_fragile_connection()
         repaired = connected_image()
         with patch.object(
             app_module,
@@ -83,11 +100,15 @@ class AnimalCutoutFlowTests(unittest.TestCase):
                 f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers,
             )
             self.assertEqual(first.status_code, 200)
+            self.assertEqual(first.json()["status"], "CANDIDATES_READY")
+            self.assertIsNone(first.json()["connectivity"])
+            first = self.select_candidate(task_id, headers)
+            self.assertEqual(first.status_code, 200)
             self.assertEqual(first.json()["status"], "REPAIR_REQUIRED")
             self.assertEqual(first.json()["connectivity"]["island_count"], 1)
             original_process = first.json()["process_details"]["original_result"]
             self.assertIn("diagnostic_url", original_process["connectivity"])
-            self.assertIn("repair_guide_url", original_process["connectivity"])
+            self.assertNotIn("repair_guide_url", original_process["connectivity"])
 
             second = self.client.post(
                 f"/api/animal-cutout/tasks/{task_id}/repair",
@@ -111,18 +132,30 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             self.assertTrue(body["can_restore_original"])
             self.assertEqual(len(body["process_details"]["repairs"]), 2)
             self.assertEqual(body["process_details"]["repairs"][0]["status"], "COMPLETED")
-            self.assertIn("依据这张彩色连通图重新生成", body["process_details"]["repairs"][0]["prompt"])
+            first_repair_prompt = body["process_details"]["repairs"][0]["prompt"]
+            self.assertIn("本图有 1 个断开孤岛", first_repair_prompt)
+            self.assertIn("图片1是必须保留的当前纯黑白镂空图", first_repair_prompt)
+            self.assertIn("透明蒙版是唯一允许修改的局部", first_repair_prompt)
 
             self.assertEqual(image_edit.call_count, 3)
-            first_repair_inputs = image_edit.call_args_list[1].args[0]
+            first_repair_call = image_edit.call_args_list[1]
+            first_repair_inputs = first_repair_call.args[0]
             self.assertEqual(len(first_repair_inputs), 1)
-            diagnostic = cv2.imdecode(
-                np.frombuffer(first_repair_inputs[0], np.uint8), cv2.IMREAD_COLOR,
+            self.assertEqual(first_repair_inputs[0], generated)
+            self.assertEqual(first_repair_call.args[2], "gpt-image-2.5-sunburst")
+            self.assertEqual(first_repair_call.args[3], "high")
+            repair_mask = cv2.imdecode(
+                np.frombuffer(first_repair_call.args[5], np.uint8), cv2.IMREAD_UNCHANGED,
             )
-            diagnostic_colors = {tuple(pixel) for row in diagnostic for pixel in row}
-            self.assertIn((235, 99, 37), diagnostic_colors)
-            self.assertIn((68, 68, 239), diagnostic_colors)
-            self.assertIn("依据这张彩色连通图重新生成", image_edit.call_args_list[1].args[1])
+            self.assertEqual(repair_mask.shape[2], 4)
+            self.assertIn(0, repair_mask[:, :, 3])
+            self.assertIn(255, repair_mask[:, :, 3])
+            self.assertIn("不能只重新描绘原图", first_repair_call.args[1])
+            self.assertEqual(body["process_details"]["repair_model"], "gpt-image-2.5-sunburst")
+            self.assertEqual(body["process_details"]["repair_quality"], "high")
+            self.assertEqual(body["process_details"]["repairs"][0]["model"], "gpt-image-2.5-sunburst")
+            self.assertNotIn("input_diagnostic_url", body["process_details"]["repairs"][0])
+            self.assertIn("mask_url", body["process_details"]["repairs"][0])
 
         restored = self.client.post(
             f"/api/animal-cutout/tasks/{task_id}/restore-original", headers=headers,
@@ -136,7 +169,7 @@ class AnimalCutoutFlowTests(unittest.TestCase):
 
     def test_automatic_repairs_stop_after_two_failed_checks(self):
         task_id, headers = self.create_task()
-        broken = image_with_island()
+        broken = image_with_fragile_connection()
         with patch.object(
             app_module,
             "generate_view",
@@ -145,6 +178,8 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             state = self.client.post(
                 f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers,
             ).json()
+            self.assertEqual(state["status"], "CANDIDATES_READY")
+            state = self.select_candidate(task_id, headers).json()
             for _ in range(2):
                 state = self.client.post(
                     f"/api/animal-cutout/tasks/{task_id}/repair",
@@ -174,6 +209,9 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             response = self.client.post(
                 f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers,
             )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["status"], "CANDIDATES_READY")
+            response = self.select_candidate(task_id, headers)
 
         body = response.json()
         self.assertEqual(response.status_code, 200)
@@ -181,6 +219,109 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         self.assertTrue(body["connectivity"]["passed"])
         self.assertEqual(body["repair_attempts"], 0)
         self.assertEqual(image_edit.call_count, 1)
+
+    def test_automatic_repair_falls_back_to_local_island_cleanup(self):
+        task_id, headers = self.create_task()
+        generated = image_with_island()
+
+        with patch.object(
+            app_module,
+            "generate_view",
+            side_effect=[(generated, {"step": "generate"}), (generated, {"step": "repair"})],
+        ) as image_edit:
+            first = self.client.post(f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers)
+            self.assertEqual(first.status_code, 200)
+            self.assertEqual(first.json()["status"], "CANDIDATES_READY")
+            first = self.select_candidate(task_id, headers)
+            self.assertEqual(first.json()["status"], "REPAIR_REQUIRED")
+
+            second = self.client.post(
+                f"/api/animal-cutout/tasks/{task_id}/repair",
+                headers=headers,
+                json={"automatic": True},
+            )
+            body = second.json()
+            self.assertEqual(second.status_code, 200)
+            self.assertEqual(body["status"], "SUCCEEDED")
+            self.assertTrue(body["connectivity"]["passed"])
+            self.assertEqual(body["repair_attempts"], 1)
+            self.assertEqual(image_edit.call_count, 2)
+
+    def test_generation_and_repair_use_separate_model_settings(self):
+        source = connected_image()
+        created = self.client.post(
+            "/api/animal-cutout/tasks",
+            files={"image": ("animal.png", source, "image/png")},
+            data={
+                "prompt": "保留动物",
+                "image_model": "gpt-image-2.5-flare",
+                "image_quality": "medium",
+                "repair_model": "gpt-image-2.5-sunburst",
+                "repair_quality": "high",
+                "size": "1024x1024",
+                "generation_count": "1",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        task_id = created.json()["task_id"]
+        headers = {"X-Session-Token": created.json()["access_token"]}
+
+        generated = image_with_island()
+        repaired = connected_image()
+        with patch.object(
+            app_module,
+            "generate_view",
+            side_effect=[(generated, {"step": "generate"}), (repaired, {"step": "repair"})],
+        ) as image_edit:
+            first = self.client.post(f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers)
+            self.assertEqual(first.status_code, 200)
+            self.assertEqual(first.json()["status"], "CANDIDATES_READY")
+            first = self.select_candidate(task_id, headers)
+            self.assertEqual(first.json()["status"], "REPAIR_REQUIRED")
+
+            second = self.client.post(
+                f"/api/animal-cutout/tasks/{task_id}/repair",
+                headers=headers,
+                json={"automatic": True},
+            )
+            self.assertEqual(second.status_code, 200)
+            self.assertEqual(second.json()["status"], "SUCCEEDED")
+
+        self.assertEqual(image_edit.call_count, 2)
+        self.assertEqual(image_edit.call_args_list[0].args[2], "gpt-image-2.5-flare")
+        self.assertEqual(image_edit.call_args_list[0].args[3], "medium")
+        self.assertEqual(image_edit.call_args_list[1].args[2], "gpt-image-2.5-sunburst")
+        self.assertEqual(image_edit.call_args_list[1].args[3], "high")
+
+    def test_generates_requested_candidates_and_checks_only_selected_one(self):
+        task_id, headers = self.create_task(generation_count=3)
+        images = [connected_image(), image_with_island(), connected_image()]
+        with (
+            patch.object(
+                app_module,
+                "generate_view",
+                side_effect=[(image, {"candidate": index}) for index, image in enumerate(images)],
+            ) as image_edit,
+            patch.object(app_module, "_inspect_and_store_cutout", wraps=app_module._inspect_and_store_cutout) as inspect,
+        ):
+            generated = self.client.post(
+                f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers,
+            )
+            self.assertEqual(generated.status_code, 200)
+            body = generated.json()
+            self.assertEqual(body["status"], "CANDIDATES_READY")
+            self.assertEqual(body["generation_count"], 3)
+            self.assertEqual(len(body["candidates"]), 3)
+            self.assertIsNone(body["connectivity"])
+            self.assertEqual(inspect.call_count, 0)
+            self.assertEqual(image_edit.call_count, 3)
+
+            selected = self.select_candidate(task_id, headers, 1)
+            self.assertEqual(selected.status_code, 200)
+            selected_body = selected.json()
+            self.assertEqual(selected_body["selected_candidate_index"], 1)
+            self.assertIsNotNone(selected_body["connectivity"])
+            self.assertEqual(inspect.call_count, 1)
 
 
 if __name__ == "__main__":
