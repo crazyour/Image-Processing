@@ -21,7 +21,12 @@
       <button id="dismiss-error" type="button">知道了</button>
     </div>
 
-    <section class="panel">
+    <nav class="workflow-tabs" aria-label="图片生成方式">
+      <button id="show-text-workflow" type="button" aria-pressed="true">文字生成图片</button>
+      <button id="show-animal-workflow" type="button" aria-pressed="false">动物照片转镂空图</button>
+    </nav>
+
+    <section class="panel text-workflow">
       <div class="section-heading">
         <div><span>01</span><div><h2>填写图片要求</h2><p>每条要求生成一张图片，最多 5 张。</p></div></div>
         <b id="task-state">等待输入</b>
@@ -63,7 +68,7 @@
       </form>
     </section>
 
-    <section class="panel">
+    <section class="panel text-workflow">
       <div class="section-heading">
         <div><span>02</span><div><h2>生成结果</h2><p>成功图片立即保存，可单独下载；失败项可以单独重试。</p></div></div>
         <div class="header-actions">
@@ -73,6 +78,70 @@
       </div>
       <div id="queue-summary" class="queue-summary">尚未提交任务。</div>
       <div id="result-grid" class="result-grid"></div>
+    </section>
+
+    <section id="animal-workflow" class="panel" hidden>
+      <div class="section-heading">
+        <div><span>01</span><div><h2>上传动物照片</h2><p>业务目标：把动物照片转成可用于激光切割或 CNC 后续制图的单片黑白平面设计候选。</p></div></div>
+        <b id="animal-task-state">等待上传</b>
+      </div>
+      <form id="animal-form">
+        <label class="consent-line"><input id="animal-consent" type="checkbox" required>我有权使用这张照片，并同意将其发送给图片生成服务处理</label>
+        <div class="animal-input-grid">
+          <label>参考照片
+            <input id="animal-image" type="file" accept="image/png,image/jpeg,image/webp" required>
+          </label>
+          <div id="animal-source-preview" class="upload-preview"><span>支持 PNG、JPEG、WebP，至少 128 × 128，最大 4 MB</span></div>
+        </div>
+        <div class="prompt-heading">
+          <label for="animal-prompt">默认生成提示词（可直接修改）</label>
+          <button id="reset-animal-prompt" class="secondary" type="button">恢复默认提示词</button>
+        </div>
+        <textarea id="animal-prompt" maxlength="4000" placeholder="正在加载默认提示词…"></textarea>
+        <p class="prompt-help">这段就是实际发送给模型的完整提示词。不修改可以直接生成；如需指定只保留某一只动物、姿态或细节，可直接编辑。</p>
+        <details class="settings">
+          <summary>模型设置（高级）</summary>
+          <div class="settings-grid">
+            <label>图片编辑模型<input id="animal-image-model" type="text" maxlength="128" required></label>
+            <label>图片质量
+              <select id="animal-image-quality">
+                <option value="low">低 · 更快</option>
+                <option value="medium">中 · 推荐</option>
+                <option value="high">高</option>
+                <option value="xhigh">超高</option>
+                <option value="max">最高</option>
+                <option value="auto">自动</option>
+              </select>
+            </label>
+            <label>画面尺寸
+              <select id="animal-image-size">
+                <option value="1024x1024">方图 · 1024 × 1024</option>
+                <option value="1536x1024">横图 · 1536 × 1024</option>
+                <option value="1024x1536">竖图 · 1024 × 1536</option>
+              </select>
+            </label>
+          </div>
+        </details>
+        <div class="cutout-rules">
+          <strong>固定生成规则</strong>
+          <p>纯黑代表保留材料，纯白代表去除区域；去除背景，只保留动物；每条内部黑线至少连接到一条相邻黑线或主体，避免悬空孤岛和过细连接。</p>
+        </div>
+        <div class="submit-row">
+          <p>结果是供人工检查和后续矢量化的设计候选，不代表已经通过材料、尺寸、刀宽或强度验证。</p>
+          <button id="submit-animal" class="primary" type="submit">确认提示词并生成</button>
+        </div>
+      </form>
+      <div id="animal-result-section" class="animal-result-section hidden">
+        <div class="section-heading compact-heading">
+          <div><span>02</span><div><h2>生成结果</h2><p>请重点检查动物相似度、线条连接和是否存在孤岛。</p></div></div>
+          <button id="retry-animal" class="secondary hidden" type="button">重新生成</button>
+        </div>
+        <div class="animal-comparison">
+          <figure><figcaption>原始照片</figcaption><img id="animal-source-result" alt="上传的动物原始照片"></figure>
+          <figure><figcaption>黑白镂空设计候选</figcaption><div id="animal-result-frame" class="image-frame"><div class="placeholder">等待生成</div></div></figure>
+        </div>
+        <div class="card-actions"><a id="download-animal" class="hidden" download>下载 PNG</a></div>
+      </div>
     </section>
   </main>
   <script src="/text-image-static/app.js"></script>

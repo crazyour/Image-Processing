@@ -62,6 +62,7 @@ VALID_STATES = {
     "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED",
 }
 TEXT_IMAGE_STATES = {"QUEUED", "GENERATING", "PARTIAL", "SUCCEEDED"}
+ANIMAL_CUTOUT_STATES = {"READY", "GENERATING", "SUCCEEDED", "FAILED"}
 TRANSIENT_STATE_TIMEOUTS = {
     "ANALYZING_REFERENCES": 150,
     "GENERATING_VIEWS": 330,
@@ -266,6 +267,46 @@ def _load_text_image_task(task_id: str, token: str | None) -> tuple[dict, int]:
         state["status"] = _text_image_status(state["items"])
         version = _save(state, version)
     return state, version
+
+
+def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
+    result = {
+        "task_id": state["session_id"],
+        "status": state["status"],
+        "prompt": state["prompt"],
+        "source_url": state["source"]["url"],
+        "result": state.get("result"),
+        "last_error": state.get("last_error"),
+        "model_settings": state["model_settings"],
+        "created_at": state["created_at"],
+        "updated_at": state["updated_at"],
+    }
+    if token:
+        result["access_token"] = token
+    return result
+
+
+def _load_animal_cutout_task(task_id: str, token: str | None) -> tuple[dict, int]:
+    state, version = load_session(task_id, _require_token(token))
+    if state.get("workflow") != "animal-photo-cutout" or state.get("status") not in ANIMAL_CUTOUT_STATES:
+        raise SessionNotFound("动物镂空图任务不存在")
+    started_at = int(state.get("started_at") or 0)
+    if state["status"] == "GENERATING" and started_at and int(time.time()) - started_at > 330:
+        state["status"] = "FAILED"
+        state["last_error"] = {
+            "code": "ANIMAL_CUTOUT_TIMEOUT",
+            "message": "图片生成等待超时，已解除锁定，可以重试。",
+        }
+        version = _save(state, version)
+    return state, version
+
+
+ANIMAL_CUTOUT_PROMPT = """
+图片1是唯一主体参考。只保留图片中的主要动物，删除人物、手、牵引绳、家具、地面、风景、界面、文字和其他背景内容；若用户明确要求保留多个动物，则保持准确数量和相互姿态。不要把动物替换成通用品种或另一只动物，保留原动物的外轮廓、头身比例、姿态、耳形、口鼻、尾巴、主要毛色分区和1至3个最有辨识力的特征。
+业务目标是把客户动物照片转成可供激光切割或CNC后续制图使用的单片平面产品设计，不是普通插画、素描或摄影滤镜。把动物转译为正视、居中的纯黑白平面镂空设计候选：纯白背景，纯黑表示保留材料，纯白表示去除区域。只能使用硬边纯黑与纯白，不使用灰度、彩色、阴影、渐变、照片纹理、立体材质、场景、边框、底座、文字、水印或尺寸线。
+全部黑色保留材料必须形成一个连续整体。内部线条不能断开：每一条内部黑色线条、毛发块、眼鼻嘴细节和斑纹都必须至少有一个清晰可见且足够宽的连接点，连接到相邻黑线或主体黑色块；不得存在悬空黑色孤岛、断线、间隙、仅靠一个像素相连的细颈或封闭切割后会脱落的小块。用自然毛流和动物结构建立连接，不使用生硬横杆或大面积涂黑遮盖细节。
+轮廓和内部负形要简洁、清楚、适合后续人工检查与矢量化。只输出一张完整设计，不输出原图对比、产品效果图、多方案拼贴或说明文字。本图只是视觉候选，不宣称已经通过实际尺寸、材料、刀宽、强度或加工验证。
+""".strip()
 
 
 def _model_settings(vision_model: str, image_model: str,
@@ -490,6 +531,114 @@ def generate_text_image_item(task_id: str, item_index: int,
         if isinstance(exc, (WorkflowError, StoreError)):
             raise
         raise WorkflowError("IMAGE_GENERATION_FAILED", "图片生成发生意外错误", 502) from exc
+
+
+@app.post("/api/animal-cutout/tasks", status_code=201)
+def create_animal_cutout_task(
+    image: UploadFile = File(...),
+    prompt: str = Form("", max_length=4000),
+    image_model: str = Form(..., max_length=128),
+    image_quality: str = Form("medium", max_length=16),
+    size: Literal["1024x1024", "1536x1024", "1024x1536"] = Form("1024x1024"),
+):
+    model = image_model.strip()
+    if not MODEL_NAME.fullmatch(model):
+        raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
+    if image_quality not in IMAGE_QUALITIES:
+        raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
+    normalized, image_info = normalize_image(image.file.read(), image.content_type)
+    task_id = uuid.uuid4().hex
+    token = secrets.token_urlsafe(32)
+    source_url = PublicBlobStore().put(
+        f"animal-cutout/{task_id}/source.png", normalized, "image/png",
+    )
+    now = int(time.time())
+    state = {
+        "session_id": task_id,
+        "workflow": "animal-photo-cutout",
+        "status": "READY",
+        "prompt": prompt.strip() or ANIMAL_CUTOUT_PROMPT,
+        "source": {
+            "url": source_url,
+            "sha256": hashlib.sha256(normalized).hexdigest(),
+            "image_info": image_info,
+        },
+        "result": None,
+        "last_error": None,
+        "started_at": None,
+        "model_settings": {
+            "model": model,
+            "quality": image_quality,
+            "size": size,
+        },
+        "created_at": now,
+        "updated_at": now,
+    }
+    create_session(task_id, token, state)
+    return _animal_cutout_response(state, token=token)
+
+
+@app.get("/api/animal-cutout/prompt-template")
+def animal_cutout_prompt_template():
+    return {"prompt": ANIMAL_CUTOUT_PROMPT}
+
+
+@app.get("/api/animal-cutout/tasks/{task_id}")
+def read_animal_cutout_task(task_id: str, x_session_token: str | None = Header(default=None)):
+    state, _ = _load_animal_cutout_task(task_id, x_session_token)
+    return _animal_cutout_response(state)
+
+
+@app.post("/api/animal-cutout/tasks/{task_id}/generate")
+def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Header(default=None)):
+    state, version = _load_animal_cutout_task(task_id, x_session_token)
+    if state["status"] == "SUCCEEDED":
+        return _animal_cutout_response(state)
+    if state["status"] == "GENERATING":
+        raise WorkflowError("ANIMAL_CUTOUT_ALREADY_GENERATING", "动物镂空图正在生成，请勿重复提交", 409)
+    state["status"] = "GENERATING"
+    state["started_at"] = int(time.time())
+    state["last_error"] = None
+    version = _save(state, version)
+    try:
+        source = fetch_bytes(state["source"]["url"], 20_000_000)
+        settings = state["model_settings"]
+        generated, usage = generate_view(
+            [source],
+            state["prompt"],
+            settings["model"],
+            settings["quality"],
+            settings["size"],
+        )
+        result_url = PublicBlobStore().put(
+            f"animal-cutout/{task_id}/result.png", generated, "image/png",
+        )
+        state, version = _load_animal_cutout_task(task_id, x_session_token)
+        state["status"] = "SUCCEEDED"
+        state["result"] = {
+            "url": result_url,
+            "sha256": hashlib.sha256(generated).hexdigest(),
+            "size_bytes": len(generated),
+            "usage": usage,
+        }
+        state["last_error"] = None
+        state["completed_at"] = int(time.time())
+        _save(state, version)
+        return _animal_cutout_response(state)
+    except Exception as exc:
+        try:
+            state, version = _load_animal_cutout_task(task_id, x_session_token)
+            state["status"] = "FAILED"
+            state["last_error"] = {
+                "code": getattr(exc, "code", "ANIMAL_CUTOUT_FAILED"),
+                "message": str(exc)[:500] or "动物镂空图生成失败",
+            }
+            _save(state, version)
+        except StoreError:
+            pass
+        if isinstance(exc, (WorkflowError, StoreError)):
+            raise
+        raise WorkflowError("ANIMAL_CUTOUT_FAILED", "动物镂空图生成发生意外错误", 502) from exc
 
 
 @app.post("/api/sessions")

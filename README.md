@@ -38,6 +38,8 @@
 
 左侧“文生图”入口打开独立云端工作区。用户可以填写 1–5 条不同提示词，并选择图片模型、质量与尺寸。系统按队列逐张调用图片生成接口，每张完成后立即转存到 Vercel Blob；任务状态、提示词、用量和文件地址保存在 PostgreSQL。单张失败不会清除已成功结果，可在对应卡片上单独重试。浏览器只在当前标签页保存任务 ID 和访问令牌，刷新后可以继续当前任务，关闭标签页后不会自动载入上一次内容。
 
+同一页面的“动物照片转镂空图”支持上传一张 PNG、JPEG 或 WebP 动物照片，并通过图片编辑接口只提取照片里的动物，生成纯黑白平面镂空设计候选。页面从服务端读取并显示唯一的默认提示词，用户可以修改、恢复默认值，或不修改直接确认生成；用户最终确认的这一段提示词会原样发送给图片模型。默认内容包含激光切割/CNC 业务场景、保留动物辨识特征、删除人物与背景、全部黑色保留材料连接成一个整体、内部线条不得断开，以及避免悬空孤岛和过细连接等要求。生成图仍需人工检查和后续矢量化，不代表已经通过实际材料、尺寸、刀宽或强度验证。
+
 ## 图生 3D 流程
 
 面向普通用户的操作步骤和故障排查见 [图生 3D 功能使用说明](IMAGE_TO_3D_USER_GUIDE.md)。
@@ -114,6 +116,9 @@ GET   /api/sessions/{id}
 POST  /api/text-image/tasks
 GET   /api/text-image/tasks/{id}
 POST  /api/text-image/tasks/{id}/items/{index}/generate
+POST  /api/animal-cutout/tasks
+GET   /api/animal-cutout/tasks/{id}
+POST  /api/animal-cutout/tasks/{id}/generate
 ```
 
 浏览器只在当前标签页的 `sessionStorage` 中保存会话访问令牌，后续请求通过 `X-Session-Token` 发送；关闭标签页后不会恢复上一次任务。服务器数据库只保存令牌哈希。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。

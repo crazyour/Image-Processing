@@ -14,8 +14,12 @@ const defaultSettings = {
   quality: "medium",
   size: "1024x1024",
 };
+let defaultAnimalPrompt = "";
 let task = null;
 let busy = false;
+let animalTask = null;
+let animalBusy = false;
+let animalPreviewUrl = null;
 
 function savedSession() {
   try { return JSON.parse(sessionStorage.getItem("text-image-task") || "null"); }
@@ -27,7 +31,7 @@ function savedSettings() {
   catch { return { ...defaultSettings }; }
 }
 
-async function api(path, options = {}, timeout = 30_000) {
+async function api(path, options = {}, timeout = 30_000, accessToken = task?.token) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
@@ -35,8 +39,8 @@ async function api(path, options = {}, timeout = 30_000) {
       ...options,
       signal: controller.signal,
       headers: {
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(task?.token ? { "X-Session-Token": task.token } : {}),
+        ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+        ...(accessToken ? { "X-Session-Token": accessToken } : {}),
         ...(options.headers || {}),
       },
     });
@@ -211,6 +215,114 @@ function resetTask() {
   setBusy(false);
 }
 
+function showWorkflow(name) {
+  const animal = name === "animal";
+  document.querySelectorAll(".text-workflow").forEach((section) => { section.hidden = animal; });
+  $("#animal-workflow").hidden = !animal;
+  $("#show-text-workflow").setAttribute("aria-pressed", String(!animal));
+  $("#show-animal-workflow").setAttribute("aria-pressed", String(animal));
+}
+
+function savedAnimalSession() {
+  try { return JSON.parse(sessionStorage.getItem("animal-cutout-task") || "null"); }
+  catch { sessionStorage.removeItem("animal-cutout-task"); return null; }
+}
+
+async function loadAnimalPromptTemplate() {
+  const prompt = $("#animal-prompt");
+  try {
+    const response = await api("/api/animal-cutout/prompt-template", {}, 30_000, null);
+    defaultAnimalPrompt = response.prompt || "";
+    if (!prompt.value.trim()) prompt.value = defaultAnimalPrompt;
+    $("#reset-animal-prompt").disabled = !defaultAnimalPrompt;
+  } catch {
+    prompt.placeholder = "默认提示词加载失败；提交时将使用后台默认提示词。";
+    $("#reset-animal-prompt").disabled = true;
+  }
+}
+
+function setAnimalBusy(value) {
+  animalBusy = value;
+  $("#submit-animal").disabled = value;
+  $("#submit-animal").textContent = value ? "正在生成…" : "确认提示词并生成";
+  $("#animal-image").disabled = value;
+  $("#animal-prompt").disabled = value;
+  $("#animal-consent").disabled = value;
+  $("#animal-image-model").disabled = value;
+  $("#animal-image-quality").disabled = value;
+  $("#animal-image-size").disabled = value;
+}
+
+function animalPlaceholder(message, spinning = false) {
+  const frame = $("#animal-result-frame");
+  frame.replaceChildren();
+  const placeholder = document.createElement("div");
+  placeholder.className = "placeholder";
+  if (spinning) {
+    const spinner = document.createElement("div");
+    spinner.className = "spinner";
+    placeholder.append(spinner, message);
+  } else {
+    placeholder.textContent = message;
+  }
+  frame.appendChild(placeholder);
+}
+
+function applyAnimalState(state) {
+  animalTask.state = state;
+  $("#animal-result-section").classList.remove("hidden");
+  $("#animal-source-result").src = state.source_url;
+  const labels = { READY: "等待生成", GENERATING: "正在生成", SUCCEEDED: "已完成", FAILED: "生成失败" };
+  const status = $("#animal-task-state");
+  status.textContent = labels[state.status] || state.status;
+  status.className = state.status === "SUCCEEDED" ? "success" : state.status === "GENERATING" ? "running" : "";
+  $("#retry-animal").classList.toggle("hidden", state.status !== "FAILED");
+  $("#download-animal").classList.add("hidden");
+  if (state.status === "SUCCEEDED" && state.result?.url) {
+    const image = document.createElement("img");
+    image.src = state.result.url;
+    image.alt = "根据动物照片生成的黑白镂空设计候选";
+    $("#animal-result-frame").replaceChildren(image);
+    $("#download-animal").href = state.result.url;
+    $("#download-animal").classList.remove("hidden");
+  } else if (state.status === "GENERATING") {
+    animalPlaceholder("正在提取动物并生成连通的黑白镂空图…", true);
+  } else if (state.status === "FAILED") {
+    animalPlaceholder(state.last_error?.message || "生成失败，可以重试");
+  } else {
+    animalPlaceholder("参考照片已保存，等待生成");
+  }
+}
+
+async function refreshAnimalTask() {
+  if (!animalTask) return null;
+  const state = await api(`/api/animal-cutout/tasks/${animalTask.id}`, {}, 30_000, animalTask.token);
+  applyAnimalState(state);
+  return state;
+}
+
+async function generateAnimalCutout() {
+  if (!animalTask || animalBusy) return;
+  setAnimalBusy(true);
+  applyAnimalState({ ...animalTask.state, status: "GENERATING", last_error: null });
+  try {
+    const state = await api(
+      `/api/animal-cutout/tasks/${animalTask.id}/generate`,
+      { method: "POST" },
+      290_000,
+      animalTask.token,
+    );
+    applyAnimalState(state);
+    notify("动物黑白镂空设计候选已经生成并保存");
+  } catch (error) {
+    showError(error);
+    try { await refreshAnimalTask(); }
+    catch { applyAnimalState({ ...animalTask.state, status: "FAILED", last_error: { message: error.message } }); }
+  } finally {
+    setAnimalBusy(false);
+  }
+}
+
 $("#task-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (busy) return;
@@ -236,6 +348,56 @@ $("#task-form").addEventListener("submit", async (event) => {
 });
 
 $("#add-prompt").addEventListener("click", () => addPrompt());
+$("#show-text-workflow").addEventListener("click", () => showWorkflow("text"));
+$("#show-animal-workflow").addEventListener("click", () => showWorkflow("animal"));
+$("#reset-animal-prompt").addEventListener("click", () => {
+  if (!defaultAnimalPrompt) return;
+  $("#animal-prompt").value = defaultAnimalPrompt;
+  $("#animal-prompt").focus();
+});
+$("#animal-image").addEventListener("change", (event) => {
+  if (animalPreviewUrl) URL.revokeObjectURL(animalPreviewUrl);
+  const file = event.target.files?.[0];
+  const preview = $("#animal-source-preview");
+  if (!file) {
+    animalPreviewUrl = null;
+    preview.innerHTML = "<span>支持 PNG、JPEG、WebP，至少 128 × 128，最大 4 MB</span>";
+    return;
+  }
+  animalPreviewUrl = URL.createObjectURL(file);
+  const image = document.createElement("img");
+  image.src = animalPreviewUrl;
+  image.alt = "待处理的动物参考照片";
+  preview.replaceChildren(image);
+});
+$("#animal-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (animalBusy) return;
+  $("#error-panel").classList.add("hidden");
+  const file = $("#animal-image").files?.[0];
+  if (!file) return showError({ message: "请上传一张动物参考照片", code: "ANIMAL_IMAGE_REQUIRED" });
+  if (!$("#animal-consent").checked) return showError({ message: "请先确认照片使用授权", code: "PHOTO_CONSENT_REQUIRED" });
+  const form = new FormData();
+  form.append("image", file);
+  form.append("prompt", $("#animal-prompt").value.trim() || defaultAnimalPrompt);
+  form.append("image_model", $("#animal-image-model").value.trim());
+  form.append("image_quality", $("#animal-image-quality").value);
+  form.append("size", $("#animal-image-size").value);
+  setAnimalBusy(true);
+  try {
+    const state = await api("/api/animal-cutout/tasks", { method: "POST", body: form }, 60_000, null);
+    animalTask = { id: state.task_id, token: state.access_token, state };
+    sessionStorage.setItem("animal-cutout-task", JSON.stringify({ id: animalTask.id, token: animalTask.token }));
+    applyAnimalState(state);
+  } catch (error) {
+    showError(error);
+    setAnimalBusy(false);
+    return;
+  }
+  setAnimalBusy(false);
+  await generateAnimalCutout();
+});
+$("#retry-animal").addEventListener("click", generateAnimalCutout);
 $("#dismiss-error").addEventListener("click", () => $("#error-panel").classList.add("hidden"));
 $("#refresh-task").addEventListener("click", () => refreshTask().catch(showError));
 $("#new-task").addEventListener("click", resetTask);
@@ -244,9 +406,24 @@ const initialSettings = savedSettings();
 $("#image-model").value = initialSettings.model;
 $("#image-quality").value = initialSettings.quality;
 $("#image-size").value = initialSettings.size;
+$("#animal-image-model").value = initialSettings.model;
+$("#animal-image-quality").value = initialSettings.quality;
+$("#animal-image-size").value = initialSettings.size;
+$("#reset-animal-prompt").disabled = true;
+loadAnimalPromptTemplate();
 addPrompt();
 const previous = savedSession();
 if (previous) {
   task = previous;
   refreshTask().catch((error) => { showError(error); resetTask(); });
+}
+const previousAnimal = savedAnimalSession();
+if (previousAnimal) {
+  animalTask = previousAnimal;
+  showWorkflow("animal");
+  refreshAnimalTask().catch((error) => {
+    showError(error);
+    animalTask = null;
+    sessionStorage.removeItem("animal-cutout-task");
+  });
 }

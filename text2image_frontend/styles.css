@@ -73,10 +73,34 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .error-panel p { margin: 5px 0; }
 .error-panel code { font-size: 12px; }
 .error-panel button { align-self: start; color: #6f241d; background: #f8deda; }
+.workflow-tabs { display: flex; gap: 8px; margin: 0 0 18px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: #e8eeea; }
+.workflow-tabs button { flex: 1; color: var(--muted); background: transparent; }
+.workflow-tabs button[aria-pressed="true"] { color: #fff; background: var(--accent); box-shadow: 0 5px 16px rgba(47,107,87,.18); }
+.consent-line { grid-template-columns: auto 1fr; align-items: center; justify-content: start; margin-bottom: 18px; }
+.consent-line input { width: 18px; height: 18px; }
+.animal-input-grid { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(260px, 1.2fr); align-items: start; gap: 18px; margin-bottom: 18px; }
+.animal-input-grid input[type="file"] { padding: 12px; border: 1px dashed #9eb5aa; border-radius: 13px; background: #f8faf8; }
+.upload-preview { display: grid; place-items: center; min-height: 220px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: #f3f5f3; text-align: center; }
+.upload-preview img { width: 100%; height: 280px; object-fit: contain; }
+.prompt-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 8px; }
+.prompt-heading label { font-weight: 800; }
+.prompt-heading button { padding: 8px 11px; font-size: 12px; }
+#animal-prompt { min-height: 245px; }
+.prompt-help { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.cutout-rules { margin-top: 18px; padding: 15px 17px; border-left: 4px solid var(--accent); border-radius: 0 12px 12px 0; background: #edf4ef; }
+.cutout-rules p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.animal-result-section { margin-top: 30px; padding-top: 25px; border-top: 1px solid var(--line); }
+.compact-heading { margin-bottom: 16px; }
+.animal-comparison { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.animal-comparison figure { min-width: 0; margin: 0; }
+.animal-comparison figcaption { margin-bottom: 8px; color: var(--muted); font-size: 13px; font-weight: 800; }
+.animal-comparison img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: #f2f4f2; }
+.animal-comparison .image-frame { aspect-ratio: 1; }
+.animal-result-section .card-actions { margin-top: 14px; }
 .hidden { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
-  .settings-grid, .result-grid { grid-template-columns: 1fr; }
+  .settings-grid, .result-grid, .animal-input-grid, .animal-comparison { grid-template-columns: 1fr; }
   .section-heading, .submit-row { align-items: stretch; flex-direction: column; }
   .header-actions { flex-wrap: wrap; }
 }
