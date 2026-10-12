@@ -271,6 +271,110 @@ function animalPlaceholder(message, spinning = false) {
   frame.appendChild(placeholder);
 }
 
+function animalConnectivitySummary(connectivity) {
+  if (!connectivity) return "尚未检测";
+  if (connectivity.passed) return "复检通过 · 黑色材料整体连通";
+  if (connectivity.status === "NO_BLACK_MATERIAL") return "未检测到有效黑色主体";
+  return `未通过 · ${connectivity.island_count || 0} 个孤岛或薄弱连接`;
+}
+
+function processImageFigure(label, url) {
+  const figure = document.createElement("figure");
+  const caption = document.createElement("figcaption");
+  caption.textContent = label;
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  const image = document.createElement("img");
+  image.src = url;
+  image.alt = label;
+  image.loading = "lazy";
+  link.appendChild(image);
+  figure.append(caption, link);
+  return figure;
+}
+
+function processRecordCard(title, result, options = {}) {
+  const connectivity = options.connectivity || result?.connectivity;
+  const card = document.createElement("article");
+  card.className = "process-record";
+  const header = document.createElement("div");
+  header.className = "process-record-header";
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  const status = document.createElement("span");
+  status.textContent = options.error ? "调用失败" : animalConnectivitySummary(connectivity);
+  header.append(heading, status);
+  card.appendChild(header);
+
+  const images = document.createElement("div");
+  images.className = "process-image-grid";
+  if (result?.url) images.appendChild(processImageFigure(options.resultLabel || "输出结果", result.url));
+  if (connectivity?.diagnostic_url) {
+    images.appendChild(processImageFigure("彩色连通性诊断图", connectivity.diagnostic_url));
+  }
+  if (connectivity?.repair_guide_url) {
+    images.appendChild(processImageFigure("AI 圈注修复指引图", connectivity.repair_guide_url));
+  }
+  if (images.childElementCount) card.appendChild(images);
+
+  if (options.prompt) {
+    const promptDetails = document.createElement("details");
+    promptDetails.className = "process-prompt";
+    const summary = document.createElement("summary");
+    summary.textContent = "查看本次实际发送的 AI 修复提示词";
+    const prompt = document.createElement("pre");
+    prompt.textContent = options.prompt;
+    promptDetails.append(summary, prompt);
+    card.appendChild(promptDetails);
+  }
+  if (options.error) {
+    const error = document.createElement("p");
+    error.className = "process-error";
+    error.textContent = options.error.message || "本次 AI 修复调用失败";
+    card.appendChild(error);
+  }
+  return card;
+}
+
+function renderAnimalProcessDetails(state) {
+  const details = $("#animal-process-details");
+  const process = state.process_details;
+  const original = process?.original_result;
+  details.classList.toggle("hidden", !original);
+  if (!original) return;
+
+  const wasOpen = details.open;
+  const repairs = process.repairs || [];
+  details.querySelector(":scope > summary").textContent = `查看生成与修复过程（${repairs.length + 1} 条记录）`;
+  $("#animal-generation-prompt").textContent = process.generation_prompt || "未记录";
+  $("#animal-repair-prompt-template").textContent = process.repair_prompt_template || "未记录";
+
+  const records = [processRecordCard("首次生成与本地检测", original, {
+    resultLabel: "首次生成图",
+    connectivity: original.connectivity,
+  })];
+  repairs.forEach((repair) => {
+    const result = repair.result || (repair.url ? {
+      url: repair.url,
+      connectivity: repair.connectivity,
+    } : null);
+    records.push(processRecordCard(
+      `${repair.automatic ? "自动" : "手动"} AI 修复 · 第 ${repair.attempt} 次`,
+      result,
+      {
+        resultLabel: "本轮修复结果",
+        connectivity: repair.connectivity,
+        prompt: repair.prompt,
+        error: repair.error,
+      },
+    ));
+  });
+  $("#animal-process-records").replaceChildren(...records);
+  details.open = wasOpen;
+}
+
 function applyAnimalState(state) {
   animalTask.state = state;
   $("#animal-result-section").classList.remove("hidden");
@@ -291,6 +395,7 @@ function applyAnimalState(state) {
   $("#restore-animal").classList.toggle("hidden", state.status === "GENERATING" || !state.can_restore_original);
   $("#download-animal").classList.add("hidden");
   const connectivity = state.connectivity;
+  renderAnimalProcessDetails(state);
   const connectivityStatus = $("#animal-connectivity-status");
   if (state.status === "SUCCEEDED" && connectivity?.passed) {
     const repairs = state.repair_attempts || 0;

@@ -145,6 +145,23 @@
           <button id="restore-animal" class="secondary hidden" type="button">恢复原图</button>
           <a id="download-animal" class="hidden" download>下载 PNG</a>
         </div>
+        <details id="animal-process-details" class="process-details hidden">
+          <summary>查看生成与修复过程</summary>
+          <div class="process-details-body">
+            <section>
+              <h3>原始生成提示词</h3>
+              <pre id="animal-generation-prompt"></pre>
+            </section>
+            <section>
+              <h3>AI 修复提示词模板</h3>
+              <pre id="animal-repair-prompt-template"></pre>
+            </section>
+            <section>
+              <h3>图片与检测记录</h3>
+              <div id="animal-process-records" class="process-records"></div>
+            </section>
+          </div>
+        </details>
       </div>
     </section>
   </main>

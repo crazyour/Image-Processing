@@ -302,6 +302,12 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
             and original_result.get("url") != current_result.get("url")
             and state.get("status") != "GENERATING"
         ),
+        "process_details": {
+            "generation_prompt": state.get("prompt", ""),
+            "repair_prompt_template": ANIMAL_CUTOUT_REPAIR_PROMPT,
+            "original_result": original_result,
+            "repairs": state.get("repair_history", []),
+        },
         "last_error": state.get("last_error"),
         "model_settings": state["model_settings"],
         "created_at": state["created_at"],
@@ -374,21 +380,34 @@ ANIMAL_CUTOUT_PROMPT = """
 
 
 ANIMAL_CUTOUT_REPAIR_PROMPT = """
-图片1是需要修复的原始黑白镂空设计，图片2是本地 OpenCV 生成的连通性诊断图：蓝色表示最大主体，红色、绿色等其他颜色表示孤岛或仅靠单像素细颈连接的薄弱区域，白色是背景。
-只修复图片1，不要把诊断图的颜色带入结果。优先沿动物原有轮廓、毛流、关节或斑纹，用自然且有足够宽度的黑色材料把每个问题区域连接到蓝色主体；如果某个孤岛无法在不破坏动物外形和辨识细节的前提下合理连接，就删除该孤岛。不得使用生硬横杆，不得大面积涂黑，不得新增动物、文字、边框、底座或背景。
+图片1是需要修复的原始黑白镂空设计。图片2是同一张黑白图的圈注问题指引图：红圈标出与主体完全断开的黑色孤岛，橙圈标出仅靠单像素或极细细颈连接的薄弱区域。彩色圆圈只是问题标记，不是设计内容，绝对不要把圆圈、颜色或标注复制到输出中。
+逐个检查并只针对圈出的区域修复。优先沿动物原有轮廓、毛流、关节或斑纹，用自然且有足够宽度的黑色材料把红圈孤岛连接到附近主体，并加宽橙圈中的薄弱连接；如果某个孤岛无法在不破坏动物外形和辨识细节的前提下合理连接，就删除该孤岛。不得使用生硬横杆，不得大面积涂黑，不得新增动物、文字、边框、底座或背景。
 输出必须保持原画布比例，只含硬边纯黑与纯白：黑色为保留材料，白色为去除区域。全部黑色必须形成一个可切割的连续整体，不得残留孤立黑块、断线或仅一个像素宽的连接。尽量保持图片1的动物外形、姿态、负形和细节，除连通性修复外不要重画。
 """.strip()
 
 
 def _inspect_and_store_cutout(task_id: str, image: bytes, stem: str) -> dict:
     try:
-        report, diagnostic = analyze_connectivity(image)
+        report, diagnostic, repair_guide = analyze_connectivity(image)
     except ConnectivityError as exc:
         raise WorkflowError("CONNECTIVITY_CHECK_FAILED", str(exc), 422) from exc
     report["diagnostic_url"] = PublicBlobStore().put(
         f"animal-cutout/{task_id}/{stem}-diagnostic.png", diagnostic, "image/png",
     )
+    report["repair_guide_url"] = PublicBlobStore().put(
+        f"animal-cutout/{task_id}/{stem}-repair-guide.png", repair_guide, "image/png",
+    )
     return report
+
+
+def _cutout_repair_prompt(connectivity: dict) -> str:
+    disconnected = int(connectivity.get("disconnected_island_count", 0))
+    fragile = int(connectivity.get("fragile_connection_count", 0))
+    return (
+        f"{ANIMAL_CUTOUT_REPAIR_PROMPT}\n\n"
+        f"本次本地检测共标出 {disconnected} 个红圈孤岛和 {fragile} 个橙圈薄弱连接。"
+        "必须逐个处理所有彩色圆圈所指示的问题，再输出一张不带任何圆圈的纯黑白结果。"
+    )
 
 
 def _cutout_result(image: bytes, url: str, usage: dict, connectivity: dict,
@@ -792,13 +811,21 @@ def repair_animal_cutout_task(
     state["last_error"] = None
     version = _save(state, version)
 
+    repair_prompt = ""
     try:
         current = fetch_bytes(result["url"], 25_000_000)
-        diagnostic = fetch_bytes(connectivity["diagnostic_url"], 25_000_000)
+        repair_guide_url = connectivity.get("repair_guide_url")
+        repair_connectivity = connectivity
+        if repair_guide_url:
+            repair_guide = fetch_bytes(repair_guide_url, 25_000_000)
+        else:
+            # Compatibility for tasks created before circle guides were added.
+            repair_connectivity, _, repair_guide = analyze_connectivity(current)
         settings = state["model_settings"]
+        repair_prompt = _cutout_repair_prompt(repair_connectivity)
         repaired, usage = generate_view(
-            [current, diagnostic],
-            ANIMAL_CUTOUT_REPAIR_PROMPT,
+            [current, repair_guide],
+            repair_prompt,
             settings["model"],
             settings["quality"],
             settings["size"],
@@ -817,7 +844,10 @@ def repair_animal_cutout_task(
         state.setdefault("repair_history", []).append({
             "attempt": attempt,
             "automatic": data.automatic,
+            "status": "COMPLETED",
+            "prompt": repair_prompt,
             "url": repaired_url,
+            "result": repaired_result,
             "connectivity": repaired_connectivity,
             "usage": usage,
             "completed_at": int(time.time()),
@@ -835,12 +865,21 @@ def repair_animal_cutout_task(
     except Exception as exc:
         try:
             state, version = _load_animal_cutout_task(task_id, x_session_token)
-            state["status"] = "REVIEW_REQUIRED"
-            state["operation"] = None
-            state["last_error"] = {
+            error = {
                 "code": getattr(exc, "code", "ANIMAL_REPAIR_FAILED"),
                 "message": (str(exc)[:500] or "AI 修复失败") + "；已保留修复前结果。",
             }
+            state["status"] = "REVIEW_REQUIRED"
+            state["operation"] = None
+            state["last_error"] = error
+            state.setdefault("repair_history", []).append({
+                "attempt": attempt,
+                "automatic": data.automatic,
+                "status": "FAILED",
+                "prompt": repair_prompt or ANIMAL_CUTOUT_REPAIR_PROMPT,
+                "error": error,
+                "completed_at": int(time.time()),
+            })
             _save(state, version)
         except StoreError:
             pass

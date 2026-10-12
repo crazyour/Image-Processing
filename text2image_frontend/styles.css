@@ -97,10 +97,29 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .animal-comparison img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: #f2f4f2; }
 .animal-comparison .image-frame { aspect-ratio: 1; }
 .animal-result-section .card-actions { flex-wrap: wrap; margin-top: 14px; }
+.process-details { margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; background: #f8faf8; }
+.process-details > summary { padding: 15px 17px; cursor: pointer; color: var(--accent-dark); font-weight: 800; }
+.process-details[open] > summary { border-bottom: 1px solid var(--line); }
+.process-details-body { display: grid; gap: 20px; padding: 18px; }
+.process-details h3 { margin: 0 0 10px; font-size: 15px; }
+.process-details pre { max-height: 280px; margin: 0; overflow: auto; padding: 13px; border-radius: 11px; color: #34443b; background: #edf2ee; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.process-records { display: grid; gap: 14px; }
+.process-record { padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.process-record-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+.process-record-header span { color: var(--muted); font-size: 12px; }
+.process-image-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.process-image-grid figure { min-width: 0; margin: 0; }
+.process-image-grid figcaption { margin-bottom: 6px; color: var(--muted); font-size: 11px; font-weight: 800; }
+.process-image-grid a { display: block; }
+.process-image-grid img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 9px; background: #f2f4f2; }
+.process-prompt { margin-top: 11px; }
+.process-prompt summary { cursor: pointer; color: var(--accent-dark); font-size: 12px; font-weight: 800; }
+.process-prompt pre { margin-top: 8px; }
+.process-error { margin: 8px 0 0; color: #8d2c22; font-size: 12px; line-height: 1.6; }
 .hidden { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
-  .settings-grid, .result-grid, .animal-input-grid, .animal-comparison { grid-template-columns: 1fr; }
+  .settings-grid, .result-grid, .animal-input-grid, .animal-comparison, .process-image-grid { grid-template-columns: 1fr; }
   .section-heading, .submit-row { align-items: stretch; flex-direction: column; }
   .header-actions { flex-wrap: wrap; }
 }
