@@ -118,6 +118,7 @@ GET   /api/sessions/{id}
 POST  /api/text-image/tasks
 GET   /api/text-image/tasks/{id}
 POST  /api/text-image/tasks/{id}/reference
+POST  /api/text-image/tasks/{id}/references
 POST  /api/text-image/tasks/{id}/items/{index}/generate
 POST  /api/animal-cutout/tasks
 GET   /api/animal-cutout/tasks/{id}

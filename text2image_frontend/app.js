@@ -25,7 +25,10 @@ const defaultAnimalSettings = {
 let defaultAnimalPrompt = "";
 let task = null;
 let busy = false;
-let referencePreviewUrl = null;
+const referenceGroups = {
+  product: { files: [], urls: [] },
+  example: { files: [], urls: [] },
+};
 let animalTask = null;
 let animalBusy = false;
 let animalPreviewUrl = null;
@@ -117,18 +120,66 @@ function setBusy(value) {
   $("#submit-task").disabled = value;
   $("#submit-task").textContent = value ? "队列生成中…" : "开始生成";
   document.querySelectorAll(".prompt-input, .remove-prompt").forEach((element) => { element.disabled = value; });
-  $("#add-reference").disabled = value;
-  $("#remove-reference").disabled = value;
+  $("#add-product-reference").disabled = value;
+  $("#add-example-reference").disabled = value;
+  document.querySelectorAll(".remove-reference").forEach((element) => { element.disabled = value; });
   updatePromptControls();
 }
 
-function clearReferenceImage() {
-  if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
-  referencePreviewUrl = null;
-  $("#reference-image").value = "";
-  $("#reference-preview-image").removeAttribute("src");
-  $("#reference-file-name").textContent = "";
-  $("#reference-preview").classList.add("hidden");
+function renderReferenceGroup(kind) {
+  const group = referenceGroups[kind];
+  group.urls.forEach((url) => URL.revokeObjectURL(url));
+  group.urls = group.files.map((file) => URL.createObjectURL(file));
+  const grid = $(`#${kind}-reference-grid`);
+  grid.replaceChildren(...group.files.map((file, index) => {
+    const item = document.createElement("article");
+    item.className = "reference-preview-item";
+    item.innerHTML = `<img alt=""><div><p></p><small></small></div><button class="remove-reference" type="button" aria-label="移除参考图">×</button>`;
+    item.querySelector("img").src = group.urls[index];
+    item.querySelector("img").alt = `${kind === "product" ? "产品" : "生成样例"}图片 ${index + 1}`;
+    item.querySelector("p").textContent = file.name;
+    item.querySelector("small").textContent = kind === "product"
+      ? (index === 0 ? "主产品图" : `产品补充 ${index}`)
+      : `样例 ${index + 1}`;
+    item.querySelector("button").disabled = busy;
+    item.querySelector("button").addEventListener("click", () => {
+      group.files.splice(index, 1);
+      renderReferenceGroup(kind);
+    });
+    return item;
+  }));
+  $(`#${kind}-reference-preview`).classList.toggle("hidden", group.files.length === 0);
+  $("#reference-groups").classList.toggle("hidden", !referenceGroups.product.files.length && !referenceGroups.example.files.length);
+  const button = kind === "product" ? $("#add-product-reference") : $("#add-example-reference");
+  const label = kind === "product" ? "产品图片" : "生成样例";
+  button.textContent = group.files.length ? `＋ 继续添加${label}（${group.files.length}/6）` : `＋ 添加${label}`;
+}
+
+function clearReferenceImages() {
+  Object.values(referenceGroups).forEach((group) => {
+    group.urls.forEach((url) => URL.revokeObjectURL(url));
+    group.files = [];
+    group.urls = [];
+  });
+  $("#product-reference-images").value = "";
+  $("#example-reference-images").value = "";
+  renderReferenceGroup("product");
+  renderReferenceGroup("example");
+}
+
+function addReferenceFiles(kind, incoming) {
+  if (!incoming.length) return;
+  const invalid = incoming.find((file) => !["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 4_000_000);
+  if (invalid) return showError({ message: `${invalid.name} 不是支持的图片，或文件超过 4 MB`, code: "INVALID_REFERENCE" });
+  const group = referenceGroups[kind];
+  const existing = new Set(group.files.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+  const unique = incoming.filter((file) => !existing.has(`${file.name}:${file.size}:${file.lastModified}`));
+  if (group.files.length + unique.length > 6) {
+    const label = kind === "product" ? "产品图片" : "生成样例图片";
+    return showError({ message: `${label}最多上传 6 张`, code: "TOO_MANY_REFERENCES" });
+  }
+  group.files.push(...unique);
+  renderReferenceGroup(kind);
 }
 
 function applyTaskState(state) {
@@ -242,7 +293,7 @@ function resetTask() {
   $("#refresh-task").disabled = true;
   $("#task-state").className = "";
   $("#task-state").textContent = "等待输入";
-  clearReferenceImage();
+  clearReferenceImages();
   setBusy(false);
 }
 
@@ -684,11 +735,11 @@ $("#task-form").addEventListener("submit", async (event) => {
     const state = await api("/api/text-image/tasks", { method: "POST", body: JSON.stringify({ prompts, ...modelSettings }) });
     task = { id: state.task_id, token: state.access_token, state };
     sessionStorage.setItem("text-image-task", JSON.stringify({ id: task.id, token: task.token }));
-    const referenceFile = $("#reference-image").files?.[0];
-    if (referenceFile) {
+    if (referenceGroups.product.files.length || referenceGroups.example.files.length) {
       const form = new FormData();
-      form.append("image", referenceFile);
-      const updated = await api(`/api/text-image/tasks/${task.id}/reference`, { method: "POST", body: form }, 60_000);
+      referenceGroups.product.files.forEach((file) => form.append("product_images", file));
+      referenceGroups.example.files.forEach((file) => form.append("example_images", file));
+      const updated = await api(`/api/text-image/tasks/${task.id}/references`, { method: "POST", body: form }, 120_000);
       applyTaskState(updated);
     } else {
       applyTaskState(state);
@@ -718,16 +769,14 @@ $("#generation-count").addEventListener("change", (event) => {
   updatePromptControls();
   rows.at(-1)?.querySelector("textarea")?.focus();
 });
-$("#add-reference").addEventListener("click", () => $("#reference-image").click());
-$("#remove-reference").addEventListener("click", clearReferenceImage);
-$("#reference-image").addEventListener("change", (event) => {
-  if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
-  const file = event.target.files?.[0];
-  if (!file) return clearReferenceImage();
-  referencePreviewUrl = URL.createObjectURL(file);
-  $("#reference-preview-image").src = referencePreviewUrl;
-  $("#reference-file-name").textContent = file.name;
-  $("#reference-preview").classList.remove("hidden");
+$("#add-product-reference").addEventListener("click", () => $("#product-reference-images").click());
+$("#add-example-reference").addEventListener("click", () => $("#example-reference-images").click());
+[["product", "#product-reference-images"], ["example", "#example-reference-images"]].forEach(([kind, selector]) => {
+  $(selector).addEventListener("change", (event) => {
+    const incoming = [...(event.target.files || [])];
+    event.target.value = "";
+    addReferenceFiles(kind, incoming);
+  });
 });
 $("#show-text-workflow").addEventListener("click", () => showWorkflow("text"));
 $("#show-animal-workflow").addEventListener("click", () => showWorkflow("animal"));

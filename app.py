@@ -255,13 +255,47 @@ def _text_image_status(items: list[dict]) -> str:
     return "QUEUED"
 
 
+def _text_image_reference_groups(state: dict) -> tuple[list[dict], list[dict]]:
+    if "product_reference_images" in state:
+        return state.get("product_reference_images") or [], state.get("example_reference_images") or []
+    legacy = state.get("reference_images") or (
+        [state["reference_image"]] if state.get("reference_image") else []
+    )
+    return legacy, []
+
+
+def _text_image_edit_prompt(prompt: str, product_count: int, example_count: int) -> str:
+    groups = []
+    if product_count:
+        groups.append(
+            f"前 {product_count} 张是产品图片：以这些图片确定需要生成的产品主体、结构、材质、颜色和细节。"
+        )
+    if example_count:
+        start = product_count + 1
+        end = product_count + example_count
+        groups.append(
+            f"第 {start} 至 {end} 张是生成样例图片：只参考产品的摆放位置、构图、视角、比例、"
+            "场景和整体视觉效果；不要把样例中的其他产品当成目标产品，也不要改变产品图片中的主体身份。"
+        )
+    return "\n".join([
+        "输入图片已按用途分组，请严格区分两组图片。",
+        *groups,
+        f"用户生成要求：\n{prompt}",
+    ])
+
+
 def _text_image_response(state: dict, *, token: str | None = None) -> dict:
+    product_references, example_references = _text_image_reference_groups(state)
+    references = product_references + example_references
     result = {
         "task_id": state["session_id"],
         "status": state["status"],
         "items": state["items"],
         "model_settings": state["model_settings"],
-        "reference_image": state.get("reference_image"),
+        "reference_image": references[0] if references else None,
+        "reference_images": references,
+        "product_reference_images": product_references,
+        "example_reference_images": example_references,
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
     }
@@ -627,6 +661,9 @@ def create_text_image_task(data: TextImageTaskRequest):
             "size": data.size,
         },
         "reference_image": None,
+        "reference_images": [],
+        "product_reference_images": [],
+        "example_reference_images": [],
         "created_at": now,
         "updated_at": now,
     }
@@ -637,21 +674,60 @@ def create_text_image_task(data: TextImageTaskRequest):
 @app.post("/api/text-image/tasks/{task_id}/reference")
 async def upload_text_image_reference(task_id: str, image: UploadFile = File(...),
                                       x_session_token: str | None = Header(default=None)):
+    return await _upload_text_image_references(task_id, [image], [], x_session_token)
+
+
+@app.post("/api/text-image/tasks/{task_id}/references")
+async def upload_text_image_references(task_id: str,
+                                       images: list[UploadFile] | None = File(default=None),
+                                       product_images: list[UploadFile] | None = File(default=None),
+                                       example_images: list[UploadFile] | None = File(default=None),
+                                       x_session_token: str | None = Header(default=None)):
+    return await _upload_text_image_references(
+        task_id, product_images or images or [], example_images or [], x_session_token,
+    )
+
+
+async def _upload_text_image_references(task_id: str, product_images: list[UploadFile],
+                                        example_images: list[UploadFile],
+                                        x_session_token: str | None) -> dict:
     state, version = _load_text_image_task(task_id, x_session_token)
     if state["status"] != "QUEUED" or any(item["status"] != "QUEUED" for item in state["items"]):
         raise WorkflowError("REFERENCE_LOCKED", "图片开始生成后不能更换参考图", 409)
-    raw = await image.read(MAX_REFERENCE_UPLOAD_BYTES + 1)
-    normalized, metadata = normalize_image(raw, image.content_type)
-    url = PublicBlobStore().put(
-        f"text-image/{task_id}/reference.png",
-        normalized,
-        "image/png",
-    )
-    state["reference_image"] = {
-        "url": url,
-        "filename": (image.filename or "reference.png")[:255],
-        **metadata,
-    }
+    if not product_images and not example_images:
+        raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少上传一张参考图", 422)
+    product_references, example_references = _text_image_reference_groups(state)
+    if len(product_references) + len(product_images) > MAX_REFERENCE_IMAGES:
+        raise WorkflowError("TOO_MANY_PRODUCT_REFERENCES", f"产品图片最多上传 {MAX_REFERENCE_IMAGES} 张", 422)
+    if len(example_references) + len(example_images) > MAX_REFERENCE_IMAGES:
+        raise WorkflowError("TOO_MANY_EXAMPLE_REFERENCES", f"生成样例图片最多上传 {MAX_REFERENCE_IMAGES} 张", 422)
+
+    normalized_images = []
+    for kind, images in (("product", product_images), ("example", example_images)):
+        for image in images:
+            raw = await image.read(MAX_REFERENCE_UPLOAD_BYTES + 1)
+            normalized, metadata = normalize_image(raw, image.content_type)
+            normalized_images.append((kind, image, normalized, metadata))
+
+    blobs = PublicBlobStore()
+    for kind, image, normalized, metadata in normalized_images:
+        references = product_references if kind == "product" else example_references
+        index = len(references) + 1
+        url = blobs.put(
+            f"text-image/{task_id}/references/{kind}/{index:02d}.png",
+            normalized,
+            "image/png",
+        )
+        references.append({
+            "url": url,
+            "filename": (image.filename or f"reference-{index}.png")[:255],
+            **metadata,
+        })
+    references = product_references + example_references
+    state["product_reference_images"] = product_references
+    state["example_reference_images"] = example_references
+    state["reference_images"] = references
+    state["reference_image"] = references[0] if references else None
     _save(state, version)
     return _text_image_response(state)
 
@@ -681,11 +757,17 @@ def generate_text_image_item(task_id: str, item_index: int,
     version = _save(state, version)
     try:
         settings = state["model_settings"]
-        reference = state.get("reference_image")
-        if reference:
-            reference_bytes = fetch_bytes(reference["url"], MAX_REFERENCE_UPLOAD_BYTES)
+        product_references, example_references = _text_image_reference_groups(state)
+        references = product_references + example_references
+        if references:
+            reference_bytes = [
+                fetch_bytes(reference["url"], 20_000_000)
+                for reference in references[:MAX_REFERENCE_IMAGES]
+            ]
             generated, usage = generate_view(
-                [reference_bytes], item["prompt"], settings["model"], settings["quality"], settings["size"],
+                reference_bytes,
+                _text_image_edit_prompt(item["prompt"], len(product_references), len(example_references)),
+                settings["model"], settings["quality"], settings["size"],
             )
         else:
             generated, usage = generate_image(

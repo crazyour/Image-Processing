@@ -36,8 +36,10 @@
         <div class="prompt-actions">
           <div class="prompt-action-buttons">
             <button id="add-prompt" class="secondary" type="button">＋ 添加一条要求</button>
-            <button id="add-reference" class="secondary" type="button">＋ 添加参考图</button>
-            <input id="reference-image" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            <button id="add-product-reference" class="secondary" type="button">＋ 添加产品图片</button>
+            <input id="product-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+            <button id="add-example-reference" class="secondary" type="button">＋ 添加生成样例</button>
+            <input id="example-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
           </div>
           <div class="generation-count-control">
             <label for="generation-count">一次生成</label>
@@ -51,10 +53,15 @@
             <span id="prompt-count">1 / 5</span>
           </div>
         </div>
-        <div id="reference-preview" class="reference-preview hidden">
-          <img id="reference-preview-image" alt="待提交的参考图">
-          <div><strong>已添加参考图</strong><p id="reference-file-name"></p><small>本批所有图片将参考这张图生成</small></div>
-          <button id="remove-reference" class="remove-reference" type="button">移除</button>
+        <div id="reference-groups" class="reference-groups hidden">
+          <section id="product-reference-preview" class="reference-preview hidden">
+            <div class="reference-preview-heading"><strong>产品图片</strong><small>用于确定产品主体、结构、材质和细节，最多 6 张</small></div>
+            <div id="product-reference-grid" class="reference-preview-grid"></div>
+          </section>
+          <section id="example-reference-preview" class="reference-preview hidden">
+            <div class="reference-preview-heading"><strong>生成样例图片</strong><small>用于确定产品摆放位置、构图、视角和场景效果，最多 6 张</small></div>
+            <div id="example-reference-grid" class="reference-preview-grid"></div>
+          </section>
         </div>
         <details class="settings">
           <summary>模型设置（高级）</summary>

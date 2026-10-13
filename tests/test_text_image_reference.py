@@ -56,6 +56,7 @@ class TextImageReferenceTests(unittest.TestCase):
 
         self.assertEqual(uploaded.status_code, 200)
         self.assertEqual(uploaded.json()["reference_image"]["filename"], "reference.png")
+        self.assertEqual(len(uploaded.json()["reference_images"]), 1)
         self.assertTrue(uploaded.json()["reference_image"]["url"].startswith("/local-blobs/"))
 
         generated = sample_png((200, 180, 120))
@@ -82,6 +83,49 @@ class TextImageReferenceTests(unittest.TestCase):
             self.assertEqual(normalized.size, (128, 128))
             self.assertEqual(normalized.convert("RGB").getpixel((0, 0)), (80, 120, 160))
         self.assertEqual(edit_image.call_args.args[1], "把主体改成柔和的粘土风格")
+
+    def test_multiple_references_are_saved_and_used_together(self):
+        task_id, headers = self.create_task()
+        uploaded = self.client.post(
+            f"/api/text-image/tasks/{task_id}/references",
+            headers=headers,
+            files=[
+                ("images", ("primary.png", sample_png((20, 40, 60)), "image/png")),
+                ("images", ("detail.png", sample_png((180, 160, 140)), "image/png")),
+            ],
+        )
+
+        self.assertEqual(uploaded.status_code, 200)
+        self.assertEqual(
+            [item["filename"] for item in uploaded.json()["reference_images"]],
+            ["primary.png", "detail.png"],
+        )
+
+        with patch.object(app_module, "generate_view", return_value=(sample_png(), {})) as edit_image:
+            response = self.client.post(
+                f"/api/text-image/tasks/{task_id}/items/0/generate", headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        reference_inputs = edit_image.call_args.args[0]
+        self.assertEqual(len(reference_inputs), 2)
+        with Image.open(io.BytesIO(reference_inputs[0])) as primary:
+            self.assertEqual(primary.convert("RGB").getpixel((0, 0)), (20, 40, 60))
+        with Image.open(io.BytesIO(reference_inputs[1])) as detail:
+            self.assertEqual(detail.convert("RGB").getpixel((0, 0)), (180, 160, 140))
+
+    def test_reference_count_is_limited(self):
+        task_id, headers = self.create_task()
+        files = [
+            ("images", (f"reference-{index}.png", sample_png(), "image/png"))
+            for index in range(7)
+        ]
+        uploaded = self.client.post(
+            f"/api/text-image/tasks/{task_id}/references", headers=headers, files=files,
+        )
+
+        self.assertEqual(uploaded.status_code, 422)
+        self.assertEqual(uploaded.json()["code"], "TOO_MANY_REFERENCES")
 
     def test_reference_cannot_change_after_generation_starts(self):
         task_id, headers = self.create_task()
