@@ -1,6 +1,7 @@
 """Standalone FastAPI entrypoint for Vercel."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 import re
@@ -79,6 +80,7 @@ TRANSIENT_STATE_TIMEOUTS = {
 }
 
 MAX_REFERENCE_IMAGES = 6
+MAX_REFERENCE_UPLOAD_BYTES = 4_000_000
 MAX_AUTOMATIC_CUTOUT_REPAIRS = 2
 CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
 CUTOUT_REPAIR_QUALITY = "high"
@@ -259,12 +261,31 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
         "status": state["status"],
         "items": state["items"],
         "model_settings": state["model_settings"],
+        "reference_image": state.get("reference_image"),
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
     }
     if token:
         result["access_token"] = token
     return result
+
+
+def _image_svg(image: bytes, size: str) -> bytes:
+    """Wrap a generated PNG losslessly in an SVG document without claiming vector paths."""
+    try:
+        width_text, height_text = size.lower().split("x", 1)
+        width, height = int(width_text), int(height_text)
+    except (AttributeError, TypeError, ValueError):
+        width = height = 1024
+    encoded = base64.b64encode(image).decode("ascii")
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">\n'
+        '  <title>AI generated image (embedded PNG)</title>\n'
+        f'  <image width="{width}" height="{height}" href="data:image/png;base64,{encoded}"/>\n'
+        '</svg>\n'
+    ).encode("utf-8")
 
 
 def _load_text_image_task(task_id: str, token: str | None) -> tuple[dict, int]:
@@ -605,11 +626,34 @@ def create_text_image_task(data: TextImageTaskRequest):
             "quality": data.quality,
             "size": data.size,
         },
+        "reference_image": None,
         "created_at": now,
         "updated_at": now,
     }
     create_session(task_id, token, state)
     return _text_image_response(state, token=token)
+
+
+@app.post("/api/text-image/tasks/{task_id}/reference")
+async def upload_text_image_reference(task_id: str, image: UploadFile = File(...),
+                                      x_session_token: str | None = Header(default=None)):
+    state, version = _load_text_image_task(task_id, x_session_token)
+    if state["status"] != "QUEUED" or any(item["status"] != "QUEUED" for item in state["items"]):
+        raise WorkflowError("REFERENCE_LOCKED", "图片开始生成后不能更换参考图", 409)
+    raw = await image.read(MAX_REFERENCE_UPLOAD_BYTES + 1)
+    normalized, metadata = normalize_image(raw, image.content_type)
+    url = PublicBlobStore().put(
+        f"text-image/{task_id}/reference.png",
+        normalized,
+        "image/png",
+    )
+    state["reference_image"] = {
+        "url": url,
+        "filename": (image.filename or "reference.png")[:255],
+        **metadata,
+    }
+    _save(state, version)
+    return _text_image_response(state)
 
 
 @app.get("/api/text-image/tasks/{task_id}")
@@ -637,19 +681,33 @@ def generate_text_image_item(task_id: str, item_index: int,
     version = _save(state, version)
     try:
         settings = state["model_settings"]
-        generated, usage = generate_image(
-            item["prompt"], settings["model"], settings["quality"], settings["size"],
-        )
+        reference = state.get("reference_image")
+        if reference:
+            reference_bytes = fetch_bytes(reference["url"], MAX_REFERENCE_UPLOAD_BYTES)
+            generated, usage = generate_view(
+                [reference_bytes], item["prompt"], settings["model"], settings["quality"], settings["size"],
+            )
+        else:
+            generated, usage = generate_image(
+                item["prompt"], settings["model"], settings["quality"], settings["size"],
+            )
         url = PublicBlobStore().put(
             f"text-image/{task_id}/{item_index + 1}.png",
             generated,
             "image/png",
+        )
+        svg = _image_svg(generated, settings["size"])
+        svg_url = PublicBlobStore().put(
+            f"text-image/{task_id}/{item_index + 1}.svg",
+            svg,
+            "image/svg+xml",
         )
         state, version = _load_text_image_task(task_id, x_session_token)
         item = state["items"][item_index]
         item.update({
             "status": "SUCCEEDED",
             "url": url,
+            "svg_url": svg_url,
             "sha256": hashlib.sha256(generated).hexdigest(),
             "size_bytes": len(generated),
             "usage": usage,

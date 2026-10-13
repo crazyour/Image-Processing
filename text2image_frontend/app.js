@@ -25,6 +25,7 @@ const defaultAnimalSettings = {
 let defaultAnimalPrompt = "";
 let task = null;
 let busy = false;
+let referencePreviewUrl = null;
 let animalTask = null;
 let animalBusy = false;
 let animalPreviewUrl = null;
@@ -88,6 +89,8 @@ function updatePromptControls() {
     row.querySelector(".remove-prompt").disabled = rows.length === 1 || busy;
   });
   $("#prompt-count").textContent = `${rows.length} / 5`;
+  $("#generation-count").value = String(rows.length);
+  $("#generation-count").disabled = busy;
   $("#add-prompt").disabled = rows.length >= 5 || busy;
 }
 
@@ -114,7 +117,18 @@ function setBusy(value) {
   $("#submit-task").disabled = value;
   $("#submit-task").textContent = value ? "队列生成中…" : "开始生成";
   document.querySelectorAll(".prompt-input, .remove-prompt").forEach((element) => { element.disabled = value; });
+  $("#add-reference").disabled = value;
+  $("#remove-reference").disabled = value;
   updatePromptControls();
+}
+
+function clearReferenceImage() {
+  if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
+  referencePreviewUrl = null;
+  $("#reference-image").value = "";
+  $("#reference-preview-image").removeAttribute("src");
+  $("#reference-file-name").textContent = "";
+  $("#reference-preview").classList.add("hidden");
 }
 
 function applyTaskState(state) {
@@ -152,6 +166,14 @@ function applyTaskState(state) {
       download.download = "";
       download.textContent = "下载 PNG";
       card.querySelector(".card-actions").appendChild(download);
+      if (item.svg_url) {
+        const svgDownload = document.createElement("a");
+        svgDownload.href = item.svg_url;
+        svgDownload.download = "";
+        svgDownload.textContent = "下载 SVG";
+        svgDownload.title = "SVG 容器会无损嵌入生成的 PNG，不会自动转换为可编辑路径";
+        card.querySelector(".card-actions").appendChild(svgDownload);
+      }
     } else {
       const placeholder = document.createElement("div");
       placeholder.className = `placeholder${item.status === "FAILED" ? " error-copy" : ""}`;
@@ -220,6 +242,7 @@ function resetTask() {
   $("#refresh-task").disabled = true;
   $("#task-state").className = "";
   $("#task-state").textContent = "等待输入";
+  clearReferenceImage();
   setBusy(false);
 }
 
@@ -661,7 +684,15 @@ $("#task-form").addEventListener("submit", async (event) => {
     const state = await api("/api/text-image/tasks", { method: "POST", body: JSON.stringify({ prompts, ...modelSettings }) });
     task = { id: state.task_id, token: state.access_token, state };
     sessionStorage.setItem("text-image-task", JSON.stringify({ id: task.id, token: task.token }));
-    applyTaskState(state);
+    const referenceFile = $("#reference-image").files?.[0];
+    if (referenceFile) {
+      const form = new FormData();
+      form.append("image", referenceFile);
+      const updated = await api(`/api/text-image/tasks/${task.id}/reference`, { method: "POST", body: form }, 60_000);
+      applyTaskState(updated);
+    } else {
+      applyTaskState(state);
+    }
   } catch (error) {
     showError(error);
     setBusy(false);
@@ -672,6 +703,32 @@ $("#task-form").addEventListener("submit", async (event) => {
 });
 
 $("#add-prompt").addEventListener("click", () => addPrompt());
+$("#generation-count").addEventListener("change", (event) => {
+  if (busy) return;
+  const desired = Number(event.target.value);
+  let rows = [...document.querySelectorAll(".prompt-row")];
+  while (rows.length < desired) {
+    addPrompt();
+    rows = [...document.querySelectorAll(".prompt-row")];
+  }
+  while (rows.length > desired && rows.length > 1) {
+    rows.at(-1).remove();
+    rows = [...document.querySelectorAll(".prompt-row")];
+  }
+  updatePromptControls();
+  rows.at(-1)?.querySelector("textarea")?.focus();
+});
+$("#add-reference").addEventListener("click", () => $("#reference-image").click());
+$("#remove-reference").addEventListener("click", clearReferenceImage);
+$("#reference-image").addEventListener("change", (event) => {
+  if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
+  const file = event.target.files?.[0];
+  if (!file) return clearReferenceImage();
+  referencePreviewUrl = URL.createObjectURL(file);
+  $("#reference-preview-image").src = referencePreviewUrl;
+  $("#reference-file-name").textContent = file.name;
+  $("#reference-preview").classList.remove("hidden");
+});
 $("#show-text-workflow").addEventListener("click", () => showWorkflow("text"));
 $("#show-animal-workflow").addEventListener("click", () => showWorkflow("animal"));
 $("#reset-animal-prompt").addEventListener("click", () => {
