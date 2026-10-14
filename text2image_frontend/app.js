@@ -736,10 +736,17 @@ $("#task-form").addEventListener("submit", async (event) => {
     task = { id: state.task_id, token: state.access_token, state };
     sessionStorage.setItem("text-image-task", JSON.stringify({ id: task.id, token: task.token }));
     if (referenceGroups.product.files.length || referenceGroups.example.files.length) {
-      const form = new FormData();
-      referenceGroups.product.files.forEach((file) => form.append("product_images", file));
-      referenceGroups.example.files.forEach((file) => form.append("example_images", file));
-      const updated = await api(`/api/text-image/tasks/${task.id}/references`, { method: "POST", body: form }, 120_000);
+      let updated = state;
+      for (const [field, files] of [
+        ["product_images", referenceGroups.product.files],
+        ["example_images", referenceGroups.example.files],
+      ]) {
+        for (const file of files) {
+          const form = new FormData();
+          form.append(field, file);
+          updated = await api(`/api/text-image/tasks/${task.id}/references`, { method: "POST", body: form }, 60_000);
+        }
+      }
       applyTaskState(updated);
     } else {
       applyTaskState(state);

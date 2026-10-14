@@ -82,7 +82,9 @@ class TextImageReferenceTests(unittest.TestCase):
         with Image.open(io.BytesIO(reference_inputs[0])) as normalized:
             self.assertEqual(normalized.size, (128, 128))
             self.assertEqual(normalized.convert("RGB").getpixel((0, 0)), (80, 120, 160))
-        self.assertEqual(edit_image.call_args.args[1], "把主体改成柔和的粘土风格")
+        edit_prompt = edit_image.call_args.args[1]
+        self.assertIn("前 1 张是产品图片", edit_prompt)
+        self.assertIn("把主体改成柔和的粘土风格", edit_prompt)
 
     def test_multiple_references_are_saved_and_used_together(self):
         task_id, headers = self.create_task()
@@ -114,6 +116,39 @@ class TextImageReferenceTests(unittest.TestCase):
         with Image.open(io.BytesIO(reference_inputs[1])) as detail:
             self.assertEqual(detail.convert("RGB").getpixel((0, 0)), (180, 160, 140))
 
+    def test_product_and_example_references_keep_distinct_roles(self):
+        task_id, headers = self.create_task()
+        uploaded = self.client.post(
+            f"/api/text-image/tasks/{task_id}/references",
+            headers=headers,
+            files=[
+                ("product_images", ("chair.png", sample_png((30, 60, 90)), "image/png")),
+                ("product_images", ("chair-side.png", sample_png((40, 70, 100)), "image/png")),
+                ("example_images", ("room-layout.png", sample_png((210, 190, 170)), "image/png")),
+            ],
+        )
+
+        self.assertEqual(uploaded.status_code, 200)
+        body = uploaded.json()
+        self.assertEqual(len(body["product_reference_images"]), 2)
+        self.assertEqual(len(body["example_reference_images"]), 1)
+        self.assertEqual(
+            [item["filename"] for item in body["reference_images"]],
+            ["chair.png", "chair-side.png", "room-layout.png"],
+        )
+
+        with patch.object(app_module, "generate_view", return_value=(sample_png(), {})) as edit_image:
+            response = self.client.post(
+                f"/api/text-image/tasks/{task_id}/items/0/generate", headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(edit_image.call_args.args[0]), 3)
+        edit_prompt = edit_image.call_args.args[1]
+        self.assertIn("前 2 张是产品图片", edit_prompt)
+        self.assertIn("第 3 至 3 张是生成样例图片", edit_prompt)
+        self.assertIn("不要把样例中的其他产品当成目标产品", edit_prompt)
+
     def test_reference_count_is_limited(self):
         task_id, headers = self.create_task()
         files = [
@@ -125,7 +160,7 @@ class TextImageReferenceTests(unittest.TestCase):
         )
 
         self.assertEqual(uploaded.status_code, 422)
-        self.assertEqual(uploaded.json()["code"], "TOO_MANY_REFERENCES")
+        self.assertEqual(uploaded.json()["code"], "TOO_MANY_PRODUCT_REFERENCES")
 
     def test_reference_cannot_change_after_generation_starts(self):
         task_id, headers = self.create_task()
