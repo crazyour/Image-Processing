@@ -10,7 +10,10 @@
   <main class="shell">
     <header class="hero">
       <a class="back-link" href="/">← 返回灵界工作台</a>
-      <button id="guide-toggle" class="guide-toggle" type="button" aria-controls="usage-guide" aria-expanded="false">？ 使用说明</button>
+      <div class="hero-actions">
+        <button id="library-toggle" class="library-toggle" type="button" aria-controls="library-panel" aria-expanded="false">作品记录</button>
+        <button id="guide-toggle" class="guide-toggle" type="button" aria-controls="usage-guide" aria-expanded="false">？ 使用说明</button>
+      </div>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
       <p class="hero-copy">上传多张同一个对象的参考图，先确认 AI 对主体的理解，再依次确认四视图、切片拼装图和 STL 模型。</p>
@@ -25,6 +28,22 @@
       <div><strong id="workflow-error-title">操作未完成</strong><p id="workflow-error-message"></p><code id="workflow-error-code"></code></div>
       <button id="dismiss-error" type="button">知道了</button>
     </div>
+
+    <section id="library-panel" class="library-panel hidden" aria-labelledby="library-title">
+      <header class="library-heading">
+        <div><p class="eyebrow">LOCAL LIBRARY</p><h2 id="library-title">本地作品记录</h2><p id="library-status">记录保存在本机，关闭浏览器后仍可恢复。</p></div>
+        <div><button id="library-new-task" type="button">新建任务</button><button id="library-refresh" type="button">刷新</button><button id="library-close" type="button">关闭</button></div>
+      </header>
+      <details class="library-preferences">
+        <summary>个人生图偏好</summary>
+        <label class="library-preference-switch"><input id="library-preferences-enabled" type="checkbox"> 在之后创建的新任务中应用这些偏好</label>
+        <textarea id="library-preferences-prompt" rows="4" maxlength="4000" placeholder="例如：主体居中、背景简洁、偏写实、避免过度磨皮；金属产品使用柔和侧光。"></textarea>
+        <div class="library-preference-actions"><small>只在创建新任务时锁定；每条记录都会标明是否应用过偏好。</small><button id="library-save-preferences" type="button">保存偏好</button></div>
+      </details>
+      <div class="library-toolbar"><input id="library-search" type="search" placeholder="搜索名称、提示词或任务类型"><span id="library-count">0 条记录</span></div>
+      <p id="library-empty" class="library-empty">还没有匹配的本地作品记录。</p>
+      <div id="library-grid" class="library-grid"></div>
+    </section>
 
     <section id="upload-step" class="panel">
       <div class="step-title"><span>01</span><div><h2>上传输入图片</h2><p>AI 模式可上传 1–6 张同一个对象的参考图；也可直接上传现成四视图。</p></div><b id="upload-state" class="step-state active">等待选择</b></div>
@@ -318,6 +337,7 @@
       <p class="guide-footnote">站内 AI 生成图片和腾讯混元生成 STL 都可能产生费用，请避免重复提交。</p>
     </div>
   </aside>
-  <script src="/static/app.js" defer></script>
+  <script src="/static/app.js?v=20261017-1" defer></script>
+  <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

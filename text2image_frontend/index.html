@@ -10,9 +10,10 @@
   <main class="shell">
     <header class="hero">
       <a class="back-link" href="/">← 返回灵界工作台</a>
+      <button id="library-toggle" class="library-toggle" type="button" aria-controls="library-panel" aria-expanded="false">作品记录</button>
       <p class="eyebrow">LINGJIE · TEXT TO IMAGE</p>
       <h1>文生图</h1>
-      <p>输入 1–5 条不同的图片要求，系统会按队列逐张生成。每张完成后立即保存，某一张失败不会影响已经成功的结果。</p>
+      <p>输入一组统一的图片要求，一次生成 1–5 张候选图。系统会按队列逐张生成，每张完成后立即保存。</p>
     </header>
 
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
@@ -21,6 +22,22 @@
       <button id="dismiss-error" type="button">知道了</button>
     </div>
 
+    <section id="library-panel" class="library-panel hidden" aria-labelledby="library-title">
+      <header class="library-heading">
+        <div><p class="eyebrow">LOCAL LIBRARY</p><h2 id="library-title">本地作品记录</h2><p id="library-status">记录保存在本机，关闭浏览器后仍可恢复。</p></div>
+        <div><button id="library-new-task" type="button">新建任务</button><button id="library-refresh" type="button">刷新</button><button id="library-close" type="button">关闭</button></div>
+      </header>
+      <details class="library-preferences">
+        <summary>个人生图偏好</summary>
+        <label class="library-preference-switch"><input id="library-preferences-enabled" type="checkbox"> 在之后创建的新任务中应用这些偏好</label>
+        <textarea id="library-preferences-prompt" rows="4" maxlength="4000" placeholder="例如：主体居中、背景简洁、偏写实、避免过度磨皮；金属产品使用柔和侧光。"></textarea>
+        <div class="library-preference-actions"><small>只在创建新任务时锁定；每条记录都会标明是否应用过偏好。</small><button id="library-save-preferences" type="button">保存偏好</button></div>
+      </details>
+      <div class="library-toolbar"><input id="library-search" type="search" placeholder="搜索名称、提示词或任务类型"><span id="library-count">0 条记录</span></div>
+      <p id="library-empty" class="library-empty">还没有匹配的本地作品记录。</p>
+      <div id="library-grid" class="library-grid"></div>
+    </section>
+
     <nav class="workflow-tabs" aria-label="图片生成方式">
       <button id="show-text-workflow" type="button" aria-pressed="true">文字生成图片</button>
       <button id="show-animal-workflow" type="button" aria-pressed="false">照片转镂空剪影</button>
@@ -28,29 +45,28 @@
 
     <section class="panel text-workflow">
       <div class="section-heading">
-        <div><span>01</span><div><h2>填写图片要求</h2><p>每条要求生成一张图片，最多 5 张。</p></div></div>
+        <div><span>01</span><div><h2>填写图片要求</h2><p>填写一组统一要求，再选择这组要生成的候选图数量。</p></div></div>
         <b id="task-state">等待输入</b>
       </div>
       <form id="task-form">
         <div id="prompt-list" class="prompt-list"></div>
         <div class="prompt-actions">
           <div class="prompt-action-buttons">
-            <button id="add-prompt" class="secondary" type="button">＋ 添加一条要求</button>
             <button id="add-product-reference" class="secondary" type="button">＋ 添加产品图片</button>
             <input id="product-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
             <button id="add-example-reference" class="secondary" type="button">＋ 添加生成样例</button>
             <input id="example-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
           </div>
           <div class="generation-count-control">
-            <label for="generation-count">一次生成</label>
-            <select id="generation-count" aria-label="一次生成的图片数量">
+            <label for="generation-count">这组生成</label>
+            <select id="generation-count" aria-label="同一组要求生成的候选图片数量">
               <option value="1">1 张</option>
               <option value="2">2 张</option>
               <option value="3">3 张</option>
               <option value="4">4 张</option>
               <option value="5">5 张</option>
             </select>
-            <span id="prompt-count">1 / 5</span>
+            <span id="prompt-count">同一要求生成 1 张</span>
           </div>
         </div>
         <div id="reference-groups" class="reference-groups hidden">
@@ -231,6 +247,7 @@
       </div>
     </section>
   </main>
-  <script src="/text-image-static/app.js?v=20261013-2"></script>
+  <script src="/text-image-static/app.js?v=20261017-1"></script>
+  <script src="/assets/local-library.js?v=20261017-1"></script>
 </body>
 </html>

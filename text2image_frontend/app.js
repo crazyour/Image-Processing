@@ -84,29 +84,25 @@ function promptValues() {
 }
 
 function updatePromptControls() {
-  const rows = [...document.querySelectorAll(".prompt-row")];
-  rows.forEach((row, index) => {
-    row.querySelector(".prompt-number").textContent = String(index + 1).padStart(2, "0");
-    row.querySelector("label").setAttribute("for", `prompt-${index}`);
-    row.querySelector("textarea").id = `prompt-${index}`;
-    row.querySelector(".remove-prompt").disabled = rows.length === 1 || busy;
-  });
-  $("#prompt-count").textContent = `${rows.length} / 5`;
-  $("#generation-count").value = String(rows.length);
+  const row = $(".prompt-row");
+  if (row) {
+    row.querySelector(".prompt-number").textContent = "01";
+    row.querySelector("label").setAttribute("for", "prompt-0");
+    row.querySelector("textarea").id = "prompt-0";
+  }
+  const count = Number($("#generation-count").value || 1);
+  $("#prompt-count").textContent = `同一要求生成 ${count} 张`;
   $("#generation-count").disabled = busy;
-  $("#add-prompt").disabled = rows.length >= 5 || busy;
 }
 
 function addPrompt(value = "") {
-  if (document.querySelectorAll(".prompt-row").length >= 5) return;
+  if (document.querySelector(".prompt-row")) return;
   const row = document.createElement("div");
   row.className = "prompt-row";
   row.innerHTML = `
     <span class="prompt-number"></span>
-    <label><span class="hidden">图片要求</span><textarea class="prompt-input" maxlength="2000" required placeholder="例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示"></textarea></label>
-    <button class="remove-prompt" type="button">删除</button>`;
+    <label><span class="hidden">这一组图片的统一要求</span><textarea class="prompt-input" maxlength="2000" required placeholder="例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示"></textarea></label>`;
   row.querySelector("textarea").value = value;
-  row.querySelector(".remove-prompt").addEventListener("click", () => { row.remove(); updatePromptControls(); });
   $("#prompt-list").appendChild(row);
   updatePromptControls();
 }
@@ -725,8 +721,10 @@ $("#task-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (busy) return;
   $("#error-panel").classList.add("hidden");
-  const prompts = promptValues();
-  if (prompts.some((prompt) => !prompt)) return showError({ message: "请填写每一条图片要求", code: "PROMPT_REQUIRED" });
+  const prompt = promptValues()[0] || "";
+  if (!prompt) return showError({ message: "请填写这一组图片的统一要求", code: "PROMPT_REQUIRED" });
+  const count = Number($("#generation-count").value || 1);
+  const prompts = Array.from({ length: count }, () => prompt);
   const modelSettings = settings();
   if (!modelSettings.model) return showError({ message: "请填写图片生成模型", code: "MODEL_REQUIRED" });
   localStorage.setItem("text-image-settings", JSON.stringify(modelSettings));
@@ -760,22 +758,7 @@ $("#task-form").addEventListener("submit", async (event) => {
   await runQueue();
 });
 
-$("#add-prompt").addEventListener("click", () => addPrompt());
-$("#generation-count").addEventListener("change", (event) => {
-  if (busy) return;
-  const desired = Number(event.target.value);
-  let rows = [...document.querySelectorAll(".prompt-row")];
-  while (rows.length < desired) {
-    addPrompt();
-    rows = [...document.querySelectorAll(".prompt-row")];
-  }
-  while (rows.length > desired && rows.length > 1) {
-    rows.at(-1).remove();
-    rows = [...document.querySelectorAll(".prompt-row")];
-  }
-  updatePromptControls();
-  rows.at(-1)?.querySelector("textarea")?.focus();
-});
+$("#generation-count").addEventListener("change", updatePromptControls);
 $("#add-product-reference").addEventListener("click", () => $("#product-reference-images").click());
 $("#add-example-reference").addEventListener("click", () => $("#example-reference-images").click());
 [["product", "#product-reference-images"], ["example", "#example-reference-images"]].forEach(([kind, selector]) => {

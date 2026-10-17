@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,10 +24,16 @@ from vercel_app.store import (
     SessionNotFound,
     StoreError,
     create_session,
+    list_local_sessions,
+    load_local_preferences,
     local_blob_path,
+    local_library_available,
     load_session,
+    rotate_local_session_token,
+    save_local_preferences,
     save_session,
     storage_status,
+    update_local_session_library,
 )
 from vercel_app.connectivity import (
     ConnectivityError,
@@ -116,6 +122,18 @@ class TextImageTaskRequest(BaseModel):
     model: str = Field(min_length=1, max_length=128)
     quality: str = Field(default="medium", max_length=16)
     size: Literal["1024x1024", "1536x1024", "1024x1536"] = "1024x1024"
+    use_preferences: bool = True
+
+
+class LibraryTaskUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
+    favorite: bool | None = None
+    archived: bool | None = None
+
+
+class LocalPreferencesUpdate(BaseModel):
+    enabled: bool = False
+    prompt: str = Field(default="", max_length=4000)
 
 
 class AnimalCutoutRepairRequest(BaseModel):
@@ -124,6 +142,109 @@ class AnimalCutoutRepairRequest(BaseModel):
 
 class CutoutCandidateSelectRequest(BaseModel):
     candidate_index: int = Field(ge=0, le=4)
+
+
+def _require_local_library_access(header: str | None, request: Request) -> None:
+    client_host = request.client.host if request.client else ""
+    if (
+        header != "1"
+        or not local_library_available()
+        or client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}
+    ):
+        raise HTTPException(status_code=404, detail="本地作品库不可用")
+
+
+def _active_preference_prompt(use_preferences: bool = True) -> str:
+    if not use_preferences:
+        return ""
+    preferences = load_local_preferences()
+    if not preferences.get("enabled"):
+        return ""
+    return str(preferences.get("prompt") or "").strip()
+
+
+def _apply_personal_preferences(prompt: str, preference_prompt: str) -> str:
+    prompt = prompt.strip()
+    preference_prompt = preference_prompt.strip()
+    if not preference_prompt:
+        return prompt
+    if not prompt:
+        return f"个人长期偏好（本次已启用）：\n{preference_prompt}"
+    return f"{prompt}\n\n个人长期偏好（本次已启用）：\n{preference_prompt}"
+
+
+def _first_url(*values) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict):
+            url = value.get("url") or value.get("preview_url")
+            if isinstance(url, str) and url:
+                return url
+        if isinstance(value, list):
+            found = _first_url(*value)
+            if found:
+                return found
+    return None
+
+
+def _asset_urls(value) -> set[str]:
+    found: set[str] = set()
+    if isinstance(value, dict):
+        for item in value.values():
+            found.update(_asset_urls(item))
+    elif isinstance(value, list):
+        for item in value:
+            found.update(_asset_urls(item))
+    elif isinstance(value, str) and (
+        value.startswith("/local-blobs/") or value.startswith("https://")
+    ):
+        found.add(value)
+    return found
+
+
+def _library_summary(record: dict) -> dict:
+    state = record["state"]
+    workflow = state.get("workflow") or "image-to-3d"
+    library = state.get("library") or {}
+    if workflow == "text-to-image":
+        items = state.get("items") or []
+        prompt = next((str(item.get("prompt") or "") for item in items if item.get("prompt")), "")
+        preview_url = _first_url(
+            [item for item in items if item.get("status") == "SUCCEEDED"],
+            items,
+            state.get("reference_images"),
+        )
+        default_title = prompt[:60] or "文生图任务"
+    elif workflow == "animal-photo-cutout":
+        prompt = str(state.get("prompt") or "")
+        preview_url = _first_url(
+            state.get("result"), state.get("candidates"), state.get("source"),
+        )
+        default_title = "照片转镂空剪影"
+    else:
+        prompt = str(state.get("input_notes") or state.get("user_prompt") or "")
+        preview_url = _first_url(
+            state.get("assembly_plan"),
+            (state.get("views") or {}).get("front"),
+            state.get("reference_images"),
+            state.get("reference_image"),
+        )
+        default_title = prompt[:60] or "图生 3D 任务"
+    return {
+        "id": record["id"],
+        "workflow": workflow,
+        "status": state.get("status", "UNKNOWN"),
+        "title": str(library.get("title") or default_title)[:120],
+        "favorite": bool(library.get("favorite")),
+        "archived": bool(library.get("archived")),
+        "prompt": prompt[:500],
+        "preview_url": preview_url,
+        "asset_count": len(_asset_urls(state)),
+        "created_at": state.get("created_at") or record.get("created_at"),
+        "updated_at": state.get("updated_at") or record.get("updated_at"),
+        "preference_applied": bool(state.get("preference_prompt")),
+    }
 
 
 @app.exception_handler(WorkflowError)
@@ -233,6 +354,7 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "updated_at": state.get("updated_at"),
         "model_settings": state.get("model_settings"),
         "view_source": state.get("view_source", "generated"),
+        "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
         result["access_token"] = token
@@ -298,6 +420,7 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
         "example_reference_images": example_references,
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
+        "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
         result["access_token"] = token
@@ -383,6 +506,7 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
         "model_settings": state["model_settings"],
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
+        "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
         response["access_token"] = token
@@ -540,6 +664,81 @@ def health():
     }
 
 
+@app.get("/api/local-library/tasks")
+def local_library_tasks(
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    tasks = [_library_summary(record) for record in list_local_sessions()]
+    tasks.sort(key=lambda item: (not item["favorite"], -(int(item["updated_at"]) if isinstance(item["updated_at"], (int, float)) else 0)))
+    return {"items": [item for item in tasks if not item["archived"]]}
+
+
+@app.post("/api/local-library/tasks/{task_id}/resume")
+def resume_local_library_task(
+    task_id: str,
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    if not TASK_ID.fullmatch(task_id):
+        raise HTTPException(status_code=404, detail="作品记录不存在")
+    token = secrets.token_urlsafe(32)
+    state = rotate_local_session_token(task_id, token)
+    workflow = state.get("workflow") or "image-to-3d"
+    return {
+        "task_id": task_id,
+        "access_token": token,
+        "workflow": workflow,
+        "page": "/text-to-image" if workflow in {"text-to-image", "animal-photo-cutout"} else "/image-to-3d",
+    }
+
+
+@app.patch("/api/local-library/tasks/{task_id}")
+def update_local_library_task(
+    task_id: str,
+    data: LibraryTaskUpdate,
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    if not TASK_ID.fullmatch(task_id):
+        raise HTTPException(status_code=404, detail="作品记录不存在")
+    values = data.model_dump(exclude_none=True)
+    if "title" in values:
+        values["title"] = values["title"].strip()
+    state = update_local_session_library(task_id, values)
+    return _library_summary({
+        "id": task_id,
+        "state": state,
+        "created_at": state.get("created_at"),
+        "updated_at": state.get("updated_at"),
+    })
+
+
+@app.get("/api/local-library/preferences")
+def get_local_library_preferences(
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    return load_local_preferences()
+
+
+@app.put("/api/local-library/preferences")
+def update_local_library_preferences(
+    data: LocalPreferencesUpdate,
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    prompt = data.prompt.strip()
+    if data.enabled and not prompt:
+        raise WorkflowError("PREFERENCE_REQUIRED", "启用个人偏好前请先填写偏好内容", 422)
+    return save_local_preferences(data.enabled, prompt)
+
+
 @app.get("/api/bootstrap/status", include_in_schema=False)
 def legacy_bootstrap_status():
     return {"required": False, "desktop": False, "compatibility_mode": True}
@@ -633,6 +832,7 @@ def create_text_image_task(data: TextImageTaskRequest):
     if data.quality not in IMAGE_QUALITIES:
         raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
 
+    preference_prompt = _active_preference_prompt(data.use_preferences)
     task_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
     now = int(time.time())
@@ -660,6 +860,7 @@ def create_text_image_task(data: TextImageTaskRequest):
             "quality": data.quality,
             "size": data.size,
         },
+        "preference_prompt": preference_prompt,
         "reference_image": None,
         "reference_images": [],
         "product_reference_images": [],
@@ -757,6 +958,9 @@ def generate_text_image_item(task_id: str, item_index: int,
     version = _save(state, version)
     try:
         settings = state["model_settings"]
+        generation_prompt = _apply_personal_preferences(
+            item["prompt"], state.get("preference_prompt", ""),
+        )
         product_references, example_references = _text_image_reference_groups(state)
         references = product_references + example_references
         if references:
@@ -766,12 +970,12 @@ def generate_text_image_item(task_id: str, item_index: int,
             ]
             generated, usage = generate_view(
                 reference_bytes,
-                _text_image_edit_prompt(item["prompt"], len(product_references), len(example_references)),
+                _text_image_edit_prompt(generation_prompt, len(product_references), len(example_references)),
                 settings["model"], settings["quality"], settings["size"],
             )
         else:
             generated, usage = generate_image(
-                item["prompt"], settings["model"], settings["quality"], settings["size"],
+                generation_prompt, settings["model"], settings["quality"], settings["size"],
             )
         url = PublicBlobStore().put(
             f"text-image/{task_id}/{item_index + 1}.png",
@@ -827,6 +1031,7 @@ def create_animal_cutout_task(
     repair_quality: str = Form(CUTOUT_REPAIR_QUALITY, max_length=16),
     generation_count: int = Form(3, ge=1, le=5),
     size: Literal["1024x1024", "1536x1024", "1024x1536"] = Form("1024x1024"),
+    use_preferences: bool = Form(True),
 ):
     model = image_model.strip()
     repair_model = repair_model.strip()
@@ -839,6 +1044,10 @@ def create_animal_cutout_task(
     if repair_quality not in IMAGE_QUALITIES:
         raise WorkflowError("INVALID_QUALITY", "修复质量设置无效", 422)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
+    preference_prompt = _active_preference_prompt(use_preferences)
+    generation_prompt = _apply_personal_preferences(
+        prompt.strip() or ANIMAL_CUTOUT_PROMPT, preference_prompt,
+    )
     task_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
     source_url = PublicBlobStore().put(
@@ -849,7 +1058,8 @@ def create_animal_cutout_task(
         "session_id": task_id,
         "workflow": "animal-photo-cutout",
         "status": "READY",
-        "prompt": prompt.strip() or ANIMAL_CUTOUT_PROMPT,
+        "prompt": generation_prompt,
+        "preference_prompt": preference_prompt,
         "source": {
             "url": source_url,
             "sha256": hashlib.sha256(normalized).hexdigest(),
@@ -1219,12 +1429,16 @@ def new_session(
     image_model: str = Form(..., max_length=128),
     image_quality: str = Form(..., max_length=16),
     hunyuan_model: str = Form(..., max_length=128),
+    use_preferences: bool = Form(True),
 ):
     models = _model_settings(vision_model, image_model, image_quality, hunyuan_model)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
-    user_prompt = prompt.strip()
-    if view_source == "uploaded" and not user_prompt:
-        user_prompt = "保持用户提交的各视图主体、结构、比例、材质和颜色一致"
+    preference_prompt = _active_preference_prompt(use_preferences)
+    base_prompt = prompt.strip()
+    if view_source == "uploaded" and not base_prompt:
+        base_prompt = "保持用户提交的各视图主体、结构、比例、材质和颜色一致"
+    input_notes = _apply_personal_preferences(base_prompt, preference_prompt)
+    user_prompt = input_notes
 
     session_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
@@ -1252,7 +1466,7 @@ def new_session(
         "session_id": session_id,
         "status": "REFERENCES_READY" if view_source == "generated" else "VIEWS_REVIEW",
         "analysis": {},
-        "input_notes": prompt.strip(),
+        "input_notes": input_notes,
         "user_prompt": user_prompt,
         "effective_prompt": effective_prompt(user_prompt) if user_prompt else "",
         "prompt_revision": 1,
@@ -1268,6 +1482,8 @@ def new_session(
         "last_error": None,
         "model_settings": models,
         "view_source": view_source,
+        "workflow": "image-to-3d",
+        "preference_prompt": preference_prompt,
         "created_at": now,
         "updated_at": now,
     }
@@ -1330,7 +1546,10 @@ def analyze_references(session_id: str, x_session_token: str | None = Header(def
         if isinstance(exc, (WorkflowError, StoreError)):
             raise
         raise WorkflowError("REFERENCE_ANALYSIS_FAILED", "参考图分析发生意外错误", 502) from exc
-    user_prompt = analysis.get("suggested_prompt_zh", "").strip()
+    user_prompt = _apply_personal_preferences(
+        analysis.get("suggested_prompt_zh", "").strip(),
+        state.get("preference_prompt", ""),
+    )
     if not user_prompt:
         state["status"] = "REFERENCES_READY"
         state["last_error"] = {

@@ -44,6 +44,20 @@ class TextImageReferenceTests(unittest.TestCase):
         body = response.json()
         return body["task_id"], {"X-Session-Token": body["access_token"]}
 
+    def test_one_prompt_can_create_multiple_candidate_items(self):
+        prompt = "同一只狗的黑白镂空剪影"
+        response = self.client.post("/api/text-image/tasks", json={
+            "prompts": [prompt, prompt, prompt],
+            "model": "test-image-model",
+            "quality": "medium",
+            "size": "1024x1024",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        items = response.json()["items"]
+        self.assertEqual(len(items), 3)
+        self.assertEqual([item["prompt"] for item in items], [prompt, prompt, prompt])
+
     def test_reference_is_saved_and_used_for_image_editing(self):
         task_id, headers = self.create_task()
         reference = sample_png()
