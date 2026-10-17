@@ -46,8 +46,17 @@ class AnimalCutoutFlowTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
         self.previous_data_dir = os.environ.get("LOCAL_DATA_DIR")
+        self.previous_admin_username = os.environ.get("ADMIN_USERNAME")
+        self.previous_admin_password = os.environ.get("ADMIN_PASSWORD")
         os.environ["LOCAL_DATA_DIR"] = self.tempdir.name
+        os.environ["ADMIN_USERNAME"] = "test-admin"
+        os.environ["ADMIN_PASSWORD"] = "test-admin-password"
         self.client = TestClient(app_module.app)
+        response = self.client.post(
+            "/api/auth/login",
+            json={"username": "test-admin", "password": "test-admin-password"},
+        )
+        self.assertEqual(response.status_code, 200)
 
     def tearDown(self):
         self.client.close()
@@ -55,6 +64,14 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             os.environ.pop("LOCAL_DATA_DIR", None)
         else:
             os.environ["LOCAL_DATA_DIR"] = self.previous_data_dir
+        for name, value in (
+            ("ADMIN_USERNAME", self.previous_admin_username),
+            ("ADMIN_PASSWORD", self.previous_admin_password),
+        ):
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
         self.tempdir.cleanup()
 
     def create_task(self, generation_count: int = 1) -> tuple[str, dict[str, str]]:

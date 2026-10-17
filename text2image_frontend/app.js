@@ -894,3 +894,6 @@ if (previousAnimal) {
       sessionStorage.removeItem("animal-cutout-task");
     });
 }
+if (!previousAnimal && new URLSearchParams(location.search).get("workflow") === "animal") {
+  showWorkflow("animal");
+}

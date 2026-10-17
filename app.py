@@ -12,9 +12,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,20 @@ from vercel_app.store import (
     load_session,
     save_session,
     storage_status,
+)
+from vercel_app.auth import (
+    FEATURES,
+    SESSION_COOKIE,
+    SESSION_TTL_SECONDS,
+    AuthError,
+    authenticate,
+    create_user,
+    current_user,
+    has_feature,
+    list_users,
+    revoke_session,
+    setup_required,
+    update_user,
 )
 from vercel_app.connectivity import (
     ConnectivityError,
@@ -59,6 +73,7 @@ ROOT = Path(__file__).resolve().parent
 ORIGINAL_FRONTEND = ROOT / "frontend_dist"
 IMAGE3D_FRONTEND = ROOT / "image3d_frontend"
 TEXT2IMAGE_FRONTEND = ROOT / "text2image_frontend"
+AUTH_FRONTEND = ROOT / "auth_frontend"
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
@@ -86,6 +101,63 @@ CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
 CUTOUT_REPAIR_QUALITY = "high"
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
+
+PUBLIC_PATHS = {"/login", "/api/health", "/api/auth/status", "/api/auth/login", "/api/login"}
+PUBLIC_PREFIXES = ("/assets/", "/branding/", "/auth-static/")
+
+
+def _required_feature(path: str) -> str | None:
+    if path.startswith("/api/text-image"):
+        return "text_to_image"
+    if path.startswith("/api/animal-cutout"):
+        return "animal_cutout"
+    if path.startswith("/api/sessions") or path == "/image-to-3d":
+        return "image_to_3d"
+    if path == "/text-to-image":
+        return "text_or_cutout"
+    workspace_prefixes = (
+        "/api/assets", "/api/jobs", "/api/masters", "/api/reviews", "/api/budget",
+        "/api/learning", "/api/schedules", "/api/recipes", "/api/connections",
+        "/api/ai-connections",
+    )
+    if path == "/" or path.startswith(workspace_prefixes):
+        return "workspace"
+    return None
+
+
+@app.middleware("http")
+async def account_access(request: Request, call_next):
+    path = request.url.path
+    if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
+        return await call_next(request)
+
+    user = current_user(request.cookies.get(SESSION_COOKIE))
+    request.state.user = user
+    if not user:
+        if path.startswith("/api/"):
+            return JSONResponse({"code": "UNAUTHENTICATED", "message": "请先登录"}, status_code=401)
+        return RedirectResponse(f"/login?next={path}", status_code=303)
+
+    if path.startswith("/api/admin") or path == "/admin":
+        if user["role"] != "admin":
+            if path.startswith("/api/"):
+                return JSONResponse({"code": "FORBIDDEN", "message": "需要管理员权限"}, status_code=403)
+            return RedirectResponse("/portal", status_code=303)
+
+    feature = _required_feature(path)
+    allowed = feature is None
+    if feature == "text_or_cutout":
+        allowed = has_feature(user, "text_to_image") or has_feature(user, "animal_cutout")
+    elif feature:
+        allowed = has_feature(user, feature)
+    if not allowed:
+        if path.startswith("/api/"):
+            return JSONResponse(
+                {"code": "FEATURE_FORBIDDEN", "message": "管理员尚未为此账号开通该功能"},
+                status_code=403,
+            )
+        return RedirectResponse("/portal?denied=1", status_code=303)
+    return await call_next(request)
 
 
 class PromptUpdate(BaseModel):
@@ -126,6 +198,28 @@ class CutoutCandidateSelectRequest(BaseModel):
     candidate_index: int = Field(ge=0, le=4)
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=150)
+
+
+class UserCreateRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=50)
+    name: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=150)
+    role: Literal["member", "admin"] = "member"
+    features: list[str] = Field(default_factory=list)
+
+
+class UserUpdateRequest(BaseModel):
+    username: str | None = Field(default=None, min_length=3, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    password: str | None = Field(default=None, min_length=1, max_length=150)
+    role: Literal["member", "admin"] | None = None
+    active: bool | None = None
+    features: list[str] | None = None
+
+
 @app.exception_handler(WorkflowError)
 def workflow_error(_, exc: WorkflowError):
     return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
@@ -144,6 +238,11 @@ def session_conflict(_, exc: SessionConflict):
 @app.exception_handler(StoreError)
 def store_error(_, exc: StoreError):
     return JSONResponse({"code": "STORAGE_ERROR", "message": str(exc)}, status_code=503)
+
+
+@app.exception_handler(AuthError)
+def auth_error(_, exc: AuthError):
+    return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
 
 
 @app.exception_handler(RequestValidationError)
@@ -545,14 +644,73 @@ def legacy_bootstrap_status():
     return {"required": False, "desktop": False, "compatibility_mode": True}
 
 
+@app.get("/api/auth/status", include_in_schema=False)
+def auth_status():
+    return {"setup_required": setup_required()}
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    secure = bool(
+        os.getenv("VERCEL")
+        or os.getenv("AUTH_SECURE_COOKIE", "").lower() in {"1", "true", "yes"}
+    )
+    response.set_cookie(
+        SESSION_COOKIE, token, max_age=SESSION_TTL_SECONDS, httponly=True,
+        secure=secure, samesite="strict", path="/",
+    )
+
+
+@app.post("/api/auth/login", include_in_schema=False)
+@app.post("/api/login", include_in_schema=False)
+def sign_in(data: LoginRequest, response: Response):
+    token, user = authenticate(data.username, data.password)
+    _set_session_cookie(response, token)
+    return {"user": user}
+
+
+@app.post("/api/auth/logout", include_in_schema=False)
+@app.post("/api/logout", include_in_schema=False)
+def sign_out(request: Request, response: Response):
+    revoke_session(request.cookies.get(SESSION_COOKIE))
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.get("/api/auth/me", include_in_schema=False)
+def auth_me(request: Request):
+    return {"user": request.state.user, "feature_catalog": FEATURES}
+
+
+@app.get("/api/admin/users", include_in_schema=False)
+def admin_users():
+    return {"users": list_users(), "feature_catalog": FEATURES}
+
+
+@app.post("/api/admin/users", status_code=201, include_in_schema=False)
+def admin_create_user(data: UserCreateRequest):
+    user = create_user(data.username, data.name, data.password, data.role, data.features)
+    return {"user": user}
+
+
+@app.patch("/api/admin/users/{user_id}", include_in_schema=False)
+def admin_update_user(user_id: str, data: UserUpdateRequest, request: Request):
+    changes = data.model_dump(exclude_none=True)
+    return {"user": update_user(user_id, changes, request.state.user["id"])}
+
+
 @app.get("/api/me", include_in_schema=False)
-def legacy_cloud_workspace():
+def legacy_cloud_workspace(request: Request):
     image_api_ready = bool(
         os.getenv("OPENAI_API_KEY", "").strip()
         and os.getenv("OPENAI_BASE_URL", "").strip()
     )
     return {
-        "user": {"id": "cloud-user", "name": "云端访客", "role": "member"},
+        "user": {
+            "id": request.state.user["id"],
+            "name": request.state.user["name"],
+            "role": request.state.user["role"],
+            "features": request.state.user["features"],
+        },
         "desktop": False,
         "workspace": {
             "id": "cloud-workspace",
@@ -1822,6 +1980,21 @@ def text_to_image_page():
     )
 
 
+@app.get("/login", include_in_schema=False)
+def login_page():
+    return FileResponse(AUTH_FRONTEND / "login.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/portal", include_in_schema=False)
+def portal_page():
+    return FileResponse(AUTH_FRONTEND / "portal.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin", include_in_schema=False)
+def admin_page():
+    return FileResponse(AUTH_FRONTEND / "admin.html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/local-blobs/{blob_path:path}", include_in_schema=False)
 def local_blob(blob_path: str):
     path = local_blob_path(f"/local-blobs/{blob_path}")
@@ -1842,3 +2015,4 @@ app.mount("/assets", StaticFiles(directory=ORIGINAL_FRONTEND / "assets"), name="
 app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), name="original-branding")
 app.mount("/static", StaticFiles(directory=IMAGE3D_FRONTEND), name="static")
 app.mount("/text-image-static", StaticFiles(directory=TEXT2IMAGE_FRONTEND), name="text-image-static")
+app.mount("/auth-static", StaticFiles(directory=AUTH_FRONTEND), name="auth-static")

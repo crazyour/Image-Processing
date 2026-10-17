@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>账号管理 · 灵界</title>
+  <link rel="stylesheet" href="/auth-static/styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="identity">
+        <div class="mark">管</div>
+        <div><strong>账号与权限管理</strong><span>仅管理员可访问</span></div>
+      </div>
+      <div class="actions">
+        <a class="secondary" href="/portal">返回功能门户</a>
+        <button id="logout" class="secondary">退出登录</button>
+      </div>
+    </header>
+
+    <section class="hero admin-hero">
+      <div>
+        <span class="eyebrow" style="color:#bfe0d0">ADMINISTRATION</span>
+        <h1>团队账号管理</h1>
+        <p>创建团队账号，并为每位成员分配可使用的工作功能。</p>
+      </div>
+      <div id="account-stats" class="account-stats" aria-label="账号概览"></div>
+    </section>
+
+    <p id="message" class="message hidden" role="status"></p>
+
+    <div class="admin-grid">
+      <section class="panel create-panel">
+        <span class="panel-kicker">NEW ACCOUNT</span>
+        <h2>新建账号</h2>
+        <p class="muted">账号创建后可立即登录，权限也可随时调整。</p>
+        <form id="create-form">
+          <label>登录账号<input name="username" minlength="3" maxlength="50" pattern="[A-Za-z0-9_.-]+" required></label>
+          <label>显示名称<input name="name" maxlength="100" required></label>
+          <label>初始密码<input name="password" type="password" maxlength="150" autocomplete="new-password" required></label>
+          <label>角色
+            <select name="role">
+              <option value="member">普通成员</option>
+              <option value="admin">管理员</option>
+            </select>
+          </label>
+          <fieldset class="wide">
+            <legend>可用功能</legend>
+            <div id="create-features" class="checkboxes"></div>
+          </fieldset>
+          <button class="primary" type="submit">创建账号</button>
+        </form>
+      </section>
+
+      <section class="panel accounts-panel">
+        <div class="accounts-heading">
+          <div>
+            <span class="panel-kicker">TEAM ACCOUNTS</span>
+            <h2>账号列表</h2>
+          </div>
+          <label class="search-box">
+            <span class="sr-only">搜索账号</span>
+            <input id="user-search" type="search" placeholder="搜索名称或账号" autocomplete="off">
+          </label>
+        </div>
+        <p class="muted account-help">点击“管理账号”再查看和修改详细设置。</p>
+        <div class="account-table-wrap">
+          <table class="account-table">
+            <thead>
+              <tr>
+                <th scope="col">成员</th>
+                <th scope="col">登录账号</th>
+                <th scope="col">角色</th>
+                <th scope="col">功能权限</th>
+                <th scope="col">状态</th>
+                <th scope="col" class="operation-column">操作</th>
+              </tr>
+            </thead>
+            <tbody id="user-list">
+              <tr><td class="empty" colspan="6">正在读取账号…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="user-dialog" class="account-dialog" aria-labelledby="dialog-title">
+    <div class="dialog-card">
+      <header class="dialog-head">
+        <div>
+          <span class="panel-kicker">ACCOUNT SETTINGS</span>
+          <h2 id="dialog-title">管理账号</h2>
+          <p id="dialog-summary" class="muted"></p>
+        </div>
+        <button id="dialog-close" class="icon-button" type="button" aria-label="关闭">×</button>
+      </header>
+      <form id="edit-form" class="user-form">
+        <label>登录账号<input name="username" minlength="3" maxlength="50" pattern="[A-Za-z0-9_.-]+" required></label>
+        <label>显示名称<input name="name" maxlength="100" required></label>
+        <label>角色
+          <select name="role">
+            <option value="member">普通成员</option>
+            <option value="admin">管理员</option>
+          </select>
+        </label>
+        <label>状态
+          <select name="active">
+            <option value="true">启用</option>
+            <option value="false">停用</option>
+          </select>
+        </label>
+        <label class="wide">重置密码（留空则不修改）
+          <input name="password" type="password" maxlength="150" autocomplete="new-password" placeholder="输入新密码">
+        </label>
+        <fieldset class="wide">
+          <legend>可用功能</legend>
+          <div id="edit-features" class="checkboxes"></div>
+        </fieldset>
+        <div class="dialog-actions wide">
+          <button id="dialog-cancel" class="secondary" type="button">取消</button>
+          <button class="primary" type="submit">保存修改</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <script type="module" src="/auth-static/admin.js"></script>
+</body>
+</html>
