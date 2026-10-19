@@ -13,7 +13,11 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
-from vercel.blob import BlobClient
+
+try:
+    from vercel.blob.sync import put_blob
+except ImportError:  # vercel < 0.12
+    from vercel.blob import put as put_blob
 
 
 class StoreError(RuntimeError):
@@ -359,7 +363,6 @@ class PublicBlobStore:
 
     def __init__(self) -> None:
         self.local = not bool(_configured("BLOB_READ_WRITE_TOKEN"))
-        self.client = None if self.local else BlobClient()
 
     def put(self, pathname: str, data: bytes, content_type: str) -> str:
         if self.local:
@@ -375,7 +378,7 @@ class PublicBlobStore:
             return f"{LOCAL_BLOB_URL_PREFIX}{relative.as_posix()}"
 
         try:
-            blob = self.client.put(
+            blob = put_blob(
                 pathname,
                 data,
                 access="public",
