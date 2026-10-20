@@ -584,7 +584,7 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     except SimilarityFileError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    best_by_folder: dict[str, dict] = {}
+    matches: list[dict] = []
     outdated_images = 0
     for candidate in searchable_assets(library_id, kind):
         global_score = cosine_similarity(query_vector, candidate["vector"])
@@ -601,15 +601,14 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
                 "coverage": 0.0,
                 "method": "cosine",
             }
-        previous = best_by_folder.get(candidate["folder_id"])
-        if previous is None or verification["score"] > previous["raw_score"]:
-            best_by_folder[candidate["folder_id"]] = {
-                **candidate,
-                "raw_score": verification["score"],
-                "verification": verification,
-            }
+        matches.append({
+            **candidate,
+            "raw_score": verification["score"],
+            "verification": verification,
+        })
 
-    ranked = sorted(best_by_folder.values(), key=lambda item: item["raw_score"], reverse=True)[:5]
+    # Rank files globally; one folder may contribute multiple top-five files.
+    ranked = sorted(matches, key=lambda item: item["raw_score"], reverse=True)[:5]
     results = []
     for rank, item in enumerate(ranked, start=1):
         folder = get_folder(library_id, item["folder_id"])

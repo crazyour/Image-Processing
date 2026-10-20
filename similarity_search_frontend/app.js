@@ -437,16 +437,22 @@ async function downloadProtected(path, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function openFolder(folderId) {
+async function openFolder(folderId, matchedAssetId = null) {
   const response = await api(`/api/material-search/folders/${folderId}`);
   const folder = await response.json();
   state.activeFolder = folder;
   $("#dialog-title").textContent = folder.name;
-  $("#dialog-content").innerHTML = folder.assets.map(asset => `<article class="asset-card"><img data-protected-src="${asset.preview_url}" alt="${safeText(asset.original_name)}"><div class="asset-meta"><strong>${safeText(asset.original_name)}</strong><span>${labels[asset.kind]} · ${bytes(asset.file_size)}</span><button type="button" data-download="${asset.blob_url}" data-name="${safeText(asset.original_name)}">下载原文件</button></div></article>`).join("");
+  $("#dialog-content").innerHTML = folder.assets.map(asset => `<article class="asset-card${asset.id === matchedAssetId ? " matched" : ""}" data-asset-id="${asset.id}"><img data-protected-src="${asset.preview_url}" alt="${safeText(asset.original_name)}"><div class="asset-meta"><strong>${safeText(asset.original_name)}</strong><span>${labels[asset.kind]} · ${bytes(asset.file_size)}</span><button type="button" data-download="${asset.blob_url}" data-name="${safeText(asset.original_name)}">下载原文件</button></div></article>`).join("");
   $("#dialog-content").querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
   $("#dialog-content").querySelectorAll("button[data-download]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.download, button.dataset.name)));
   $("#dialog-download").disabled = !folder.zip_url;
   $("#folder-dialog").showModal();
+  if (matchedAssetId) {
+    requestAnimationFrame(() => {
+      const matchedCard = $("#dialog-content").querySelector(`[data-asset-id="${CSS.escape(matchedAssetId)}"]`);
+      matchedCard?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    });
+  }
 }
 
 async function search() {
@@ -465,15 +471,15 @@ async function search() {
     );
     const result = await response.json();
     $("#search-output").hidden = false;
-    $("#results-title").textContent = `${labels[result.kind]}${result.algorithm === "sift-ransac" ? "几何验证" : ""}检索结果 · ${result.results.length} 个文件夹`;
+    $("#results-title").textContent = `${labels[result.kind]}${result.algorithm === "sift-ransac" ? "几何验证" : ""}检索结果 · 前 ${result.results.length} 个文件`;
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
     const list = $("#results-list");
     if (!result.results.length) {
       list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
     } else {
-      list.innerHTML = result.results.map(item => `<article class="result-card"><div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(item.match_label || "特征相似")} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${item.match_method === "sift-ransac" ? `<p class="result-verification">几何有效匹配点：${item.inliers}</p>` : ""}<div class="result-actions"><button type="button" data-folder="${item.folder_id}">查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip">下载</button></div></div></article>`).join("");
+      list.innerHTML = result.results.map(item => `<article class="result-card"><div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(item.match_label || "特征相似")} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${item.match_method === "sift-ransac" ? `<p class="result-verification">几何有效匹配点：${item.inliers}</p>` : ""}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`).join("");
       list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
-      list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder)));
+      list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder, button.dataset.asset)));
       list.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
     }
     if (result.outdated_images) {
