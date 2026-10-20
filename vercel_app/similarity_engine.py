@@ -1,6 +1,8 @@
 """Deterministic visual and geometry features for the material search MVP."""
 from __future__ import annotations
 
+import base64
+import hashlib
 import io
 import math
 from collections import Counter
@@ -11,9 +13,10 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v1"
+FEATURE_VERSION = "material-search-v2-sift-ransac"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
+MAX_LOCAL_FEATURES = 600
 
 
 class SimilarityFileError(ValueError):
@@ -76,6 +79,138 @@ def _visual_vector(image: Image.Image) -> list[float]:
     return _normalise(np.concatenate([histogram, thumbnail.flatten(), edge_thumbnail.flatten(), size_features]))
 
 
+def _image_fingerprint(image: Image.Image) -> str:
+    normalized = ImageOps.pad(_flatten(image).convert("L"), (128, 128), color="white", method=Image.Resampling.LANCZOS)
+    normalized = ImageOps.autocontrast(normalized)
+    return hashlib.sha256(np.asarray(normalized, dtype=np.uint8).tobytes()).hexdigest()
+
+
+def _local_features(image: Image.Image) -> dict[str, Any]:
+    gray = cv2.cvtColor(np.asarray(_flatten(image), dtype=np.uint8), cv2.COLOR_RGB2GRAY)
+    height, width = gray.shape
+    scale = min(1.0, 1200.0 / max(width, height))
+    if scale < 1.0:
+        gray = cv2.resize(gray, (max(2, round(width * scale)), max(2, round(height * scale))), interpolation=cv2.INTER_AREA)
+    gray = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
+    detector = cv2.SIFT_create(
+        nfeatures=MAX_LOCAL_FEATURES,
+        contrastThreshold=0.015,
+        edgeThreshold=12,
+        sigma=1.6,
+    )
+    keypoints, descriptors = detector.detectAndCompute(gray, None)
+    if descriptors is None or not keypoints:
+        return {"encoding": "npz-base64-v1", "count": 0, "data": ""}
+    coordinates = np.asarray(
+        [[point.pt[0] / max(gray.shape[1], 1), point.pt[1] / max(gray.shape[0], 1)] for point in keypoints],
+        dtype=np.float32,
+    )
+    quantized_coordinates = np.clip(np.rint(coordinates * 65535.0), 0, 65535).astype(np.uint16)
+    quantized_descriptors = np.clip(np.rint(descriptors), 0, 255).astype(np.uint8)
+    payload = io.BytesIO()
+    np.savez_compressed(payload, points=quantized_coordinates, descriptors=quantized_descriptors)
+    return {
+        "encoding": "npz-base64-v1",
+        "count": int(len(keypoints)),
+        "data": base64.b64encode(payload.getvalue()).decode("ascii"),
+    }
+
+
+def _decode_local_features(metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray] | None:
+    features = metadata.get("local_features") or {}
+    encoded = features.get("data")
+    if features.get("encoding") != "npz-base64-v1" or not encoded:
+        return None
+    try:
+        with np.load(io.BytesIO(base64.b64decode(encoded)), allow_pickle=False) as payload:
+            points = payload["points"].astype(np.float32) / 65535.0
+            descriptors = payload["descriptors"].astype(np.float32)
+    except (ValueError, KeyError, TypeError):
+        return None
+    if points.ndim != 2 or points.shape[1] != 2 or descriptors.ndim != 2 or len(points) != len(descriptors):
+        return None
+    return points, descriptors
+
+
+def _point_coverage(points: np.ndarray) -> float:
+    if len(points) < 3:
+        return 0.0
+    hull = cv2.convexHull(points.astype(np.float32))
+    return max(0.0, min(1.0, float(cv2.contourArea(hull))))
+
+
+def image_geometric_similarity(
+    query_metadata: dict[str, Any],
+    candidate_metadata: dict[str, Any],
+    global_similarity: float = 0.0,
+) -> dict[str, Any]:
+    """Verify that two images contain the same concrete design, not just similar semantics."""
+    if query_metadata.get("image_fingerprint") == candidate_metadata.get("image_fingerprint"):
+        return {
+            "score": 1.0,
+            "label": "同图",
+            "inliers": max(0, int((candidate_metadata.get("local_features") or {}).get("count", 0))),
+            "inlier_ratio": 1.0,
+            "coverage": 1.0,
+            "method": "fingerprint",
+        }
+
+    query_features = _decode_local_features(query_metadata)
+    candidate_features = _decode_local_features(candidate_metadata)
+    if not query_features or not candidate_features:
+        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+    query_points, query_descriptors = query_features
+    candidate_points, candidate_descriptors = candidate_features
+    if len(query_descriptors) < 4 or len(candidate_descriptors) < 4:
+        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+
+    matches = cv2.BFMatcher(cv2.NORM_L2).knnMatch(candidate_descriptors, query_descriptors, k=2)
+    good = [pair[0] for pair in matches if len(pair) == 2 and pair[0].distance < 0.76 * pair[1].distance]
+    if len(good) < 4:
+        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+
+    candidate_matched = np.float32([candidate_points[match.queryIdx] for match in good])
+    query_matched = np.float32([query_points[match.trainIdx] for match in good])
+    homography, mask = cv2.findHomography(
+        candidate_matched,
+        query_matched,
+        cv2.RANSAC,
+        0.015,
+        maxIters=3000,
+        confidence=0.995,
+    )
+    if homography is None or mask is None:
+        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+
+    inlier_mask = mask.ravel().astype(bool)
+    inliers = int(inlier_mask.sum())
+    inlier_ratio = inliers / max(len(good), 1)
+    candidate_coverage = _point_coverage(candidate_matched[inlier_mask])
+    query_coverage = _point_coverage(query_matched[inlier_mask])
+    coverage = math.sqrt(candidate_coverage * query_coverage)
+    count_score = min(inliers / 24.0, 1.0)
+    ratio_score = max(0.0, min(1.0, (inlier_ratio - 0.2) / 0.6))
+    coverage_score = min(coverage / 0.28, 1.0)
+    score = 0.45 * count_score + 0.35 * ratio_score + 0.15 * coverage_score + 0.05 * global_similarity
+    if inliers < 8:
+        score *= 0.5
+    score = max(0.0, min(0.98, score))
+    if inliers >= 16 and inlier_ratio >= 0.45 and coverage >= 0.08:
+        label = "高度可信"
+    elif inliers >= 8 and inlier_ratio >= 0.3 and coverage >= 0.03:
+        label = "可能同款"
+    else:
+        label = "未验证"
+    return {
+        "score": score,
+        "label": label,
+        "inliers": inliers,
+        "inlier_ratio": inlier_ratio,
+        "coverage": coverage,
+        "method": "sift-ransac",
+    }
+
+
 def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
     try:
         with Image.open(io.BytesIO(raw)) as source:
@@ -88,7 +223,13 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
     return (
         _preview_png(image),
         _visual_vector(image),
-        {"width": image.width, "height": image.height, "feature_version": FEATURE_VERSION},
+        {
+            "width": image.width,
+            "height": image.height,
+            "feature_version": FEATURE_VERSION,
+            "image_fingerprint": _image_fingerprint(image),
+            "local_features": _local_features(image),
+        },
     )
 
 

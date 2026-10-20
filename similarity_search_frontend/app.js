@@ -326,6 +326,23 @@ async function loadLibrary() {
   }
 }
 
+async function reindexLibrary() {
+  const button = $("#reindex-library");
+  button.disabled = true;
+  setMessage("#library-message", "正在从云端原图重新生成SIFT几何索引…");
+  try {
+    const response = await api("/api/material-search/reindex", { method: "POST" });
+    const result = await response.json();
+    const failureCopy = result.failed ? `，${result.failed} 个失败` : "";
+    setMessage("#library-message", `索引升级完成：更新 ${result.updated} 张，已是新版 ${result.skipped} 张${failureCopy}。`, result.failed ? "error" : "success");
+    await loadLibrary();
+  } catch (error) {
+    setMessage("#library-message", error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderCloudFolders() {
   const list = $("#cloud-list");
   const totalFiles = state.folders.reduce((sum, folder) => sum + folder.assets.length, 0);
@@ -465,18 +482,22 @@ async function search() {
     );
     const result = await response.json();
     $("#search-output").hidden = false;
-    $("#results-title").textContent = `${labels[result.kind]}检索结果 · ${result.results.length} 个文件夹`;
+    $("#results-title").textContent = `${labels[result.kind]}${result.algorithm === "sift-ransac" ? "几何验证" : ""}检索结果 · ${result.results.length} 个文件夹`;
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
     const list = $("#results-list");
     if (!result.results.length) {
       list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
     } else {
-      list.innerHTML = result.results.map(item => `<article class="result-card"><div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p><div class="result-actions"><button type="button" data-folder="${item.folder_id}">查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip">下载</button></div></div></article>`).join("");
+      list.innerHTML = result.results.map(item => `<article class="result-card"><div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(item.match_label || "特征相似")} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${item.match_method === "sift-ransac" ? `<p class="result-verification">几何有效匹配点：${item.inliers}</p>` : ""}<div class="result-actions"><button type="button" data-folder="${item.folder_id}">查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip">下载</button></div></div></article>`).join("");
       list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
       list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder)));
       list.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
     }
-    setMessage("#search-message", "检索完成。相似度用于排序，不代表识别准确率。", "success");
+    if (result.outdated_images) {
+      setMessage("#search-message", `有 ${result.outdated_images} 张云端图片仍是旧索引。请到“素材库上传”点击“升级旧图片索引”后再检索。`);
+    } else {
+      setMessage("#search-message", result.algorithm === "sift-ransac" ? "检索完成。图片结果已经过SIFT局部特征和RANSAC几何一致性验证。" : "检索完成。相似度用于排序，不代表识别准确率。", "success");
+    }
   } catch (error) {
     setMessage("#search-message", error.message, "error");
   } finally {
@@ -497,6 +518,7 @@ $("#folder-input").addEventListener("change", event => {
 $("#folder-name").addEventListener("input", renderSelection);
 $("#upload-button").addEventListener("click", uploadFolder);
 $("#refresh-library").addEventListener("click", loadLibrary);
+$("#reindex-library").addEventListener("click", reindexLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
 $$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
 $("#query-input").addEventListener("change", async event => {

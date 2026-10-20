@@ -403,6 +403,39 @@ def set_folder_result(folder_id: str, *, status: str, zip_url: str | None = None
         connection.commit()
 
 
+def update_asset_index(library_id: str, asset_id: str, *, vector: list[float], metadata: dict[str, Any]) -> bool:
+    vector_json = json.dumps(vector, separators=(",", ":"))
+    metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(",", ":"))
+    now = time.time()
+    with _connection() as connection:
+        _ensure_schema(connection)
+        cursor = _execute(
+            connection,
+            """
+            UPDATE material_assets
+               SET vector_json = %s, metadata_json = %s
+             WHERE id = %s
+               AND folder_id IN (SELECT id FROM material_folders WHERE library_id = %s AND deleted_at IS NULL)
+            """,
+            """
+            UPDATE material_assets
+               SET vector_json = ?, metadata_json = ?
+             WHERE id = ?
+               AND folder_id IN (SELECT id FROM material_folders WHERE library_id = ? AND deleted_at IS NULL)
+            """,
+            (vector_json, metadata_json, asset_id, library_id),
+        )
+        if cursor.rowcount:
+            _execute(
+                connection,
+                "UPDATE material_folders SET updated_at = %s WHERE id = (SELECT folder_id FROM material_assets WHERE id = %s)",
+                "UPDATE material_folders SET updated_at = ? WHERE id = (SELECT folder_id FROM material_assets WHERE id = ?)",
+                (now, asset_id),
+            )
+        connection.commit()
+    return cursor.rowcount > 0
+
+
 def searchable_assets(library_id: str, kind: str) -> list[dict[str, Any]]:
     with _connection() as connection:
         _ensure_schema(connection)
@@ -430,6 +463,7 @@ def searchable_assets(library_id: str, kind: str) -> list[dict[str, Any]]:
             "original_name": row["original_name"],
             "preview_url": row["preview_url"],
             "vector": json.loads(row["vector_json"]),
+            "metadata": json.loads(row["metadata_json"] or "{}"),
         }
         for row in rows
     ]

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=5">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=6">
 </head>
 <body>
   <header class="topbar">
@@ -65,9 +65,13 @@
         <article class="card library-card">
           <header class="card-head compact">
             <div><span class="step">02</span><h2>已建立索引</h2></div>
-            <button id="refresh-library" class="ghost" type="button">刷新</button>
+            <div class="library-actions">
+              <button id="reindex-library" class="ghost" type="button">升级旧图片索引</button>
+              <button id="refresh-library" class="ghost" type="button">刷新</button>
+            </div>
           </header>
           <div id="library-list" class="library-list"><p class="empty-copy">正在读取素材库…</p></div>
+          <p id="library-message" class="message" role="status"></p>
         </article>
       </div>
     </section>
@@ -147,6 +151,6 @@
     </div>
   </dialog>
 
-  <script src="/similarity-search-static/app.js?v=7" defer></script>
+  <script src="/similarity-search-static/app.js?v=9" defer></script>
 </body>
 </html>

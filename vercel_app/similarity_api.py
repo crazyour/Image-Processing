@@ -16,7 +16,14 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .material_blob import PrivateMaterialBlobStore
-from .similarity_engine import SimilarityFileError, cosine_similarity, file_kind, process_file
+from .similarity_engine import (
+    FEATURE_VERSION,
+    SimilarityFileError,
+    cosine_similarity,
+    file_kind,
+    image_geometric_similarity,
+    process_file,
+)
 from .similarity_store import (
     create_folder,
     create_library,
@@ -32,6 +39,7 @@ from .similarity_store import (
     save_asset,
     searchable_assets,
     set_folder_result,
+    update_asset_index,
 )
 from .store import StoreError
 
@@ -150,7 +158,12 @@ def _process_and_save_asset(
 
 
 def _public_asset(asset: dict) -> dict:
-    return {key: value for key, value in asset.items() if not key.startswith("_")}
+    public = {key: value for key, value in asset.items() if not key.startswith("_")}
+    metadata = dict(public.get("metadata") or {})
+    metadata.pop("local_features", None)
+    metadata.pop("image_fingerprint", None)
+    public["metadata"] = metadata
+    return public
 
 
 def _public_folder(folder: dict) -> dict:
@@ -400,6 +413,47 @@ def finalize_folder(
     return _public_folder(completed) if completed else None
 
 
+@router.post("/reindex")
+def reindex_library_images(
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    store = PrivateMaterialBlobStore()
+    updated = 0
+    skipped = 0
+    failures: list[dict[str, str]] = []
+    for folder in list_folders(library_id):
+        for asset in folder["assets"]:
+            if asset["kind"] != "image":
+                continue
+            metadata = asset.get("metadata") or {}
+            features = metadata.get("local_features") or {}
+            if metadata.get("feature_version") == FEATURE_VERSION and features.get("data"):
+                skipped += 1
+                continue
+            try:
+                raw, _ = store.read(asset["_blob_ref"])
+                kind, _, vector, new_metadata = process_file(asset["original_name"], raw)
+                if kind != "image" or not update_asset_index(
+                    library_id,
+                    asset["id"],
+                    vector=vector,
+                    metadata=new_metadata,
+                ):
+                    raise StoreError("图片索引记录不存在")
+                updated += 1
+            except (StoreError, SimilarityFileError, OSError) as exc:
+                failures.append({"folder": folder["name"], "file": asset["original_name"], "error": str(exc)})
+    return {
+        "feature_version": FEATURE_VERSION,
+        "updated": updated,
+        "skipped": skipped,
+        "failed": len(failures),
+        "failures": failures[:20],
+    }
+
+
 @router.get("/assets/{asset_id}/preview")
 def asset_preview(
     asset_id: str,
@@ -531,11 +585,29 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     best_by_folder: dict[str, dict] = {}
+    outdated_images = 0
     for candidate in searchable_assets(library_id, kind):
-        score = cosine_similarity(query_vector, candidate["vector"])
+        global_score = cosine_similarity(query_vector, candidate["vector"])
+        if kind == "image":
+            if (candidate.get("metadata") or {}).get("feature_version") != FEATURE_VERSION:
+                outdated_images += 1
+            verification = image_geometric_similarity(metadata, candidate.get("metadata") or {}, global_score)
+        else:
+            verification = {
+                "score": global_score,
+                "label": "特征相似",
+                "inliers": 0,
+                "inlier_ratio": 0.0,
+                "coverage": 0.0,
+                "method": "cosine",
+            }
         previous = best_by_folder.get(candidate["folder_id"])
-        if previous is None or score > previous["raw_score"]:
-            best_by_folder[candidate["folder_id"]] = {**candidate, "raw_score": score}
+        if previous is None or verification["score"] > previous["raw_score"]:
+            best_by_folder[candidate["folder_id"]] = {
+                **candidate,
+                "raw_score": verification["score"],
+                "verification": verification,
+            }
 
     ranked = sorted(best_by_folder.values(), key=lambda item: item["raw_score"], reverse=True)[:5]
     results = []
@@ -551,6 +623,11 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
             "matched_asset_id": item["asset_id"],
             "matched_file": item["original_name"],
             "matched_preview_url": f"/api/material-search/assets/{item['asset_id']}/preview",
+            "match_label": item["verification"]["label"],
+            "match_method": item["verification"]["method"],
+            "inliers": item["verification"]["inliers"],
+            "inlier_ratio": round(item["verification"]["inlier_ratio"], 3),
+            "coverage": round(item["verification"]["coverage"], 3),
             "previews": folder["previews"],
             "zip_url": f"/api/material-search/folders/{folder['id']}/download" if folder.get("zip_url") else None,
             "asset_count": len(folder["assets"]),
@@ -558,6 +635,8 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     return {
         "kind": kind,
         "query_preview_data_url": "data:image/png;base64," + base64.b64encode(preview).decode("ascii"),
-        "query_metadata": metadata,
+        "query_metadata": {key: value for key, value in metadata.items() if key not in {"local_features", "image_fingerprint"}},
+        "algorithm": "sift-ransac" if kind == "image" else "cosine",
+        "outdated_images": outdated_images,
         "results": results,
     }

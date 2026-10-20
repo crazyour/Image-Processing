@@ -6,6 +6,8 @@ import sqlite3
 import tempfile
 import unittest
 
+import cv2
+import numpy as np
 from PIL import Image, ImageDraw
 
 
@@ -13,7 +15,8 @@ os.environ["LOCAL_DATA_DIR"] = tempfile.mkdtemp(prefix="lingjie-material-test-")
 
 from fastapi.testclient import TestClient
 from app import app
-from vercel_app.similarity_store import _ensure_schema
+from vercel_app.similarity_engine import image_geometric_similarity, process_image
+from vercel_app.similarity_store import _connection, _ensure_schema
 
 
 class SimilaritySearchEndToEndTest(unittest.TestCase):
@@ -98,6 +101,47 @@ EOF
             connection.close()
             self.assertIn("deleted_at", columns)
 
+    def test_sift_ransac_recognizes_a_design_inside_a_scene(self) -> None:
+        reference = Image.new("RGB", (500, 500), "white")
+        draw = ImageDraw.Draw(reference)
+        draw.ellipse((155, 135, 345, 325), outline="black", width=13)
+        draw.ellipse((198, 185, 242, 235), fill="black")
+        draw.ellipse((258, 185, 302, 235), fill="black")
+        draw.polygon([(250, 220), (225, 270), (275, 270)], fill="black")
+        for offset in range(0, 8):
+            y = 80 + offset * 34
+            draw.line((35, 250, 165, y), fill="black", width=8 + offset % 3)
+            draw.line((335, y, 465, 250), fill="black", width=8 + (7 - offset) % 3)
+        for offset in range(7):
+            x = 155 + offset * 31
+            draw.arc((x, 285, x + 70, 425), 20, 165, fill="black", width=7)
+        reference_buffer = io.BytesIO()
+        reference.save(reference_buffer, "PNG")
+
+        source = cv2.cvtColor(np.asarray(reference), cv2.COLOR_RGB2BGR)
+        destination = np.float32([[80, 55], [520, 90], [500, 535], [55, 505]])
+        transform = cv2.getPerspectiveTransform(np.float32([[0, 0], [499, 0], [499, 499], [0, 499]]), destination)
+        scene = cv2.warpPerspective(source, transform, (580, 580), borderValue=(190, 205, 215))
+        scene = cv2.convertScaleAbs(scene, alpha=0.82, beta=18)
+        scene_buffer = io.BytesIO()
+        Image.fromarray(cv2.cvtColor(scene, cv2.COLOR_BGR2RGB)).save(scene_buffer, "JPEG", quality=88)
+
+        distractor = Image.new("RGB", (500, 500), "white")
+        distractor_draw = ImageDraw.Draw(distractor)
+        for radius in range(40, 230, 24):
+            distractor_draw.ellipse((250 - radius, 250 - radius, 250 + radius, 250 + radius), outline="black", width=7)
+        distractor_buffer = io.BytesIO()
+        distractor.save(distractor_buffer, "PNG")
+
+        _, reference_vector, reference_metadata = process_image(reference_buffer.getvalue())
+        _, query_vector, query_metadata = process_image(scene_buffer.getvalue())
+        _, distractor_vector, distractor_metadata = process_image(distractor_buffer.getvalue())
+        matching = image_geometric_similarity(query_metadata, reference_metadata, 0.5)
+        non_matching = image_geometric_similarity(query_metadata, distractor_metadata, 0.5)
+        self.assertGreaterEqual(matching["inliers"], 8)
+        self.assertGreater(matching["score"], non_matching["score"] + 0.25)
+        self.assertIn(matching["label"], {"可能同款", "高度可信"})
+
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
         missing_name = self.client.post(
             "/api/material-search/folders", headers=self.headers, json={"name": "   "}
@@ -145,6 +189,10 @@ EOF
         self.assertEqual(folder["status"], "READY")
         self.assertEqual(len(folder["assets"]), 3)
         self.assertNotIn("_blob_ref", folder["assets"][0])
+        image_asset = next(asset for asset in folder["assets"] if asset["kind"] == "image")
+        self.assertEqual(image_asset["metadata"]["feature_version"], "material-search-v2-sift-ransac")
+        self.assertNotIn("local_features", image_asset["metadata"])
+        self.assertNotIn("image_fingerprint", image_asset["metadata"])
         self.assertEqual(self.client.get(folder["assets"][0]["preview_url"]).status_code, 401)
 
         for asset in folder["assets"]:
@@ -160,6 +208,38 @@ EOF
             result = response.json()["results"][0]
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99)
+            if name == "preview.png":
+                self.assertEqual(response.json()["algorithm"], "sift-ransac")
+                self.assertEqual(result["match_label"], "同图")
+
+        different = Image.new("RGB", (240, 160), "white")
+        different_draw = ImageDraw.Draw(different)
+        different_draw.polygon([(25, 135), (120, 20), (215, 135)], outline="black", width=8)
+        different_raw = io.BytesIO()
+        different.save(different_raw, "PNG")
+        different_search = self.client.post(
+            "/api/material-search/search",
+            headers=self.headers,
+            files={"file": ("different.png", different_raw.getvalue())},
+        )
+        self.assertEqual(different_search.status_code, 200, different_search.text)
+        different_result = different_search.json()["results"][0]
+        self.assertLess(different_result["score"], 50)
+        self.assertEqual(different_result["match_label"], "未验证")
+
+        with _connection() as connection:
+            connection.execute(
+                "UPDATE material_assets SET metadata_json = ? WHERE id = ?",
+                ("{}", image_asset["id"]),
+            )
+            connection.commit()
+        reindexed = self.client.post("/api/material-search/reindex", headers=self.headers)
+        self.assertEqual(reindexed.status_code, 200, reindexed.text)
+        self.assertEqual(reindexed.json()["updated"], 1)
+        self.assertEqual(reindexed.json()["failed"], 0)
+        reindex_again = self.client.post("/api/material-search/reindex", headers=self.headers)
+        self.assertEqual(reindex_again.status_code, 200, reindex_again.text)
+        self.assertEqual(reindex_again.json()["skipped"], 1)
 
         query_name = "preview.png"
         query_raw = self.fixtures()[query_name]
