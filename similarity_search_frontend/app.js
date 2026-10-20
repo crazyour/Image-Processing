@@ -42,9 +42,9 @@ async function api(path, options = {}) {
 }
 
 async function ensureLibrary() {
-  state.libraryId = localStorage.getItem("lingjie-material-library");
-  state.token = localStorage.getItem("lingjie-material-token");
-  if (state.libraryId && state.token) return;
+  // The server returns the same public library to every visitor. Always
+  // bootstrap it so browsers carrying credentials from the old private-library
+  // version are moved to the shared library immediately.
   const response = await fetch("/api/material-search/libraries", { method: "POST" });
   if (!response.ok) throw new Error("无法创建素材库");
   const library = await response.json();

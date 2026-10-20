@@ -93,6 +93,7 @@ HUNYUAN_BASE_URL=https://tokenhub.tencentmaas.com/v1
 
 BLOB_READ_WRITE_TOKEN=Vercel自动提供
 MATERIAL_BLOB_READ_WRITE_TOKEN=素材专用Private Blob令牌
+MATERIAL_LIBRARY_TOKEN=公共素材库令牌（可选，建议在Vercel中设置为长随机值）
 DATABASE_URL=PostgreSQL连接字符串
 LOCAL_DATA_DIR=可选的本地数据目录（默认为项目下的 var）
 ```

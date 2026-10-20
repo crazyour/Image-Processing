@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import threading
 import time
@@ -13,6 +14,17 @@ from .store import _configured, _connect_postgres, _connect_sqlite, token_hash
 
 _schema_lock = threading.Lock()
 _schema_ready: set[str] = set()
+PUBLIC_LIBRARY_ID = "public-material-library"
+
+
+def _public_library_token() -> str:
+    """Return the shared credential used by every material-search visitor.
+
+    The token is an access guard against accidental API calls, not a per-user
+    secret: the browser receives it from the public library bootstrap endpoint.
+    Deployments may rotate it with MATERIAL_LIBRARY_TOKEN.
+    """
+    return os.getenv("MATERIAL_LIBRARY_TOKEN", "lingjie-public-material-library").strip() or "lingjie-public-material-library"
 
 
 def _postgres() -> bool:
@@ -99,15 +111,32 @@ def _execute(connection, postgres_sql: str, sqlite_sql: str, parameters: tuple[A
 
 
 def create_library() -> dict[str, str]:
-    library_id = uuid.uuid4().hex
-    token = secrets.token_urlsafe(32)
+    """Create or retrieve the one public library shared by all visitors.
+
+    Older releases created one library per browser.  Reassign those folders so
+    existing Vercel uploads become visible in the shared library as well.
+    """
+    library_id = PUBLIC_LIBRARY_ID
+    token = _public_library_token()
     with _connection() as connection:
         _ensure_schema(connection)
         _execute(
             connection,
-            "INSERT INTO material_libraries (id, token_hash, created_at) VALUES (%s, %s, %s)",
-            "INSERT INTO material_libraries (id, token_hash, created_at) VALUES (?, ?, ?)",
+            """
+            INSERT INTO material_libraries (id, token_hash, created_at) VALUES (%s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET token_hash = EXCLUDED.token_hash
+            """,
+            """
+            INSERT INTO material_libraries (id, token_hash, created_at) VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET token_hash = excluded.token_hash
+            """,
             (library_id, token_hash(token), time.time()),
+        )
+        _execute(
+            connection,
+            "UPDATE material_folders SET library_id = %s WHERE library_id <> %s",
+            "UPDATE material_folders SET library_id = ? WHERE library_id <> ?",
+            (library_id, library_id),
         )
         connection.commit()
     return {"library_id": library_id, "access_token": token}

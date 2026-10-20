@@ -101,6 +101,32 @@ EOF
             connection.close()
             self.assertIn("deleted_at", columns)
 
+    def test_all_visitors_receive_the_same_public_library(self) -> None:
+        first = self.client.post("/api/material-search/libraries").json()
+        second = self.client.post("/api/material-search/libraries").json()
+        self.assertEqual(first, second)
+
+        headers = {
+            "X-Material-Library": second["library_id"],
+            "X-Material-Token": second["access_token"],
+        }
+        folder = self.client.post(
+            "/api/material-search/folders", headers=self.headers, json={"name": "shared-folder"}
+        ).json()
+        visible_ids = {
+            item["id"]
+            for item in self.client.get("/api/material-search/folders", headers=headers).json()["folders"]
+        }
+        self.assertIn(folder["id"], visible_ids)
+        self.assertEqual(
+            self.client.delete(f"/api/material-search/folders/{folder['id']}", headers=headers).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/material-search/trash/{folder['id']}", headers=headers).status_code,
+            200,
+        )
+
     def test_sift_ransac_recognizes_a_design_inside_a_scene(self) -> None:
         reference = Image.new("RGB", (500, 500), "white")
         draw = ImageDraw.Draw(reference)
@@ -190,7 +216,7 @@ EOF
         self.assertEqual(len(folder["assets"]), 3)
         self.assertNotIn("_blob_ref", folder["assets"][0])
         image_asset = next(asset for asset in folder["assets"] if asset["kind"] == "image")
-        self.assertEqual(image_asset["metadata"]["feature_version"], "material-search-v2-sift-ransac")
+        self.assertEqual(image_asset["metadata"]["feature_version"], "material-search-v3-perspective-sift")
         self.assertNotIn("local_features", image_asset["metadata"])
         self.assertNotIn("image_fingerprint", image_asset["metadata"])
         self.assertEqual(self.client.get(folder["assets"][0]["preview_url"]).status_code, 401)

@@ -13,10 +13,10 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v2-sift-ransac"
+FEATURE_VERSION = "material-search-v3-perspective-sift"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
-MAX_LOCAL_FEATURES = 600
+MAX_LOCAL_FEATURES = 1200
 
 
 class SimilarityFileError(ValueError):
@@ -129,6 +129,10 @@ def _decode_local_features(metadata: dict[str, Any]) -> tuple[np.ndarray, np.nda
         return None
     if points.ndim != 2 or points.shape[1] != 2 or descriptors.ndim != 2 or len(points) != len(descriptors):
         return None
+    # RootSIFT is substantially more tolerant of illumination and viewpoint
+    # changes than raw SIFT while remaining compatible with existing indexes.
+    descriptors /= np.maximum(descriptors.sum(axis=1, keepdims=True), 1e-7)
+    descriptors = np.sqrt(descriptors)
     return points, descriptors
 
 
@@ -165,7 +169,7 @@ def image_geometric_similarity(
         return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
 
     matches = cv2.BFMatcher(cv2.NORM_L2).knnMatch(candidate_descriptors, query_descriptors, k=2)
-    good = [pair[0] for pair in matches if len(pair) == 2 and pair[0].distance < 0.76 * pair[1].distance]
+    good = [pair[0] for pair in matches if len(pair) == 2 and pair[0].distance < 0.82 * pair[1].distance]
     if len(good) < 4:
         return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
 
@@ -175,8 +179,8 @@ def image_geometric_similarity(
         candidate_matched,
         query_matched,
         cv2.RANSAC,
-        0.015,
-        maxIters=3000,
+        0.028,
+        maxIters=5000,
         confidence=0.995,
     )
     if homography is None or mask is None:
@@ -188,16 +192,16 @@ def image_geometric_similarity(
     candidate_coverage = _point_coverage(candidate_matched[inlier_mask])
     query_coverage = _point_coverage(query_matched[inlier_mask])
     coverage = math.sqrt(candidate_coverage * query_coverage)
-    count_score = min(inliers / 24.0, 1.0)
-    ratio_score = max(0.0, min(1.0, (inlier_ratio - 0.2) / 0.6))
-    coverage_score = min(coverage / 0.28, 1.0)
-    score = 0.45 * count_score + 0.35 * ratio_score + 0.15 * coverage_score + 0.05 * global_similarity
-    if inliers < 8:
+    count_score = min(inliers / 18.0, 1.0)
+    ratio_score = max(0.0, min(1.0, (inlier_ratio - 0.12) / 0.48))
+    coverage_score = min(coverage / 0.20, 1.0)
+    score = 0.50 * count_score + 0.25 * ratio_score + 0.20 * coverage_score + 0.05 * global_similarity
+    if inliers < 6:
         score *= 0.5
     score = max(0.0, min(0.98, score))
-    if inliers >= 16 and inlier_ratio >= 0.45 and coverage >= 0.08:
+    if inliers >= 12 and inlier_ratio >= 0.32 and coverage >= 0.05:
         label = "高度可信"
-    elif inliers >= 8 and inlier_ratio >= 0.3 and coverage >= 0.03:
+    elif inliers >= 6 and inlier_ratio >= 0.20 and coverage >= 0.02:
         label = "可能同款"
     else:
         label = "未验证"
