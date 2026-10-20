@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import sqlite3
 import tempfile
 import unittest
 
@@ -12,6 +13,7 @@ os.environ["LOCAL_DATA_DIR"] = tempfile.mkdtemp(prefix="lingjie-material-test-")
 
 from fastapi.testclient import TestClient
 from app import app
+from vercel_app.similarity_store import _ensure_schema
 
 
 class SimilaritySearchEndToEndTest(unittest.TestCase):
@@ -71,6 +73,30 @@ ENDSEC
 EOF
 """
         return {"preview.png": png.getvalue(), "drawing.dxf": dxf, "design.ai": pdf.getvalue()}
+
+    def test_legacy_material_database_is_migrated_per_file(self) -> None:
+        for _ in range(2):
+            database_path = os.path.join(tempfile.mkdtemp(prefix="lingjie-legacy-material-"), "image3d.sqlite3")
+            connection = sqlite3.connect(database_path)
+            connection.row_factory = sqlite3.Row
+            connection.execute(
+                """
+                CREATE TABLE material_folders (
+                    id TEXT PRIMARY KEY,
+                    library_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    error_message TEXT,
+                    zip_url TEXT,
+                    created_at DOUBLE PRECISION NOT NULL,
+                    updated_at DOUBLE PRECISION NOT NULL
+                )
+                """
+            )
+            _ensure_schema(connection)
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(material_folders)")}
+            connection.close()
+            self.assertIn("deleted_at", columns)
 
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
         missing_name = self.client.post(
@@ -134,6 +160,25 @@ EOF
             result = response.json()["results"][0]
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99)
+
+        query_name = "preview.png"
+        query_raw = self.fixtures()[query_name]
+        query_upload_id = "b" * 32
+        query_midpoint = len(query_raw) // 2
+        for chunk_index, chunk in enumerate((query_raw[:query_midpoint], query_raw[query_midpoint:])):
+            chunk_response = self.client.post(
+                f"/api/material-search/search/uploads/{query_upload_id}/chunks/{chunk_index}",
+                headers=self.headers,
+                files={"chunk": (f"{query_name}.part", chunk)},
+            )
+            self.assertEqual(chunk_response.status_code, 200, chunk_response.text)
+        chunked_search = self.client.post(
+            f"/api/material-search/search/uploads/{query_upload_id}/complete",
+            headers=self.headers,
+            json={"filename": query_name, "relative_path": query_name, "chunk_count": 2},
+        )
+        self.assertEqual(chunked_search.status_code, 200, chunked_search.text)
+        self.assertEqual(chunked_search.json()["results"][0]["folder_id"], folder_id)
 
         forbidden = self.client.delete(f"/api/material-search/folders/{folder_id}")
         self.assertEqual(forbidden.status_code, 401)

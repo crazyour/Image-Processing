@@ -93,7 +93,10 @@ class PrivateMaterialBlobStore:
             except OSError as exc:
                 raise StoreError("私有素材读取失败") from exc
         if self.local:
-            raise StoreError("当前未配置私有素材Blob，无法读取云端素材")
+            try:
+                return self._local_path(reference).read_bytes(), "application/octet-stream"
+            except OSError as exc:
+                raise StoreError("私有素材读取失败") from exc
         try:
             from vercel.blob import BlobClient
 
@@ -125,8 +128,8 @@ class PrivateMaterialBlobStore:
         if self.local:
             try:
                 for reference in references:
-                    if reference.startswith(LOCAL_PREFIX):
-                        self._local_path(reference[len(LOCAL_PREFIX):]).unlink(missing_ok=True)
+                    pathname = reference[len(LOCAL_PREFIX):] if reference.startswith(LOCAL_PREFIX) else reference
+                    self._local_path(pathname).unlink(missing_ok=True)
             except OSError as exc:
                 raise StoreError("私有素材删除失败") from exc
             return

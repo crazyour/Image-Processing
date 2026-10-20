@@ -4,6 +4,7 @@ const state = { libraryId: null, token: null, selectedFiles: [], queryFile: null
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
 const uploadChunkBytes = 2_500_000;
+let libraryLoadSequence = 0;
 
 function bytes(value) {
   if (value < 1024) return `${value} B`;
@@ -26,7 +27,11 @@ function headers(json = false) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { ...headers(options.json), ...(options.headers || {}) } });
+  const response = await fetch(path, {
+    cache: "no-store",
+    ...options,
+    headers: { ...headers(options.json), ...(options.headers || {}) },
+  });
   if (!response.ok) {
     let detail = `请求失败（${response.status}）`;
     try { detail = (await response.json()).detail || detail; } catch {}
@@ -172,6 +177,7 @@ async function uploadFolder() {
 }
 
 async function loadLibrary() {
+  const loadSequence = ++libraryLoadSequence;
   const list = $("#library-list");
   list.innerHTML = '<p class="empty-copy">正在读取素材库…</p>';
   const cloudList = $("#cloud-list");
@@ -183,8 +189,11 @@ async function loadLibrary() {
       api("/api/material-search/folders"),
       api("/api/material-search/trash"),
     ]);
-    state.folders = (await folderResponse.json()).folders;
-    state.trash = (await trashResponse.json()).folders;
+    const folders = (await folderResponse.json()).folders;
+    const trash = (await trashResponse.json()).folders;
+    if (loadSequence !== libraryLoadSequence) return;
+    state.folders = folders;
+    state.trash = trash;
     $("#active-count").textContent = state.folders.length;
     $("#trash-count").textContent = state.trash.length;
     if (!state.folders.length) {
@@ -199,6 +208,7 @@ async function loadLibrary() {
     renderTrashFolders();
     switchCloudView($("[data-cloud-view].active")?.dataset.cloudView || "active");
   } catch (error) {
+    if (loadSequence !== libraryLoadSequence) return;
     list.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
     cloudList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
     trashList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
@@ -210,6 +220,10 @@ function renderCloudFolders() {
   const totalFiles = state.folders.reduce((sum, folder) => sum + folder.assets.length, 0);
   const totalBytes = state.folders.reduce((sum, folder) => sum + folder.assets.reduce((folderSum, asset) => folderSum + asset.file_size, 0), 0);
   $("#cloud-summary").textContent = `共 ${state.folders.length} 个文件夹 · ${totalFiles} 个文件 · ${bytes(totalBytes)}`;
+  if (!state.folders.length) {
+    list.innerHTML = '<p class="empty-copy">云端还没有素材文件夹。请先在“素材库上传”中上传文件夹。</p>';
+    return;
+  }
   list.innerHTML = state.folders.map(folder => {
     const size = folder.assets.reduce((sum, asset) => sum + asset.file_size, 0);
     const date = new Date(folder.created_at * 1000).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });

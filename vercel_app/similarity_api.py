@@ -100,8 +100,8 @@ def _validate_upload_id(upload_id: str) -> str:
     return upload_id
 
 
-def _chunk_references(prefix: str, upload_id: str, chunk_count: int) -> list[str]:
-    return [f"{prefix}/staging/{upload_id}/{index:08d}.part" for index in range(chunk_count)]
+def _chunk_references(staging_prefix: str, upload_id: str, chunk_count: int) -> list[str]:
+    return [f"{staging_prefix}/{upload_id}/{index:08d}.part" for index in range(chunk_count)]
 
 
 def _read_chunks(store: PrivateMaterialBlobStore, references: list[str]) -> bytes:
@@ -343,8 +343,8 @@ def complete_asset_upload(
     _validate_upload_id(upload_id)
     if not get_folder(library_id, folder_id):
         raise HTTPException(status_code=404, detail="素材文件夹不存在")
-    prefix = f"material-search/{library_id}/{folder_id}"
-    references = _chunk_references(prefix, upload_id, request.chunk_count)
+    staging_prefix = f"material-search/{library_id}/{folder_id}/staging"
+    references = _chunk_references(staging_prefix, upload_id, request.chunk_count)
     store = PrivateMaterialBlobStore()
     try:
         raw = _read_chunks(store, references)
@@ -509,8 +509,8 @@ def complete_search_upload(
 ):
     library_id = _authorise(library_id, token)
     _validate_upload_id(upload_id)
-    prefix = f"material-search/{library_id}/query-staging"
-    references = _chunk_references(prefix, upload_id, request.chunk_count)
+    staging_prefix = f"material-search/{library_id}/query-staging"
+    references = _chunk_references(staging_prefix, upload_id, request.chunk_count)
     store = PrivateMaterialBlobStore()
     try:
         raw = _read_chunks(store, references)

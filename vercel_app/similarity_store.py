@@ -24,7 +24,11 @@ def _connection():
 
 
 def _ensure_schema(connection) -> None:
-    key = "postgres" if _postgres() else "sqlite"
+    if _postgres():
+        key = "postgres"
+    else:
+        database = connection.execute("PRAGMA database_list").fetchone()
+        key = f"sqlite:{database['file'] if database else id(connection)}"
     if key in _schema_ready:
         return
     with _schema_lock:
