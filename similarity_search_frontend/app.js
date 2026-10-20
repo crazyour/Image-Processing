@@ -1,10 +1,11 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
-const state = { libraryId: null, token: null, selectedFiles: [], queryFile: null, folders: [], trash: [], objectUrls: new Set(), activeFolder: null };
+const state = { libraryId: null, token: null, selectedFiles: [], queryFile: null, queryImage: null, querySelection: null, folders: [], trash: [], objectUrls: new Set(), activeFolder: null };
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
 const uploadChunkBytes = 2_500_000;
 let libraryLoadSequence = 0;
+let subjectDragStart = null;
 
 function bytes(value) {
   if (value < 1024) return `${value} B`;
@@ -108,6 +109,116 @@ function renderSelection() {
 
 function uploadId() {
   return crypto.randomUUID().replaceAll("-", "");
+}
+
+function subjectCanvasPoint(event) {
+  const canvas = $("#subject-canvas");
+  const bounds = canvas.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(canvas.width, (event.clientX - bounds.left) * canvas.width / bounds.width)),
+    y: Math.max(0, Math.min(canvas.height, (event.clientY - bounds.top) * canvas.height / bounds.height)),
+  };
+}
+
+function drawSubjectEditor(draftSelection = null) {
+  const canvas = $("#subject-canvas");
+  const context = canvas.getContext("2d");
+  const image = state.queryImage;
+  if (!image) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const selection = draftSelection || state.querySelection;
+  if (!selection) return;
+  const x = selection.x * canvas.width;
+  const y = selection.y * canvas.height;
+  const width = selection.width * canvas.width;
+  const height = selection.height * canvas.height;
+  context.fillStyle = "rgba(10, 22, 17, .62)";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  context.restore();
+  context.strokeStyle = "#d8e7a5";
+  context.lineWidth = Math.max(2, canvas.width / 300);
+  context.setLineDash([10, 6]);
+  context.strokeRect(x, y, width, height);
+  context.setLineDash([]);
+  const handleSize = Math.max(7, canvas.width / 90);
+  context.fillStyle = "#fff";
+  context.strokeStyle = "#244d3f";
+  for (const [handleX, handleY] of [[x, y], [x + width, y], [x, y + height], [x + width, y + height]]) {
+    context.fillRect(handleX - handleSize / 2, handleY - handleSize / 2, handleSize, handleSize);
+    context.strokeRect(handleX - handleSize / 2, handleY - handleSize / 2, handleSize, handleSize);
+  }
+}
+
+function updateSubjectStatus() {
+  const editor = $("#query-subject-editor");
+  const selection = state.querySelection;
+  editor.classList.toggle("has-selection", Boolean(selection));
+  if (!selection) {
+    $("#subject-status-title").textContent = "当前使用整张图片";
+    $("#subject-status-copy").textContent = "建议只框住要查找的产品或图案，尽量减少墙面、植物等背景。";
+    return;
+  }
+  const percent = Math.round(selection.width * selection.height * 100);
+  $("#subject-status-title").textContent = "已选择检索主体";
+  $("#subject-status-copy").textContent = `选区占原图约 ${percent}%。检索时只上传这个区域，你可以在图片上重新拖动调整。`;
+}
+
+async function setupSubjectEditor(file) {
+  const editor = $("#query-subject-editor");
+  state.querySelection = null;
+  state.queryImage = null;
+  if (!file || kindOf(file.name) !== "image") {
+    editor.hidden = true;
+    return;
+  }
+  const image = new Image();
+  const url = URL.createObjectURL(file);
+  state.objectUrls.add(url);
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = () => reject(new Error("无法读取查询图片"));
+    image.src = url;
+  });
+  if (state.queryFile !== file) return;
+  state.queryImage = image;
+  const scale = Math.min(1, 1000 / image.naturalWidth, 620 / image.naturalHeight);
+  const canvas = $("#subject-canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  editor.hidden = false;
+  updateSubjectStatus();
+  drawSubjectEditor();
+}
+
+function clearSubjectSelection() {
+  state.querySelection = null;
+  updateSubjectStatus();
+  drawSubjectEditor();
+}
+
+async function preparedQueryFile() {
+  const file = state.queryFile;
+  const image = state.queryImage;
+  const selection = state.querySelection;
+  if (!file || !image || !selection || kindOf(file.name) !== "image") return file;
+  const sourceX = Math.max(0, Math.round(selection.x * image.naturalWidth));
+  const sourceY = Math.max(0, Math.round(selection.y * image.naturalHeight));
+  const sourceWidth = Math.max(1, Math.min(image.naturalWidth - sourceX, Math.round(selection.width * image.naturalWidth)));
+  const sourceHeight = Math.max(1, Math.min(image.naturalHeight - sourceY, Math.round(selection.height * image.naturalHeight)));
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceWidth;
+  canvas.height = sourceHeight;
+  canvas.getContext("2d").drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("主体选区生成失败，请重新框选");
+  const baseName = file.name.replace(/\.[^.]+$/, "") || "query";
+  return new File([blob], `${baseName}-subject.png`, { type: "image/png", lastModified: Date.now() });
 }
 
 async function uploadFileInChunks(file, chunkPath, completePath, completePayload, onChunk) {
@@ -342,14 +453,15 @@ async function search() {
   if (!state.queryFile) return;
   const button = $("#search-button");
   button.disabled = true;
-  setMessage("#search-message", "正在生成查询特征并比较素材库…");
+  setMessage("#search-message", state.querySelection ? "正在裁剪主体并生成查询特征…" : "正在生成查询特征并比较素材库…");
   try {
+    const queryFile = await preparedQueryFile();
     const currentUploadId = uploadId();
     const response = await uploadFileInChunks(
-      state.queryFile,
+      queryFile,
       `/api/material-search/search/uploads/${currentUploadId}/chunks`,
       `/api/material-search/search/uploads/${currentUploadId}/complete`,
-      { relative_path: state.queryFile.name },
+      { relative_path: queryFile.name },
     );
     const result = await response.json();
     $("#search-output").hidden = false;
@@ -387,13 +499,74 @@ $("#upload-button").addEventListener("click", uploadFolder);
 $("#refresh-library").addEventListener("click", loadLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
 $$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
-$("#query-input").addEventListener("change", event => {
+$("#query-input").addEventListener("change", async event => {
   const file = event.target.files[0];
   state.queryFile = file || null;
+  state.queryImage = null;
+  state.querySelection = null;
   $("#query-label").textContent = file ? `${file.name} · ${bytes(file.size)}` : "选择图片、DXF或AI文件";
   $("#search-button").disabled = !file || !allowed.test(file.name);
-  setMessage("#search-message", file ? "查询文件已就绪。" : "");
+  if (!file) {
+    $("#query-subject-editor").hidden = true;
+    setMessage("#search-message", "");
+    return;
+  }
+  try {
+    await setupSubjectEditor(file);
+    setMessage("#search-message", kindOf(file.name) === "image" ? "图片已就绪。拖动框选主体可减少背景干扰。" : "查询文件已就绪。", "success");
+  } catch (error) {
+    if (state.queryFile !== file) return;
+    $("#search-button").disabled = true;
+    $("#query-subject-editor").hidden = true;
+    setMessage("#search-message", error.message, "error");
+  }
 });
+$("#subject-canvas").addEventListener("pointerdown", event => {
+  if (!state.queryImage) return;
+  subjectDragStart = subjectCanvasPoint(event);
+  event.currentTarget.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+$("#subject-canvas").addEventListener("pointermove", event => {
+  if (!subjectDragStart) return;
+  const canvas = event.currentTarget;
+  const point = subjectCanvasPoint(event);
+  const left = Math.min(subjectDragStart.x, point.x);
+  const top = Math.min(subjectDragStart.y, point.y);
+  drawSubjectEditor({
+    x: left / canvas.width,
+    y: top / canvas.height,
+    width: Math.abs(point.x - subjectDragStart.x) / canvas.width,
+    height: Math.abs(point.y - subjectDragStart.y) / canvas.height,
+  });
+});
+function finishSubjectDrag(event) {
+  if (!subjectDragStart) return;
+  const canvas = $("#subject-canvas");
+  const point = subjectCanvasPoint(event);
+  const width = Math.abs(point.x - subjectDragStart.x);
+  const height = Math.abs(point.y - subjectDragStart.y);
+  if (width >= 12 && height >= 12) {
+    state.querySelection = {
+      x: Math.min(subjectDragStart.x, point.x) / canvas.width,
+      y: Math.min(subjectDragStart.y, point.y) / canvas.height,
+      width: width / canvas.width,
+      height: height / canvas.height,
+    };
+  }
+  subjectDragStart = null;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  updateSubjectStatus();
+  drawSubjectEditor();
+}
+$("#subject-canvas").addEventListener("pointerup", finishSubjectDrag);
+$("#subject-canvas").addEventListener("pointercancel", event => {
+  subjectDragStart = null;
+  drawSubjectEditor();
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+});
+$("#use-full-image").addEventListener("click", clearSubjectSelection);
+$("#redraw-subject").addEventListener("click", clearSubjectSelection);
 $("#search-button").addEventListener("click", search);
 $("#dialog-close").addEventListener("click", () => $("#folder-dialog").close());
 $("#dialog-download").addEventListener("click", () => {

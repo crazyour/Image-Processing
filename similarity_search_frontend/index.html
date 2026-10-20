@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=4">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=5">
 </head>
 <body>
   <header class="topbar">
@@ -84,6 +84,26 @@
           <span>＋</span><strong id="query-label">选择图片、DXF或AI文件</strong>
           <small>大文件将自动分片上传</small>
         </label>
+        <section id="query-subject-editor" class="subject-editor" hidden aria-labelledby="subject-editor-title">
+          <div class="subject-editor-head">
+            <div>
+              <span class="step">02</span>
+              <div><h3 id="subject-editor-title">框选要查找的主体</h3><p>在图片上按住并拖动，选区外的背景不会参与检索。</p></div>
+            </div>
+            <button id="use-full-image" class="ghost" type="button">使用整张图片</button>
+          </div>
+          <div class="subject-workspace">
+            <div class="subject-canvas-wrap">
+              <canvas id="subject-canvas" role="img" aria-label="拖动框选查询图片中的主体"></canvas>
+              <span class="subject-drag-tip">拖动框选主体</span>
+            </div>
+            <aside class="subject-status">
+              <strong id="subject-status-title">当前使用整张图片</strong>
+              <p id="subject-status-copy">建议只框住要查找的产品或图案，尽量减少墙面、植物等背景。</p>
+              <button id="redraw-subject" class="ghost" type="button">清除选区并重新框选</button>
+            </aside>
+          </div>
+        </section>
         <button id="search-button" class="primary search-action" type="button" disabled>开始查找</button>
         <p id="search-message" class="message" role="status"></p>
       </article>
@@ -127,6 +147,6 @@
     </div>
   </dialog>
 
-  <script src="/similarity-search-static/app.js?v=6" defer></script>
+  <script src="/similarity-search-static/app.js?v=7" defer></script>
 </body>
 </html>
