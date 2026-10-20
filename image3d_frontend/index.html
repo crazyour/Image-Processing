@@ -16,7 +16,7 @@
       </div>
       <p class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
       <h1>图生 3D</h1>
-      <p class="hero-copy">上传多张同一个对象的参考图，先确认 AI 对主体的理解，再依次确认四视图、切片拼装图和 STL 模型。</p>
+      <p class="hero-copy">上传多张同一个对象的参考图，先确认 AI 对主体的理解，再确认四视图并生成 STL 模型。</p>
       <div class="view-source-intro" aria-label="四视图来源说明">
         <p><strong>站内 AI 自动生成</strong><span>约 ¥1/张，四视图约 ¥4/次</span></p>
         <p><strong>自行上传四视图</strong><span>可先用豆包等网页 AI 生成；本站不收图片生成费</span></p>
@@ -134,22 +134,8 @@
       </div>
     </section>
 
-    <section id="assembly-step" class="panel">
-      <div class="step-title"><span>04</span><div><h2>生成并确认切片拼装图</h2><p>根据已确认的四视图，生成平板切片、龙骨和槽口的拼装方案预览。</p></div><b id="assembly-state" class="step-state">等待四视图</b></div>
-      <div id="assembly-empty" class="assembly-empty">确认四视图后，才能生成切片拼装图。</div>
-      <img id="assembly-image" class="assembly-image hidden" alt="AI 生成的切片拼装图">
-      <label>切片拼装补充要求（可选）
-        <textarea id="assembly-prompt" rows="3" placeholder="例如：使用 3 mm 板材的概念槽口，尽量减少零件数量"></textarea>
-      </label>
-      <p class="engineering-note">这是 AI 生成的概念性工艺确认图，不包含可直接生产的精确尺寸。腾讯混元生成 STL 时仍使用已确认的四视图，不会把此图当作第五视图。</p>
-      <div class="actions">
-        <button id="generate-assembly" class="secondary" type="button">生成切片拼装图</button>
-        <button id="confirm-assembly" class="primary" type="button">确认切片拼装图</button>
-      </div>
-    </section>
-
     <section id="generate-step" class="panel">
-      <div class="step-title"><span>05</span><div><h2>生成 STL</h2><p>四视图和切片拼装图都确认后，再提交腾讯混元。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p>确认四视图后，即可提交腾讯混元生成模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <div class="options">
         <label>类型
           <select id="generate-type"><option value="Geometry" selected>仅几何白模</option><option value="Normal">完整模型与纹理</option></select>
@@ -180,7 +166,7 @@
       <button id="guide-close" type="button" aria-label="关闭使用说明">关闭 ×</button>
     </header>
     <div class="guide-content">
-      <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以上传 1–6 张同一个对象的参考图，先确认 AI 对图片的描述，再依次确认四视图、切片拼装图和 STL。也可以自行上传现成四视图。</p>
+      <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以上传 1–6 张同一个对象的参考图，先确认 AI 对图片的描述，再确认四视图并生成 STL。也可以自行上传现成四视图。</p>
       <section class="guide-source-choice">
         <strong>四视图有两种来源</strong>
         <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图，约 1 元/张，四视图约 4 元/次。</p>
@@ -195,8 +181,8 @@
           <li>点击左侧导航中的“图生 3D”。</li>
           <li>页面右侧会显示完整的图生 3D 工作区。</li>
         </ol>
-        <p>页面分为五个步骤：</p>
-        <ol><li>上传参考图或四视图</li><li>确认 AI 图片描述</li><li>生成并确认四视图</li><li>生成并确认切片拼装图</li><li>生成 STL</li></ol>
+        <p>页面分为四个步骤：</p>
+        <ol><li>上传参考图或四视图</li><li>确认 AI 图片描述</li><li>生成并确认四视图</li><li>生成 STL</li></ol>
       </details>
 
       <details>
@@ -241,13 +227,7 @@
       </details>
 
       <details>
-        <summary>五、切片拼装图</summary>
-        <p>确认四视图后，点击“生成切片拼装图”。可在补充要求中说明板材厚度、零件数量或排版偏好，不满意可重新生成。</p>
-        <p>该图是概念性工艺确认稿，不包含可直接生产的精确尺寸。腾讯混元仅接收规定角度的四视图，因此生成 STL 时不会把此图当作第五视图。</p>
-      </details>
-
-      <details>
-        <summary>六、生成 STL</summary>
+        <summary>五、生成 STL</summary>
         <h3>1. 选择生成类型</h3>
         <ul>
           <li><b>仅几何白模：</b>默认选项，适合只需要几何结构和 STL 文件的情况。</li>
@@ -266,7 +246,7 @@
       </details>
 
       <details>
-        <summary>七、预览和下载</summary>
+        <summary>六、预览和下载</summary>
         <p>生成成功后：</p>
         <ul>
           <li>页面显示“STL 已生成”。</li>
@@ -279,7 +259,7 @@
       </details>
 
       <details>
-        <summary>八、常见问题</summary>
+        <summary>七、常见问题</summary>
         <h3>一直显示“处理中”怎么办？</h3>
         <p>先观察右上角步骤状态：</p>
         <ul>
@@ -319,7 +299,7 @@
       </details>
 
       <details>
-        <summary>九、推荐的最简操作流程</summary>
+        <summary>八、推荐的最简操作流程</summary>
         <p>如果你只想快速得到 STL：</p>
         <ol>
           <li>上传同一产品的 1–6 张清晰参考图。</li>
@@ -327,7 +307,6 @@
           <li>检查并确认 AI 对图片的描述。</li>
           <li>点击“生成四视图”。</li>
           <li>检查正、左、右、背视图并点击“确认四个视角”。</li>
-          <li>生成、检查并确认切片拼装图。</li>
           <li>保持“仅几何白模”。</li>
           <li>点击“提交 STL 任务”。</li>
           <li>等待完成后预览并下载 STL。</li>

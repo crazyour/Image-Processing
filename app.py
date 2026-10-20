@@ -41,6 +41,7 @@ from vercel_app.connectivity import (
     create_repair_mask,
     remove_disconnected_islands,
 )
+from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.workflow import (
     AI_GENERATED_VIEWS,
     GENERATED_VIEWS,
@@ -48,7 +49,6 @@ from vercel_app.workflow import (
     VIEW_NAMES,
     WorkflowError,
     analyze_images,
-    assembly_plan_prompt,
     effective_prompt,
     fetch_bytes,
     generate_image,
@@ -65,6 +65,11 @@ ROOT = Path(__file__).resolve().parent
 ORIGINAL_FRONTEND = ROOT / "frontend_dist"
 IMAGE3D_FRONTEND = ROOT / "image3d_frontend"
 TEXT2IMAGE_FRONTEND = ROOT / "text2image_frontend"
+SIMILARITY_SEARCH_FRONTEND = ROOT / "similarity_search_frontend"
+WORKBENCH_TOOLS = {
+    "creative", "photo-craft", "products", "color-finish", "visual",
+    "svg", "dxf", "files", "delivery",
+}
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
@@ -81,7 +86,6 @@ ANIMAL_CUTOUT_STATES = {
 TRANSIENT_STATE_TIMEOUTS = {
     "ANALYZING_REFERENCES": 150,
     "GENERATING_VIEWS": 330,
-    "GENERATING_ASSEMBLY": 330,
     "SUBMITTING_3D": 150,
 }
 
@@ -92,6 +96,7 @@ CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
 CUTOUT_REPAIR_QUALITY = "high"
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
+app.include_router(similarity_search_router)
 
 
 class PromptUpdate(BaseModel):
@@ -104,10 +109,6 @@ class ViewGenerationRequest(BaseModel):
 
 class ViewRefinementRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
-
-
-class AssemblyPlanRequest(BaseModel):
-    prompt: str = Field(default="", max_length=4000)
 
 
 class Generate3DRequest(BaseModel):
@@ -290,6 +291,10 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
     state, version = load_session(session_id, _require_token(token))
     if state.get("status") not in VALID_STATES:
         raise WorkflowError("INVALID_SESSION", "会话状态无效", 500)
+    if state["status"] in {"GENERATING_ASSEMBLY", "ASSEMBLY_REVIEW", "ASSEMBLY_CONFIRMED"}:
+        state["status"] = "VIEWS_CONFIRMED"
+        state["last_error"] = None
+        version = _save(state, version)
     timeout = TRANSIENT_STATE_TIMEOUTS.get(state["status"])
     updated_at = int(state.get("updated_at") or state.get("created_at") or 0)
     if timeout and updated_at and int(time.time()) - updated_at > timeout:
@@ -308,14 +313,8 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
                 "code": "VIEW_GENERATION_TIMEOUT",
                 "message": "多视图生成等待超时，已解除锁定；已完成的视图会保留，可重试未完成视图。",
             }
-        elif previous_status == "GENERATING_ASSEMBLY":
-            state["status"] = "ASSEMBLY_REVIEW" if state.get("assembly_plan") else "VIEWS_CONFIRMED"
-            state["last_error"] = {
-                "code": "ASSEMBLY_GENERATION_TIMEOUT",
-                "message": "切片拼装图生成等待超时，已解除锁定，可重试。",
-            }
         else:
-            state["status"] = "ASSEMBLY_CONFIRMED"
+            state["status"] = "VIEWS_CONFIRMED"
             state["last_error"] = {
                 "code": "HUNYUAN_SUBMIT_TIMEOUT",
                 "message": "3D 任务提交结果未能确认，已解除锁定。重新提交前请先核对腾讯混元任务，避免重复计费。",
@@ -1818,88 +1817,13 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
     return _response(state)
 
 
-@app.post("/api/sessions/{session_id}/assembly-plan")
-def create_assembly_plan(session_id: str, data: AssemblyPlanRequest,
-                         x_session_token: str | None = Header(default=None)):
-    state, version = _load(session_id, x_session_token)
-    models = _session_model_settings(state)
-    if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW"}:
-        raise WorkflowError("VIEWS_NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
-    snapshot = state.get("confirmed_snapshot") or {}
-    if not all(view in snapshot.get("views", {}) for view in AI_GENERATED_VIEWS):
-        raise WorkflowError("VIEWS_NOT_CONFIRMED", "已确认的四视图不完整", 409)
-    previous_status = state["status"]
-    state["status"] = "GENERATING_ASSEMBLY"
-    state["last_error"] = None
-    version = _save(state, version)
-    try:
-        references = [
-            fetch_bytes(snapshot["views"][view]["url"], 20_000_000)
-            for view in AI_GENERATED_VIEWS
-        ]
-        generated, usage = generate_view(
-            references,
-            assembly_plan_prompt(snapshot.get("user_prompt") or state["user_prompt"], data.prompt),
-            models["image_model"],
-            models["image_quality"],
-            "1536x1024",
-        )
-        previous = state.get("assembly_plan") or {}
-        revision = int(previous.get("revision", 0)) + 1
-        url = PublicBlobStore().put(
-            f"image3d/{session_id}/assembly/plan-r{revision}.png",
-            generated,
-            "image/png",
-        )
-        state["assembly_plan"] = {
-            "url": url,
-            "sha256": hashlib.sha256(generated).hexdigest(),
-            "revision": revision,
-            "prompt": data.prompt.strip(),
-            "usage": usage,
-            "confirmed_at": None,
-        }
-        state["status"] = "ASSEMBLY_REVIEW"
-        state["hunyuan_task"] = None
-        state["last_error"] = None
-        _save(state, version)
-        return _response(state)
-    except Exception as exc:
-        state["status"] = "ASSEMBLY_REVIEW" if state.get("assembly_plan") else (
-            "VIEWS_CONFIRMED" if previous_status != "CONFIRMED" else "CONFIRMED"
-        )
-        state["last_error"] = {
-            "code": getattr(exc, "code", "ASSEMBLY_GENERATION_FAILED"),
-            "message": str(exc)[:500] or "切片拼装图生成失败",
-        }
-        _save(state, version)
-        if isinstance(exc, (WorkflowError, StoreError)):
-            raise
-        raise WorkflowError("ASSEMBLY_GENERATION_FAILED", "切片拼装图生成发生意外错误", 502) from exc
-
-
-@app.post("/api/sessions/{session_id}/assembly-plan/confirm")
-def confirm_assembly_plan(session_id: str, x_session_token: str | None = Header(default=None)):
-    state, version = _load(session_id, x_session_token)
-    plan = state.get("assembly_plan") or {}
-    if state["status"] != "ASSEMBLY_REVIEW" or not plan.get("url"):
-        raise WorkflowError("ASSEMBLY_NOT_READY", "请先生成并检查切片拼装图", 409)
-    plan["confirmed_at"] = int(time.time())
-    state["status"] = "ASSEMBLY_CONFIRMED"
-    state["last_error"] = None
-    _save(state, version)
-    return _response(state)
-
-
 @app.post("/api/sessions/{session_id}/generate")
 def generate_3d(session_id: str, data: Generate3DRequest,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
-    if (state["status"] not in {"ASSEMBLY_CONFIRMED", "FAILED"}
-            or not state.get("confirmed_snapshot")
-            or not (state.get("assembly_plan") or {}).get("confirmed_at")):
-        raise WorkflowError("NOT_CONFIRMED", "请先确认四视图和切片拼装图", 409)
+    if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
+        raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     options = data.model_dump()
@@ -1909,7 +1833,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
-        state["status"] = "ASSEMBLY_CONFIRMED"
+        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
             "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
@@ -1928,13 +1852,13 @@ def generate_3d(session_id: str, data: Generate3DRequest,
             models["hunyuan_model"],
         )
     except WorkflowError as exc:
-        state["status"] = "ASSEMBLY_CONFIRMED"
+        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {"code": exc.code, "message": exc.message}
         _save(state, version)
         raise
     task_id = str(created.get("id", ""))
     if not TASK_ID.fullmatch(task_id):
-        state["status"] = "ASSEMBLY_CONFIRMED"
+        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {
             "code": "HUNYUAN_INVALID_RESPONSE",
             "message": "腾讯混元没有返回任务编号，请检查错误信息后重试",
@@ -2041,6 +1965,24 @@ def text_to_image_page():
     )
 
 
+@app.get("/similarity-search", include_in_schema=False)
+def similarity_search_page():
+    return FileResponse(
+        SIMILARITY_SEARCH_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/tools/{tool_slug}", include_in_schema=False)
+def standalone_tool_page(tool_slug: str):
+    if tool_slug not in WORKBENCH_TOOLS:
+        raise HTTPException(status_code=404, detail="功能不存在")
+    return FileResponse(
+        ORIGINAL_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/local-blobs/{blob_path:path}", include_in_schema=False)
 def local_blob(blob_path: str):
     path = local_blob_path(f"/local-blobs/{blob_path}")
@@ -2052,7 +1994,7 @@ def local_blob(blob_path: str):
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse(
-        ORIGINAL_FRONTEND / "index.html",
+        ORIGINAL_FRONTEND / "home.html",
         headers={"Cache-Control": "no-store"},
     )
 
@@ -2061,3 +2003,8 @@ app.mount("/assets", StaticFiles(directory=ORIGINAL_FRONTEND / "assets"), name="
 app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), name="original-branding")
 app.mount("/static", StaticFiles(directory=IMAGE3D_FRONTEND), name="static")
 app.mount("/text-image-static", StaticFiles(directory=TEXT2IMAGE_FRONTEND), name="text-image-static")
+app.mount(
+    "/similarity-search-static",
+    StaticFiles(directory=SIMILARITY_SEARCH_FRONTEND),
+    name="similarity-search-static",
+)

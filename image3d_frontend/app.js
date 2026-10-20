@@ -228,7 +228,7 @@ function renderViews(views = {}) {
     }
     const refinement = !uploaded && state?.status === "VIEWS_REVIEW"
       ? `<div class="refine"><input id="refine-${view}" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div>` : "";
-    const replacement = uploaded && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW", "ASSEMBLY_CONFIRMED", "FAILED"].includes(state?.status)
+    const replacement = uploaded && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(state?.status)
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
     const titleNote = view === "front" ? (uploaded ? "<small>自行上传</small>" : "<small>AI 生成</small>") : "";
     return `<article class="view-card"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${refinement}${replacement}</article>`;
@@ -236,19 +236,6 @@ function renderViews(views = {}) {
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
   document.querySelectorAll("[data-replace-view]").forEach((input) => input.addEventListener("change", () => replaceUploadedView(input.dataset.replaceView, input)));
   document.querySelectorAll("[data-zoom]").forEach((image) => image.addEventListener("click", () => window.open(image.src, "_blank", "noopener")));
-}
-
-function renderAssembly(plan) {
-  const available = Boolean(plan?.url);
-  $("#assembly-empty").classList.toggle("hidden", available);
-  $("#assembly-image").classList.toggle("hidden", !available);
-  if (available) {
-    $("#assembly-image").src = plan.url;
-    $("#assembly-image").onclick = () => window.open(plan.url, "_blank", "noopener");
-  }
-  if (document.activeElement !== $("#assembly-prompt")) {
-    $("#assembly-prompt").value = plan?.prompt || "";
-  }
 }
 
 function syncControls() {
@@ -269,19 +256,9 @@ function syncControls() {
   if (!$("#confirm-views").dataset.busy) {
     $("#confirm-views").textContent = state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
   }
-  const canGenerateAssembly = Boolean(state?.confirmed_at) && ["VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW"].includes(status);
-  $("#generate-assembly").disabled = !canGenerateAssembly || actionInFlight;
-  $("#confirm-assembly").disabled = status !== "ASSEMBLY_REVIEW" || !state?.assembly_plan?.url || actionInFlight;
-  $("#assembly-prompt").disabled = !canGenerateAssembly || actionInFlight;
-  if (!$("#confirm-assembly").dataset.busy) {
-    $("#confirm-assembly").textContent = state?.assembly_plan?.confirmed_at ? "已确认 ✓" : "确认切片拼装图";
-  }
-  if (!$("#generate-assembly").dataset.busy) {
-    $("#generate-assembly").textContent = state?.assembly_plan?.url ? "按新要求重新生成" : "生成切片拼装图";
-  }
   const generateButton = $("#generate-3d");
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(status);
-  const canSubmit3d = ["ASSEMBLY_CONFIRMED", "FAILED"].includes(status) && Boolean(state?.assembly_plan?.confirmed_at);
+  const canSubmit3d = ["VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status) && Boolean(state?.confirmed_at);
   generateButton.disabled = !canSubmit3d || actionInFlight;
   generateButton.classList.toggle("pending", running);
   if (!generateButton.dataset.busy) {
@@ -302,16 +279,10 @@ function syncControls() {
   else if (state.confirmed_at) setStepState("#views-state", "已确认", true, false, true);
   else setStepState("#views-state", "等待确认", true, false);
 
-  if (!state || !state.confirmed_at) setStepState("#assembly-state", "等待四视图", false, false);
-  else if (status === "GENERATING_ASSEMBLY") setStepState("#assembly-state", "正在生成", true, false);
-  else if (state.assembly_plan?.confirmed_at) setStepState("#assembly-state", "已确认", false, false, true);
-  else if (state.assembly_plan?.url) setStepState("#assembly-state", "等待确认", true, false);
-  else setStepState("#assembly-state", "可以生成", true, false);
-
   if (status === "SUCCEEDED") setStepState("#generate-state", "已完成", true, false, true);
   else if (status === "FAILED") setStepState("#generate-state", "生成失败", false, true);
   else if (running) setStepState("#generate-state", "生成中", true, false);
-  else if (state?.assembly_plan?.confirmed_at) setStepState("#generate-state", "可以提交", true, false);
+  else if (state?.confirmed_at) setStepState("#generate-state", "可以提交", true, false);
   else setStepState("#generate-state", "等待确认", false, false);
 }
 
@@ -329,7 +300,6 @@ function render(next) {
   renderReferences(state?.reference_images || []);
   $("#prompt-editor").value = state?.user_prompt || "";
   renderViews(state?.views || {});
-  renderAssembly(state?.assembly_plan || null);
   syncControls();
   renderTask();
   renderError();
@@ -707,35 +677,7 @@ $("#confirm-views").addEventListener("click", async (event) => {
     setActionInFlight(true);
     setBusy(button, true);
     render(await api(`/api/sessions/${session.id}/confirm`, { method: "POST" }));
-    notify("正、左、右、背四个视角已确认");
-    $("#assembly-step").scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (error) { showError(error); await refresh(); }
-  finally { setBusy(button, false); setActionInFlight(false); }
-});
-
-$("#generate-assembly").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
-  try {
-    clearError();
-    setActionInFlight(true);
-    setBusy(button, true, "正在生成切片拼装图…");
-    render(await api(`/api/sessions/${session.id}/assembly-plan`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: $("#assembly-prompt").value.trim() }), timeout: 295_000,
-    }));
-    notify("切片拼装图已生成，请检查后确认");
-  } catch (error) { showError(error); await refresh(); }
-  finally { setBusy(button, false); setActionInFlight(false); }
-});
-
-$("#confirm-assembly").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
-  try {
-    clearError();
-    setActionInFlight(true);
-    setBusy(button, true, "正在确认…");
-    render(await api(`/api/sessions/${session.id}/assembly-plan/confirm`, { method: "POST" }));
-    notify("切片拼装图已确认，现在可以生成 STL");
+    notify("正、左、右、背四个视角已确认，现在可以生成 STL");
     $("#generate-step").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
