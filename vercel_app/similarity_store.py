@@ -48,6 +48,7 @@ def _ensure_schema(connection) -> None:
                 status TEXT NOT NULL,
                 error_message TEXT,
                 zip_url TEXT,
+                deleted_at DOUBLE PRECISION,
                 created_at DOUBLE PRECISION NOT NULL,
                 updated_at DOUBLE PRECISION NOT NULL,
                 FOREIGN KEY(library_id) REFERENCES material_libraries(id)
@@ -75,7 +76,14 @@ def _ensure_schema(connection) -> None:
             )
             """
         )
+        if _postgres():
+            connection.execute("ALTER TABLE material_folders ADD COLUMN IF NOT EXISTS deleted_at DOUBLE PRECISION")
+        else:
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(material_folders)").fetchall()}
+            if "deleted_at" not in columns:
+                connection.execute("ALTER TABLE material_folders ADD COLUMN deleted_at DOUBLE PRECISION")
         connection.execute("CREATE INDEX IF NOT EXISTS material_folder_library_idx ON material_folders(library_id)")
+        connection.execute("CREATE INDEX IF NOT EXISTS material_folder_deleted_idx ON material_folders(library_id, deleted_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS material_asset_folder_idx ON material_assets(folder_id)")
         connection.execute("CREATE INDEX IF NOT EXISTS material_asset_kind_idx ON material_assets(kind)")
         connection.commit()
@@ -154,12 +162,12 @@ def get_asset(library_id: str, asset_id: str) -> dict[str, Any] | None:
             """
             SELECT a.* FROM material_assets a
             JOIN material_folders f ON f.id = a.folder_id
-            WHERE a.id = %s AND f.library_id = %s
+            WHERE a.id = %s AND f.library_id = %s AND f.deleted_at IS NULL
             """,
             """
             SELECT a.* FROM material_assets a
             JOIN material_folders f ON f.id = a.folder_id
-            WHERE a.id = ? AND f.library_id = ?
+            WHERE a.id = ? AND f.library_id = ? AND f.deleted_at IS NULL
             """,
             (asset_id, library_id),
         ).fetchone()
@@ -179,18 +187,19 @@ def _folder_payload(folder: Any, assets: list[Any]) -> dict[str, Any]:
         "zip_url": folder["zip_url"],
         "created_at": float(folder["created_at"]),
         "updated_at": float(folder["updated_at"]),
+        "deleted_at": float(folder["deleted_at"]) if folder["deleted_at"] is not None else None,
         "previews": previews,
         "assets": asset_payloads,
     }
 
 
-def get_folder(library_id: str, folder_id: str) -> dict[str, Any] | None:
+def get_folder(library_id: str, folder_id: str, *, include_deleted: bool = False) -> dict[str, Any] | None:
     with _connection() as connection:
         _ensure_schema(connection)
-        folder = _execute(
-            connection,
-            "SELECT * FROM material_folders WHERE id = %s AND library_id = %s",
-            "SELECT * FROM material_folders WHERE id = ? AND library_id = ?",
+        deleted_filter = "" if include_deleted else " AND deleted_at IS NULL"
+        folder = connection.execute(
+            ("SELECT * FROM material_folders WHERE id = %s AND library_id = %s" if _postgres()
+             else "SELECT * FROM material_folders WHERE id = ? AND library_id = ?") + deleted_filter,
             (folder_id, library_id),
         ).fetchone()
         if not folder:
@@ -209,8 +218,8 @@ def list_folders(library_id: str) -> list[dict[str, Any]]:
         _ensure_schema(connection)
         folders = _execute(
             connection,
-            "SELECT * FROM material_folders WHERE library_id = %s ORDER BY created_at DESC",
-            "SELECT * FROM material_folders WHERE library_id = ? ORDER BY created_at DESC",
+            "SELECT * FROM material_folders WHERE library_id = %s AND deleted_at IS NULL ORDER BY created_at DESC",
+            "SELECT * FROM material_folders WHERE library_id = ? AND deleted_at IS NULL ORDER BY created_at DESC",
             (library_id,),
         ).fetchall()
         result = []
@@ -225,13 +234,65 @@ def list_folders(library_id: str) -> list[dict[str, Any]]:
     return result
 
 
-def delete_folder(library_id: str, folder_id: str) -> bool:
+def list_deleted_folders(library_id: str) -> list[dict[str, Any]]:
+    with _connection() as connection:
+        _ensure_schema(connection)
+        folders = _execute(
+            connection,
+            "SELECT * FROM material_folders WHERE library_id = %s AND deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+            "SELECT * FROM material_folders WHERE library_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+            (library_id,),
+        ).fetchall()
+        result = []
+        for folder in folders:
+            assets = _execute(
+                connection,
+                "SELECT * FROM material_assets WHERE folder_id = %s ORDER BY kind, is_primary DESC, original_name",
+                "SELECT * FROM material_assets WHERE folder_id = ? ORDER BY kind, is_primary DESC, original_name",
+                (folder["id"],),
+            ).fetchall()
+            result.append(_folder_payload(folder, list(assets)))
+    return result
+
+
+def move_folder_to_trash(library_id: str, folder_id: str) -> bool:
+    now = time.time()
+    with _connection() as connection:
+        _ensure_schema(connection)
+        cursor = _execute(
+            connection,
+            "UPDATE material_folders SET deleted_at = %s, updated_at = %s WHERE id = %s AND library_id = %s AND deleted_at IS NULL",
+            "UPDATE material_folders SET deleted_at = ?, updated_at = ? WHERE id = ? AND library_id = ? AND deleted_at IS NULL",
+            (now, now, folder_id, library_id),
+        )
+        connection.commit()
+    return cursor.rowcount > 0
+
+
+def restore_folder(library_id: str, folder_id: str) -> bool:
+    with _connection() as connection:
+        _ensure_schema(connection)
+        cursor = _execute(
+            connection,
+            "UPDATE material_folders SET deleted_at = NULL, updated_at = %s WHERE id = %s AND library_id = %s AND deleted_at IS NOT NULL",
+            "UPDATE material_folders SET deleted_at = NULL, updated_at = ? WHERE id = ? AND library_id = ? AND deleted_at IS NOT NULL",
+            (time.time(), folder_id, library_id),
+        )
+        connection.commit()
+    return cursor.rowcount > 0
+
+
+def expired_deleted_folders(library_id: str, cutoff: float) -> list[dict[str, Any]]:
+    return [folder for folder in list_deleted_folders(library_id) if folder["deleted_at"] <= cutoff]
+
+
+def permanently_delete_folder(library_id: str, folder_id: str) -> bool:
     with _connection() as connection:
         _ensure_schema(connection)
         folder = _execute(
             connection,
-            "SELECT id FROM material_folders WHERE id = %s AND library_id = %s",
-            "SELECT id FROM material_folders WHERE id = ? AND library_id = ?",
+            "SELECT id FROM material_folders WHERE id = %s AND library_id = %s AND deleted_at IS NOT NULL",
+            "SELECT id FROM material_folders WHERE id = ? AND library_id = ? AND deleted_at IS NOT NULL",
             (folder_id, library_id),
         ).fetchone()
         if not folder:
@@ -347,13 +408,13 @@ def searchable_assets(library_id: str, kind: str) -> list[dict[str, Any]]:
             SELECT a.*, f.name AS folder_name
             FROM material_assets a
             JOIN material_folders f ON f.id = a.folder_id
-            WHERE f.library_id = %s AND f.status = 'READY' AND a.kind = %s
+            WHERE f.library_id = %s AND f.status = 'READY' AND f.deleted_at IS NULL AND a.kind = %s
             """,
             """
             SELECT a.*, f.name AS folder_name
             FROM material_assets a
             JOIN material_folders f ON f.id = a.folder_id
-            WHERE f.library_id = ? AND f.status = 'READY' AND a.kind = ?
+            WHERE f.library_id = ? AND f.status = 'READY' AND f.deleted_at IS NULL AND a.kind = ?
             """,
             (library_id, kind),
         ).fetchall()

@@ -53,6 +53,10 @@ PNG/JPG/WebP 图片、一个 ASCII DXF 和一个启用了“创建 PDF 兼容文
 云端原文件、预览和 ZIP 必须放在独立的 **Private Vercel Blob** 中。所有读取均经过素材库令牌校验，
 不会把 Blob 地址直接发送给浏览器。本地开发时则写入 `var/material-private/`。
 
+云端文件夹删除后先进入回收站，并立即从普通列表、下载和相似检索中隐藏。30 天内可以恢复，也可以
+手动永久删除；打开素材列表或回收站时会自动清理所有超过 30 天的项目。回收站保留期间原文件、预览
+和 ZIP 仍保存在 Blob 中并占用存储容量，只有永久删除后才会释放对应存储。
+
 ## 文生图流程
 
 左侧“文生图”入口打开独立云端工作区。用户填写一组统一提示词，选择生成 1–5 张候选图，并设置图片模型、质量与尺寸。系统按队列逐张调用图片生成接口，每张完成后立即转存到 Vercel Blob；任务状态、提示词、用量和文件地址保存在 PostgreSQL。单张失败不会清除已成功结果，可在对应卡片上单独重试。浏览器只在当前标签页保存任务 ID 和访问令牌，刷新后可以继续当前任务；本机存储模式还可从“作品记录”重新打开。
@@ -156,6 +160,9 @@ POST  /api/material-search/folders/{id}/finalize
 GET   /api/material-search/folders
 GET   /api/material-search/folders/{id}
 DELETE /api/material-search/folders/{id}
+GET   /api/material-search/trash
+POST  /api/material-search/trash/{id}/restore
+DELETE /api/material-search/trash/{id}
 GET   /api/material-search/folders/{id}/download
 GET   /api/material-search/assets/{id}/preview
 GET   /api/material-search/assets/{id}/download

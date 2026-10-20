@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import re
+import time
 import uuid
 import zipfile
 from pathlib import PurePosixPath
@@ -19,11 +20,15 @@ from .similarity_engine import SimilarityFileError, cosine_similarity, file_kind
 from .similarity_store import (
     create_folder,
     create_library,
-    delete_folder,
+    expired_deleted_folders,
     get_asset,
     get_folder,
+    list_deleted_folders,
     list_folders,
+    move_folder_to_trash,
+    permanently_delete_folder,
     require_library,
+    restore_folder,
     save_asset,
     searchable_assets,
     set_folder_result,
@@ -34,6 +39,7 @@ from .store import StoreError
 router = APIRouter(prefix="/api/material-search", tags=["material-search"])
 MAX_FILE_BYTES = 4_000_000
 MAX_ARCHIVE_BYTES = 24_000_000
+TRASH_RETENTION_SECONDS = 30 * 24 * 60 * 60
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+")
 
 
@@ -98,6 +104,32 @@ def _stream_bytes(raw: bytes, chunk_size: int = 256 * 1024):
         yield raw[offset:offset + chunk_size]
 
 
+def _blob_references(folder: dict) -> list[str]:
+    references = [folder.get("zip_url")]
+    for asset in folder["assets"]:
+        references.extend((asset["_blob_ref"], asset["_preview_ref"]))
+    return [reference for reference in references if reference]
+
+
+def _permanently_delete(library_id: str, folder: dict) -> None:
+    try:
+        PrivateMaterialBlobStore().delete(_blob_references(folder))
+    except StoreError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if not permanently_delete_folder(library_id, folder["id"]):
+        raise HTTPException(status_code=404, detail="回收站中的素材文件夹不存在")
+
+
+def _purge_expired_trash(library_id: str) -> None:
+    cutoff = time.time() - TRASH_RETENTION_SECONDS
+    for folder in expired_deleted_folders(library_id, cutoff):
+        try:
+            PrivateMaterialBlobStore().delete(_blob_references(folder))
+            permanently_delete_folder(library_id, folder["id"])
+        except StoreError:
+            continue
+
+
 @router.post("/libraries")
 def new_library():
     return create_library()
@@ -119,7 +151,23 @@ def folders(
     token: str | None = Header(default=None, alias="X-Material-Token"),
 ):
     library_id = _authorise(library_id, token)
+    _purge_expired_trash(library_id)
     return {"folders": [_public_folder(folder) for folder in list_folders(library_id)]}
+
+
+@router.get("/trash")
+def trash(
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    _purge_expired_trash(library_id)
+    folders = []
+    for folder in list_deleted_folders(library_id):
+        public = _public_folder(folder)
+        public["expires_at"] = folder["deleted_at"] + TRASH_RETENTION_SECONDS
+        folders.append(public)
+    return {"folders": folders, "retention_days": 30}
 
 
 @router.get("/folders/{folder_id}")
@@ -142,18 +190,36 @@ def remove_folder(
     token: str | None = Header(default=None, alias="X-Material-Token"),
 ):
     library_id = _authorise(library_id, token)
+    if not move_folder_to_trash(library_id, folder_id):
+        raise HTTPException(status_code=404, detail="素材文件夹不存在")
+    return Response(status_code=204)
+
+
+@router.post("/trash/{folder_id}/restore")
+def restore_trashed_folder(
+    folder_id: str,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    _purge_expired_trash(library_id)
+    if not restore_folder(library_id, folder_id):
+        raise HTTPException(status_code=404, detail="回收站中的素材文件夹不存在")
     folder = get_folder(library_id, folder_id)
-    if not folder:
-        raise HTTPException(status_code=404, detail="素材文件夹不存在")
-    references = [folder.get("zip_url")]
-    for asset in folder["assets"]:
-        references.extend((asset["_blob_ref"], asset["_preview_ref"]))
-    try:
-        PrivateMaterialBlobStore().delete([reference for reference in references if reference])
-    except StoreError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    if not delete_folder(library_id, folder_id):
-        raise HTTPException(status_code=404, detail="素材文件夹不存在")
+    return _public_folder(folder) if folder else None
+
+
+@router.delete("/trash/{folder_id}", status_code=204)
+def permanently_remove_folder(
+    folder_id: str,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    folder = get_folder(library_id, folder_id, include_deleted=True)
+    if not folder or folder["deleted_at"] is None:
+        raise HTTPException(status_code=404, detail="回收站中的素材文件夹不存在")
+    _permanently_delete(library_id, folder)
     return Response(status_code=204)
 
 

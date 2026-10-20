@@ -1,6 +1,6 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
-const state = { libraryId: null, token: null, selectedFiles: [], queryFile: null, folders: [], objectUrls: new Set(), activeFolder: null };
+const state = { libraryId: null, token: null, selectedFiles: [], queryFile: null, folders: [], trash: [], objectUrls: new Set(), activeFolder: null };
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
 
@@ -148,22 +148,32 @@ async function loadLibrary() {
   list.innerHTML = '<p class="empty-copy">正在读取素材库…</p>';
   const cloudList = $("#cloud-list");
   cloudList.innerHTML = '<p class="empty-copy">正在读取云端素材…</p>';
+  const trashList = $("#trash-list");
+  trashList.innerHTML = '<p class="empty-copy">正在读取回收站…</p>';
   try {
-    const response = await api("/api/material-search/folders");
-    state.folders = (await response.json()).folders;
+    const [folderResponse, trashResponse] = await Promise.all([
+      api("/api/material-search/folders"),
+      api("/api/material-search/trash"),
+    ]);
+    state.folders = (await folderResponse.json()).folders;
+    state.trash = (await trashResponse.json()).folders;
+    $("#active-count").textContent = state.folders.length;
+    $("#trash-count").textContent = state.trash.length;
     if (!state.folders.length) {
       list.innerHTML = '<p class="empty-copy">还没有素材。请先上传一个包含三类文件的文件夹。</p>';
       cloudList.innerHTML = '<p class="empty-copy">云端还没有素材文件夹。</p>';
-      $("#cloud-summary").textContent = "共 0 个文件夹";
-      return;
+    } else {
+      list.innerHTML = state.folders.map(folder => `<article class="library-item"><div class="thumb-stack">${Object.values(folder.previews).slice(0, 3).map(url => `<img data-protected-src="${url}" alt="">`).join("") || '<span class="thumb-placeholder">等待</span>'}</div><div class="library-info"><strong>${safeText(folder.name)}</strong><span>${folder.assets.length} 个文件</span><span class="status ${folder.status === "FAILED" ? "failed" : ""}">${folder.status === "READY" ? "可检索" : folder.status === "FAILED" ? "处理失败" : "处理中"}</span></div><button type="button" data-folder="${folder.id}">查看</button></article>`).join("");
+      list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
+      list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder)));
     }
-    list.innerHTML = state.folders.map(folder => `<article class="library-item"><div class="thumb-stack">${Object.values(folder.previews).slice(0, 3).map(url => `<img data-protected-src="${url}" alt="">`).join("") || '<span class="thumb-placeholder">等待</span>'}</div><div class="library-info"><strong>${safeText(folder.name)}</strong><span>${folder.assets.length} 个文件</span><span class="status ${folder.status === "FAILED" ? "failed" : ""}">${folder.status === "READY" ? "可检索" : folder.status === "FAILED" ? "处理失败" : "处理中"}</span></div><button type="button" data-folder="${folder.id}">查看</button></article>`).join("");
-    list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
-    list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder)));
     renderCloudFolders();
+    renderTrashFolders();
+    switchCloudView($("[data-cloud-view].active")?.dataset.cloudView || "active");
   } catch (error) {
     list.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
     cloudList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
+    trashList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
   }
 }
 
@@ -188,18 +198,77 @@ function renderCloudFolders() {
 async function deleteCloudFolder(button) {
   const folderId = button.dataset.deleteFolder;
   const name = button.dataset.folderName;
-  if (!window.confirm(`确定永久删除“${name}”吗？\n\n原文件、预览、ZIP 和检索索引都会被删除，且无法恢复。`)) return;
+  if (!window.confirm(`确定将“${name}”移入回收站吗？\n\n回收站保留 30 天，期间可以恢复。`)) return;
   button.disabled = true;
   setMessage("#cloud-message", `正在删除“${name}”…`);
   try {
     await api(`/api/material-search/folders/${folderId}`, { method: "DELETE" });
     if (state.activeFolder?.id === folderId) $("#folder-dialog").close();
     clearObjectUrls();
-    setMessage("#cloud-message", `“${name}”已从云端永久删除。`, "success");
+    setMessage("#cloud-message", `“${name}”已移入回收站，将保留 30 天。`, "success");
     await loadLibrary();
   } catch (error) {
     setMessage("#cloud-message", error.message, "error");
     button.disabled = false;
+  }
+}
+
+function renderTrashFolders() {
+  const list = $("#trash-list");
+  if (!state.trash.length) {
+    list.innerHTML = '<p class="empty-copy">回收站为空。</p>';
+    return;
+  }
+  list.innerHTML = state.trash.map(folder => {
+    const size = folder.assets.reduce((sum, asset) => sum + asset.file_size, 0);
+    const remainingMs = Math.max(0, folder.expires_at * 1000 - Date.now());
+    const remainingDays = Math.max(1, Math.ceil(remainingMs / 86400000));
+    return `<article class="cloud-item trash-item"><div class="trash-icon">♻</div><div class="cloud-info"><strong>${safeText(folder.name)}</strong><span>${folder.assets.length} 个文件 · ${bytes(size)}</span><span class="trash-expiry">${remainingDays} 天后自动永久删除</span></div><div class="cloud-actions"><button type="button" data-restore-folder="${folder.id}" data-folder-name="${safeText(folder.name)}">恢复</button><button class="danger" type="button" data-purge-folder="${folder.id}" data-folder-name="${safeText(folder.name)}">永久删除</button></div></article>`;
+  }).join("");
+  list.querySelectorAll("button[data-restore-folder]").forEach(button => button.addEventListener("click", () => restoreCloudFolder(button)));
+  list.querySelectorAll("button[data-purge-folder]").forEach(button => button.addEventListener("click", () => permanentlyDeleteCloudFolder(button)));
+}
+
+async function restoreCloudFolder(button) {
+  const folderId = button.dataset.restoreFolder;
+  const name = button.dataset.folderName;
+  button.disabled = true;
+  try {
+    await api(`/api/material-search/trash/${folderId}/restore`, { method: "POST" });
+    setMessage("#cloud-message", `“${name}”已恢复，可以重新检索。`, "success");
+    await loadLibrary();
+  } catch (error) {
+    setMessage("#cloud-message", error.message, "error");
+    button.disabled = false;
+  }
+}
+
+async function permanentlyDeleteCloudFolder(button) {
+  const folderId = button.dataset.purgeFolder;
+  const name = button.dataset.folderName;
+  if (!window.confirm(`确定永久删除“${name}”吗？\n\n云端原文件、预览、ZIP 和检索索引都会立即删除，无法恢复。`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/material-search/trash/${folderId}`, { method: "DELETE" });
+    clearObjectUrls();
+    setMessage("#cloud-message", `“${name}”已永久删除。`, "success");
+    await loadLibrary();
+  } catch (error) {
+    setMessage("#cloud-message", error.message, "error");
+    button.disabled = false;
+  }
+}
+
+function switchCloudView(view) {
+  $$('[data-cloud-view]').forEach(button => button.classList.toggle("active", button.dataset.cloudView === view));
+  $("#cloud-list").hidden = view !== "active";
+  $("#trash-list").hidden = view !== "trash";
+  if (view === "active") {
+    const totalFiles = state.folders.reduce((sum, folder) => sum + folder.assets.length, 0);
+    const totalBytes = state.folders.reduce((sum, folder) => sum + folder.assets.reduce((folderSum, asset) => folderSum + asset.file_size, 0), 0);
+    $("#cloud-summary").textContent = `共 ${state.folders.length} 个文件夹 · ${totalFiles} 个文件 · ${bytes(totalBytes)}`;
+  } else {
+    $("#cloud-summary").textContent = `回收站共 ${state.trash.length} 个文件夹 · 最长保留 30 天`;
   }
 }
 
@@ -271,6 +340,7 @@ $("#folder-name").addEventListener("input", renderSelection);
 $("#upload-button").addEventListener("click", uploadFolder);
 $("#refresh-library").addEventListener("click", loadLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
+$$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
 $("#query-input").addEventListener("change", event => {
   const file = event.target.files[0];
   state.queryFile = file || null;

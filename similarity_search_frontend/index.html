@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=3">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -103,12 +103,17 @@
           <div>
             <p class="eyebrow">PRIVATE CLOUD LIBRARY</p>
             <h2>云端文件夹</h2>
-            <p>查看当前私有素材库中保存的全部文件夹。删除后原文件、预览、ZIP 和检索索引均无法恢复。</p>
+            <p>查看当前私有素材库中保存的全部文件夹。删除后先进入回收站，保留 30 天后自动永久清理。</p>
           </div>
           <button id="refresh-cloud" class="ghost" type="button">刷新云端列表</button>
         </header>
+        <div class="cloud-view-tabs" aria-label="云端文件夹视图">
+          <button class="active" type="button" data-cloud-view="active">全部文件夹 <span id="active-count">0</span></button>
+          <button type="button" data-cloud-view="trash">回收站 <span id="trash-count">0</span></button>
+        </div>
         <p id="cloud-summary" class="cloud-summary"></p>
         <div id="cloud-list" class="cloud-list"><p class="empty-copy">正在读取云端素材…</p></div>
+        <div id="trash-list" class="cloud-list" hidden><p class="empty-copy">正在读取回收站…</p></div>
         <p id="cloud-message" class="message" role="status"></p>
       </article>
     </section>
@@ -122,6 +127,6 @@
     </div>
   </dialog>
 
-  <script src="/similarity-search-static/app.js?v=3" defer></script>
+  <script src="/similarity-search-static/app.js?v=4" defer></script>
 </body>
 </html>

@@ -128,6 +128,43 @@ EOF
             self.client.get(f"/api/material-search/folders/{folder_id}", headers=self.headers).status_code,
             404,
         )
+        trash = self.client.get("/api/material-search/trash", headers=self.headers)
+        self.assertEqual(trash.status_code, 200, trash.text)
+        self.assertEqual(trash.json()["folders"][0]["id"], folder_id)
+        self.assertEqual(trash.json()["retention_days"], 30)
+
+        hidden_search = self.client.post(
+            "/api/material-search/search",
+            headers=self.headers,
+            files={"file": ("preview.png", self.fixtures()["preview.png"])},
+        )
+        self.assertEqual(hidden_search.status_code, 200, hidden_search.text)
+        self.assertEqual(hidden_search.json()["results"], [])
+
+        restored = self.client.post(
+            f"/api/material-search/trash/{folder_id}/restore", headers=self.headers
+        )
+        self.assertEqual(restored.status_code, 200, restored.text)
+        self.assertEqual(restored.json()["id"], folder_id)
+        self.assertEqual(
+            self.client.get("/api/material-search/trash", headers=self.headers).json()["folders"], []
+        )
+
+        self.assertEqual(
+            self.client.delete(f"/api/material-search/folders/{folder_id}", headers=self.headers).status_code,
+            204,
+        )
+        permanently_deleted = self.client.delete(
+            f"/api/material-search/trash/{folder_id}", headers=self.headers
+        )
+        self.assertEqual(permanently_deleted.status_code, 204, permanently_deleted.text)
+        self.assertEqual(
+            self.client.get("/api/material-search/trash", headers=self.headers).json()["folders"], []
+        )
+        self.assertEqual(
+            self.client.post(f"/api/material-search/trash/{folder_id}/restore", headers=self.headers).status_code,
+            404,
+        )
 
 
 if __name__ == "__main__":
