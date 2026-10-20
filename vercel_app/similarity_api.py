@@ -12,13 +12,14 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .material_blob import PrivateMaterialBlobStore
 from .similarity_engine import SimilarityFileError, cosine_similarity, file_kind, process_file
 from .similarity_store import (
     create_folder,
     create_library,
+    delete_folder,
     get_asset,
     get_folder,
     list_folders,
@@ -38,6 +39,14 @@ SAFE_NAME = re.compile(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+")
 
 class FolderCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        name = value.strip()
+        if not name:
+            raise ValueError("文件夹名称为必填项")
+        return name
 
 
 def _authorise(library_id: str | None, token: str | None) -> str:
@@ -101,7 +110,7 @@ def new_folder(
     token: str | None = Header(default=None, alias="X-Material-Token"),
 ):
     library_id = _authorise(library_id, token)
-    return create_folder(library_id, request.name.strip())
+    return create_folder(library_id, request.name)
 
 
 @router.get("/folders")
@@ -124,6 +133,28 @@ def folder_detail(
     if not folder:
         raise HTTPException(status_code=404, detail="素材文件夹不存在")
     return _public_folder(folder)
+
+
+@router.delete("/folders/{folder_id}", status_code=204)
+def remove_folder(
+    folder_id: str,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    folder = get_folder(library_id, folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="素材文件夹不存在")
+    references = [folder.get("zip_url")]
+    for asset in folder["assets"]:
+        references.extend((asset["_blob_ref"], asset["_preview_ref"]))
+    try:
+        PrivateMaterialBlobStore().delete([reference for reference in references if reference])
+    except StoreError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if not delete_folder(library_id, folder_id):
+        raise HTTPException(status_code=404, detail="素材文件夹不存在")
+    return Response(status_code=204)
 
 
 @router.post("/folders/{folder_id}/assets")

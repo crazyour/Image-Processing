@@ -155,6 +155,7 @@ POST  /api/material-search/folders/{id}/assets
 POST  /api/material-search/folders/{id}/finalize
 GET   /api/material-search/folders
 GET   /api/material-search/folders/{id}
+DELETE /api/material-search/folders/{id}
 GET   /api/material-search/folders/{id}/download
 GET   /api/material-search/assets/{id}/preview
 GET   /api/material-search/assets/{id}/download

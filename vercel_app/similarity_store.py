@@ -225,6 +225,33 @@ def list_folders(library_id: str) -> list[dict[str, Any]]:
     return result
 
 
+def delete_folder(library_id: str, folder_id: str) -> bool:
+    with _connection() as connection:
+        _ensure_schema(connection)
+        folder = _execute(
+            connection,
+            "SELECT id FROM material_folders WHERE id = %s AND library_id = %s",
+            "SELECT id FROM material_folders WHERE id = ? AND library_id = ?",
+            (folder_id, library_id),
+        ).fetchone()
+        if not folder:
+            return False
+        _execute(
+            connection,
+            "DELETE FROM material_assets WHERE folder_id = %s",
+            "DELETE FROM material_assets WHERE folder_id = ?",
+            (folder_id,),
+        )
+        _execute(
+            connection,
+            "DELETE FROM material_folders WHERE id = %s AND library_id = %s",
+            "DELETE FROM material_folders WHERE id = ? AND library_id = ?",
+            (folder_id, library_id),
+        )
+        connection.commit()
+    return True
+
+
 def save_asset(
     folder_id: str,
     *,

@@ -83,6 +83,7 @@ function folderName(files) {
 
 function renderSelection() {
   const selection = $("#selection");
+  const name = $("#folder-name").value.trim();
   if (!state.selectedFiles.length) {
     selection.className = "selection empty";
     selection.innerHTML = "<p>尚未选择文件夹</p>";
@@ -94,18 +95,25 @@ function renderSelection() {
   const complete = ["image", "dxf", "illustrator"].every(kind => kinds.has(kind));
   selection.className = "selection";
   selection.innerHTML = `<div class="selected-title"><span>${safeText(folderName(state.selectedFiles))}</span><small>${state.selectedFiles.length} 个有效文件</small></div><ul class="selected-files">${state.selectedFiles.map(file => `<li><span class="type-pill">${labels[kindOf(file.name)]}</span><span>${safeText(file.webkitRelativePath || file.name)}</span><small>${bytes(file.size)}</small></li>`).join("")}</ul>`;
-  $("#upload-button").disabled = !complete || tooLarge;
-  if (!complete) setMessage("#upload-message", "需要同时包含图片、DXF和Illustrator AI文件。", "error");
+  $("#upload-button").disabled = !name || !complete || tooLarge;
+  if (!name) setMessage("#upload-message", "文件夹名称为必填项。", "error");
+  else if (!complete) setMessage("#upload-message", "需要同时包含图片、DXF和Illustrator AI文件。", "error");
   else if (tooLarge) setMessage("#upload-message", "存在超过4 MB的文件，第一版暂时不能上传。", "error");
   else setMessage("#upload-message", "文件检查通过，可以开始上传。", "success");
 }
 
 async function uploadFolder() {
   const button = $("#upload-button");
+  const name = $("#folder-name").value.trim();
+  if (!name) {
+    renderSelection();
+    $("#folder-name").focus();
+    return;
+  }
   button.disabled = true;
   $("#upload-progress").hidden = false;
   try {
-    const response = await api("/api/material-search/folders", { method: "POST", json: true, body: JSON.stringify({ name: folderName(state.selectedFiles) }) });
+    const response = await api("/api/material-search/folders", { method: "POST", json: true, body: JSON.stringify({ name }) });
     const folder = await response.json();
     for (let index = 0; index < state.selectedFiles.length; index += 1) {
       const file = state.selectedFiles[index];
@@ -126,6 +134,7 @@ async function uploadFolder() {
     setMessage("#upload-message", "上传完成，三类文件已经可以检索。", "success");
     state.selectedFiles = [];
     $("#folder-input").value = "";
+    $("#folder-name").value = "";
     renderSelection();
     await loadLibrary();
   } catch (error) {
@@ -137,18 +146,60 @@ async function uploadFolder() {
 async function loadLibrary() {
   const list = $("#library-list");
   list.innerHTML = '<p class="empty-copy">正在读取素材库…</p>';
+  const cloudList = $("#cloud-list");
+  cloudList.innerHTML = '<p class="empty-copy">正在读取云端素材…</p>';
   try {
     const response = await api("/api/material-search/folders");
     state.folders = (await response.json()).folders;
     if (!state.folders.length) {
       list.innerHTML = '<p class="empty-copy">还没有素材。请先上传一个包含三类文件的文件夹。</p>';
+      cloudList.innerHTML = '<p class="empty-copy">云端还没有素材文件夹。</p>';
+      $("#cloud-summary").textContent = "共 0 个文件夹";
       return;
     }
     list.innerHTML = state.folders.map(folder => `<article class="library-item"><div class="thumb-stack">${Object.values(folder.previews).slice(0, 3).map(url => `<img data-protected-src="${url}" alt="">`).join("") || '<span class="thumb-placeholder">等待</span>'}</div><div class="library-info"><strong>${safeText(folder.name)}</strong><span>${folder.assets.length} 个文件</span><span class="status ${folder.status === "FAILED" ? "failed" : ""}">${folder.status === "READY" ? "可检索" : folder.status === "FAILED" ? "处理失败" : "处理中"}</span></div><button type="button" data-folder="${folder.id}">查看</button></article>`).join("");
     list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
     list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder)));
+    renderCloudFolders();
   } catch (error) {
     list.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
+    cloudList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
+  }
+}
+
+function renderCloudFolders() {
+  const list = $("#cloud-list");
+  const totalFiles = state.folders.reduce((sum, folder) => sum + folder.assets.length, 0);
+  const totalBytes = state.folders.reduce((sum, folder) => sum + folder.assets.reduce((folderSum, asset) => folderSum + asset.file_size, 0), 0);
+  $("#cloud-summary").textContent = `共 ${state.folders.length} 个文件夹 · ${totalFiles} 个文件 · ${bytes(totalBytes)}`;
+  list.innerHTML = state.folders.map(folder => {
+    const size = folder.assets.reduce((sum, asset) => sum + asset.file_size, 0);
+    const date = new Date(folder.created_at * 1000).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const previews = Object.values(folder.previews).slice(0, 3).map(url => `<img data-protected-src="${url}" alt="">`).join("") || '<span class="thumb-placeholder">等待</span>';
+    const status = folder.status === "READY" ? "可检索" : folder.status === "FAILED" ? "处理失败" : "处理中";
+    return `<article class="cloud-item"><div class="thumb-stack">${previews}</div><div class="cloud-info"><strong>${safeText(folder.name)}</strong><span>${folder.assets.length} 个文件 · ${bytes(size)} · ${date}</span><span class="status ${folder.status === "FAILED" ? "failed" : ""}">${status}</span></div><div class="cloud-actions"><button type="button" data-folder="${folder.id}">查看</button><button type="button" data-zip="${folder.zip_url || ""}" data-name="${safeText(folder.name)}.zip" ${folder.zip_url ? "" : "disabled"}>下载</button><button class="danger" type="button" data-delete-folder="${folder.id}" data-folder-name="${safeText(folder.name)}">删除</button></div></article>`;
+  }).join("");
+  list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
+  list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder)));
+  list.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
+  list.querySelectorAll("button[data-delete-folder]").forEach(button => button.addEventListener("click", () => deleteCloudFolder(button)));
+}
+
+async function deleteCloudFolder(button) {
+  const folderId = button.dataset.deleteFolder;
+  const name = button.dataset.folderName;
+  if (!window.confirm(`确定永久删除“${name}”吗？\n\n原文件、预览、ZIP 和检索索引都会被删除，且无法恢复。`)) return;
+  button.disabled = true;
+  setMessage("#cloud-message", `正在删除“${name}”…`);
+  try {
+    await api(`/api/material-search/folders/${folderId}`, { method: "DELETE" });
+    if (state.activeFolder?.id === folderId) $("#folder-dialog").close();
+    clearObjectUrls();
+    setMessage("#cloud-message", `“${name}”已从云端永久删除。`, "success");
+    await loadLibrary();
+  } catch (error) {
+    setMessage("#cloud-message", error.message, "error");
+    button.disabled = false;
   }
 }
 
@@ -209,14 +260,17 @@ async function search() {
 $$('.tab').forEach(tab => tab.addEventListener("click", () => {
   $$('.tab').forEach(item => item.classList.toggle("active", item === tab));
   $$('.panel').forEach(panel => panel.classList.toggle("active", panel.id === `${tab.dataset.tab}-panel`));
+  if (tab.dataset.tab === "cloud") loadLibrary();
 }));
 
 $("#folder-input").addEventListener("change", event => {
   state.selectedFiles = [...event.target.files].filter(file => allowed.test(file.name));
   renderSelection();
 });
+$("#folder-name").addEventListener("input", renderSelection);
 $("#upload-button").addEventListener("click", uploadFolder);
 $("#refresh-library").addEventListener("click", loadLibrary);
+$("#refresh-cloud").addEventListener("click", loadLibrary);
 $("#query-input").addEventListener("change", event => {
   const file = event.target.files[0];
   state.queryFile = file || null;

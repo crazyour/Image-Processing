@@ -86,3 +86,26 @@ class PrivateMaterialBlobStore:
             raise
         except Exception as exc:
             raise StoreError("Vercel私有Blob读取失败") from exc
+
+    def delete(self, references: list[str]) -> None:
+        references = list(dict.fromkeys(reference for reference in references if reference))
+        if not references:
+            return
+        if self.misconfigured_cloud:
+            raise StoreError("Vercel环境缺少MATERIAL_BLOB_READ_WRITE_TOKEN")
+        if self.local:
+            try:
+                for reference in references:
+                    if reference.startswith(LOCAL_PREFIX):
+                        self._local_path(reference[len(LOCAL_PREFIX):]).unlink(missing_ok=True)
+            except OSError as exc:
+                raise StoreError("私有素材删除失败") from exc
+            return
+        try:
+            from vercel.blob import BlobClient
+
+            client = BlobClient()
+            for offset in range(0, len(references), 1000):
+                client.delete(references[offset:offset + 1000], token=self.token)
+        except Exception as exc:
+            raise StoreError("Vercel私有Blob删除失败") from exc

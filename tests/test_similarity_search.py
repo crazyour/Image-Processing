@@ -73,6 +73,10 @@ EOF
         return {"preview.png": png.getvalue(), "drawing.dxf": dxf, "design.ai": pdf.getvalue()}
 
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
+        missing_name = self.client.post(
+            "/api/material-search/folders", headers=self.headers, json={"name": "   "}
+        )
+        self.assertEqual(missing_name.status_code, 422)
         folder_response = self.client.post(
             "/api/material-search/folders", headers=self.headers, json={"name": "sample-folder"}
         )
@@ -110,6 +114,20 @@ EOF
             result = response.json()["results"][0]
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99)
+
+        forbidden = self.client.delete(f"/api/material-search/folders/{folder_id}")
+        self.assertEqual(forbidden.status_code, 401)
+        deleted = self.client.delete(
+            f"/api/material-search/folders/{folder_id}", headers=self.headers
+        )
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        self.assertEqual(
+            self.client.get("/api/material-search/folders", headers=self.headers).json()["folders"], []
+        )
+        self.assertEqual(
+            self.client.get(f"/api/material-search/folders/{folder_id}", headers=self.headers).status_code,
+            404,
+        )
 
 
 if __name__ == "__main__":

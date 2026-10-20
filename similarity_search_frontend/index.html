@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=1">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -31,6 +31,7 @@
     <nav class="tabs" aria-label="功能切换">
       <button class="tab active" data-tab="upload" type="button">素材库上传</button>
       <button class="tab" data-tab="search" type="button">相似文件查找</button>
+      <button class="tab" data-tab="cloud" type="button">云端文件夹</button>
     </nav>
 
     <section id="upload-panel" class="panel active">
@@ -40,6 +41,10 @@
             <div><span class="step">01</span><h2>选择素材文件夹</h2></div>
             <p>至少包含一张图片、一个 ASCII DXF 和一个启用PDF兼容的AI文件。</p>
           </header>
+          <label class="folder-name-field" for="folder-name">
+            <span>文件夹名称 <b>必填</b></span>
+            <input id="folder-name" type="text" maxlength="120" required autocomplete="off" placeholder="请输入保存到云端的文件夹名称">
+          </label>
           <label class="dropzone" id="folder-dropzone">
             <input id="folder-input" type="file" webkitdirectory multiple accept=".png,.jpg,.jpeg,.webp,.dxf,.ai">
             <span class="drop-icon">⌁</span>
@@ -91,6 +96,22 @@
         <div id="results-list" class="results-list"></div>
       </section>
     </section>
+
+    <section id="cloud-panel" class="panel">
+      <article class="card cloud-card">
+        <header class="cloud-head">
+          <div>
+            <p class="eyebrow">PRIVATE CLOUD LIBRARY</p>
+            <h2>云端文件夹</h2>
+            <p>查看当前私有素材库中保存的全部文件夹。删除后原文件、预览、ZIP 和检索索引均无法恢复。</p>
+          </div>
+          <button id="refresh-cloud" class="ghost" type="button">刷新云端列表</button>
+        </header>
+        <p id="cloud-summary" class="cloud-summary"></p>
+        <div id="cloud-list" class="cloud-list"><p class="empty-copy">正在读取云端素材…</p></div>
+        <p id="cloud-message" class="message" role="status"></p>
+      </article>
+    </section>
   </main>
 
   <dialog id="folder-dialog">
@@ -101,6 +122,6 @@
     </div>
   </dialog>
 
-  <script src="/similarity-search-static/app.js?v=1" defer></script>
+  <script src="/similarity-search-static/app.js?v=3" defer></script>
 </body>
 </html>
