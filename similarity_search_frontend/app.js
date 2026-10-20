@@ -98,12 +98,12 @@ function renderSelection() {
     return;
   }
   const kinds = new Set(state.selectedFiles.map(file => kindOf(file.name)));
-  const complete = ["image", "dxf", "illustrator"].every(kind => kinds.has(kind));
+  const complete = ["image", "illustrator"].every(kind => kinds.has(kind));
   selection.className = "selection";
   selection.innerHTML = `<div class="selected-title"><span>${safeText(folderName(state.selectedFiles))}</span><small>${state.selectedFiles.length} 个有效文件</small></div><ul class="selected-files">${state.selectedFiles.map(file => `<li><span class="type-pill">${labels[kindOf(file.name)]}</span><span>${safeText(file.webkitRelativePath || file.name)}</span><small>${bytes(file.size)}</small></li>`).join("")}</ul>`;
   $("#upload-button").disabled = !name || !complete;
   if (!name) setMessage("#upload-message", "文件夹名称为必填项。", "error");
-  else if (!complete) setMessage("#upload-message", "需要同时包含图片、DXF和Illustrator AI文件。", "error");
+  else if (!complete) setMessage("#upload-message", "需要同时包含图片和Illustrator AI文件，DXF可选。", "error");
   else setMessage("#upload-message", "文件检查通过，可以开始上传。", "success");
 }
 
@@ -275,7 +275,7 @@ async function uploadFolder() {
     await api(`/api/material-search/folders/${folder.id}/finalize`, { method: "POST" });
     $("#progress-value").textContent = "100%";
     $("#progress-bar").style.width = "100%";
-    setMessage("#upload-message", "上传完成，三类文件已经可以检索。", "success");
+    setMessage("#upload-message", "上传完成，素材文件已经可以检索。", "success");
     state.selectedFiles = [];
     $("#folder-input").value = "";
     $("#folder-name").value = "";
@@ -308,7 +308,7 @@ async function loadLibrary() {
     $("#active-count").textContent = state.folders.length;
     $("#trash-count").textContent = state.trash.length;
     if (!state.folders.length) {
-      list.innerHTML = '<p class="empty-copy">还没有素材。请先上传一个包含三类文件的文件夹。</p>';
+      list.innerHTML = '<p class="empty-copy">还没有素材。请先上传一个包含图片和Illustrator AI文件的文件夹，DXF可选。</p>';
       cloudList.innerHTML = '<p class="empty-copy">云端还没有素材文件夹。</p>';
     } else {
       list.innerHTML = state.folders.map(folder => `<article class="library-item"><div class="thumb-stack">${Object.values(folder.previews).slice(0, 3).map(url => `<img data-protected-src="${url}" alt="">`).join("") || '<span class="thumb-placeholder">等待</span>'}</div><div class="library-info"><strong>${safeText(folder.name)}</strong><span>${folder.assets.length} 个文件</span><span class="status ${folder.status === "FAILED" ? "failed" : ""}">${folder.status === "READY" ? "可检索" : folder.status === "FAILED" ? "处理失败" : "处理中"}</span></div><button type="button" data-folder="${folder.id}">查看</button></article>`).join("");

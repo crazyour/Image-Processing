@@ -385,7 +385,7 @@ def finalize_folder(
     if not folder:
         raise HTTPException(status_code=404, detail="素材文件夹不存在")
     kinds = {asset["kind"] for asset in folder["assets"]}
-    missing = [kind for kind in ("image", "dxf", "illustrator") if kind not in kinds]
+    missing = [kind for kind in ("image", "illustrator") if kind not in kinds]
     if missing:
         labels = {"image": "图片", "dxf": "DXF", "illustrator": "Illustrator AI"}
         message = "缺少：" + "、".join(labels[kind] for kind in missing)
