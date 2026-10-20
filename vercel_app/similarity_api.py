@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import io
 import re
+import tempfile
 import time
 import uuid
 import zipfile
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
@@ -37,10 +37,10 @@ from .store import StoreError
 
 
 router = APIRouter(prefix="/api/material-search", tags=["material-search"])
-MAX_FILE_BYTES = 4_000_000
-MAX_ARCHIVE_BYTES = 24_000_000
+MAX_CHUNK_BYTES = 3_000_000
 TRASH_RETENTION_SECONDS = 30 * 24 * 60 * 60
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+")
+UPLOAD_ID = re.compile(r"^[a-f0-9]{32}$")
 
 
 class FolderCreateRequest(BaseModel):
@@ -53,6 +53,12 @@ class FolderCreateRequest(BaseModel):
         if not name:
             raise ValueError("文件夹名称为必填项")
         return name
+
+
+class ChunkCompleteRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    relative_path: str = Field(default="", max_length=1000)
+    chunk_count: int = Field(ge=1)
 
 
 def _authorise(library_id: str | None, token: str | None) -> str:
@@ -86,6 +92,61 @@ def _content_type(kind: str, filename: str) -> str:
     if kind == "dxf":
         return "application/dxf"
     return "application/postscript"
+
+
+def _validate_upload_id(upload_id: str) -> str:
+    if not UPLOAD_ID.fullmatch(upload_id):
+        raise HTTPException(status_code=400, detail="上传编号无效")
+    return upload_id
+
+
+def _chunk_references(prefix: str, upload_id: str, chunk_count: int) -> list[str]:
+    return [f"{prefix}/staging/{upload_id}/{index:08d}.part" for index in range(chunk_count)]
+
+
+def _read_chunks(store: PrivateMaterialBlobStore, references: list[str]) -> bytes:
+    try:
+        return b"".join(store.read(reference)[0] for reference in references)
+    except StoreError as exc:
+        raise HTTPException(status_code=502, detail="上传分片不完整，请重新上传") from exc
+
+
+def _process_and_save_asset(
+    library_id: str,
+    folder_id: str,
+    filename: str,
+    relative_path: str,
+    raw: bytes,
+) -> dict:
+    try:
+        kind = file_kind(filename)
+        processed_kind, preview, vector, metadata = process_file(filename, raw)
+    except SimilarityFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if processed_kind != kind:
+        raise HTTPException(status_code=422, detail="文件类型识别不一致")
+    asset_key = uuid.uuid4().hex
+    safe_filename = _clean_name(filename)
+    clean_relative = _clean_relative_path(relative_path, filename)
+    prefix = f"material-search/{library_id}/{folder_id}"
+    store = PrivateMaterialBlobStore()
+    try:
+        blob_ref = store.put(f"{prefix}/original/{asset_key}-{safe_filename}", raw, _content_type(kind, filename))
+        preview_ref = store.put(f"{prefix}/preview/{asset_key}.png", preview, "image/png")
+        return save_asset(
+            folder_id,
+            kind=kind,
+            original_name=filename,
+            relative_path=clean_relative,
+            blob_url=blob_ref,
+            preview_url=preview_ref,
+            file_size=len(raw),
+            sha256=hashlib.sha256(raw).hexdigest(),
+            vector=vector,
+            metadata=metadata,
+        )
+    except StoreError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 def _public_asset(asset: dict) -> dict:
@@ -236,45 +297,68 @@ async def upload_asset(
     if not folder:
         raise HTTPException(status_code=404, detail="素材文件夹不存在")
     filename = file.filename or "unnamed"
-    try:
-        kind = file_kind(filename)
-    except SimilarityFileError as exc:
-        raise HTTPException(status_code=415, detail=str(exc)) from exc
-    raw = await file.read(MAX_FILE_BYTES + 1)
+    raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="文件为空")
-    if len(raw) > MAX_FILE_BYTES:
-        raise HTTPException(status_code=413, detail="第一版单个文件不能超过4 MB")
-    try:
-        processed_kind, preview, vector, metadata = process_file(filename, raw)
-    except SimilarityFileError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    if processed_kind != kind:
-        raise HTTPException(status_code=422, detail="文件类型识别不一致")
+    return _public_asset(_process_and_save_asset(library_id, folder_id, filename, relative_path, raw))
 
-    asset_key = uuid.uuid4().hex
-    safe_filename = _clean_name(filename)
-    clean_relative = _clean_relative_path(relative_path, filename)
-    prefix = f"material-search/{library_id}/{folder_id}"
-    store = PrivateMaterialBlobStore()
+
+@router.post("/folders/{folder_id}/uploads/{upload_id}/chunks/{chunk_index}")
+async def upload_asset_chunk(
+    folder_id: str,
+    upload_id: str,
+    chunk_index: int,
+    chunk: UploadFile = File(...),
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    _validate_upload_id(upload_id)
+    if chunk_index < 0:
+        raise HTTPException(status_code=400, detail="上传分片序号无效")
+    if not get_folder(library_id, folder_id):
+        raise HTTPException(status_code=404, detail="素材文件夹不存在")
+    raw = await chunk.read(MAX_CHUNK_BYTES + 1)
+    if not raw:
+        raise HTTPException(status_code=400, detail="上传分片为空")
+    if len(raw) > MAX_CHUNK_BYTES:
+        raise HTTPException(status_code=413, detail="上传分片超过平台请求限制")
+    reference = f"material-search/{library_id}/{folder_id}/staging/{upload_id}/{chunk_index:08d}.part"
     try:
-        blob_ref = store.put(f"{prefix}/original/{asset_key}-{safe_filename}", raw, _content_type(kind, filename))
-        preview_ref = store.put(f"{prefix}/preview/{asset_key}.png", preview, "image/png")
-        asset = save_asset(
-            folder_id,
-            kind=kind,
-            original_name=filename,
-            relative_path=clean_relative,
-            blob_url=blob_ref,
-            preview_url=preview_ref,
-            file_size=len(raw),
-            sha256=hashlib.sha256(raw).hexdigest(),
-            vector=vector,
-            metadata=metadata,
-        )
+        PrivateMaterialBlobStore().put(reference, raw, "application/octet-stream")
     except StoreError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _public_asset(asset)
+    return {"chunk_index": chunk_index}
+
+
+@router.post("/folders/{folder_id}/uploads/{upload_id}/complete")
+def complete_asset_upload(
+    folder_id: str,
+    upload_id: str,
+    request: ChunkCompleteRequest,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    _validate_upload_id(upload_id)
+    if not get_folder(library_id, folder_id):
+        raise HTTPException(status_code=404, detail="素材文件夹不存在")
+    prefix = f"material-search/{library_id}/{folder_id}"
+    references = _chunk_references(prefix, upload_id, request.chunk_count)
+    store = PrivateMaterialBlobStore()
+    try:
+        raw = _read_chunks(store, references)
+        if not raw:
+            raise HTTPException(status_code=400, detail="文件为空")
+        asset = _process_and_save_asset(
+            library_id, folder_id, request.filename, request.relative_path, raw,
+        )
+        return _public_asset(asset)
+    finally:
+        try:
+            store.delete(references)
+        except StoreError:
+            pass
 
 
 @router.post("/folders/{folder_id}/finalize")
@@ -297,22 +381,17 @@ def finalize_folder(
 
     store = PrivateMaterialBlobStore()
     try:
-        archive_buffer = io.BytesIO()
-        total = 0
-        with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-            for asset in folder["assets"]:
-                raw, _ = store.read(asset["_blob_ref"])
-                total += len(raw)
-                if total > MAX_ARCHIVE_BYTES:
-                    raise StoreError("文件夹总大小超过第一版24 MB的打包限制")
-                archive.writestr(asset["relative_path"], raw)
-        archive_bytes = archive_buffer.getvalue()
-        safe_folder_name = _clean_name(folder["name"], "materials")
-        zip_ref = store.put(
-            f"material-search/{library_id}/{folder_id}/download/{safe_folder_name}.zip",
-            archive_bytes,
-            "application/zip",
-        )
+        with tempfile.NamedTemporaryFile(suffix=".zip") as archive_file:
+            with zipfile.ZipFile(archive_file.name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+                for asset in folder["assets"]:
+                    raw, _ = store.read(asset["_blob_ref"])
+                    archive.writestr(asset["relative_path"], raw)
+            safe_folder_name = _clean_name(folder["name"], "materials")
+            zip_ref = store.put_file(
+                f"material-search/{library_id}/{folder_id}/download/{safe_folder_name}.zip",
+                Path(archive_file.name),
+                "application/zip",
+            )
         set_folder_result(folder_id, status="READY", zip_url=zip_ref)
     except (StoreError, OSError, zipfile.BadZipFile) as exc:
         set_folder_result(folder_id, status="FAILED", error=str(exc))
@@ -390,11 +469,62 @@ async def search(
 ):
     library_id = _authorise(library_id, token)
     filename = file.filename or "query"
-    raw = await file.read(MAX_FILE_BYTES + 1)
+    raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="查询文件为空")
-    if len(raw) > MAX_FILE_BYTES:
-        raise HTTPException(status_code=413, detail="第一版查询文件不能超过4 MB")
+    return _search_materials(library_id, filename, raw)
+
+
+@router.post("/search/uploads/{upload_id}/chunks/{chunk_index}")
+async def upload_search_chunk(
+    upload_id: str,
+    chunk_index: int,
+    chunk: UploadFile = File(...),
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    _validate_upload_id(upload_id)
+    if chunk_index < 0:
+        raise HTTPException(status_code=400, detail="上传分片序号无效")
+    raw = await chunk.read(MAX_CHUNK_BYTES + 1)
+    if not raw:
+        raise HTTPException(status_code=400, detail="上传分片为空")
+    if len(raw) > MAX_CHUNK_BYTES:
+        raise HTTPException(status_code=413, detail="上传分片超过平台请求限制")
+    reference = f"material-search/{library_id}/query-staging/{upload_id}/{chunk_index:08d}.part"
+    try:
+        PrivateMaterialBlobStore().put(reference, raw, "application/octet-stream")
+    except StoreError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"chunk_index": chunk_index}
+
+
+@router.post("/search/uploads/{upload_id}/complete")
+def complete_search_upload(
+    upload_id: str,
+    request: ChunkCompleteRequest,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    _validate_upload_id(upload_id)
+    prefix = f"material-search/{library_id}/query-staging"
+    references = _chunk_references(prefix, upload_id, request.chunk_count)
+    store = PrivateMaterialBlobStore()
+    try:
+        raw = _read_chunks(store, references)
+        if not raw:
+            raise HTTPException(status_code=400, detail="查询文件为空")
+        return _search_materials(library_id, request.filename, raw)
+    finally:
+        try:
+            store.delete(references)
+        except StoreError:
+            pass
+
+
+def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     try:
         kind, preview, query_vector, metadata = process_file(filename, raw)
     except SimilarityFileError as exc:

@@ -47,8 +47,9 @@ PNG/JPG/WebP 图片、一个 ASCII DXF 和一个启用了“创建 PDF 兼容文
 - AI：读取其 PDF 兼容内容，渲染首页后提取视觉特征。
 
 当前版本不为每个文件建立新数据库，而是把全部特征记录保存在同一 PostgreSQL/SQLite 素材库中。
-相似度用于排序，不代表识别准确率。MVP 限制为单文件 4 MB、单文件夹打包前原文件合计 24 MB；
-二进制 DXF 和不含 PDF 兼容内容的 AI 会被明确拒绝。
+相似度用于排序，不代表识别准确率。素材和查询文件会在浏览器中自动分片上传，不再设置 4 MB 的
+应用层文件大小限制；二进制 DXF 和不含 PDF 兼容内容的 AI 会被明确拒绝。实际可处理大小仍受
+Vercel 函数内存、执行时长以及 Vercel Blob 平台配额限制。
 
 云端原文件、预览和 ZIP 必须放在独立的 **Private Vercel Blob** 中。所有读取均经过素材库令牌校验，
 不会把 Blob 地址直接发送给浏览器。本地开发时则写入 `var/material-private/`。
@@ -156,6 +157,8 @@ POST  /api/animal-cutout/tasks/{id}/restore-original
 POST  /api/material-search/libraries
 POST  /api/material-search/folders
 POST  /api/material-search/folders/{id}/assets
+POST  /api/material-search/folders/{id}/uploads/{upload_id}/chunks/{chunk_index}
+POST  /api/material-search/folders/{id}/uploads/{upload_id}/complete
 POST  /api/material-search/folders/{id}/finalize
 GET   /api/material-search/folders
 GET   /api/material-search/folders/{id}
@@ -167,6 +170,8 @@ GET   /api/material-search/folders/{id}/download
 GET   /api/material-search/assets/{id}/preview
 GET   /api/material-search/assets/{id}/download
 POST  /api/material-search/search
+POST  /api/material-search/search/uploads/{upload_id}/chunks/{chunk_index}
+POST  /api/material-search/search/uploads/{upload_id}/complete
 ```
 
 浏览器只在当前标签页的 `sessionStorage` 中保存当前任务访问令牌，后续请求通过 `X-Session-Token` 发送；服务器数据库只保存令牌哈希。本机存储模式可通过“作品记录”重新打开任务并轮换令牌，云端模式不会开放本地作品库。上传图片会在浏览器中缩放并压缩到 4 MB 以下，以避开 Vercel Function 的 4.5 MB 请求体限制。

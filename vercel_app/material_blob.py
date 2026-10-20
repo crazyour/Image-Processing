@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path, PurePosixPath
 
 from .store import StoreError, _local_data_root
@@ -53,6 +54,34 @@ class PrivateMaterialBlobStore:
             return str(blob.pathname)
         except Exception as exc:
             raise StoreError("Vercel私有Blob保存失败；请确认素材专用Blob是Private模式") from exc
+
+    def put_file(self, pathname: str, source: Path, content_type: str) -> str:
+        if self.misconfigured_cloud:
+            raise StoreError("Vercel环境缺少MATERIAL_BLOB_READ_WRITE_TOKEN，已拒绝写入临时磁盘")
+        if self.local:
+            destination = self._local_path(pathname)
+            try:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination)
+            except OSError as exc:
+                raise StoreError(f"私有素材保存失败：{exc}") from exc
+            return LOCAL_PREFIX + pathname
+        try:
+            from vercel.blob import BlobClient
+
+            with source.open("rb") as body:
+                blob = BlobClient().put(
+                    pathname,
+                    body,
+                    access="private",
+                    content_type=content_type,
+                    add_random_suffix=False,
+                    multipart=True,
+                    token=self.token,
+                )
+            return str(blob.pathname)
+        except Exception as exc:
+            raise StoreError("Vercel私有Blob文件上传失败") from exc
 
     def read(self, reference: str) -> tuple[bytes, str]:
         if self.misconfigured_cloud:

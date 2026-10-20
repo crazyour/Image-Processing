@@ -83,12 +83,32 @@ EOF
         self.assertEqual(folder_response.status_code, 200)
         folder_id = folder_response.json()["id"]
         for name, raw in self.fixtures().items():
-            response = self.client.post(
-                f"/api/material-search/folders/{folder_id}/assets",
-                headers=self.headers,
-                files={"file": (name, raw)},
-                data={"relative_path": f"sample-folder/{name}"},
-            )
+            if name == "preview.png":
+                upload_id = "a" * 32
+                midpoint = len(raw) // 2
+                for chunk_index, chunk in enumerate((raw[:midpoint], raw[midpoint:])):
+                    chunk_response = self.client.post(
+                        f"/api/material-search/folders/{folder_id}/uploads/{upload_id}/chunks/{chunk_index}",
+                        headers=self.headers,
+                        files={"chunk": (f"{name}.part", chunk)},
+                    )
+                    self.assertEqual(chunk_response.status_code, 200, chunk_response.text)
+                response = self.client.post(
+                    f"/api/material-search/folders/{folder_id}/uploads/{upload_id}/complete",
+                    headers=self.headers,
+                    json={
+                        "filename": name,
+                        "relative_path": f"sample-folder/{name}",
+                        "chunk_count": 2,
+                    },
+                )
+            else:
+                response = self.client.post(
+                    f"/api/material-search/folders/{folder_id}/assets",
+                    headers=self.headers,
+                    files={"file": (name, raw)},
+                    data={"relative_path": f"sample-folder/{name}"},
+                )
             self.assertEqual(response.status_code, 200, response.text)
 
         finalized = self.client.post(

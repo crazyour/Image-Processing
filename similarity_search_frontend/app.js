@@ -3,6 +3,7 @@ const $$ = selector => [...document.querySelectorAll(selector)];
 const state = { libraryId: null, token: null, selectedFiles: [], queryFile: null, folders: [], trash: [], objectUrls: new Set(), activeFolder: null };
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
+const uploadChunkBytes = 2_500_000;
 
 function bytes(value) {
   if (value < 1024) return `${value} B`;
@@ -91,15 +92,34 @@ function renderSelection() {
     return;
   }
   const kinds = new Set(state.selectedFiles.map(file => kindOf(file.name)));
-  const tooLarge = state.selectedFiles.some(file => file.size > 4_000_000);
   const complete = ["image", "dxf", "illustrator"].every(kind => kinds.has(kind));
   selection.className = "selection";
   selection.innerHTML = `<div class="selected-title"><span>${safeText(folderName(state.selectedFiles))}</span><small>${state.selectedFiles.length} 个有效文件</small></div><ul class="selected-files">${state.selectedFiles.map(file => `<li><span class="type-pill">${labels[kindOf(file.name)]}</span><span>${safeText(file.webkitRelativePath || file.name)}</span><small>${bytes(file.size)}</small></li>`).join("")}</ul>`;
-  $("#upload-button").disabled = !name || !complete || tooLarge;
+  $("#upload-button").disabled = !name || !complete;
   if (!name) setMessage("#upload-message", "文件夹名称为必填项。", "error");
   else if (!complete) setMessage("#upload-message", "需要同时包含图片、DXF和Illustrator AI文件。", "error");
-  else if (tooLarge) setMessage("#upload-message", "存在超过4 MB的文件，第一版暂时不能上传。", "error");
   else setMessage("#upload-message", "文件检查通过，可以开始上传。", "success");
+}
+
+function uploadId() {
+  return crypto.randomUUID().replaceAll("-", "");
+}
+
+async function uploadFileInChunks(file, chunkPath, completePath, completePayload, onChunk) {
+  const chunkCount = Math.ceil(file.size / uploadChunkBytes);
+  if (!chunkCount) throw new Error(`${file.name} 是空文件`);
+  for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+    const start = chunkIndex * uploadChunkBytes;
+    const data = new FormData();
+    data.append("chunk", file.slice(start, Math.min(start + uploadChunkBytes, file.size)), `${file.name}.part`);
+    await api(`${chunkPath}/${chunkIndex}`, { method: "POST", body: data });
+    onChunk?.();
+  }
+  return api(completePath, {
+    method: "POST",
+    json: true,
+    body: JSON.stringify({ ...completePayload, filename: file.name, chunk_count: chunkCount }),
+  });
 }
 
 async function uploadFolder() {
@@ -115,16 +135,24 @@ async function uploadFolder() {
   try {
     const response = await api("/api/material-search/folders", { method: "POST", json: true, body: JSON.stringify({ name }) });
     const folder = await response.json();
+    const totalChunks = state.selectedFiles.reduce((sum, file) => sum + Math.ceil(file.size / uploadChunkBytes), 0);
+    let uploadedChunks = 0;
     for (let index = 0; index < state.selectedFiles.length; index += 1) {
       const file = state.selectedFiles[index];
-      const percent = Math.round((index / state.selectedFiles.length) * 90);
       $("#progress-label").textContent = `处理 ${file.name}`;
-      $("#progress-value").textContent = `${percent}%`;
-      $("#progress-bar").style.width = `${percent}%`;
-      const data = new FormData();
-      data.append("file", file, file.name);
-      data.append("relative_path", file.webkitRelativePath || file.name);
-      await api(`/api/material-search/folders/${folder.id}/assets`, { method: "POST", body: data });
+      const currentUploadId = uploadId();
+      await uploadFileInChunks(
+        file,
+        `/api/material-search/folders/${folder.id}/uploads/${currentUploadId}/chunks`,
+        `/api/material-search/folders/${folder.id}/uploads/${currentUploadId}/complete`,
+        { relative_path: file.webkitRelativePath || file.name },
+        () => {
+          uploadedChunks += 1;
+          const percent = Math.round((uploadedChunks / totalChunks) * 90);
+          $("#progress-value").textContent = `${percent}%`;
+          $("#progress-bar").style.width = `${percent}%`;
+        },
+      );
     }
     $("#progress-label").textContent = "生成文件夹下载包";
     $("#progress-bar").style.width = "94%";
@@ -302,9 +330,13 @@ async function search() {
   button.disabled = true;
   setMessage("#search-message", "正在生成查询特征并比较素材库…");
   try {
-    const data = new FormData();
-    data.append("file", state.queryFile, state.queryFile.name);
-    const response = await api("/api/material-search/search", { method: "POST", body: data });
+    const currentUploadId = uploadId();
+    const response = await uploadFileInChunks(
+      state.queryFile,
+      `/api/material-search/search/uploads/${currentUploadId}/chunks`,
+      `/api/material-search/search/uploads/${currentUploadId}/complete`,
+      { relative_path: state.queryFile.name },
+    );
     const result = await response.json();
     $("#search-output").hidden = false;
     $("#results-title").textContent = `${labels[result.kind]}检索结果 · ${result.results.length} 个文件夹`;
@@ -345,9 +377,8 @@ $("#query-input").addEventListener("change", event => {
   const file = event.target.files[0];
   state.queryFile = file || null;
   $("#query-label").textContent = file ? `${file.name} · ${bytes(file.size)}` : "选择图片、DXF或AI文件";
-  $("#search-button").disabled = !file || !allowed.test(file.name) || file.size > 4_000_000;
-  if (file?.size > 4_000_000) setMessage("#search-message", "查询文件超过4 MB。", "error");
-  else setMessage("#search-message", file ? "查询文件已就绪。" : "");
+  $("#search-button").disabled = !file || !allowed.test(file.name);
+  setMessage("#search-message", file ? "查询文件已就绪。" : "");
 });
 $("#search-button").addEventListener("click", search);
 $("#dialog-close").addEventListener("click", () => $("#folder-dialog").close());
