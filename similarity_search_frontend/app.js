@@ -326,23 +326,6 @@ async function loadLibrary() {
   }
 }
 
-async function reindexLibrary() {
-  const button = $("#reindex-library");
-  button.disabled = true;
-  setMessage("#library-message", "正在从云端原图重新生成SIFT几何索引…");
-  try {
-    const response = await api("/api/material-search/reindex", { method: "POST" });
-    const result = await response.json();
-    const failureCopy = result.failed ? `，${result.failed} 个失败` : "";
-    setMessage("#library-message", `索引升级完成：更新 ${result.updated} 张，已是新版 ${result.skipped} 张${failureCopy}。`, result.failed ? "error" : "success");
-    await loadLibrary();
-  } catch (error) {
-    setMessage("#library-message", error.message, "error");
-  } finally {
-    button.disabled = false;
-  }
-}
-
 function renderCloudFolders() {
   const list = $("#cloud-list");
   const totalFiles = state.folders.reduce((sum, folder) => sum + folder.assets.length, 0);
@@ -494,7 +477,7 @@ async function search() {
       list.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
     }
     if (result.outdated_images) {
-      setMessage("#search-message", `有 ${result.outdated_images} 张云端图片仍是旧索引。请到“素材库上传”点击“升级旧图片索引”后再检索。`);
+      setMessage("#search-message", `有 ${result.outdated_images} 张云端图片缺少新版几何索引，需要重新上传后才能参与精确匹配。`);
     } else {
       setMessage("#search-message", result.algorithm === "sift-ransac" ? "检索完成。图片结果已经过SIFT局部特征和RANSAC几何一致性验证。" : "检索完成。相似度用于排序，不代表识别准确率。", "success");
     }
@@ -518,7 +501,6 @@ $("#folder-input").addEventListener("change", event => {
 $("#folder-name").addEventListener("input", renderSelection);
 $("#upload-button").addEventListener("click", uploadFolder);
 $("#refresh-library").addEventListener("click", loadLibrary);
-$("#reindex-library").addEventListener("click", reindexLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
 $$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
 $("#query-input").addEventListener("change", async event => {
