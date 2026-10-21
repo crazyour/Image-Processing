@@ -4,7 +4,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 300,
-      "includeFiles": "{frontend_dist/**,image3d_frontend/**,text2image_frontend/**,auth_frontend/**}",
+      "includeFiles": "{frontend_dist/**,image3d_frontend/**,text2image_frontend/**,similarity_search_frontend/**,auth_frontend/**}",
       "excludeFiles": "{backend/**,desktop/**,recovery_evidence/**,COMPILE_ERRORS.txt,**/__pycache__/**,**/*.pyc}"
     }
   }

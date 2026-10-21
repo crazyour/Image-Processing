@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#244d3f">
+  <title>灵界 · 相似素材检索</title>
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=8">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="back-link">← 返回工作台</a>
+    <div class="brand"><span>LINGJIE MATERIAL INDEX</span><strong>相似素材检索</strong></div>
+    <div class="privacy"><i></i>私有素材库</div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">IMAGE · DXF · ILLUSTRATOR</p>
+        <h1>相似素材检索</h1>
+        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。查询时只比较同类文件，返回最相似的五个文件夹。</p>
+      </div>
+      <div class="hero-flow" aria-label="工作流程">
+        <div><b>01</b><span>上传文件夹</span></div><em>→</em>
+        <div><b>02</b><span>生成预览与特征</span></div><em>→</em>
+        <div><b>03</b><span>同格式检索</span></div>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="功能切换">
+      <button class="tab active" data-tab="upload" type="button">素材库上传</button>
+      <button class="tab" data-tab="search" type="button">相似文件查找</button>
+      <button class="tab" data-tab="cloud" type="button">云端文件夹</button>
+    </nav>
+
+    <section id="upload-panel" class="panel active">
+      <div class="workspace-grid">
+        <article class="card upload-card">
+          <header class="card-head">
+            <div><span class="step">01</span><h2>选择素材文件夹</h2></div>
+            <p>至少包含一张图片和一个启用PDF兼容的AI文件，DXF可选。</p>
+          </header>
+          <label class="folder-name-field" for="folder-name">
+            <span>文件夹名称 <b>必填</b></span>
+            <input id="folder-name" type="text" maxlength="120" required autocomplete="off" placeholder="请输入保存到云端的文件夹名称">
+          </label>
+          <label class="dropzone" id="folder-dropzone">
+            <input id="folder-input" type="file" webkitdirectory multiple accept=".png,.jpg,.jpeg,.webp,.dxf,.ai">
+            <span class="drop-icon">⌁</span>
+            <strong>点击选择整个文件夹</strong>
+            <small>支持 PNG / JPG / WebP / DXF / AI，大文件将自动分片上传</small>
+          </label>
+          <div id="selection" class="selection empty">
+            <p>尚未选择文件夹</p>
+          </div>
+          <button id="upload-button" class="primary" type="button" disabled>上传并建立索引</button>
+          <div id="upload-progress" class="progress-wrap" hidden>
+            <div class="progress-meta"><span id="progress-label">准备上传</span><strong id="progress-value">0%</strong></div>
+            <div class="progress"><i id="progress-bar"></i></div>
+          </div>
+          <p id="upload-message" class="message" role="status"></p>
+        </article>
+
+        <article class="card library-card">
+          <header class="card-head compact">
+            <div><span class="step">02</span><h2>已建立索引</h2></div>
+            <button id="refresh-library" class="ghost" type="button">刷新</button>
+          </header>
+          <div id="library-list" class="library-list"><p class="empty-copy">正在读取素材库…</p></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="search-panel" class="panel">
+      <article class="card search-card">
+        <div class="search-intro">
+          <p class="eyebrow">TOP 5 SIMILAR FOLDERS</p>
+          <h2>上传一个查询文件</h2>
+          <p>系统自动识别类型，只在相同格式的已完成素材中比较。查询文件仅用于本次计算，不会保存。</p>
+        </div>
+        <label class="query-dropzone">
+          <input id="query-input" type="file" accept=".png,.jpg,.jpeg,.webp,.dxf,.ai">
+          <span>＋</span><strong id="query-label">选择图片、DXF或AI文件</strong>
+          <small>大文件将自动分片上传</small>
+        </label>
+        <section id="query-subject-editor" class="subject-editor" hidden aria-labelledby="subject-editor-title">
+          <div class="subject-editor-head">
+            <div>
+              <span class="step">02</span>
+              <div><h3 id="subject-editor-title">框选要查找的主体</h3><p>在图片上按住并拖动，选区外的背景不会参与检索。</p></div>
+            </div>
+            <button id="use-full-image" class="ghost" type="button">使用整张图片</button>
+          </div>
+          <div class="subject-workspace">
+            <div class="subject-canvas-wrap">
+              <canvas id="subject-canvas" role="img" aria-label="拖动框选查询图片中的主体"></canvas>
+              <span class="subject-drag-tip">拖动框选主体</span>
+            </div>
+            <aside class="subject-status">
+              <strong id="subject-status-title">当前使用整张图片</strong>
+              <p id="subject-status-copy">建议只框住要查找的产品或图案，尽量减少墙面、植物等背景。</p>
+              <button id="redraw-subject" class="ghost" type="button">清除选区并重新框选</button>
+            </aside>
+          </div>
+        </section>
+        <button id="search-button" class="primary search-action" type="button" disabled>开始查找</button>
+        <p id="search-message" class="message" role="status"></p>
+      </article>
+
+      <section id="search-output" class="search-output" hidden>
+        <header class="results-head">
+          <div><p class="eyebrow">SEARCH RESULT</p><h2 id="results-title">最相似的文件夹</h2></div>
+          <div id="query-preview" class="query-preview"></div>
+        </header>
+        <div id="results-list" class="results-list"></div>
+      </section>
+    </section>
+
+    <section id="cloud-panel" class="panel">
+      <article class="card cloud-card">
+        <header class="cloud-head">
+          <div>
+            <p class="eyebrow">PRIVATE CLOUD LIBRARY</p>
+            <h2>云端文件夹</h2>
+            <p>查看当前私有素材库中保存的全部文件夹。删除后先进入回收站，保留 30 天后自动永久清理。</p>
+          </div>
+          <button id="refresh-cloud" class="ghost" type="button">刷新云端列表</button>
+        </header>
+        <div class="cloud-view-tabs" aria-label="云端文件夹视图">
+          <button class="active" type="button" data-cloud-view="active">全部文件夹 <span id="active-count">0</span></button>
+          <button type="button" data-cloud-view="trash">回收站 <span id="trash-count">0</span></button>
+        </div>
+        <p id="cloud-summary" class="cloud-summary"></p>
+        <div id="cloud-list" class="cloud-list"><p class="empty-copy">正在读取云端素材…</p></div>
+        <div id="trash-list" class="cloud-list" hidden><p class="empty-copy">正在读取回收站…</p></div>
+        <p id="cloud-message" class="message" role="status"></p>
+      </article>
+    </section>
+  </main>
+
+  <dialog id="folder-dialog">
+    <div class="dialog-shell">
+      <header><div><span>素材文件夹</span><h2 id="dialog-title"></h2></div><button id="dialog-close" type="button" aria-label="关闭">×</button></header>
+      <div id="dialog-content" class="dialog-content"></div>
+      <footer><button id="dialog-download" class="primary" type="button">下载整个文件夹 ZIP</button></footer>
+    </div>
+  </dialog>
+
+  <script src="/similarity-search-static/app.js?v=12" defer></script>
+</body>
+</html>

@@ -168,9 +168,9 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             self.assertIn(0, repair_mask[:, :, 3])
             self.assertIn(255, repair_mask[:, :, 3])
             self.assertIn("不能只重新描绘原图", first_repair_call.args[1])
-            self.assertEqual(body["process_details"]["repair_model"], "gpt-image-2.5-sunburst")
-            self.assertEqual(body["process_details"]["repair_quality"], "high")
-            self.assertEqual(body["process_details"]["repairs"][0]["model"], "gpt-image-2.5-sunburst")
+            self.assertNotIn("repair_model", body["process_details"])
+            self.assertNotIn("repair_quality", body["process_details"])
+            self.assertNotIn("model", body["process_details"]["repairs"][0])
             self.assertNotIn("input_diagnostic_url", body["process_details"]["repairs"][0])
             self.assertIn("mask_url", body["process_details"]["repairs"][0])
 
@@ -271,11 +271,11 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             files={"image": ("animal.png", source, "image/png")},
             data={
                 "prompt": "保留动物",
-                "image_model": "gpt-image-2.5-flare",
-                "image_quality": "medium",
-                "repair_model": "gpt-image-2.5-sunburst",
-                "repair_quality": "high",
-                "size": "1024x1024",
+                "image_model": "frontend-must-not-control-this",
+                "image_quality": "max",
+                "repair_model": "frontend-must-not-control-this",
+                "repair_quality": "low",
+                "size": "1536x1024",
                 "generation_count": "1",
             },
         )
@@ -309,6 +309,32 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         self.assertEqual(image_edit.call_args_list[0].args[3], "medium")
         self.assertEqual(image_edit.call_args_list[1].args[2], "gpt-image-2.5-sunburst")
         self.assertEqual(image_edit.call_args_list[1].args[3], "high")
+
+    def test_final_result_can_be_downloaded_as_dxf(self):
+        task_id, headers = self.create_task()
+        with patch.object(app_module, "generate_view", return_value=(connected_image(), {})):
+            generated = self.client.post(
+                f"/api/animal-cutout/tasks/{task_id}/generate", headers=headers,
+            )
+        self.assertEqual(generated.status_code, 200)
+        selected = self.select_candidate(task_id, headers)
+        self.assertEqual(selected.json()["status"], "SUCCEEDED")
+
+        downloaded = self.client.get(
+            f"/api/animal-cutout/tasks/{task_id}/dxf", headers=headers,
+        )
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.headers["content-type"], "application/dxf")
+        self.assertIn("LWPOLYLINE", downloaded.text)
+        self.assertTrue(downloaded.text.endswith("0\nEOF\n"))
+
+    def test_public_pages_do_not_offer_model_controls(self):
+        page = self.client.get("/text-to-image").text
+        self.assertNotIn("模型设置", page)
+        self.assertNotIn('id="image-model"', page)
+        self.assertNotIn('id="animal-image-model"', page)
+        self.assertNotIn("我有权使用这张照片", page)
+        self.assertNotIn('id="animal-consent"', page)
 
     def test_generates_requested_candidates_and_checks_only_selected_one(self):
         task_id, headers = self.create_task(generation_count=3)

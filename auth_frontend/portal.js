@@ -5,6 +5,8 @@ const definitions = {
   text_to_image: {icon: "文", title: "文生图", description: "输入多条图片要求，按队列生成并保存结果。", href: "/text-to-image"},
   animal_cutout: {icon: "镂", title: "照片转镂空剪影", description: "生成并检查单片黑白镂空剪影候选。", href: "/text-to-image?workflow=animal"},
   image_to_3d: {icon: "3D", title: "图生 3D", description: "从参考图生成四视图、拼装图和 STL。", href: "/image-to-3d"},
+  similarity_search: {icon: "搜", title: "相似素材检索", description: "用图片、DXF 或 AI 文件查找相似素材。", href: "/similarity-search"},
+  asset_library: {icon: "库", title: "成果素材库", description: "浏览和下载已经做好的共享成果。", href: "/file-upload"},
 };
 
 document.querySelector("#logout").addEventListener("click", logout);

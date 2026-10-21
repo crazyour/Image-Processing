@@ -24,6 +24,8 @@ FEATURES = {
     "text_to_image": "文生图",
     "animal_cutout": "照片转镂空剪影",
     "image_to_3d": "图生 3D",
+    "similarity_search": "相似素材检索",
+    "asset_library": "成果素材库",
 }
 DEFAULT_FEATURES = tuple(FEATURES)
 SESSION_COOKIE = "lingjie_session"

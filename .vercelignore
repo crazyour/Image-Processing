@@ -3,6 +3,7 @@ desktop/
 recovery_evidence/
 COMPILE_ERRORS.txt
 var/
+tests/
 **/__pycache__/
 **/*.pyc
 .DS_Store

@@ -8,10 +8,12 @@
   <meta name="application-name" content="灵界"/>
   <title>灵界 · 工艺设计工作台</title>
   <script src="/assets/startup-resilience.js"></script>
+  <script src="/assets/tool-entry.js"></script>
   <script type="module" crossorigin src="/assets/index-DRoc9wD_.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-9DdLma_o.css">
 </head>
 <body>
+  <a class="standalone-home" href="/" aria-label="返回功能首页">← 返回功能首页</a>
   <div id="root"></div>
   <section id="image3d-panel" class="image3d-panel" aria-labelledby="image3d-title" role="region" tabindex="-1" hidden>
     <header class="image3d-toolbar">
@@ -28,6 +30,11 @@
     <iframe id="text-image-frame" title="灵界文生图" loading="lazy"></iframe>
   </section>
   <style>
+    .standalone-home{display:none}
+    html[data-standalone-tool="true"] .standalone-home{position:fixed;z-index:20;top:14px;left:18px;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1px solid #dce4df;border-radius:999px;color:#345046;background:#fffffff0;box-shadow:0 5px 18px #1f3e3020;font:700 13px/1 system-ui;text-decoration:none}
+    html[data-standalone-tool="true"] .sidebar,html[data-standalone-tool="true"] .topbar{display:none!important}
+    html[data-standalone-tool="true"] .main-area,html[data-standalone-tool="true"] .nav-compact .main-area{width:100%!important;margin-left:0!important}
+    html[data-standalone-tool="true"] .main-area main{padding-top:72px}
     .image3d-nav-entry b{background:#f1c75b;color:#514216}.image3d-panel[hidden]{display:none}.image3d-panel{position:fixed;z-index:9;right:0;bottom:0;display:grid;grid-template-rows:auto 1fr;overflow:hidden;border-left:1px solid #dce4df;background:#f2f5f1}.image3d-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid #dce4df;background:#fff}.image3d-toolbar div{display:grid;gap:2px}.image3d-toolbar small{color:#738079;font:600 11px/1.2 system-ui}.image3d-toolbar strong{color:#26342d;font:800 16px/1.2 system-ui}.image3d-toolbar button{padding:9px 13px;border:0;border-radius:10px;background:#edf2ef;color:#345046;font:700 13px/1 system-ui;cursor:pointer}.image3d-toolbar button:hover{background:#dfe9e4}.image3d-panel iframe{width:100%;height:100%;border:0;background:#f2f5f1}.image3d-nav-entry.image3d-active{color:#204e3e;background:#e6eee5;font-weight:650}@media(max-width:700px){.image3d-panel{inset:0!important;border-left:0}.image3d-toolbar{padding:10px 13px}}
     .text-image-nav-entry b{background:#dcebe3;color:#285b48}.text-image-panel[hidden]{display:none}.text-image-panel{position:fixed;z-index:9;right:0;bottom:0;display:grid;grid-template-rows:auto 1fr;overflow:hidden;border-left:1px solid #dce4df;background:#f2f5f1}.text-image-panel iframe{width:100%;height:100%;border:0;background:#f2f5f1}.text-image-nav-entry.text-image-active{color:#204e3e;background:#e6eee5;font-weight:650}@media(max-width:700px){.text-image-panel{inset:0!important;border-left:0}}
     @media (min-width: 951px) {
@@ -78,6 +85,7 @@
   </style>
   <script>
     (() => {
+      if (document.documentElement.dataset.standaloneTool === 'true') return;
       const panel = document.getElementById('image3d-panel');
       const frame = document.getElementById('image3d-frame');
       const close = document.getElementById('image3d-close');

@@ -7,12 +7,22 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
-from vercel.blob import BlobClient
+
+try:
+    from vercel.blob.sync import put_blob
+except ImportError:  # vercel < 0.12
+    from vercel.blob import put as put_blob
+
+try:
+    from vercel.blob import list_objects
+except ImportError:  # pragma: no cover
+    list_objects = None
 
 
 class StoreError(RuntimeError):
@@ -31,6 +41,16 @@ _schema_ready: set[str] = set()
 _schema_lock = threading.Lock()
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOCAL_BLOB_URL_PREFIX = "/local-blobs/"
+
+
+class _SQLiteConnection(sqlite3.Connection):
+    """Commit or roll back like sqlite3.Connection, then release the file handle."""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
 
 
 def _configured(name: str) -> str:
@@ -71,6 +91,11 @@ def storage_status() -> dict[str, str]:
     }
 
 
+def local_library_available() -> bool:
+    """Return whether this process owns a durable, single-user local library."""
+    return not _configured("DATABASE_URL") and not _configured("VERCEL")
+
+
 def _connect_postgres():
     connection = psycopg.connect(
         _configured("DATABASE_URL"), row_factory=dict_row, connect_timeout=10,
@@ -106,7 +131,7 @@ def _connect_sqlite() -> sqlite3.Connection:
     database_path = _local_data_root() / "image3d.sqlite3"
     try:
         database_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(database_path, timeout=30)
+        connection = sqlite3.connect(database_path, timeout=30, factory=_SQLiteConnection)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         _ensure_sqlite_schema(connection, database_path)
@@ -130,6 +155,16 @@ def _ensure_sqlite_schema(connection: sqlite3.Connection, database_path: Path) -
                 state TEXT NOT NULL,
                 version INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS local_preferences (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                enabled INTEGER NOT NULL DEFAULT 0,
+                prompt TEXT NOT NULL DEFAULT '',
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -215,12 +250,124 @@ def save_session(session_id: str, state: dict[str, Any], expected_version: int) 
     return expected_version + 1
 
 
+def list_local_sessions(limit: int = 200) -> list[dict[str, Any]]:
+    if not local_library_available():
+        raise StoreError("本地作品库仅在本机存储模式下可用")
+    with _connect_sqlite() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, state, version, created_at, updated_at
+              FROM image3d_sessions
+             ORDER BY updated_at DESC
+             LIMIT ?
+            """,
+            (max(1, min(int(limit), 500)),),
+        ).fetchall()
+    result = []
+    for row in rows:
+        try:
+            state = json.loads(row["state"]) if isinstance(row["state"], str) else row["state"]
+        except (TypeError, json.JSONDecodeError):
+            continue
+        result.append({
+            "id": row["id"],
+            "state": state,
+            "version": int(row["version"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        })
+    return result
+
+
+def rotate_local_session_token(session_id: str, token: str) -> dict[str, Any]:
+    """Issue a fresh task token when the local owner reopens a library item."""
+    if not local_library_available():
+        raise StoreError("本地作品库仅在本机存储模式下可用")
+    with _connect_sqlite() as connection:
+        row = connection.execute(
+            "SELECT state FROM image3d_sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        if not row:
+            raise SessionNotFound("作品记录不存在")
+        connection.execute(
+            "UPDATE image3d_sessions SET token_hash = ? WHERE id = ?",
+            (token_hash(token), session_id),
+        )
+        connection.commit()
+    state = row["state"]
+    return json.loads(state) if isinstance(state, str) else state
+
+
+def update_local_session_library(session_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    if not local_library_available():
+        raise StoreError("本地作品库仅在本机存储模式下可用")
+    with _connect_sqlite() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT state, version FROM image3d_sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        if not row:
+            connection.rollback()
+            raise SessionNotFound("作品记录不存在")
+        state = json.loads(row["state"]) if isinstance(row["state"], str) else row["state"]
+        library = state.setdefault("library", {})
+        library.update(values)
+        state["updated_at"] = int(time.time())
+        serialized = json.dumps(state, ensure_ascii=False)
+        connection.execute(
+            """
+            UPDATE image3d_sessions
+               SET state = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?
+            """,
+            (serialized, session_id),
+        )
+        connection.commit()
+    return state
+
+
+def load_local_preferences() -> dict[str, Any]:
+    if not local_library_available():
+        return {"enabled": False, "prompt": "", "updated_at": None}
+    with _connect_sqlite() as connection:
+        row = connection.execute(
+            "SELECT enabled, prompt, updated_at FROM local_preferences WHERE id = 1"
+        ).fetchone()
+    if not row:
+        return {"enabled": False, "prompt": "", "updated_at": None}
+    return {
+        "enabled": bool(row["enabled"]),
+        "prompt": row["prompt"] or "",
+        "updated_at": row["updated_at"],
+    }
+
+
+def save_local_preferences(enabled: bool, prompt: str) -> dict[str, Any]:
+    if not local_library_available():
+        raise StoreError("个人偏好仅在本机存储模式下可用")
+    with _connect_sqlite() as connection:
+        connection.execute(
+            """
+            INSERT INTO local_preferences (id, enabled, prompt, updated_at)
+            VALUES (1, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                enabled = excluded.enabled,
+                prompt = excluded.prompt,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (1 if enabled else 0, prompt),
+        )
+        connection.commit()
+    return load_local_preferences()
+
+
 class PublicBlobStore:
     """Use Vercel Blob when configured, otherwise persist files under ``var/blobs``."""
 
     def __init__(self) -> None:
         self.local = not bool(_configured("BLOB_READ_WRITE_TOKEN"))
-        self.client = None if self.local else BlobClient()
 
     def put(self, pathname: str, data: bytes, content_type: str) -> str:
         if self.local:
@@ -236,7 +383,7 @@ class PublicBlobStore:
             return f"{LOCAL_BLOB_URL_PREFIX}{relative.as_posix()}"
 
         try:
-            blob = self.client.put(
+            blob = put_blob(
                 pathname,
                 data,
                 access="public",
@@ -246,3 +393,35 @@ class PublicBlobStore:
             return blob.url
         except Exception as exc:
             raise StoreError("Vercel Blob 保存失败") from exc
+
+    def list(self, prefix: str, limit: int = 100) -> list[dict]:
+        """List newest public blobs under a controlled prefix."""
+        if self.local:
+            base = local_blob_root() / prefix
+            if not base.is_dir():
+                return []
+            files = sorted(
+                (path for path in base.rglob("*") if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )[:limit]
+            return [{
+                "url": f"{LOCAL_BLOB_URL_PREFIX}{path.relative_to(local_blob_root()).as_posix()}",
+                "pathname": path.relative_to(local_blob_root()).as_posix(),
+                "size": path.stat().st_size,
+                "uploaded_at": path.stat().st_mtime,
+            } for path in files]
+
+        if list_objects is None:
+            raise StoreError("Vercel Blob SDK 不支持素材列表")
+        try:
+            result = list_objects(prefix=prefix, limit=limit)
+            blobs = result.blobs if hasattr(result, "blobs") else result.get("blobs", [])
+            return [{
+                "url": blob.url if hasattr(blob, "url") else blob["url"],
+                "pathname": blob.pathname if hasattr(blob, "pathname") else blob["pathname"],
+                "size": blob.size if hasattr(blob, "size") else blob["size"],
+                "uploaded_at": blob.uploaded_at if hasattr(blob, "uploaded_at") else blob["uploaded_at"],
+            } for blob in blobs]
+        except Exception as exc:
+            raise StoreError("Vercel Blob 素材列表读取失败") from exc

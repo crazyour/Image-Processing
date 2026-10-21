@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import mimetypes
 import os
 import re
 import secrets
 import time
 import uuid
+import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
@@ -15,6 +17,9 @@ from typing import Literal
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+import cv2
+import numpy as np
+from PIL import Image
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -24,10 +29,16 @@ from vercel_app.store import (
     SessionNotFound,
     StoreError,
     create_session,
+    list_local_sessions,
+    load_local_preferences,
     local_blob_path,
+    local_library_available,
     load_session,
+    rotate_local_session_token,
+    save_local_preferences,
     save_session,
     storage_status,
+    update_local_session_library,
 )
 from vercel_app.auth import (
     FEATURES,
@@ -49,6 +60,7 @@ from vercel_app.connectivity import (
     create_repair_mask,
     remove_disconnected_islands,
 )
+from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.workflow import (
     AI_GENERATED_VIEWS,
     GENERATED_VIEWS,
@@ -56,7 +68,6 @@ from vercel_app.workflow import (
     VIEW_NAMES,
     WorkflowError,
     analyze_images,
-    assembly_plan_prompt,
     effective_prompt,
     fetch_bytes,
     generate_image,
@@ -74,6 +85,11 @@ ORIGINAL_FRONTEND = ROOT / "frontend_dist"
 IMAGE3D_FRONTEND = ROOT / "image3d_frontend"
 TEXT2IMAGE_FRONTEND = ROOT / "text2image_frontend"
 AUTH_FRONTEND = ROOT / "auth_frontend"
+SIMILARITY_SEARCH_FRONTEND = ROOT / "similarity_search_frontend"
+WORKBENCH_TOOLS = {
+    "creative", "photo-craft", "products", "color-finish", "visual",
+    "svg", "dxf", "files", "delivery",
+}
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
@@ -90,17 +106,41 @@ ANIMAL_CUTOUT_STATES = {
 TRANSIENT_STATE_TIMEOUTS = {
     "ANALYZING_REFERENCES": 150,
     "GENERATING_VIEWS": 330,
-    "GENERATING_ASSEMBLY": 330,
     "SUBMITTING_3D": 150,
 }
 
 MAX_REFERENCE_IMAGES = 6
 MAX_REFERENCE_UPLOAD_BYTES = 4_000_000
 MAX_AUTOMATIC_CUTOUT_REPAIRS = 2
+CUTOUT_GENERATION_MODEL = "gpt-image-2.5-flare"
+CUTOUT_GENERATION_QUALITY = "medium"
 CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
 CUTOUT_REPAIR_QUALITY = "high"
+CUTOUT_IMAGE_SIZE = "1024x1024"
+TEXT_IMAGE_MODEL = "gpt-image-2.5-flare"
+TEXT_IMAGE_QUALITY = "medium"
+TEXT_IMAGE_SIZE = "1024x1024"
+IMAGE3D_VISION_MODEL = "gpt-6-luna"
+IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
+IMAGE3D_VIEW_QUALITY = "medium"
+IMAGE3D_MODEL = "hy-3d-3.1"
+MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
+DELIVERABLE_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp",
+    ".svg", ".ai", ".psd", ".pdf", ".dxf", ".dwg", ".stl", ".obj", ".glb",
+    ".gltf", ".fbx", ".step", ".stp", ".iges", ".igs", ".3mf", ".zip",
+    ".7z", ".rar", ".txt", ".csv", ".json", ".doc", ".docx", ".xls", ".xlsx",
+}
+DELIVERABLE_TASKS = {
+    "text-image": "文生图",
+    "animal-cutout": "照片转镂空剪影",
+    "image-3d": "图生 3D",
+    "design-engineering": "设计与工程文件",
+    "other": "其他成果",
+}
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
+app.include_router(similarity_search_router)
 
 PUBLIC_PATHS = {"/login", "/api/health", "/api/auth/status", "/api/auth/login", "/api/login"}
 PUBLIC_PREFIXES = ("/assets/", "/branding/", "/auth-static/")
@@ -115,12 +155,16 @@ def _required_feature(path: str) -> str | None:
         return "image_to_3d"
     if path == "/text-to-image":
         return "text_or_cutout"
+    if path.startswith("/api/material-search") or path == "/similarity-search":
+        return "similarity_search"
+    if path.startswith("/api/deliverables") or path == "/file-upload":
+        return "asset_library"
     workspace_prefixes = (
         "/api/assets", "/api/jobs", "/api/masters", "/api/reviews", "/api/budget",
         "/api/learning", "/api/schedules", "/api/recipes", "/api/connections",
         "/api/ai-connections",
     )
-    if path == "/" or path.startswith(workspace_prefixes):
+    if path == "/" or path.startswith("/tools/") or path.startswith(workspace_prefixes):
         return "workspace"
     return None
 
@@ -172,10 +216,6 @@ class ViewRefinementRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
 
 
-class AssemblyPlanRequest(BaseModel):
-    prompt: str = Field(default="", max_length=4000)
-
-
 class Generate3DRequest(BaseModel):
     generate_type: str = "Normal"
     enable_pbr: bool = False
@@ -185,9 +225,18 @@ class Generate3DRequest(BaseModel):
 
 class TextImageTaskRequest(BaseModel):
     prompts: list[str] = Field(min_length=1, max_length=5)
-    model: str = Field(min_length=1, max_length=128)
-    quality: str = Field(default="medium", max_length=16)
-    size: Literal["1024x1024", "1536x1024", "1024x1536"] = "1024x1024"
+    use_preferences: bool = True
+
+
+class LibraryTaskUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
+    favorite: bool | None = None
+    archived: bool | None = None
+
+
+class LocalPreferencesUpdate(BaseModel):
+    enabled: bool = False
+    prompt: str = Field(default="", max_length=4000)
 
 
 class AnimalCutoutRepairRequest(BaseModel):
@@ -218,6 +267,109 @@ class UserUpdateRequest(BaseModel):
     role: Literal["member", "admin"] | None = None
     active: bool | None = None
     features: list[str] | None = None
+
+
+def _require_local_library_access(header: str | None, request: Request) -> None:
+    client_host = request.client.host if request.client else ""
+    if (
+        header != "1"
+        or not local_library_available()
+        or client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}
+    ):
+        raise HTTPException(status_code=404, detail="本地作品库不可用")
+
+
+def _active_preference_prompt(use_preferences: bool = True) -> str:
+    if not use_preferences:
+        return ""
+    preferences = load_local_preferences()
+    if not preferences.get("enabled"):
+        return ""
+    return str(preferences.get("prompt") or "").strip()
+
+
+def _apply_personal_preferences(prompt: str, preference_prompt: str) -> str:
+    prompt = prompt.strip()
+    preference_prompt = preference_prompt.strip()
+    if not preference_prompt:
+        return prompt
+    if not prompt:
+        return f"个人长期偏好（本次已启用）：\n{preference_prompt}"
+    return f"{prompt}\n\n个人长期偏好（本次已启用）：\n{preference_prompt}"
+
+
+def _first_url(*values) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict):
+            url = value.get("url") or value.get("preview_url")
+            if isinstance(url, str) and url:
+                return url
+        if isinstance(value, list):
+            found = _first_url(*value)
+            if found:
+                return found
+    return None
+
+
+def _asset_urls(value) -> set[str]:
+    found: set[str] = set()
+    if isinstance(value, dict):
+        for item in value.values():
+            found.update(_asset_urls(item))
+    elif isinstance(value, list):
+        for item in value:
+            found.update(_asset_urls(item))
+    elif isinstance(value, str) and (
+        value.startswith("/local-blobs/") or value.startswith("https://")
+    ):
+        found.add(value)
+    return found
+
+
+def _library_summary(record: dict) -> dict:
+    state = record["state"]
+    workflow = state.get("workflow") or "image-to-3d"
+    library = state.get("library") or {}
+    if workflow == "text-to-image":
+        items = state.get("items") or []
+        prompt = next((str(item.get("prompt") or "") for item in items if item.get("prompt")), "")
+        preview_url = _first_url(
+            [item for item in items if item.get("status") == "SUCCEEDED"],
+            items,
+            state.get("reference_images"),
+        )
+        default_title = prompt[:60] or "文生图任务"
+    elif workflow == "animal-photo-cutout":
+        prompt = str(state.get("prompt") or "")
+        preview_url = _first_url(
+            state.get("result"), state.get("candidates"), state.get("source"),
+        )
+        default_title = "照片转镂空剪影"
+    else:
+        prompt = str(state.get("input_notes") or state.get("user_prompt") or "")
+        preview_url = _first_url(
+            state.get("assembly_plan"),
+            (state.get("views") or {}).get("front"),
+            state.get("reference_images"),
+            state.get("reference_image"),
+        )
+        default_title = prompt[:60] or "图生 3D 任务"
+    return {
+        "id": record["id"],
+        "workflow": workflow,
+        "status": state.get("status", "UNKNOWN"),
+        "title": str(library.get("title") or default_title)[:120],
+        "favorite": bool(library.get("favorite")),
+        "archived": bool(library.get("archived")),
+        "prompt": prompt[:500],
+        "preview_url": preview_url,
+        "asset_count": len(_asset_urls(state)),
+        "created_at": state.get("created_at") or record.get("created_at"),
+        "updated_at": state.get("updated_at") or record.get("updated_at"),
+        "preference_applied": bool(state.get("preference_prompt")),
+    }
 
 
 @app.exception_handler(WorkflowError)
@@ -268,6 +420,10 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
     state, version = load_session(session_id, _require_token(token))
     if state.get("status") not in VALID_STATES:
         raise WorkflowError("INVALID_SESSION", "会话状态无效", 500)
+    if state["status"] in {"GENERATING_ASSEMBLY", "ASSEMBLY_REVIEW", "ASSEMBLY_CONFIRMED"}:
+        state["status"] = "VIEWS_CONFIRMED"
+        state["last_error"] = None
+        version = _save(state, version)
     timeout = TRANSIENT_STATE_TIMEOUTS.get(state["status"])
     updated_at = int(state.get("updated_at") or state.get("created_at") or 0)
     if timeout and updated_at and int(time.time()) - updated_at > timeout:
@@ -286,14 +442,8 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
                 "code": "VIEW_GENERATION_TIMEOUT",
                 "message": "多视图生成等待超时，已解除锁定；已完成的视图会保留，可重试未完成视图。",
             }
-        elif previous_status == "GENERATING_ASSEMBLY":
-            state["status"] = "ASSEMBLY_REVIEW" if state.get("assembly_plan") else "VIEWS_CONFIRMED"
-            state["last_error"] = {
-                "code": "ASSEMBLY_GENERATION_TIMEOUT",
-                "message": "切片拼装图生成等待超时，已解除锁定，可重试。",
-            }
         else:
-            state["status"] = "ASSEMBLY_CONFIRMED"
+            state["status"] = "VIEWS_CONFIRMED"
             state["last_error"] = {
                 "code": "HUNYUAN_SUBMIT_TIMEOUT",
                 "message": "3D 任务提交结果未能确认，已解除锁定。重新提交前请先核对腾讯混元任务，避免重复计费。",
@@ -330,8 +480,8 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "last_error": state.get("last_error"),
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
-        "model_settings": state.get("model_settings"),
         "view_source": state.get("view_source", "generated"),
+        "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
         result["access_token"] = token
@@ -390,13 +540,13 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
         "task_id": state["session_id"],
         "status": state["status"],
         "items": state["items"],
-        "model_settings": state["model_settings"],
         "reference_image": references[0] if references else None,
         "reference_images": references,
         "product_reference_images": product_references,
         "example_reference_images": example_references,
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
+        "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
         result["access_token"] = token
@@ -446,6 +596,10 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
     connectivity = state.get("connectivity")
     current_result = state.get("result")
     original_result = state.get("original_result")
+    repairs = [
+        {key: value for key, value in item.items() if key not in {"model", "quality"}}
+        for item in state.get("repair_history", [])
+    ]
     response = {
         "task_id": state["session_id"],
         "status": state["status"],
@@ -473,15 +627,13 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
         "process_details": {
             "generation_prompt": state.get("prompt", ""),
             "repair_prompt_template": ANIMAL_CUTOUT_REPAIR_PROMPT,
-            "repair_model": state["model_settings"].get("repair_model", CUTOUT_REPAIR_MODEL),
-            "repair_quality": state["model_settings"].get("repair_quality", CUTOUT_REPAIR_QUALITY),
             "original_result": original_result,
-            "repairs": state.get("repair_history", []),
+            "repairs": repairs,
         },
         "last_error": state.get("last_error"),
-        "model_settings": state["model_settings"],
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
+        "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
         response["access_token"] = token
@@ -634,9 +786,84 @@ def health():
     return {
         "status": "ok",
         "workflow": "gpt-multiview-to-hunyuan-3d",
-        "model_configuration": "per-session-web-settings",
+        "model_configuration": "server-managed",
         "storage": storage_status(),
     }
+
+
+@app.get("/api/local-library/tasks")
+def local_library_tasks(
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    tasks = [_library_summary(record) for record in list_local_sessions()]
+    tasks.sort(key=lambda item: (not item["favorite"], -(int(item["updated_at"]) if isinstance(item["updated_at"], (int, float)) else 0)))
+    return {"items": [item for item in tasks if not item["archived"]]}
+
+
+@app.post("/api/local-library/tasks/{task_id}/resume")
+def resume_local_library_task(
+    task_id: str,
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    if not TASK_ID.fullmatch(task_id):
+        raise HTTPException(status_code=404, detail="作品记录不存在")
+    token = secrets.token_urlsafe(32)
+    state = rotate_local_session_token(task_id, token)
+    workflow = state.get("workflow") or "image-to-3d"
+    return {
+        "task_id": task_id,
+        "access_token": token,
+        "workflow": workflow,
+        "page": "/text-to-image" if workflow in {"text-to-image", "animal-photo-cutout"} else "/image-to-3d",
+    }
+
+
+@app.patch("/api/local-library/tasks/{task_id}")
+def update_local_library_task(
+    task_id: str,
+    data: LibraryTaskUpdate,
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    if not TASK_ID.fullmatch(task_id):
+        raise HTTPException(status_code=404, detail="作品记录不存在")
+    values = data.model_dump(exclude_none=True)
+    if "title" in values:
+        values["title"] = values["title"].strip()
+    state = update_local_session_library(task_id, values)
+    return _library_summary({
+        "id": task_id,
+        "state": state,
+        "created_at": state.get("created_at"),
+        "updated_at": state.get("updated_at"),
+    })
+
+
+@app.get("/api/local-library/preferences")
+def get_local_library_preferences(
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    return load_local_preferences()
+
+
+@app.put("/api/local-library/preferences")
+def update_local_library_preferences(
+    data: LocalPreferencesUpdate,
+    request: Request,
+    x_local_library: str | None = Header(default=None),
+):
+    _require_local_library_access(x_local_library, request)
+    prompt = data.prompt.strip()
+    if data.enabled and not prompt:
+        raise WorkflowError("PREFERENCE_REQUIRED", "启用个人偏好前请先填写偏好内容", 422)
+    return save_local_preferences(data.enabled, prompt)
 
 
 @app.get("/api/bootstrap/status", include_in_schema=False)
@@ -723,11 +950,11 @@ def legacy_cloud_workspace(request: Request):
         },
         "assistant": {"id": "cloud-assistant", "name": "灵界助手"},
         "private_workspace": True,
-        "key_bound": image_api_ready,
-        "api_setup_required": not image_api_ready,
+        "key_bound": True,
+        "api_setup_required": False,
         "free_services": {},
-        "provider": "openai" if image_api_ready else "unconfigured",
-        "mode": "SERVER_MANAGED" if image_api_ready else "CLOUD_COMPATIBILITY",
+        "provider": "server-managed",
+        "mode": "SERVER_MANAGED",
         "budget_scope": "LOCAL",
         "live_enabled": image_api_ready,
         "styles": [],
@@ -786,11 +1013,7 @@ def create_text_image_task(data: TextImageTaskRequest):
         raise WorkflowError("PROMPT_REQUIRED", "每一条图片要求都不能为空", 422)
     if any(len(prompt) > 2000 for prompt in prompts):
         raise WorkflowError("PROMPT_TOO_LONG", "每一条图片要求不能超过 2000 字", 422)
-    if not MODEL_NAME.fullmatch(data.model.strip()):
-        raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
-    if data.quality not in IMAGE_QUALITIES:
-        raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
-
+    preference_prompt = _active_preference_prompt(data.use_preferences)
     task_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
     now = int(time.time())
@@ -814,10 +1037,11 @@ def create_text_image_task(data: TextImageTaskRequest):
             for index, prompt in enumerate(prompts)
         ],
         "model_settings": {
-            "model": data.model.strip(),
-            "quality": data.quality,
-            "size": data.size,
+            "model": TEXT_IMAGE_MODEL,
+            "quality": TEXT_IMAGE_QUALITY,
+            "size": TEXT_IMAGE_SIZE,
         },
+        "preference_prompt": preference_prompt,
         "reference_image": None,
         "reference_images": [],
         "product_reference_images": [],
@@ -915,6 +1139,9 @@ def generate_text_image_item(task_id: str, item_index: int,
     version = _save(state, version)
     try:
         settings = state["model_settings"]
+        generation_prompt = _apply_personal_preferences(
+            item["prompt"], state.get("preference_prompt", ""),
+        )
         product_references, example_references = _text_image_reference_groups(state)
         references = product_references + example_references
         if references:
@@ -924,12 +1151,12 @@ def generate_text_image_item(task_id: str, item_index: int,
             ]
             generated, usage = generate_view(
                 reference_bytes,
-                _text_image_edit_prompt(item["prompt"], len(product_references), len(example_references)),
+                _text_image_edit_prompt(generation_prompt, len(product_references), len(example_references)),
                 settings["model"], settings["quality"], settings["size"],
             )
         else:
             generated, usage = generate_image(
-                item["prompt"], settings["model"], settings["quality"], settings["size"],
+                generation_prompt, settings["model"], settings["quality"], settings["size"],
             )
         url = PublicBlobStore().put(
             f"text-image/{task_id}/{item_index + 1}.png",
@@ -979,24 +1206,14 @@ def generate_text_image_item(task_id: str, item_index: int,
 def create_animal_cutout_task(
     image: UploadFile = File(...),
     prompt: str = Form("", max_length=4000),
-    image_model: str = Form(..., max_length=128),
-    image_quality: str = Form("medium", max_length=16),
-    repair_model: str = Form(CUTOUT_REPAIR_MODEL, max_length=128),
-    repair_quality: str = Form(CUTOUT_REPAIR_QUALITY, max_length=16),
     generation_count: int = Form(3, ge=1, le=5),
-    size: Literal["1024x1024", "1536x1024", "1024x1536"] = Form("1024x1024"),
+    use_preferences: bool = Form(True),
 ):
-    model = image_model.strip()
-    repair_model = repair_model.strip()
-    if not MODEL_NAME.fullmatch(model):
-        raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
-    if not MODEL_NAME.fullmatch(repair_model):
-        raise WorkflowError("INVALID_MODEL", "修复模型名称格式无效", 422)
-    if image_quality not in IMAGE_QUALITIES:
-        raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
-    if repair_quality not in IMAGE_QUALITIES:
-        raise WorkflowError("INVALID_QUALITY", "修复质量设置无效", 422)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
+    preference_prompt = _active_preference_prompt(use_preferences)
+    generation_prompt = _apply_personal_preferences(
+        prompt.strip() or ANIMAL_CUTOUT_PROMPT, preference_prompt,
+    )
     task_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
     source_url = PublicBlobStore().put(
@@ -1007,7 +1224,8 @@ def create_animal_cutout_task(
         "session_id": task_id,
         "workflow": "animal-photo-cutout",
         "status": "READY",
-        "prompt": prompt.strip() or ANIMAL_CUTOUT_PROMPT,
+        "prompt": generation_prompt,
+        "preference_prompt": preference_prompt,
         "source": {
             "url": source_url,
             "sha256": hashlib.sha256(normalized).hexdigest(),
@@ -1026,11 +1244,11 @@ def create_animal_cutout_task(
         "last_error": None,
         "started_at": None,
         "model_settings": {
-            "model": model,
-            "quality": image_quality,
-            "repair_model": repair_model,
-            "repair_quality": repair_quality,
-            "size": size,
+            "model": CUTOUT_GENERATION_MODEL,
+            "quality": CUTOUT_GENERATION_QUALITY,
+            "repair_model": CUTOUT_REPAIR_MODEL,
+            "repair_quality": CUTOUT_REPAIR_QUALITY,
+            "size": CUTOUT_IMAGE_SIZE,
         },
         "created_at": now,
         "updated_at": now,
@@ -1048,6 +1266,49 @@ def animal_cutout_prompt_template():
 def read_animal_cutout_task(task_id: str, x_session_token: str | None = Header(default=None)):
     state, _ = _load_animal_cutout_task(task_id, x_session_token)
     return _animal_cutout_response(state)
+
+
+def _cutout_dxf(image_bytes: bytes) -> bytes:
+    """Trace black raster regions into closed, millimetre-based DXF polylines."""
+    with Image.open(io.BytesIO(image_bytes)) as source:
+        gray = np.asarray(source.convert("L"))
+    mask = np.where(gray < 128, 255, 0).astype(np.uint8)
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    height, width = mask.shape
+    scale = 100.0 / max(width, height)
+    entities = []
+    for contour in contours:
+        perimeter = cv2.arcLength(contour, True)
+        simplified = cv2.approxPolyDP(contour, max(0.8, perimeter * 0.0015), True)
+        points = simplified.reshape(-1, 2)
+        if len(points) < 3 or abs(cv2.contourArea(simplified)) < 4:
+            continue
+        vertices = "".join(
+            f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n"
+            for x, y in points
+        )
+        entities.append(f"0\nLWPOLYLINE\n8\nCUT\n90\n{len(points)}\n70\n1\n{vertices}")
+    if not entities:
+        raise WorkflowError("CUTOUT_DXF_EMPTY", "当前结果没有可导出的黑色轮廓", 409)
+    header = "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n"
+    return (header + "".join(entities) + "0\nENDSEC\n0\nEOF\n").encode("ascii")
+
+
+@app.get("/api/animal-cutout/tasks/{task_id}/dxf")
+def download_animal_cutout_dxf(
+    task_id: str,
+    x_session_token: str | None = Header(default=None),
+):
+    state, _ = _load_animal_cutout_task(task_id, x_session_token)
+    result = state.get("result") or {}
+    if state.get("status") not in {"SUCCEEDED", "REVIEW_REQUIRED"} or not result.get("url"):
+        raise WorkflowError("ANIMAL_CUTOUT_NOT_READY", "还没有可导出的最终结果", 409)
+    dxf = _cutout_dxf(fetch_bytes(result["url"], 25_000_000))
+    return Response(
+        dxf,
+        media_type="application/dxf",
+        headers={"Content-Disposition": f'attachment; filename="cutout-{task_id[:8]}.dxf"'},
+    )
 
 
 @app.post("/api/animal-cutout/tasks/{task_id}/generate")
@@ -1373,16 +1634,18 @@ def new_session(
     image: UploadFile = File(...),
     prompt: str = Form("", max_length=4000),
     view_source: Literal["generated", "uploaded"] = Form("generated"),
-    vision_model: str = Form(..., max_length=128),
-    image_model: str = Form(..., max_length=128),
-    image_quality: str = Form(..., max_length=16),
-    hunyuan_model: str = Form(..., max_length=128),
+    use_preferences: bool = Form(True),
 ):
-    models = _model_settings(vision_model, image_model, image_quality, hunyuan_model)
+    models = _model_settings(
+        IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
+    )
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
-    user_prompt = prompt.strip()
-    if view_source == "uploaded" and not user_prompt:
-        user_prompt = "保持用户提交的各视图主体、结构、比例、材质和颜色一致"
+    preference_prompt = _active_preference_prompt(use_preferences)
+    base_prompt = prompt.strip()
+    if view_source == "uploaded" and not base_prompt:
+        base_prompt = "保持用户提交的各视图主体、结构、比例、材质和颜色一致"
+    input_notes = _apply_personal_preferences(base_prompt, preference_prompt)
+    user_prompt = input_notes
 
     session_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
@@ -1410,7 +1673,7 @@ def new_session(
         "session_id": session_id,
         "status": "REFERENCES_READY" if view_source == "generated" else "VIEWS_REVIEW",
         "analysis": {},
-        "input_notes": prompt.strip(),
+        "input_notes": input_notes,
         "user_prompt": user_prompt,
         "effective_prompt": effective_prompt(user_prompt) if user_prompt else "",
         "prompt_revision": 1,
@@ -1426,6 +1689,8 @@ def new_session(
         "last_error": None,
         "model_settings": models,
         "view_source": view_source,
+        "workflow": "image-to-3d",
+        "preference_prompt": preference_prompt,
         "created_at": now,
         "updated_at": now,
     }
@@ -1488,7 +1753,10 @@ def analyze_references(session_id: str, x_session_token: str | None = Header(def
         if isinstance(exc, (WorkflowError, StoreError)):
             raise
         raise WorkflowError("REFERENCE_ANALYSIS_FAILED", "参考图分析发生意外错误", 502) from exc
-    user_prompt = analysis.get("suggested_prompt_zh", "").strip()
+    user_prompt = _apply_personal_preferences(
+        analysis.get("suggested_prompt_zh", "").strip(),
+        state.get("preference_prompt", ""),
+    )
     if not user_prompt:
         state["status"] = "REFERENCES_READY"
         state["last_error"] = {
@@ -1757,88 +2025,13 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
     return _response(state)
 
 
-@app.post("/api/sessions/{session_id}/assembly-plan")
-def create_assembly_plan(session_id: str, data: AssemblyPlanRequest,
-                         x_session_token: str | None = Header(default=None)):
-    state, version = _load(session_id, x_session_token)
-    models = _session_model_settings(state)
-    if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "ASSEMBLY_REVIEW"}:
-        raise WorkflowError("VIEWS_NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
-    snapshot = state.get("confirmed_snapshot") or {}
-    if not all(view in snapshot.get("views", {}) for view in AI_GENERATED_VIEWS):
-        raise WorkflowError("VIEWS_NOT_CONFIRMED", "已确认的四视图不完整", 409)
-    previous_status = state["status"]
-    state["status"] = "GENERATING_ASSEMBLY"
-    state["last_error"] = None
-    version = _save(state, version)
-    try:
-        references = [
-            fetch_bytes(snapshot["views"][view]["url"], 20_000_000)
-            for view in AI_GENERATED_VIEWS
-        ]
-        generated, usage = generate_view(
-            references,
-            assembly_plan_prompt(snapshot.get("user_prompt") or state["user_prompt"], data.prompt),
-            models["image_model"],
-            models["image_quality"],
-            "1536x1024",
-        )
-        previous = state.get("assembly_plan") or {}
-        revision = int(previous.get("revision", 0)) + 1
-        url = PublicBlobStore().put(
-            f"image3d/{session_id}/assembly/plan-r{revision}.png",
-            generated,
-            "image/png",
-        )
-        state["assembly_plan"] = {
-            "url": url,
-            "sha256": hashlib.sha256(generated).hexdigest(),
-            "revision": revision,
-            "prompt": data.prompt.strip(),
-            "usage": usage,
-            "confirmed_at": None,
-        }
-        state["status"] = "ASSEMBLY_REVIEW"
-        state["hunyuan_task"] = None
-        state["last_error"] = None
-        _save(state, version)
-        return _response(state)
-    except Exception as exc:
-        state["status"] = "ASSEMBLY_REVIEW" if state.get("assembly_plan") else (
-            "VIEWS_CONFIRMED" if previous_status != "CONFIRMED" else "CONFIRMED"
-        )
-        state["last_error"] = {
-            "code": getattr(exc, "code", "ASSEMBLY_GENERATION_FAILED"),
-            "message": str(exc)[:500] or "切片拼装图生成失败",
-        }
-        _save(state, version)
-        if isinstance(exc, (WorkflowError, StoreError)):
-            raise
-        raise WorkflowError("ASSEMBLY_GENERATION_FAILED", "切片拼装图生成发生意外错误", 502) from exc
-
-
-@app.post("/api/sessions/{session_id}/assembly-plan/confirm")
-def confirm_assembly_plan(session_id: str, x_session_token: str | None = Header(default=None)):
-    state, version = _load(session_id, x_session_token)
-    plan = state.get("assembly_plan") or {}
-    if state["status"] != "ASSEMBLY_REVIEW" or not plan.get("url"):
-        raise WorkflowError("ASSEMBLY_NOT_READY", "请先生成并检查切片拼装图", 409)
-    plan["confirmed_at"] = int(time.time())
-    state["status"] = "ASSEMBLY_CONFIRMED"
-    state["last_error"] = None
-    _save(state, version)
-    return _response(state)
-
-
 @app.post("/api/sessions/{session_id}/generate")
 def generate_3d(session_id: str, data: Generate3DRequest,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
-    if (state["status"] not in {"ASSEMBLY_CONFIRMED", "FAILED"}
-            or not state.get("confirmed_snapshot")
-            or not (state.get("assembly_plan") or {}).get("confirmed_at")):
-        raise WorkflowError("NOT_CONFIRMED", "请先确认四视图和切片拼装图", 409)
+    if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
+        raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     options = data.model_dump()
@@ -1848,7 +2041,7 @@ def generate_3d(session_id: str, data: Generate3DRequest,
     version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
-        state["status"] = "ASSEMBLY_CONFIRMED"
+        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
             "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
@@ -1867,13 +2060,13 @@ def generate_3d(session_id: str, data: Generate3DRequest,
             models["hunyuan_model"],
         )
     except WorkflowError as exc:
-        state["status"] = "ASSEMBLY_CONFIRMED"
+        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {"code": exc.code, "message": exc.message}
         _save(state, version)
         raise
     task_id = str(created.get("id", ""))
     if not TASK_ID.fullmatch(task_id):
-        state["status"] = "ASSEMBLY_CONFIRMED"
+        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {
             "code": "HUNYUAN_INVALID_RESPONSE",
             "message": "腾讯混元没有返回任务编号，请检查错误信息后重试",
@@ -1995,6 +2188,106 @@ def admin_page():
     return FileResponse(AUTH_FRONTEND / "admin.html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/similarity-search", include_in_schema=False)
+def similarity_search_page():
+    return FileResponse(
+        SIMILARITY_SEARCH_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post("/api/deliverables/upload", status_code=201)
+async def upload_deliverable(
+    file: UploadFile = File(...),
+    task: str = Form("other"),
+):
+    """Store a generated deliverable and return a shareable download URL."""
+    original_name = Path(file.filename or "").name.strip()
+    extension = Path(original_name).suffix.lower()
+    if not original_name or extension not in DELIVERABLE_EXTENSIONS:
+        raise HTTPException(status_code=422, detail="不支持该文件类型")
+    if task not in DELIVERABLE_TASKS:
+        raise HTTPException(status_code=422, detail="请选择有效的所属任务")
+
+    data = await file.read(MAX_DELIVERABLE_UPLOAD_BYTES + 1)
+    await file.close()
+    if not data:
+        raise HTTPException(status_code=422, detail="文件内容为空")
+    if len(data) > MAX_DELIVERABLE_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="单个文件不能超过 4 MB")
+
+    safe_stem = re.sub(r"[^\w\-.]+", "-", Path(original_name).stem, flags=re.UNICODE).strip("-._")
+    safe_name = f"{safe_stem[:80] or 'file'}{extension}"
+    content_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    # Vector markup is downloadable as data rather than executable browser content.
+    if extension in {".svg", ".ai"}:
+        content_type = "application/octet-stream"
+    upload_id = uuid.uuid4().hex
+    try:
+        url = PublicBlobStore().put(
+            f"deliverables/{task}/{time.strftime('%Y/%m/%d')}/{upload_id}/{safe_name}",
+            data,
+            content_type,
+        )
+    except StoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "id": upload_id,
+        "name": original_name,
+        "size": len(data),
+        "content_type": content_type,
+        "url": url,
+        "task": task,
+        "task_label": DELIVERABLE_TASKS[task],
+    }
+
+
+@app.get("/api/deliverables")
+def list_deliverables():
+    try:
+        stored = PublicBlobStore().list("deliverables/", limit=100)
+    except StoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp"}
+    items = []
+    for item in stored:
+        path_parts = Path(item["pathname"]).parts
+        task = path_parts[1] if len(path_parts) > 1 and path_parts[1] in DELIVERABLE_TASKS else "uncategorized"
+        name = Path(item["pathname"]).name
+        extension = Path(name).suffix.lower()
+        uploaded_at = item["uploaded_at"]
+        if hasattr(uploaded_at, "isoformat"):
+            uploaded_at = uploaded_at.isoformat()
+        items.append({
+            "name": name, "url": item["url"], "size": item["size"],
+            "type": "image" if extension in image_extensions else "file",
+            "extension": extension.removeprefix(".").upper() or "FILE",
+            "uploaded_at": uploaded_at,
+            "task": task,
+            "task_label": DELIVERABLE_TASKS.get(task, "未分类"),
+        })
+    items.sort(key=lambda item: str(item["uploaded_at"]), reverse=True)
+    return {"items": items}
+
+
+@app.get("/file-upload", include_in_schema=False)
+def file_upload_page():
+    return FileResponse(
+        ORIGINAL_FRONTEND / "upload.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/tools/{tool_slug}", include_in_schema=False)
+def standalone_tool_page(tool_slug: str):
+    if tool_slug not in WORKBENCH_TOOLS:
+        raise HTTPException(status_code=404, detail="功能不存在")
+    return FileResponse(
+        ORIGINAL_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/local-blobs/{blob_path:path}", include_in_schema=False)
 def local_blob(blob_path: str):
     path = local_blob_path(f"/local-blobs/{blob_path}")
@@ -2006,7 +2299,7 @@ def local_blob(blob_path: str):
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse(
-        ORIGINAL_FRONTEND / "index.html",
+        ORIGINAL_FRONTEND / "home.html",
         headers={"Cache-Control": "no-store"},
     )
 
@@ -2016,3 +2309,8 @@ app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), na
 app.mount("/static", StaticFiles(directory=IMAGE3D_FRONTEND), name="static")
 app.mount("/text-image-static", StaticFiles(directory=TEXT2IMAGE_FRONTEND), name="text-image-static")
 app.mount("/auth-static", StaticFiles(directory=AUTH_FRONTEND), name="auth-static")
+app.mount(
+    "/similarity-search-static",
+    StaticFiles(directory=SIMILARITY_SEARCH_FRONTEND),
+    name="similarity-search-static",
+)

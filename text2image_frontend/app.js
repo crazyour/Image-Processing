@@ -9,17 +9,7 @@ const statusLabels = {
   SUCCEEDED: "已完成",
   FAILED: "生成失败",
 };
-const defaultSettings = {
-  model: "gpt-image-2.5-flare",
-  quality: "medium",
-  size: "1024x1024",
-};
 const defaultAnimalSettings = {
-  generation_model: "gpt-image-2.5-flare",
-  generation_quality: "medium",
-  repair_model: "gpt-image-2.5-sunburst",
-  repair_quality: "high",
-  size: "1024x1024",
   generation_count: 3,
 };
 let defaultAnimalPrompt = "";
@@ -36,11 +26,6 @@ let animalPreviewUrl = null;
 function savedSession() {
   try { return JSON.parse(sessionStorage.getItem("text-image-task") || "null"); }
   catch { sessionStorage.removeItem("text-image-task"); return null; }
-}
-
-function savedSettings() {
-  try { return { ...defaultSettings, ...JSON.parse(localStorage.getItem("text-image-settings") || "{}") }; }
-  catch { return { ...defaultSettings }; }
 }
 
 async function api(path, options = {}, timeout = 30_000, accessToken = task?.token) {
@@ -84,35 +69,27 @@ function promptValues() {
 }
 
 function updatePromptControls() {
-  const rows = [...document.querySelectorAll(".prompt-row")];
-  rows.forEach((row, index) => {
-    row.querySelector(".prompt-number").textContent = String(index + 1).padStart(2, "0");
-    row.querySelector("label").setAttribute("for", `prompt-${index}`);
-    row.querySelector("textarea").id = `prompt-${index}`;
-    row.querySelector(".remove-prompt").disabled = rows.length === 1 || busy;
-  });
-  $("#prompt-count").textContent = `${rows.length} / 5`;
-  $("#generation-count").value = String(rows.length);
+  const row = $(".prompt-row");
+  if (row) {
+    row.querySelector(".prompt-number").textContent = "01";
+    row.querySelector("label").setAttribute("for", "prompt-0");
+    row.querySelector("textarea").id = "prompt-0";
+  }
+  const count = Number($("#generation-count").value || 1);
+  $("#prompt-count").textContent = `同一要求生成 ${count} 张`;
   $("#generation-count").disabled = busy;
-  $("#add-prompt").disabled = rows.length >= 5 || busy;
 }
 
 function addPrompt(value = "") {
-  if (document.querySelectorAll(".prompt-row").length >= 5) return;
+  if (document.querySelector(".prompt-row")) return;
   const row = document.createElement("div");
   row.className = "prompt-row";
   row.innerHTML = `
     <span class="prompt-number"></span>
-    <label><span class="hidden">图片要求</span><textarea class="prompt-input" maxlength="2000" required placeholder="例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示"></textarea></label>
-    <button class="remove-prompt" type="button">删除</button>`;
+    <label><span class="hidden">这一组图片的统一要求</span><textarea class="prompt-input" maxlength="2000" required placeholder="例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示"></textarea></label>`;
   row.querySelector("textarea").value = value;
-  row.querySelector(".remove-prompt").addEventListener("click", () => { row.remove(); updatePromptControls(); });
   $("#prompt-list").appendChild(row);
   updatePromptControls();
-}
-
-function settings() {
-  return { model: $("#image-model").value.trim(), quality: $("#image-quality").value, size: $("#image-size").value };
 }
 
 function setBusy(value) {
@@ -329,12 +306,6 @@ function setAnimalBusy(value) {
   $("#submit-animal").textContent = value ? "正在处理…" : "上传并生成候选";
   $("#animal-image").disabled = value;
   $("#animal-prompt").disabled = value;
-  $("#animal-consent").disabled = value;
-  $("#animal-image-model").disabled = value;
-  $("#animal-image-quality").disabled = value;
-  $("#animal-repair-model").disabled = value;
-  $("#animal-repair-quality").disabled = value;
-  $("#animal-image-size").disabled = value;
   $("#animal-generation-count").disabled = value;
   $("#retry-animal").disabled = value;
   $("#manual-repair-animal").disabled = value;
@@ -494,9 +465,7 @@ function renderAnimalProcessDetails(state) {
 
   const repairs = process.repairs || [];
   $("#animal-repair-prompt-template").textContent = process.repair_prompt_template || "未记录";
-  $("#animal-repair-runtime").textContent = process.repair_model
-    ? `修复专用模型：${process.repair_model} · 质量：${process.repair_quality || "未记录"}`
-    : "修复专用模型：未记录";
+  $("#animal-repair-runtime").textContent = "系统会在连通性检测未通过时自动执行局部精修。";
   initialStatus.textContent = `已选候选 ${Number(state.selected_candidate_index) + 1} · 首次检测：${animalConnectivitySummary(original.connectivity)}`;
   const originalImage = document.createElement("img");
   originalImage.src = original.url;
@@ -561,6 +530,7 @@ function applyAnimalState(state) {
   $("#manual-repair-animal").classList.toggle("hidden", state.status !== "REVIEW_REQUIRED" || !state.can_manual_repair);
   $("#restore-animal").classList.toggle("hidden", state.status === "GENERATING" || !state.can_restore_original);
   $("#download-animal").classList.add("hidden");
+  $("#download-animal-dxf").classList.add("hidden");
   const connectivity = state.connectivity;
   renderAnimalProcessDetails(state);
   const connectivityStatus = $("#animal-connectivity-status");
@@ -590,6 +560,7 @@ function applyAnimalState(state) {
     $("#animal-result-frame").replaceChildren(image);
     $("#download-animal").href = state.result.url;
     $("#download-animal").classList.remove("hidden");
+    $("#download-animal-dxf").classList.remove("hidden");
   } else if (state.status === "GENERATING") {
     animalPlaceholder(
       state.operation === "repair"
@@ -725,14 +696,13 @@ $("#task-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (busy) return;
   $("#error-panel").classList.add("hidden");
-  const prompts = promptValues();
-  if (prompts.some((prompt) => !prompt)) return showError({ message: "请填写每一条图片要求", code: "PROMPT_REQUIRED" });
-  const modelSettings = settings();
-  if (!modelSettings.model) return showError({ message: "请填写图片生成模型", code: "MODEL_REQUIRED" });
-  localStorage.setItem("text-image-settings", JSON.stringify(modelSettings));
+  const prompt = promptValues()[0] || "";
+  if (!prompt) return showError({ message: "请填写这一组图片的统一要求", code: "PROMPT_REQUIRED" });
+  const count = Number($("#generation-count").value || 1);
+  const prompts = Array.from({ length: count }, () => prompt);
   setBusy(true);
   try {
-    const state = await api("/api/text-image/tasks", { method: "POST", body: JSON.stringify({ prompts, ...modelSettings }) });
+    const state = await api("/api/text-image/tasks", { method: "POST", body: JSON.stringify({ prompts }) });
     task = { id: state.task_id, token: state.access_token, state };
     sessionStorage.setItem("text-image-task", JSON.stringify({ id: task.id, token: task.token }));
     if (referenceGroups.product.files.length || referenceGroups.example.files.length) {
@@ -760,22 +730,7 @@ $("#task-form").addEventListener("submit", async (event) => {
   await runQueue();
 });
 
-$("#add-prompt").addEventListener("click", () => addPrompt());
-$("#generation-count").addEventListener("change", (event) => {
-  if (busy) return;
-  const desired = Number(event.target.value);
-  let rows = [...document.querySelectorAll(".prompt-row")];
-  while (rows.length < desired) {
-    addPrompt();
-    rows = [...document.querySelectorAll(".prompt-row")];
-  }
-  while (rows.length > desired && rows.length > 1) {
-    rows.at(-1).remove();
-    rows = [...document.querySelectorAll(".prompt-row")];
-  }
-  updatePromptControls();
-  rows.at(-1)?.querySelector("textarea")?.focus();
-});
+$("#generation-count").addEventListener("change", updatePromptControls);
 $("#add-product-reference").addEventListener("click", () => $("#product-reference-images").click());
 $("#add-example-reference").addEventListener("click", () => $("#example-reference-images").click());
 [["product", "#product-reference-images"], ["example", "#example-reference-images"]].forEach(([kind, selector]) => {
@@ -813,28 +768,13 @@ $("#animal-form").addEventListener("submit", async (event) => {
   $("#error-panel").classList.add("hidden");
   const file = $("#animal-image").files?.[0];
   if (!file) return showError({ message: "请上传一张参考照片", code: "CUTOUT_IMAGE_REQUIRED" });
-  if (!$("#animal-consent").checked) return showError({ message: "请先确认照片使用授权", code: "PHOTO_CONSENT_REQUIRED" });
-  const generationModel = $("#animal-image-model").value.trim();
-  const generationQuality = $("#animal-image-quality").value;
-  const repairModel = $("#animal-repair-model").value.trim();
-  const repairQuality = $("#animal-repair-quality").value;
   const animalSettings = {
-    generation_model: generationModel,
-    generation_quality: generationQuality,
-    repair_model: repairModel,
-    repair_quality: repairQuality,
-    size: $("#animal-image-size").value,
     generation_count: Number($("#animal-generation-count").value),
   };
   localStorage.setItem("animal-cutout-settings", JSON.stringify(animalSettings));
   const form = new FormData();
   form.append("image", file);
   form.append("prompt", $("#animal-prompt").value.trim() || defaultAnimalPrompt);
-  form.append("image_model", generationModel);
-  form.append("image_quality", generationQuality);
-  form.append("repair_model", repairModel);
-  form.append("repair_quality", repairQuality);
-  form.append("size", animalSettings.size);
   form.append("generation_count", String(animalSettings.generation_count));
   setAnimalBusy(true);
   try {
@@ -853,20 +793,36 @@ $("#animal-form").addEventListener("submit", async (event) => {
 $("#retry-animal").addEventListener("click", generateAnimalCutout);
 $("#manual-repair-animal").addEventListener("click", repairAnimalCutoutManually);
 $("#restore-animal").addEventListener("click", restoreOriginalAnimalCutout);
+$("#download-animal-dxf").addEventListener("click", async (event) => {
+  event.preventDefault();
+  if (!animalTask || animalBusy) return;
+  const button = event.currentTarget;
+  button.setAttribute("aria-disabled", "true");
+  try {
+    const response = await fetch(`/api/animal-cutout/tasks/${animalTask.id}/dxf`, {
+      headers: { "X-Session-Token": animalTask.token },
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || error.detail || "DXF 导出失败");
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `cutout-${animalTask.id.slice(0, 8)}.dxf`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    showError(error);
+  } finally {
+    button.removeAttribute("aria-disabled");
+  }
+});
 $("#dismiss-error").addEventListener("click", () => $("#error-panel").classList.add("hidden"));
 $("#refresh-task").addEventListener("click", () => refreshTask().catch(showError));
 $("#new-task").addEventListener("click", resetTask);
 
-const initialSettings = savedSettings();
 const initialAnimalSettings = { ...defaultAnimalSettings, ...JSON.parse(localStorage.getItem("animal-cutout-settings") || "{}") };
-$("#image-model").value = initialSettings.model;
-$("#image-quality").value = initialSettings.quality;
-$("#image-size").value = initialSettings.size;
-$("#animal-image-model").value = initialAnimalSettings.generation_model;
-$("#animal-image-quality").value = initialAnimalSettings.generation_quality;
-$("#animal-repair-model").value = initialAnimalSettings.repair_model;
-$("#animal-repair-quality").value = initialAnimalSettings.repair_quality;
-$("#animal-image-size").value = initialAnimalSettings.size;
 $("#animal-generation-count").value = String(initialAnimalSettings.generation_count);
 $("#reset-animal-prompt").disabled = true;
 loadAnimalPromptTemplate();
