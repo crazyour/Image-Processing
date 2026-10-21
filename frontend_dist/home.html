@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f6f2">
   <meta name="description" content="灵界工艺设计工具入口">
   <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
-  <link rel="stylesheet" href="/assets/home.css?v=20261020-1">
+  <link rel="stylesheet" href="/assets/home.css?v=20261021-3">
   <title>灵界 · 选择功能</title>
 </head>
 <body>
@@ -19,14 +19,20 @@
         <span class="brand-mark"><img src="/branding/logo-mark.svg" alt="" width="32" height="32"></span>
         <span><strong>灵界</strong><small>工艺设计工具</small></span>
       </a>
+      <div class="account-actions">
+        <span id="account-name" class="account-name"></span>
+        <a id="admin-entry" class="header-action hidden" href="/admin">账号管理</a>
+        <button id="logout" class="header-action" type="button">退出登录</button>
+      </div>
     </header>
 
     <section class="intro" aria-labelledby="home-title">
       <h1 id="home-title">功能列表</h1>
+      <p id="access-message" class="access-message hidden" role="status"></p>
     </section>
 
     <section class="feature-grid" aria-label="常用功能">
-      <a class="feature-card card-image" href="/text-to-image">
+      <a class="feature-card card-image" href="/text-to-image" data-features="text_to_image,animal_cutout">
         <span class="card-icon">
           <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 15-4.5-4.5L6 20"/></svg>
         </span>
@@ -34,7 +40,7 @@
         <span class="card-arrow" aria-hidden="true">↗</span>
       </a>
 
-      <a class="feature-card card-3d" href="/image-to-3d">
+      <a class="feature-card card-3d" href="/image-to-3d" data-features="image_to_3d">
         <span class="card-icon">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 2.8 8.5 4.8v8.8L12 21.2l-8.5-4.8V7.6L12 2.8Z"/><path d="m3.8 7.8 8.2 4.7 8.2-4.7M12 12.5v8.4"/></svg>
         </span>
@@ -42,7 +48,7 @@
         <span class="card-arrow" aria-hidden="true">↗</span>
       </a>
 
-      <a class="feature-card card-search" href="/similarity-search">
+      <a class="feature-card card-search" href="/similarity-search" data-features="similarity_search">
         <span class="card-icon">
           <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M7.5 10.5h6M10.5 7.5v6"/></svg>
         </span>
@@ -50,7 +56,7 @@
         <span class="card-arrow" aria-hidden="true">↗</span>
       </a>
 
-      <a class="feature-card card-assets" href="/file-upload">
+      <a class="feature-card card-assets" href="/file-upload" data-features="asset_library">
         <span class="card-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m6 16 4-4 3 3 2-2 3 3"/><circle cx="16.5" cy="8.5" r="1.5"/></svg></span>
         <span class="card-copy"><small>ASSET LIBRARY</small><strong>成果素材库</strong><span>浏览别人上传的、已经做好可直接使用的素材</span></span>
         <span class="card-arrow" aria-hidden="true">↗</span>
@@ -62,19 +68,20 @@
         <div><h2 id="craft-tools-title">工艺设计与交付</h2></div>
       </div>
       <div class="tool-grid">
-        <a class="tool-card tone-creative" href="/tools/creative"><span class="tool-symbol">✦</span><span><strong>创意工作室</strong><small>从主题和要求创建产品设计</small></span><b>↗</b></a>
-        <a class="tool-card tone-photo" href="/tools/photo-craft"><span class="tool-symbol">◫</span><span><strong>照片定制工艺品</strong><small>把人物或宠物照片转为工艺设计</small></span><b>↗</b></a>
-        <a class="tool-card tone-product" href="/tools/products"><span class="tool-symbol">◇</span><span><strong>产品中心</strong><small>管理产品、版本与后续流程</small></span><b>↗</b></a>
-        <a class="tool-card tone-color" href="/tools/color-finish"><span class="tool-symbol">◉</span><span><strong>配色与工艺</strong><small>调整材料、颜色和表面工艺</small></span><b>↗</b></a>
-        <a class="tool-card tone-visual" href="/tools/visual"><span class="tool-symbol">▧</span><span><strong>视觉工作室</strong><small>制作家居与庭院展示效果图</small></span><b>↗</b></a>
-        <a class="tool-card tone-svg" href="/tools/svg"><span class="tool-symbol">⌁</span><span><strong>SVG 工作室</strong><small>整理并导出可检查的矢量文件</small></span><b>↗</b></a>
-        <a class="tool-card tone-dxf" href="/tools/dxf"><span class="tool-symbol">⌗</span><span><strong>DXF 工程</strong><small>设置尺寸并准备工程文件</small></span><b>↗</b></a>
-        <a class="tool-card tone-files" href="/tools/files"><span class="tool-symbol">▤</span><span><strong>文件中心</strong><small>查找作品、原稿和历史文件</small></span><b>↗</b></a>
-        <a class="tool-card tone-delivery" href="/tools/delivery"><span class="tool-symbol">□</span><span><strong>交付中心</strong><small>整理产品文件包与交付清单</small></span><b>↗</b></a>
+        <a class="tool-card tone-creative" href="/tools/creative" data-features="workspace"><span class="tool-symbol">✦</span><span><strong>创意工作室</strong><small>从主题和要求创建产品设计</small></span><b>↗</b></a>
+        <a class="tool-card tone-photo" href="/tools/photo-craft" data-features="workspace"><span class="tool-symbol">◫</span><span><strong>照片定制工艺品</strong><small>把人物或宠物照片转为工艺设计</small></span><b>↗</b></a>
+        <a class="tool-card tone-product" href="/tools/products" data-features="workspace"><span class="tool-symbol">◇</span><span><strong>产品中心</strong><small>管理产品、版本与后续流程</small></span><b>↗</b></a>
+        <a class="tool-card tone-color" href="/tools/color-finish" data-features="workspace"><span class="tool-symbol">◉</span><span><strong>配色与工艺</strong><small>调整材料、颜色和表面工艺</small></span><b>↗</b></a>
+        <a class="tool-card tone-visual" href="/tools/visual" data-features="workspace"><span class="tool-symbol">▧</span><span><strong>视觉工作室</strong><small>制作家居与庭院展示效果图</small></span><b>↗</b></a>
+        <a class="tool-card tone-svg" href="/tools/svg" data-features="workspace"><span class="tool-symbol">⌁</span><span><strong>SVG 工作室</strong><small>整理并导出可检查的矢量文件</small></span><b>↗</b></a>
+        <a class="tool-card tone-dxf" href="/tools/dxf" data-features="workspace"><span class="tool-symbol">⌗</span><span><strong>DXF 工程</strong><small>设置尺寸并准备工程文件</small></span><b>↗</b></a>
+        <a class="tool-card tone-files" href="/tools/files" data-features="workspace"><span class="tool-symbol">▤</span><span><strong>文件中心</strong><small>查找作品、原稿和历史文件</small></span><b>↗</b></a>
+        <a class="tool-card tone-delivery" href="/tools/delivery" data-features="workspace"><span class="tool-symbol">□</span><span><strong>交付中心</strong><small>整理产品文件包与交付清单</small></span><b>↗</b></a>
       </div>
     </section>
 
     <footer><span>灵界 · 上海哲誉实业有限公司</span></footer>
   </main>
+  <script type="module" src="/assets/home.js?v=20261021-3"></script>
 </body>
 </html>

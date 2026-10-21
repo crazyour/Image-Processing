@@ -20,13 +20,13 @@ from psycopg.rows import dict_row
 
 
 FEATURES = {
-    "workspace": "主工作台",
     "text_to_image": "文生图",
     "animal_cutout": "照片转镂空剪影",
     "image_to_3d": "图生 3D",
     "similarity_search": "相似素材检索",
     "asset_library": "成果素材库",
 }
+ALWAYS_AVAILABLE_FEATURES = frozenset({"workspace"})
 DEFAULT_FEATURES = tuple(FEATURES)
 SESSION_COOKIE = "lingjie_session"
 SESSION_TTL_SECONDS = 12 * 60 * 60
@@ -79,6 +79,11 @@ def _connection() -> Iterator[Any]:
         yield connection
     finally:
         connection.close()
+
+
+def database_connection() -> Any:
+    """Shared database connection for account-scoped modules such as usage."""
+    return _connection()
 
 
 def _ensure_schema(connection: Any) -> None:
@@ -186,10 +191,11 @@ def _token_hash(token: str) -> str:
 
 
 def _features_json(features: list[str] | tuple[str, ...]) -> str:
-    invalid = set(features) - set(FEATURES)
+    invalid = set(features) - set(FEATURES) - ALWAYS_AVAILABLE_FEATURES
     if invalid:
         raise AuthError("INVALID_FEATURE", f"未知功能权限：{', '.join(sorted(invalid))}", 422)
-    return json.dumps(list(dict.fromkeys(features)), ensure_ascii=False)
+    assignable = [feature for feature in features if feature in FEATURES]
+    return json.dumps(list(dict.fromkeys(assignable)), ensure_ascii=False)
 
 
 def _user_dict(row: Any) -> dict[str, Any]:
@@ -202,7 +208,7 @@ def _user_dict(row: Any) -> dict[str, Any]:
         "name": row["name"],
         "role": row["role"],
         "active": bool(row["active"]),
-        "features": list(features or []),
+        "features": [feature for feature in list(features or []) if feature in FEATURES],
         "created_at": float(row["created_at"]),
         "updated_at": float(row["updated_at"]),
     }
@@ -384,4 +390,6 @@ def update_user(user_id: str, changes: dict[str, Any], actor_id: str) -> dict[st
 
 
 def has_feature(user: dict[str, Any], feature: str) -> bool:
-    return user["role"] == "admin" or feature in user["features"]
+    if user["role"] == "admin" or feature in ALWAYS_AVAILABLE_FEATURES:
+        return True
+    return feature in user["features"]

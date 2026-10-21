@@ -16,7 +16,7 @@ form.addEventListener("submit", async event => {
   try {
     await api("/api/auth/login", {method: "POST", body: JSON.stringify({username: values.get("username"), password: values.get("password")})});
     const requested = new URLSearchParams(location.search).get("next");
-    location.href = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/portal";
+    location.href = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
   } catch (error) {
     showMessage(message, error.message, true);
   } finally {

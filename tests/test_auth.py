@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -82,6 +83,54 @@ class AuthenticationTests(unittest.TestCase):
             self.assertEqual(denied_api.status_code, 403)
             self.assertEqual(denied_api.json()["code"], "FEATURE_FORBIDDEN")
             self.assertEqual(member.get("/api/admin/users").status_code, 403)
+        finally:
+            member.close()
+
+    def test_studio_home_is_the_landing_page_with_lockable_entries(self):
+        self.create_member(["text_to_image"])
+        member = self.login_member()
+        try:
+            portal = member.get("/portal", follow_redirects=False)
+            self.assertEqual(portal.status_code, 303)
+            self.assertEqual(portal.headers["location"], "/")
+            home = member.get("/")
+            self.assertEqual(home.status_code, 200)
+            self.assertIn("/assets/home.js", home.text)
+            self.assertIn('data-features="image_to_3d"', home.text)
+            self.assertIn('data-features="workspace"', home.text)
+        finally:
+            member.close()
+
+    def test_home_script_locks_features_without_permission(self):
+        script = (
+            Path(__file__).resolve().parent.parent / "frontend_dist" / "assets" / "home.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("is-locked", script)
+        self.assertIn("lock-icon", script)
+        self.assertIn("/api/auth/me", script)
+
+    def test_workspace_is_open_to_every_account(self):
+        self.create_member([])
+        member = self.login_member()
+        try:
+            self.assertEqual(member.get("/tools/creative").status_code, 200)
+            self.assertEqual(member.get("/api/jobs").status_code, 200)
+            catalog = self.admin.get("/api/admin/users").json()["feature_catalog"]
+            self.assertNotIn("workspace", catalog)
+        finally:
+            member.close()
+
+    def test_workspace_cannot_be_assigned_or_revoked(self):
+        user = self.create_member(["text_to_image"])
+        response = self.admin.patch(
+            f"/api/admin/users/{user['id']}",
+            json={"features": ["workspace", "text_to_image"]},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["user"]["features"], ["text_to_image"])
+        member = self.login_member()
+        try:
+            self.assertEqual(member.get("/tools/creative").status_code, 200)
         finally:
             member.close()
 

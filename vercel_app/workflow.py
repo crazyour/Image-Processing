@@ -170,7 +170,28 @@ def _extract_output_text(body: dict) -> str:
     raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回图片分析结果", 502)
 
 
-def analyze_images(images: list[bytes], user_prompt: str, model: str) -> dict:
+PRICE_FIELDS = (
+    "cost", "cost_usd", "total_cost", "total_cost_usd", "usage_cost", "cost_usd_estimate",
+    "price", "total_price", "price_usd", "amount", "amount_usd", "billed", "billing", "usd",
+)
+
+
+def usage_payload(body: dict) -> dict:
+    """Keep the provider's usage block together with any price reported beside it.
+
+    Some gateways return the price next to ``usage`` instead of inside it, so the
+    whole price block is copied over to make sure nothing is lost.
+    """
+    usage = body.get("usage")
+    payload = dict(usage) if isinstance(usage, dict) else {}
+    for field in PRICE_FIELDS:
+        if field in body and field not in payload:
+            payload[field] = body[field]
+    return payload
+
+
+def analyze_images(images: list[bytes], user_prompt: str, model: str) -> tuple[dict, dict]:
+    """Analyze reference images and return the analysis together with token usage."""
     if not images:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少上传一张参考图", 422)
     config = _openai_config()
@@ -208,12 +229,13 @@ def analyze_images(images: list[bytes], user_prompt: str, model: str) -> dict:
     if response.status_code >= 400:
         raise _provider_error("OpenAI", response)
     try:
-        return json.loads(_extract_output_text(response.json()))
+        body = response.json()
+        return json.loads(_extract_output_text(body)), usage_payload(body)
     except (ValueError, TypeError):
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 图片分析结果格式无效", 502)
 
 
-def analyze_image(image: bytes, user_prompt: str, model: str) -> dict:
+def analyze_image(image: bytes, user_prompt: str, model: str) -> tuple[dict, dict]:
     """保留单图调用兼容性。"""
     return analyze_images([image], user_prompt, model)
 
@@ -295,7 +317,7 @@ def generate_image(prompt: str, model: str, quality: str,
             image, _ = normalize_image(image, None)
         else:
             raise KeyError("image")
-        return image, body.get("usage", {})
+        return image, usage_payload(body)
     except (ValueError, KeyError, IndexError, TypeError):
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回有效生成图片", 502)
 
@@ -326,7 +348,7 @@ def generate_view(reference_images: list[bytes], prompt: str, model: str, qualit
     try:
         body = response.json()
         image = _validate_generated_image(body["data"][0]["b64_json"])
-        return image, body.get("usage", {})
+        return image, usage_payload(body)
     except (ValueError, KeyError, IndexError, TypeError):
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回有效多视图图片", 502)
 

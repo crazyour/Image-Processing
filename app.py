@@ -61,6 +61,7 @@ from vercel_app.connectivity import (
     remove_disconnected_islands,
 )
 from vercel_app.similarity_api import router as similarity_search_router
+from vercel_app.usage import record_usage, usage_report
 from vercel_app.workflow import (
     AI_GENERATED_VIEWS,
     GENERATED_VIEWS,
@@ -146,6 +147,13 @@ PUBLIC_PATHS = {"/login", "/api/health", "/api/auth/status", "/api/auth/login", 
 PUBLIC_PREFIXES = ("/assets/", "/branding/", "/auth-static/")
 
 
+def _account_user(request: Request | None) -> dict | None:
+    """Current signed-in account used to attribute provider usage."""
+    if request is None:
+        return None
+    return getattr(request.state, "user", None)
+
+
 def _required_feature(path: str) -> str | None:
     if path.startswith("/api/text-image"):
         return "text_to_image"
@@ -164,7 +172,7 @@ def _required_feature(path: str) -> str | None:
         "/api/learning", "/api/schedules", "/api/recipes", "/api/connections",
         "/api/ai-connections",
     )
-    if path == "/" or path.startswith("/tools/") or path.startswith(workspace_prefixes):
+    if path.startswith("/tools/") or path.startswith(workspace_prefixes):
         return "workspace"
     return None
 
@@ -186,7 +194,7 @@ async def account_access(request: Request, call_next):
         if user["role"] != "admin":
             if path.startswith("/api/"):
                 return JSONResponse({"code": "FORBIDDEN", "message": "需要管理员权限"}, status_code=403)
-            return RedirectResponse("/portal", status_code=303)
+            return RedirectResponse("/?denied=1", status_code=303)
 
     feature = _required_feature(path)
     allowed = feature is None
@@ -200,7 +208,7 @@ async def account_access(request: Request, call_next):
                 {"code": "FEATURE_FORBIDDEN", "message": "管理员尚未为此账号开通该功能"},
                 status_code=403,
             )
-        return RedirectResponse("/portal?denied=1", status_code=303)
+        return RedirectResponse("/?denied=1", status_code=303)
     return await call_next(request)
 
 
@@ -925,6 +933,12 @@ def admin_update_user(user_id: str, data: UserUpdateRequest, request: Request):
     return {"user": update_user(user_id, changes, request.state.user["id"])}
 
 
+@app.get("/api/admin/usage", include_in_schema=False)
+def admin_usage():
+    """Token and dollar usage per account and per feature."""
+    return usage_report(list_users())
+
+
 @app.get("/api/me", include_in_schema=False)
 def legacy_cloud_workspace(request: Request):
     image_api_ready = bool(
@@ -1121,7 +1135,7 @@ def read_text_image_task(task_id: str, x_session_token: str | None = Header(defa
 
 
 @app.post("/api/text-image/tasks/{task_id}/items/{item_index}/generate")
-def generate_text_image_item(task_id: str, item_index: int,
+def generate_text_image_item(task_id: str, item_index: int, request: Request,
                              x_session_token: str | None = Header(default=None)):
     state, version = _load_text_image_task(task_id, x_session_token)
     if not 0 <= item_index < len(state["items"]):
@@ -1158,6 +1172,9 @@ def generate_text_image_item(task_id: str, item_index: int,
             generated, usage = generate_image(
                 generation_prompt, settings["model"], settings["quality"], settings["size"],
             )
+        record_usage(
+            _account_user(request), "text_to_image", settings["model"], usage, "生成图片",
+        )
         url = PublicBlobStore().put(
             f"text-image/{task_id}/{item_index + 1}.png",
             generated,
@@ -1312,7 +1329,8 @@ def download_animal_cutout_dxf(
 
 
 @app.post("/api/animal-cutout/tasks/{task_id}/generate")
-def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Header(default=None)):
+def generate_animal_cutout_task(task_id: str, request: Request,
+                                x_session_token: str | None = Header(default=None)):
     state, version = _load_animal_cutout_task(task_id, x_session_token)
     if state.get("candidates"):
         return _animal_cutout_response(state)
@@ -1323,6 +1341,7 @@ def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Head
     state["started_at"] = int(time.time())
     state["last_error"] = None
     version = _save(state, version)
+    account = _account_user(request)
     try:
         source = fetch_bytes(state["source"]["url"], 20_000_000)
         settings = state["model_settings"]
@@ -1336,6 +1355,7 @@ def generate_animal_cutout_task(task_id: str, x_session_token: str | None = Head
                 settings["quality"],
                 settings["size"],
             )
+            record_usage(account, "animal_cutout", settings["model"], usage, "生成剪影候选")
             candidate_url = PublicBlobStore().put(
                 f"animal-cutout/{task_id}/candidate-{index + 1}.png",
                 generated,
@@ -1477,6 +1497,7 @@ def select_cutout_candidate(
 def repair_animal_cutout_task(
     task_id: str,
     data: AnimalCutoutRepairRequest,
+    request: Request,
     x_session_token: str | None = Header(default=None),
 ):
     state, version = _load_animal_cutout_task(task_id, x_session_token)
@@ -1531,6 +1552,9 @@ def repair_animal_cutout_task(
             repair_quality,
             settings["size"],
             repair_mask,
+        )
+        record_usage(
+            _account_user(request), "animal_cutout", repair_model, usage, "修复剪影",
         )
         ai_repaired_url = PublicBlobStore().put(
             f"animal-cutout/{task_id}/repair-{attempt}-ai.png", repaired, "image/png",
@@ -1729,7 +1753,8 @@ def upload_reference(session_id: str, image: UploadFile = File(...),
 
 
 @app.post("/api/sessions/{session_id}/analyze")
-def analyze_references(session_id: str, x_session_token: str | None = Header(default=None)):
+def analyze_references(session_id: str, request: Request,
+                       x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
     if state.get("view_source") != "generated" or state["status"] != "REFERENCES_READY":
@@ -1742,7 +1767,12 @@ def analyze_references(session_id: str, x_session_token: str | None = Header(def
     version = _save(state, version)
     try:
         images = [fetch_bytes(item["url"], 20_000_000) for item in references[:MAX_REFERENCE_IMAGES]]
-        analysis = analyze_images(images, state.get("input_notes", ""), models["vision_model"])
+        analysis, usage = analyze_images(
+            images, state.get("input_notes", ""), models["vision_model"],
+        )
+        record_usage(
+            _account_user(request), "image_to_3d", models["vision_model"], usage, "AI 分析参考图",
+        )
     except Exception as exc:
         state["status"] = "REFERENCES_READY"
         state["last_error"] = {
@@ -1862,7 +1892,7 @@ def confirm_description(session_id: str, x_session_token: str | None = Header(de
 
 
 @app.post("/api/sessions/{session_id}/views")
-def create_views(session_id: str, data: ViewGenerationRequest,
+def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
                  x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
@@ -1913,7 +1943,9 @@ def create_views(session_id: str, data: ViewGenerationRequest,
     if generated_views:
         try:
             blobs = PublicBlobStore()
+            account = _account_user(request)
             for view, (generated, usage) in generated_views.items():
+                record_usage(account, "image_to_3d", models["image_model"], usage, "生成四视图")
                 previous = state["views"].get(view, {})
                 revision = int(previous.get("revision", 0)) + 1
                 url = blobs.put(
@@ -1961,7 +1993,7 @@ def create_views(session_id: str, data: ViewGenerationRequest,
 
 
 @app.post("/api/sessions/{session_id}/views/{view}/refine")
-def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
+def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request: Request,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
@@ -1984,6 +2016,9 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest,
     generated, usage = generate_view(
         references, view_prompt(state["user_prompt"], view, data.prompt),
         models["image_model"], models["image_quality"],
+    )
+    record_usage(
+        _account_user(request), "image_to_3d", models["image_model"], usage, "微调视图",
     )
     revision = int(state["views"][view].get("revision", 0)) + 1
     url = PublicBlobStore().put(
@@ -2026,7 +2061,7 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
 
 
 @app.post("/api/sessions/{session_id}/generate")
-def generate_3d(session_id: str, data: Generate3DRequest,
+def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
@@ -2073,6 +2108,9 @@ def generate_3d(session_id: str, data: Generate3DRequest,
         }
         _save(state, version)
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元没有返回任务编号", 502)
+    record_usage(
+        _account_user(request), "image_to_3d", hunyuan_model, created, "生成 STL",
+    )
     state["hunyuan_task"] = {
         "id": task_id,
         "model": hunyuan_model,
@@ -2180,7 +2218,7 @@ def login_page():
 
 @app.get("/portal", include_in_schema=False)
 def portal_page():
-    return FileResponse(AUTH_FRONTEND / "portal.html", headers={"Cache-Control": "no-store"})
+    return RedirectResponse("/", status_code=303)
 
 
 @app.get("/admin", include_in_schema=False)
