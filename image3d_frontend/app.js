@@ -4,12 +4,6 @@ if (new URLSearchParams(location.search).get("embedded") === "1") {
 }
 const labels = { front: "正视图", left: "左视图", right: "右视图", back: "背视图" };
 const allViews = ["front", "left", "right", "back"];
-const defaultModelSettings = {
-  vision_model: "gpt-6-luna",
-  image_model: "gpt-image-2.5-flare",
-  image_quality: "medium",
-  hunyuan_model: "hy-3d-3.1",
-};
 localStorage.removeItem("image3d-session");
 let session = null;
 try {
@@ -50,36 +44,6 @@ function initializeUsageGuide() {
     if (event.key === "Escape" && document.body.classList.contains("guide-open")) {
       setOpen(false, true);
     }
-  });
-}
-
-function loadModelSettings() {
-  try {
-    return { ...defaultModelSettings, ...JSON.parse(localStorage.getItem("image3d-model-settings") || "{}") };
-  } catch (_) {
-    return { ...defaultModelSettings };
-  }
-}
-
-function readModelSettings() {
-  return {
-    vision_model: $("#vision-model").value.trim(),
-    image_model: $("#image-model").value.trim(),
-    image_quality: $("#image-quality").value,
-    hunyuan_model: $("#hunyuan-model").value.trim(),
-  };
-}
-
-function initializeModelSettings() {
-  const models = loadModelSettings();
-  $("#vision-model").value = models.vision_model;
-  $("#image-model").value = models.image_model;
-  $("#image-quality").value = models.image_quality;
-  $("#hunyuan-model").value = models.hunyuan_model;
-  ["#vision-model", "#image-model", "#image-quality", "#hunyuan-model"].forEach((selector) => {
-    $(selector).addEventListener("change", () => {
-      localStorage.setItem("image3d-model-settings", JSON.stringify(readModelSettings()));
-    });
   });
 }
 
@@ -186,7 +150,7 @@ function renderAnalysis(analysis = {}) {
   const available = Boolean(analysis.subject || analysis.geometry);
   const empty = $("#analysis-empty");
   empty.textContent = state?.view_source === "uploaded"
-    ? "手动上传模式不进行 AI 分析，也不会调用图片生成模型。"
+    ? "手动上传模式不进行 AI 分析，也不会产生站内图片生成费用。"
     : "上传参考图后，AI 会综合多张图片显示识别结果。";
   empty.classList.toggle("hidden", available);
   $("#analysis").classList.toggle("hidden", !available);
@@ -557,12 +521,6 @@ $("#upload-form").addEventListener("submit", async (event) => {
     form.set("image", file);
     form.set("prompt", $("#initial-prompt").value.trim());
     form.set("view_source", viewSource);
-    const models = readModelSettings();
-    if (!models.vision_model || !models.image_model || !models.hunyuan_model) {
-      throw new Error("请填写完整的模型设置");
-    }
-    Object.entries(models).forEach(([name, value]) => form.set(name, value));
-    localStorage.setItem("image3d-model-settings", JSON.stringify(models));
     const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
     session = { id: result.session_id, token: result.access_token };
     sessionStorage.setItem("image3d-session", JSON.stringify(session));
@@ -736,7 +694,6 @@ function initializeStlPreview() {
   if ("ResizeObserver" in window) new ResizeObserver(drawStlPreview).observe(canvas);
 }
 
-initializeModelSettings();
 initializeStlPreview();
 initializeUsageGuide();
 updateViewSource();

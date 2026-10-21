@@ -79,30 +79,6 @@
             <div id="example-reference-grid" class="reference-preview-grid"></div>
           </section>
         </div>
-        <details class="settings">
-          <summary>模型设置（高级）</summary>
-          <div class="settings-grid">
-            <label>图片生成模型<input id="image-model" type="text" maxlength="128" required></label>
-            <label>图片质量
-              <select id="image-quality">
-                <option value="low">低 · 更快</option>
-                <option value="medium">中 · 推荐</option>
-                <option value="high">高</option>
-                <option value="xhigh">超高</option>
-                <option value="max">最高</option>
-                <option value="auto">自动</option>
-              </select>
-            </label>
-            <label>画面尺寸
-              <select id="image-size">
-                <option value="1024x1024">方图 · 1024 × 1024</option>
-                <option value="1536x1024">横图 · 1536 × 1024</option>
-                <option value="1024x1536">竖图 · 1024 × 1536</option>
-              </select>
-            </label>
-          </div>
-          <p>设置只保存在当前浏览器。任务创建后，本批图片固定使用相同模型、质量和尺寸。</p>
-        </details>
         <div class="submit-row">
           <p>生成图片会调用 API 并产生费用。系统按队列逐张提交，不会因刷新读取而重复生成。</p>
           <button id="submit-task" class="primary" type="submit">开始生成</button>
@@ -153,41 +129,6 @@
         </div>
         <textarea id="animal-prompt" maxlength="4000" placeholder="正在加载默认提示词…"></textarea>
         <p class="prompt-help">这段就是实际发送给模型的完整提示词。可直接生成，也可指定要保留的人物、物体、建筑、地形、数量或构图重点。</p>
-        <details class="settings">
-          <summary>模型设置（高级）</summary>
-          <div class="settings-grid">
-            <label>首次生成模型<input id="animal-image-model" type="text" maxlength="128" required></label>
-            <label>首次生成质量
-              <select id="animal-image-quality">
-                <option value="low">低 · 更快</option>
-                <option value="medium">中 · 推荐</option>
-                <option value="high">高</option>
-                <option value="xhigh">超高</option>
-                <option value="max">最高</option>
-                <option value="auto">自动</option>
-              </select>
-            </label>
-            <label>连通性修复模型<input id="animal-repair-model" type="text" maxlength="128" required></label>
-            <label>修复质量
-              <select id="animal-repair-quality">
-                <option value="low">低 · 更快</option>
-                <option value="medium">中 · 推荐</option>
-                <option value="high">高</option>
-                <option value="xhigh">超高</option>
-                <option value="max">最高</option>
-                <option value="auto">自动</option>
-              </select>
-            </label>
-            <label>画面尺寸
-              <select id="animal-image-size">
-                <option value="1024x1024">方图 · 1024 × 1024</option>
-                <option value="1536x1024">横图 · 1536 × 1024</option>
-                <option value="1024x1536">竖图 · 1024 × 1536</option>
-              </select>
-            </label>
-          </div>
-          <p>首次生成继续使用 Flare；连通性修复切到 Sunburst 高质量精修，保证孤岛处理更稳妥。</p>
-        </details>
         <div class="cutout-rules">
           <strong>固定生成规则</strong>
           <p>纯黑代表保留材料，纯白代表去除区域；提取照片中的主要视觉主体；每条内部黑线和纹理块都必须连接到相邻黑色或主体，避免悬空孤岛和过细连接。</p>
@@ -230,6 +171,7 @@
           <button id="manual-repair-animal" class="secondary hidden" type="button">手动再次修复</button>
           <button id="restore-animal" class="secondary hidden" type="button">恢复所选候选</button>
           <a id="download-animal" class="hidden" download>下载最终 PNG</a>
+          <a id="download-animal-dxf" class="hidden">下载 DXF</a>
         </div>
         <div id="animal-process-details" class="process-details hidden">
           <div class="process-details-body">

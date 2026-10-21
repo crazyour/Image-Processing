@@ -20,4 +20,17 @@
   if (window.location.hash !== expectedHash) {
     history.replaceState(null, "", `${window.location.pathname}${expectedHash}`);
   }
+
+  const privateConfigurationLabels = ["API设置", "连接我的AI", "AI连接中心", "模型设置", "填写密钥"];
+  const removePrivateConfiguration = () => {
+    document.querySelectorAll("button, a, summary, label").forEach((element) => {
+      const label = (element.textContent || "").replace(/\s+/g, "");
+      if (privateConfigurationLabels.some((value) => label.includes(value))) {
+        const target = element.closest("section, details, form, li") || element;
+        target.remove();
+      }
+    });
+  };
+  new MutationObserver(removePrivateConfiguration).observe(document.documentElement, { childList: true, subtree: true });
+  removePrivateConfiguration();
 })();

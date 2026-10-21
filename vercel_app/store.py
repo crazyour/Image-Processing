@@ -19,6 +19,11 @@ try:
 except ImportError:  # vercel < 0.12
     from vercel.blob import put as put_blob
 
+try:
+    from vercel.blob import list_objects
+except ImportError:  # pragma: no cover
+    list_objects = None
+
 
 class StoreError(RuntimeError):
     pass
@@ -388,3 +393,35 @@ class PublicBlobStore:
             return blob.url
         except Exception as exc:
             raise StoreError("Vercel Blob 保存失败") from exc
+
+    def list(self, prefix: str, limit: int = 100) -> list[dict]:
+        """List newest public blobs under a controlled prefix."""
+        if self.local:
+            base = local_blob_root() / prefix
+            if not base.is_dir():
+                return []
+            files = sorted(
+                (path for path in base.rglob("*") if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )[:limit]
+            return [{
+                "url": f"{LOCAL_BLOB_URL_PREFIX}{path.relative_to(local_blob_root()).as_posix()}",
+                "pathname": path.relative_to(local_blob_root()).as_posix(),
+                "size": path.stat().st_size,
+                "uploaded_at": path.stat().st_mtime,
+            } for path in files]
+
+        if list_objects is None:
+            raise StoreError("Vercel Blob SDK 不支持素材列表")
+        try:
+            result = list_objects(prefix=prefix, limit=limit)
+            blobs = result.blobs if hasattr(result, "blobs") else result.get("blobs", [])
+            return [{
+                "url": blob.url if hasattr(blob, "url") else blob["url"],
+                "pathname": blob.pathname if hasattr(blob, "pathname") else blob["pathname"],
+                "size": blob.size if hasattr(blob, "size") else blob["size"],
+                "uploaded_at": blob.uploaded_at if hasattr(blob, "uploaded_at") else blob["uploaded_at"],
+            } for blob in blobs]
+        except Exception as exc:
+            raise StoreError("Vercel Blob 素材列表读取失败") from exc

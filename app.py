@@ -9,13 +9,17 @@ import re
 import secrets
 import time
 import uuid
+import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
+import cv2
+import numpy as np
+from PIL import Image
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -93,8 +97,18 @@ TRANSIENT_STATE_TIMEOUTS = {
 MAX_REFERENCE_IMAGES = 6
 MAX_REFERENCE_UPLOAD_BYTES = 4_000_000
 MAX_AUTOMATIC_CUTOUT_REPAIRS = 2
+CUTOUT_GENERATION_MODEL = "gpt-image-2.5-flare"
+CUTOUT_GENERATION_QUALITY = "medium"
 CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
 CUTOUT_REPAIR_QUALITY = "high"
+CUTOUT_IMAGE_SIZE = "1024x1024"
+TEXT_IMAGE_MODEL = "gpt-image-2.5-flare"
+TEXT_IMAGE_QUALITY = "medium"
+TEXT_IMAGE_SIZE = "1024x1024"
+IMAGE3D_VISION_MODEL = "gpt-6-luna"
+IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
+IMAGE3D_VIEW_QUALITY = "medium"
+IMAGE3D_MODEL = "hy-3d-3.1"
 MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
 DELIVERABLE_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp",
@@ -128,9 +142,6 @@ class Generate3DRequest(BaseModel):
 
 class TextImageTaskRequest(BaseModel):
     prompts: list[str] = Field(min_length=1, max_length=5)
-    model: str = Field(min_length=1, max_length=128)
-    quality: str = Field(default="medium", max_length=16)
-    size: Literal["1024x1024", "1536x1024", "1024x1536"] = "1024x1024"
     use_preferences: bool = True
 
 
@@ -359,7 +370,6 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "last_error": state.get("last_error"),
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
-        "model_settings": state.get("model_settings"),
         "view_source": state.get("view_source", "generated"),
         "preference_prompt": state.get("preference_prompt", ""),
     }
@@ -420,7 +430,6 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
         "task_id": state["session_id"],
         "status": state["status"],
         "items": state["items"],
-        "model_settings": state["model_settings"],
         "reference_image": references[0] if references else None,
         "reference_images": references,
         "product_reference_images": product_references,
@@ -477,6 +486,10 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
     connectivity = state.get("connectivity")
     current_result = state.get("result")
     original_result = state.get("original_result")
+    repairs = [
+        {key: value for key, value in item.items() if key not in {"model", "quality"}}
+        for item in state.get("repair_history", [])
+    ]
     response = {
         "task_id": state["session_id"],
         "status": state["status"],
@@ -504,13 +517,10 @@ def _animal_cutout_response(state: dict, *, token: str | None = None) -> dict:
         "process_details": {
             "generation_prompt": state.get("prompt", ""),
             "repair_prompt_template": ANIMAL_CUTOUT_REPAIR_PROMPT,
-            "repair_model": state["model_settings"].get("repair_model", CUTOUT_REPAIR_MODEL),
-            "repair_quality": state["model_settings"].get("repair_quality", CUTOUT_REPAIR_QUALITY),
             "original_result": original_result,
-            "repairs": state.get("repair_history", []),
+            "repairs": repairs,
         },
         "last_error": state.get("last_error"),
-        "model_settings": state["model_settings"],
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
         "preference_prompt": state.get("preference_prompt", ""),
@@ -666,7 +676,7 @@ def health():
     return {
         "status": "ok",
         "workflow": "gpt-multiview-to-hunyuan-3d",
-        "model_configuration": "per-session-web-settings",
+        "model_configuration": "server-managed",
         "storage": storage_status(),
     }
 
@@ -771,11 +781,11 @@ def legacy_cloud_workspace():
         },
         "assistant": {"id": "cloud-assistant", "name": "灵界助手"},
         "private_workspace": True,
-        "key_bound": image_api_ready,
-        "api_setup_required": not image_api_ready,
+        "key_bound": True,
+        "api_setup_required": False,
         "free_services": {},
-        "provider": "openai" if image_api_ready else "unconfigured",
-        "mode": "SERVER_MANAGED" if image_api_ready else "CLOUD_COMPATIBILITY",
+        "provider": "server-managed",
+        "mode": "SERVER_MANAGED",
         "budget_scope": "LOCAL",
         "live_enabled": image_api_ready,
         "styles": [],
@@ -834,11 +844,6 @@ def create_text_image_task(data: TextImageTaskRequest):
         raise WorkflowError("PROMPT_REQUIRED", "每一条图片要求都不能为空", 422)
     if any(len(prompt) > 2000 for prompt in prompts):
         raise WorkflowError("PROMPT_TOO_LONG", "每一条图片要求不能超过 2000 字", 422)
-    if not MODEL_NAME.fullmatch(data.model.strip()):
-        raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
-    if data.quality not in IMAGE_QUALITIES:
-        raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
-
     preference_prompt = _active_preference_prompt(data.use_preferences)
     task_id = uuid.uuid4().hex
     token = secrets.token_urlsafe(32)
@@ -863,9 +868,9 @@ def create_text_image_task(data: TextImageTaskRequest):
             for index, prompt in enumerate(prompts)
         ],
         "model_settings": {
-            "model": data.model.strip(),
-            "quality": data.quality,
-            "size": data.size,
+            "model": TEXT_IMAGE_MODEL,
+            "quality": TEXT_IMAGE_QUALITY,
+            "size": TEXT_IMAGE_SIZE,
         },
         "preference_prompt": preference_prompt,
         "reference_image": None,
@@ -1032,24 +1037,9 @@ def generate_text_image_item(task_id: str, item_index: int,
 def create_animal_cutout_task(
     image: UploadFile = File(...),
     prompt: str = Form("", max_length=4000),
-    image_model: str = Form(..., max_length=128),
-    image_quality: str = Form("medium", max_length=16),
-    repair_model: str = Form(CUTOUT_REPAIR_MODEL, max_length=128),
-    repair_quality: str = Form(CUTOUT_REPAIR_QUALITY, max_length=16),
     generation_count: int = Form(3, ge=1, le=5),
-    size: Literal["1024x1024", "1536x1024", "1024x1536"] = Form("1024x1024"),
     use_preferences: bool = Form(True),
 ):
-    model = image_model.strip()
-    repair_model = repair_model.strip()
-    if not MODEL_NAME.fullmatch(model):
-        raise WorkflowError("INVALID_MODEL", "图片模型名称格式无效", 422)
-    if not MODEL_NAME.fullmatch(repair_model):
-        raise WorkflowError("INVALID_MODEL", "修复模型名称格式无效", 422)
-    if image_quality not in IMAGE_QUALITIES:
-        raise WorkflowError("INVALID_QUALITY", "图片质量设置无效", 422)
-    if repair_quality not in IMAGE_QUALITIES:
-        raise WorkflowError("INVALID_QUALITY", "修复质量设置无效", 422)
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
     preference_prompt = _active_preference_prompt(use_preferences)
     generation_prompt = _apply_personal_preferences(
@@ -1085,11 +1075,11 @@ def create_animal_cutout_task(
         "last_error": None,
         "started_at": None,
         "model_settings": {
-            "model": model,
-            "quality": image_quality,
-            "repair_model": repair_model,
-            "repair_quality": repair_quality,
-            "size": size,
+            "model": CUTOUT_GENERATION_MODEL,
+            "quality": CUTOUT_GENERATION_QUALITY,
+            "repair_model": CUTOUT_REPAIR_MODEL,
+            "repair_quality": CUTOUT_REPAIR_QUALITY,
+            "size": CUTOUT_IMAGE_SIZE,
         },
         "created_at": now,
         "updated_at": now,
@@ -1107,6 +1097,49 @@ def animal_cutout_prompt_template():
 def read_animal_cutout_task(task_id: str, x_session_token: str | None = Header(default=None)):
     state, _ = _load_animal_cutout_task(task_id, x_session_token)
     return _animal_cutout_response(state)
+
+
+def _cutout_dxf(image_bytes: bytes) -> bytes:
+    """Trace black raster regions into closed, millimetre-based DXF polylines."""
+    with Image.open(io.BytesIO(image_bytes)) as source:
+        gray = np.asarray(source.convert("L"))
+    mask = np.where(gray < 128, 255, 0).astype(np.uint8)
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    height, width = mask.shape
+    scale = 100.0 / max(width, height)
+    entities = []
+    for contour in contours:
+        perimeter = cv2.arcLength(contour, True)
+        simplified = cv2.approxPolyDP(contour, max(0.8, perimeter * 0.0015), True)
+        points = simplified.reshape(-1, 2)
+        if len(points) < 3 or abs(cv2.contourArea(simplified)) < 4:
+            continue
+        vertices = "".join(
+            f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n"
+            for x, y in points
+        )
+        entities.append(f"0\nLWPOLYLINE\n8\nCUT\n90\n{len(points)}\n70\n1\n{vertices}")
+    if not entities:
+        raise WorkflowError("CUTOUT_DXF_EMPTY", "当前结果没有可导出的黑色轮廓", 409)
+    header = "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n"
+    return (header + "".join(entities) + "0\nENDSEC\n0\nEOF\n").encode("ascii")
+
+
+@app.get("/api/animal-cutout/tasks/{task_id}/dxf")
+def download_animal_cutout_dxf(
+    task_id: str,
+    x_session_token: str | None = Header(default=None),
+):
+    state, _ = _load_animal_cutout_task(task_id, x_session_token)
+    result = state.get("result") or {}
+    if state.get("status") not in {"SUCCEEDED", "REVIEW_REQUIRED"} or not result.get("url"):
+        raise WorkflowError("ANIMAL_CUTOUT_NOT_READY", "还没有可导出的最终结果", 409)
+    dxf = _cutout_dxf(fetch_bytes(result["url"], 25_000_000))
+    return Response(
+        dxf,
+        media_type="application/dxf",
+        headers={"Content-Disposition": f'attachment; filename="cutout-{task_id[:8]}.dxf"'},
+    )
 
 
 @app.post("/api/animal-cutout/tasks/{task_id}/generate")
@@ -1432,13 +1465,11 @@ def new_session(
     image: UploadFile = File(...),
     prompt: str = Form("", max_length=4000),
     view_source: Literal["generated", "uploaded"] = Form("generated"),
-    vision_model: str = Form(..., max_length=128),
-    image_model: str = Form(..., max_length=128),
-    image_quality: str = Form(..., max_length=16),
-    hunyuan_model: str = Form(..., max_length=128),
     use_preferences: bool = Form(True),
 ):
-    models = _model_settings(vision_model, image_model, image_quality, hunyuan_model)
+    models = _model_settings(
+        IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
+    )
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
     preference_prompt = _active_preference_prompt(use_preferences)
     base_prompt = prompt.strip()
@@ -2018,6 +2049,30 @@ async def upload_deliverable(file: UploadFile = File(...)):
         "content_type": content_type,
         "url": url,
     }
+
+
+@app.get("/api/deliverables")
+def list_deliverables():
+    try:
+        stored = PublicBlobStore().list("deliverables/", limit=100)
+    except StoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp"}
+    items = []
+    for item in stored:
+        name = Path(item["pathname"]).name
+        extension = Path(name).suffix.lower()
+        uploaded_at = item["uploaded_at"]
+        if hasattr(uploaded_at, "isoformat"):
+            uploaded_at = uploaded_at.isoformat()
+        items.append({
+            "name": name, "url": item["url"], "size": item["size"],
+            "type": "image" if extension in image_extensions else "file",
+            "extension": extension.removeprefix(".").upper() or "FILE",
+            "uploaded_at": uploaded_at,
+        })
+    items.sort(key=lambda item: str(item["uploaded_at"]), reverse=True)
+    return {"items": items}
 
 
 @app.get("/file-upload", include_in_schema=False)

@@ -5,36 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f4f6f2">
   <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
-  <link rel="stylesheet" href="/assets/upload.css?v=20261021-1">
-  <title>成果文件上传 · 灵界</title>
+  <link rel="stylesheet" href="/assets/upload.css?v=20261021-2">
+  <title>成果素材库 · 灵界</title>
 </head>
 <body>
   <main class="shell">
     <header><a class="back" href="/">← 返回功能列表</a></header>
     <section class="intro">
-      <p>DELIVERABLE UPLOAD</p>
-      <h1>成果文件上传</h1>
-      <span>将生成后可使用的文件保存到系统，上传完成后可直接复制链接或下载。</span>
+      <p>READY-TO-USE ASSETS</p>
+      <h1>成果素材库</h1>
+      <span>查看别人已经制作完成并上传的素材，可直接预览、下载和使用。</span>
     </section>
 
-    <section class="panel">
-      <label id="drop-zone" class="drop-zone" for="file-input">
-        <span class="upload-icon">⇧</span>
-        <strong>点击选择或将文件拖到这里</strong>
-        <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>
-        <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx">
-      </label>
-      <div class="action-row">
-        <span id="selection-summary">尚未选择文件</span>
-        <button id="upload-button" type="button" disabled>开始上传</button>
+    <section class="library" aria-labelledby="library-title">
+      <div class="library-heading">
+        <div><h2 id="library-title">可用素材</h2><span id="asset-count">正在读取…</span></div>
+        <button id="refresh-button" class="secondary" type="button">刷新</button>
       </div>
+      <div id="asset-gallery" class="asset-gallery" aria-live="polite"></div>
+      <div id="empty-state" class="empty-state" hidden><strong>还没有可用素材</strong><span>第一份上传的成果会显示在这里。</span></div>
     </section>
+
+    <details class="upload-panel">
+      <summary>上传新素材</summary>
+      <section class="panel">
+        <label id="drop-zone" class="drop-zone" for="file-input">
+          <span class="upload-icon">⇧</span><strong>点击选择或将文件拖到这里</strong>
+          <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>
+          <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx">
+        </label>
+        <div class="action-row"><span id="selection-summary">尚未选择文件</span><button id="upload-button" type="button" disabled>开始上传</button></div>
+      </section>
+    </details>
 
     <section id="results" class="results" aria-live="polite" hidden>
       <div class="results-heading"><h2>上传结果</h2><span id="progress"></span></div>
       <div id="file-list" class="file-list"></div>
     </section>
   </main>
-  <script src="/assets/upload.js?v=20261021-1" defer></script>
+  <script src="/assets/upload.js?v=20261021-2" defer></script>
 </body>
 </html>

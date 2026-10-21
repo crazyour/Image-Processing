@@ -61,7 +61,7 @@
             <b>本站免费</b>
           </label>
         </fieldset>
-        <p class="input-help source-fee-note">站内 AI 会生成 4 张图，约 ¥4/次；自行上传不会调用本站的图片生成模型。实际费用与外部平台额度以各平台账单为准。</p>
+        <p class="input-help source-fee-note">站内服务会生成 4 张图，约 ¥4/次；自行上传不产生站内图片生成费用。实际费用与外部平台额度以各平台账单为准。</p>
         <div id="reference-upload" class="reference-upload">
           <p><strong>上传多张参考图</strong><span>第一张作为主参考，其余图片补充侧面、背面、底部、局部结构或材质信息。请勿混入不同物体。</span></p>
           <label class="dropzone" for="image-input">
@@ -80,31 +80,6 @@
         <label id="prompt-requirement">补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
-        <details class="inline-settings">
-          <summary>模型设置（高级）</summary>
-          <div class="settings-grid">
-            <label>图片理解模型
-              <input id="vision-model" type="text" maxlength="128" required>
-            </label>
-            <label>多视图生成模型
-              <input id="image-model" type="text" maxlength="128" required>
-            </label>
-            <label>生成质量
-              <select id="image-quality">
-                <option value="low">低 · 更快</option>
-                <option value="medium">中 · 推荐</option>
-                <option value="high">高</option>
-                <option value="xhigh">超高</option>
-                <option value="max">最高</option>
-                <option value="auto">自动</option>
-              </select>
-            </label>
-            <label>3D 生成模型
-              <input id="hunyuan-model" type="text" maxlength="128" required>
-            </label>
-          </div>
-          <p class="settings-note">设置仅保存在当前浏览器，并在新任务创建时锁定。任务开始后的修改只对下一任务生效。</p>
-        </details>
         <button id="upload-submit" class="primary" type="submit">上传并分析参考图</button>
       </form>
     </section>
@@ -280,10 +255,8 @@
         <h3>为什么腾讯混元提交失败？</h3>
         <p>常见原因包括：</p>
         <ul>
-          <li>腾讯混元密钥未配置或已经失效。</li>
-          <li>API Key 余额或积分不足。</li>
+          <li>后台生成服务暂时不可用或额度不足。</li>
           <li>Vercel Blob 未配置，腾讯混元无法访问本地图片。</li>
-          <li>模型名或接口地址填写错误。</li>
           <li>网络连接暂时中断。</li>
         </ul>
         <p>页面会保留错误编号和 Request ID。排查问题时请同时提供这两个信息。</p>

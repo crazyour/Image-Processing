@@ -27,6 +27,8 @@ class DeliverableUploadTests(unittest.TestCase):
     def test_page_is_linked_from_feature_list(self):
         home = self.client.get("/")
         self.assertIn('href="/file-upload"', home.text)
+        self.assertIn("成果素材库", home.text)
+        self.assertNotIn("成果文件上传", home.text)
         self.assertEqual(self.client.get("/file-upload").status_code, 200)
 
     def test_uploads_non_image_deliverable_and_returns_download(self):
@@ -39,6 +41,10 @@ class DeliverableUploadTests(unittest.TestCase):
         self.assertEqual(payload["name"], "model.stl")
         self.assertTrue(payload["url"].startswith("/local-blobs/deliverables/"))
         self.assertEqual(self.client.get(payload["url"]).content, b"solid model\nendsolid model")
+        listed = self.client.get("/api/deliverables")
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()["items"][0]["name"], "model.stl")
+        self.assertEqual(listed.json()["items"][0]["type"], "file")
 
     def test_rejects_unsupported_and_empty_files(self):
         unsupported = self.client.post(
