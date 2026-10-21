@@ -306,7 +306,6 @@ function setAnimalBusy(value) {
   $("#submit-animal").textContent = value ? "正在处理…" : "上传并生成候选";
   $("#animal-image").disabled = value;
   $("#animal-prompt").disabled = value;
-  $("#animal-consent").disabled = value;
   $("#animal-generation-count").disabled = value;
   $("#retry-animal").disabled = value;
   $("#manual-repair-animal").disabled = value;
@@ -769,7 +768,6 @@ $("#animal-form").addEventListener("submit", async (event) => {
   $("#error-panel").classList.add("hidden");
   const file = $("#animal-image").files?.[0];
   if (!file) return showError({ message: "请上传一张参考照片", code: "CUTOUT_IMAGE_REQUIRED" });
-  if (!$("#animal-consent").checked) return showError({ message: "请先确认照片使用授权", code: "PHOTO_CONSENT_REQUIRED" });
   const animalSettings = {
     generation_count: Number($("#animal-generation-count").value),
   };

@@ -316,6 +316,8 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         self.assertNotIn("模型设置", page)
         self.assertNotIn('id="image-model"', page)
         self.assertNotIn('id="animal-image-model"', page)
+        self.assertNotIn("我有权使用这张照片", page)
+        self.assertNotIn('id="animal-consent"', page)
 
     def test_generates_requested_candidates_and_checks_only_selected_one(self):
         task_id, headers = self.create_task(generation_count=3)

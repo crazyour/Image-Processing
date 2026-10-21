@@ -12,7 +12,11 @@ body { min-width:320px; min-height:100vh; margin:0; color:var(--ink); background
 .library-heading h2 { margin:0; font-size:22px; }
 .library-heading span { color:var(--muted); font-size:12px; }
 .secondary { min-width:0; color:var(--green); background:#e8f0ea; }
-.asset-gallery { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:20px; }
+.asset-groups { display:grid; gap:28px; margin-top:20px; }
+.task-group-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
+.task-group-heading h3 { margin:0; font-size:17px; }
+.task-group-heading span { color:var(--muted); font-size:11px; }
+.asset-gallery { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .asset-card { min-width:0; overflow:hidden; border:1px solid rgba(35,58,47,.1); border-radius:15px; background:#fff; }
 .asset-preview { display:grid; place-items:center; aspect-ratio:4/3; overflow:hidden; color:#547064; background:#eef2ed; font-size:25px; font-weight:800; }
 .asset-preview img { width:100%; height:100%; object-fit:cover; transition:transform .25s ease; }
@@ -26,6 +30,8 @@ body { min-width:320px; min-height:100vh; margin:0; color:var(--ink); background
 .empty-state strong { color:var(--ink); }
 .upload-panel { margin-top:20px; }
 .upload-panel>summary { cursor:pointer; color:var(--green); padding:14px 4px; font-size:14px; font-weight:700; }
+.task-field { display:grid; gap:7px; margin-bottom:15px; color:var(--ink); font-size:13px; font-weight:700; }
+.task-field select { width:min(100%,360px); padding:11px 12px; border:1px solid rgba(35,58,47,.18); border-radius:10px; color:var(--ink); background:#fff; font:inherit; font-weight:500; }
 .drop-zone { display:grid; place-items:center; min-height:260px; padding:28px; border:1.5px dashed rgba(47,107,87,.35); border-radius:17px; background:#f7faf7; text-align:center; cursor:pointer; transition:.2s ease; }
 .drop-zone:hover,.drop-zone.dragging { border-color:var(--green); background:#eef6f0; transform:translateY(-2px); }
 .upload-icon { display:grid; place-items:center; width:58px; height:58px; margin-bottom:18px; border-radius:18px; color:#fff; background:var(--green); font-size:27px; }

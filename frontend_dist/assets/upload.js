@@ -10,6 +10,7 @@
   const assetCount = document.querySelector("#asset-count");
   const emptyState = document.querySelector("#empty-state");
   const refreshButton = document.querySelector("#refresh-button");
+  const uploadTask = document.querySelector("#upload-task");
   let files = [];
 
   const formatSize = (bytes) => bytes < 1024 * 1024
@@ -27,11 +28,19 @@
       const items = payload.items || [];
       assetCount.textContent = `${items.length} 份素材`;
       emptyState.hidden = Boolean(items.length);
-      gallery.innerHTML = items.map(item => {
-        const preview = item.type === "image"
-          ? `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}" loading="lazy">`
-          : `<span>${escapeHtml(item.extension)}</span>`;
-        return `<article class="asset-card"><div class="asset-preview">${preview}</div><div class="asset-body"><strong title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><small>${formatSize(item.size)} · ${escapeHtml(item.extension)}</small><a href="${escapeHtml(item.url)}" download="${escapeHtml(item.name)}">下载素材</a></div></article>`;
+      const groups = new Map();
+      items.forEach(item => {
+        if (!groups.has(item.task)) groups.set(item.task, { label: item.task_label, items: [] });
+        groups.get(item.task).items.push(item);
+      });
+      gallery.innerHTML = [...groups.values()].map(group => {
+        const cards = group.items.map(item => {
+          const preview = item.type === "image"
+            ? `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}" loading="lazy">`
+            : `<span>${escapeHtml(item.extension)}</span>`;
+          return `<article class="asset-card"><div class="asset-preview">${preview}</div><div class="asset-body"><strong title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><small>${formatSize(item.size)} · ${escapeHtml(item.extension)}</small><a href="${escapeHtml(item.url)}" download="${escapeHtml(item.name)}">下载素材</a></div></article>`;
+        }).join("");
+        return `<section class="task-group"><div class="task-group-heading"><h3>${escapeHtml(group.label)}</h3><span>${group.items.length} 份</span></div><div class="asset-gallery">${cards}</div></section>`;
       }).join("");
     } catch (error) {
       assetCount.textContent = error.message;
@@ -65,13 +74,14 @@
       progress.textContent = `正在上传 ${completed + 1} / ${files.length}`;
       const body = new FormData();
       body.set("file", file);
+      body.set("task", uploadTask.value);
       try {
         const response = await fetch("/api/deliverables/upload", { method: "POST", body });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.detail || `上传失败（${response.status}）`);
         const row = document.createElement("article");
         row.className = "file-row";
-        row.innerHTML = `<div class="file-meta"><strong>${escapeHtml(payload.name)}</strong><small>${formatSize(payload.size)} · 已上传</small></div><div class="file-actions"><button type="button" class="copy">复制链接</button><a href="${escapeHtml(payload.url)}" download="${escapeHtml(payload.name)}">下载</a></div>`;
+        row.innerHTML = `<div class="file-meta"><strong>${escapeHtml(payload.name)}</strong><small>${escapeHtml(payload.task_label)} · ${formatSize(payload.size)} · 已上传</small></div><div class="file-actions"><button type="button" class="copy">复制链接</button><a href="${escapeHtml(payload.url)}" download="${escapeHtml(payload.name)}">下载</a></div>`;
         row.querySelector(".copy").addEventListener("click", async event => {
           const absoluteUrl = new URL(payload.url, location.origin).href;
           try {

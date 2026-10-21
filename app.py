@@ -116,6 +116,13 @@ DELIVERABLE_EXTENSIONS = {
     ".gltf", ".fbx", ".step", ".stp", ".iges", ".igs", ".3mf", ".zip",
     ".7z", ".rar", ".txt", ".csv", ".json", ".doc", ".docx", ".xls", ".xlsx",
 }
+DELIVERABLE_TASKS = {
+    "text-image": "文生图",
+    "animal-cutout": "照片转镂空剪影",
+    "image-3d": "图生 3D",
+    "design-engineering": "设计与工程文件",
+    "other": "其他成果",
+}
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
 app.include_router(similarity_search_router)
@@ -2013,12 +2020,17 @@ def similarity_search_page():
 
 
 @app.post("/api/deliverables/upload", status_code=201)
-async def upload_deliverable(file: UploadFile = File(...)):
+async def upload_deliverable(
+    file: UploadFile = File(...),
+    task: str = Form("other"),
+):
     """Store a generated deliverable and return a shareable download URL."""
     original_name = Path(file.filename or "").name.strip()
     extension = Path(original_name).suffix.lower()
     if not original_name or extension not in DELIVERABLE_EXTENSIONS:
         raise HTTPException(status_code=422, detail="不支持该文件类型")
+    if task not in DELIVERABLE_TASKS:
+        raise HTTPException(status_code=422, detail="请选择有效的所属任务")
 
     data = await file.read(MAX_DELIVERABLE_UPLOAD_BYTES + 1)
     await file.close()
@@ -2036,7 +2048,7 @@ async def upload_deliverable(file: UploadFile = File(...)):
     upload_id = uuid.uuid4().hex
     try:
         url = PublicBlobStore().put(
-            f"deliverables/{time.strftime('%Y/%m/%d')}/{upload_id}/{safe_name}",
+            f"deliverables/{task}/{time.strftime('%Y/%m/%d')}/{upload_id}/{safe_name}",
             data,
             content_type,
         )
@@ -2048,6 +2060,8 @@ async def upload_deliverable(file: UploadFile = File(...)):
         "size": len(data),
         "content_type": content_type,
         "url": url,
+        "task": task,
+        "task_label": DELIVERABLE_TASKS[task],
     }
 
 
@@ -2060,6 +2074,8 @@ def list_deliverables():
     image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp"}
     items = []
     for item in stored:
+        path_parts = Path(item["pathname"]).parts
+        task = path_parts[1] if len(path_parts) > 1 and path_parts[1] in DELIVERABLE_TASKS else "uncategorized"
         name = Path(item["pathname"]).name
         extension = Path(name).suffix.lower()
         uploaded_at = item["uploaded_at"]
@@ -2070,6 +2086,8 @@ def list_deliverables():
             "type": "image" if extension in image_extensions else "file",
             "extension": extension.removeprefix(".").upper() or "FILE",
             "uploaded_at": uploaded_at,
+            "task": task,
+            "task_label": DELIVERABLE_TASKS.get(task, "未分类"),
         })
     items.sort(key=lambda item: str(item["uploaded_at"]), reverse=True)
     return {"items": items}

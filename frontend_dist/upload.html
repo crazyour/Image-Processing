@@ -22,13 +22,22 @@
         <div><h2 id="library-title">可用素材</h2><span id="asset-count">正在读取…</span></div>
         <button id="refresh-button" class="secondary" type="button">刷新</button>
       </div>
-      <div id="asset-gallery" class="asset-gallery" aria-live="polite"></div>
+      <div id="asset-gallery" class="asset-groups" aria-live="polite"></div>
       <div id="empty-state" class="empty-state" hidden><strong>还没有可用素材</strong><span>第一份上传的成果会显示在这里。</span></div>
     </section>
 
     <details class="upload-panel">
       <summary>上传新素材</summary>
       <section class="panel">
+        <label class="task-field" for="upload-task"><span>所属任务</span>
+          <select id="upload-task">
+            <option value="text-image">文生图</option>
+            <option value="animal-cutout">照片转镂空剪影</option>
+            <option value="image-3d">图生 3D</option>
+            <option value="design-engineering">设计与工程文件</option>
+            <option value="other">其他成果</option>
+          </select>
+        </label>
         <label id="drop-zone" class="drop-zone" for="file-input">
           <span class="upload-icon">⇧</span><strong>点击选择或将文件拖到这里</strong>
           <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>

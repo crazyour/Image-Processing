@@ -35,16 +35,28 @@ class DeliverableUploadTests(unittest.TestCase):
         response = self.client.post(
             "/api/deliverables/upload",
             files={"file": ("model.stl", b"solid model\nendsolid model", "model/stl")},
+            data={"task": "image-3d"},
         )
         self.assertEqual(response.status_code, 201)
         payload = response.json()
         self.assertEqual(payload["name"], "model.stl")
+        self.assertEqual(payload["task"], "image-3d")
+        self.assertEqual(payload["task_label"], "图生 3D")
         self.assertTrue(payload["url"].startswith("/local-blobs/deliverables/"))
         self.assertEqual(self.client.get(payload["url"]).content, b"solid model\nendsolid model")
         listed = self.client.get("/api/deliverables")
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(listed.json()["items"][0]["name"], "model.stl")
         self.assertEqual(listed.json()["items"][0]["type"], "file")
+        self.assertEqual(listed.json()["items"][0]["task"], "image-3d")
+
+    def test_rejects_unknown_task(self):
+        response = self.client.post(
+            "/api/deliverables/upload",
+            files={"file": ("asset.png", b"png", "image/png")},
+            data={"task": "unknown-task"},
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_rejects_unsupported_and_empty_files(self):
         unsupported = self.client.post(
