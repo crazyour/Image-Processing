@@ -68,6 +68,25 @@
     </div>
   </main>
 
+  <dialog id="delete-dialog" class="account-dialog" aria-labelledby="delete-dialog-title">
+    <div class="dialog-card dialog-card-compact">
+      <header class="dialog-head">
+        <div>
+          <span class="panel-kicker">DELETE ACCOUNT</span>
+          <h2 id="delete-dialog-title">删除账号</h2>
+          <p id="delete-dialog-summary" class="muted"></p>
+        </div>
+        <button id="delete-dialog-close" class="icon-button" type="button" aria-label="关闭">×</button>
+      </header>
+      <p id="delete-dialog-message" class="message hidden" role="alert"></p>
+      <p class="muted delete-hint">删除后该账号会立即退出登录且无法再登录；已有的使用额记录会保留，方便对账。</p>
+      <div class="dialog-actions">
+        <button id="delete-dialog-cancel" class="secondary" type="button">取消</button>
+        <button id="delete-dialog-confirm" class="danger" type="button">确认删除</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="usage-dialog" class="account-dialog" aria-labelledby="usage-dialog-title">
     <div class="dialog-card">
       <header class="dialog-head">

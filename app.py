@@ -46,8 +46,10 @@ from vercel_app.auth import (
     SESSION_TTL_SECONDS,
     AuthError,
     authenticate,
+    change_own_password,
     create_user,
     current_user,
+    delete_user,
     has_feature,
     list_users,
     revoke_session,
@@ -275,6 +277,11 @@ class UserUpdateRequest(BaseModel):
     role: Literal["member", "admin"] | None = None
     active: bool | None = None
     features: list[str] | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=150)
+    new_password: str = Field(min_length=1, max_length=150)
 
 
 def _require_local_library_access(header: str | None, request: Request) -> None:
@@ -931,6 +938,23 @@ def admin_create_user(data: UserCreateRequest):
 def admin_update_user(user_id: str, data: UserUpdateRequest, request: Request):
     changes = data.model_dump(exclude_none=True)
     return {"user": update_user(user_id, changes, request.state.user["id"])}
+
+
+@app.delete("/api/admin/users/{user_id}", include_in_schema=False)
+def admin_delete_user(user_id: str, request: Request):
+    """Delete a team account. Its sessions end immediately."""
+    delete_user(user_id, request.state.user["id"])
+    return {"ok": True}
+
+
+@app.post("/api/auth/password", include_in_schema=False)
+def change_own_password_route(data: ChangePasswordRequest, request: Request):
+    """Let the signed-in account change its own password."""
+    change_own_password(
+        request.state.user["id"], data.current_password, data.new_password,
+        request.cookies.get(SESSION_COOKIE),
+    )
+    return {"ok": True}
 
 
 @app.get("/api/admin/usage", include_in_schema=False)

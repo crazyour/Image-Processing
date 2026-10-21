@@ -389,6 +389,58 @@ def update_user(user_id: str, changes: dict[str, Any], actor_id: str) -> dict[st
         return _user_dict(updated)
 
 
+def delete_user(user_id: str, actor_id: str) -> None:
+    """Delete an account and its sessions. Usage records are kept for auditing."""
+    with _connection() as connection:
+        row = _execute(
+            connection, "SELECT id, role, active FROM auth_users WHERE id = ?", (user_id,),
+        ).fetchone()
+        if not row:
+            raise AuthError("USER_NOT_FOUND", "账号不存在", 404)
+        if user_id == actor_id:
+            raise AuthError("SELF_DELETE", "不能删除当前登录账号", 409)
+        if row["role"] == "admin" and bool(row["active"]):
+            count = _execute(
+                connection, "SELECT COUNT(*) AS count FROM auth_users WHERE role = ? AND active = ?",
+                ("admin", True),
+            ).fetchone()["count"]
+            if int(count) <= 1:
+                raise AuthError("LAST_ADMIN", "不能删除最后一个管理员", 409)
+        _execute(connection, "DELETE FROM auth_sessions WHERE user_id = ?", (user_id,))
+        _execute(connection, "DELETE FROM auth_users WHERE id = ?", (user_id,))
+        connection.commit()
+
+
+def change_own_password(user_id: str, current_password: str, new_password: str,
+                         keep_token: str | None = None) -> dict[str, Any]:
+    """Let an account change its own password and drop the other sessions."""
+    with _connection() as connection:
+        row = _execute(
+            connection, "SELECT * FROM auth_users WHERE id = ?", (user_id,),
+        ).fetchone()
+        if not row:
+            raise AuthError("USER_NOT_FOUND", "账号不存在", 404)
+        if not _verify_password(current_password, row["password_hash"]):
+            raise AuthError("PASSWORD_MISMATCH", "当前密码不正确", 401)
+        if current_password == new_password:
+            raise AuthError("PASSWORD_UNCHANGED", "新密码不能与当前密码相同", 422)
+        _hash_password(new_password)
+        _execute(
+            connection, "UPDATE auth_users SET password_hash = ?, updated_at = ? WHERE id = ?",
+            (_hash_password(new_password), time.time(), user_id),
+        )
+        if keep_token:
+            _execute(
+                connection, "DELETE FROM auth_sessions WHERE user_id = ? AND token_hash != ?",
+                (user_id, _token_hash(keep_token)),
+            )
+        else:
+            _execute(connection, "DELETE FROM auth_sessions WHERE user_id = ?", (user_id,))
+        connection.commit()
+        updated = _execute(connection, "SELECT * FROM auth_users WHERE id = ?", (user_id,)).fetchone()
+        return _user_dict(updated)
+
+
 def has_feature(user: dict[str, Any], feature: str) -> bool:
     if user["role"] == "admin" or feature in ALWAYS_AVAILABLE_FEATURES:
         return True

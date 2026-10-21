@@ -1,1 +1,51 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录 · 灵界</title><link rel="stylesheet" href="/auth-static/styles.css"></head><body><main class="login-shell"><section class="brand-panel"><div class="mark">灵</div><h1>创作工具，<br>只向团队成员开放。</h1><p>使用管理员分配的账号进入工作台。每个账号只会看到获授权的功能。</p></section><section class="login-side"><div class="card"><span class="eyebrow">LINGJIE ACCOUNT</span><h2>登录灵界</h2><p class="muted">此处不开放注册。新账号由管理员在管理网站中创建。</p><form id="login-form"><label>登录账号<input name="username" autocomplete="username" required autofocus></label><label>密码<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">进入系统</button></form><p id="message" class="message hidden" role="alert"></p><p id="setup" class="message hidden"></p></div></section></main><script type="module" src="/auth-static/login.js?v=20261021-3"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>登录 · 灵界</title>
+  <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
+  <link rel="stylesheet" href="/auth-static/styles.css?v=20261021-4">
+</head>
+<body class="login-body">
+  <main class="login-shell">
+    <section class="brand-panel">
+      <span class="brand-glow" aria-hidden="true"></span>
+      <header class="login-brand">
+        <img src="/branding/logo-mark-white.svg" alt="" width="40" height="40">
+        <span><strong>灵界</strong><small>工艺设计工作台</small></span>
+      </header>
+
+      <div class="brand-copy">
+        <span class="eyebrow">LINGJIE STUDIO</span>
+        <h1>把想法<br>做成可交付的工艺品</h1>
+        <p>文生图、照片转镂空剪影、图生 3D 与相似素材检索，从概念到 STL 与工程文件，一站完成。</p>
+        <ul class="brand-points">
+          <li>AI 生成产品图与镂空剪影</li>
+          <li>参考图直出 STL 三维模型</li>
+          <li>素材库、配方与交付文件统一管理</li>
+        </ul>
+      </div>
+
+      <footer class="brand-foot">上海哲誉实业有限公司</footer>
+    </section>
+
+    <section class="login-side">
+      <div class="card">
+        <span class="eyebrow">LINGJIE ACCOUNT</span>
+        <h2>登录灵界</h2>
+        <p class="muted">使用团队账号进入工作台，每个账号只会看到已授权的功能。</p>
+        <form id="login-form">
+          <label>登录账号<input name="username" autocomplete="username" required autofocus></label>
+          <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="primary" type="submit">进入工作台</button>
+        </form>
+        <p id="message" class="message hidden" role="alert"></p>
+        <p id="setup" class="message hidden"></p>
+        <p class="login-note">此处不开放注册 · 账号由管理员创建与授权</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/auth-static/login.js?v=20261021-4"></script>
+</body>
+</html>

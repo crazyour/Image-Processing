@@ -10,10 +10,12 @@ const editForm = document.querySelector("#edit-form");
 const createDialog = document.querySelector("#create-dialog");
 const dialog = document.querySelector("#user-dialog");
 const usageDialog = document.querySelector("#usage-dialog");
+const deleteDialog = document.querySelector("#delete-dialog");
 let catalog = {};
 let currentUser = null;
 let users = [];
 let editingUser = null;
+let deletingUser = null;
 let usageReport = {accounts: [], feature_totals: [], grand_total_usd: 0, grand_total_calls: 0};
 
 document.querySelector("#logout").addEventListener("click", logout);
@@ -29,6 +31,9 @@ document.querySelector("#create-dialog-cancel").addEventListener("click", () => 
 document.querySelector("#dialog-close").addEventListener("click", () => dialog.close());
 document.querySelector("#dialog-cancel").addEventListener("click", () => dialog.close());
 document.querySelector("#usage-dialog-close").addEventListener("click", () => usageDialog.close());
+document.querySelector("#delete-dialog-close").addEventListener("click", () => deleteDialog.close());
+document.querySelector("#delete-dialog-cancel").addEventListener("click", () => deleteDialog.close());
+document.querySelector("#delete-dialog-confirm").addEventListener("click", submitDelete);
 search.addEventListener("input", renderUsers);
 createDialog.addEventListener("click", event => {
   if (event.target === createDialog) createDialog.close();
@@ -38,6 +43,9 @@ dialog.addEventListener("click", event => {
 });
 usageDialog.addEventListener("click", event => {
   if (event.target === usageDialog) usageDialog.close();
+});
+deleteDialog.addEventListener("click", event => {
+  if (event.target === deleteDialog) deleteDialog.close();
 });
 editForm.elements.password_confirm.addEventListener("input", () => {
   editForm.elements.password_confirm.setCustomValidity("");
@@ -167,6 +175,7 @@ function renderUsers() {
           <div class="row-actions">
             <button class="secondary manage-user" type="button" data-user-id="${escapeHtml(user.id)}">管理</button>
             <button class="secondary account-usage-button" type="button" data-user-id="${escapeHtml(user.id)}" data-user-name="${escapeHtml(user.name)}" data-username="${escapeHtml(user.username)}">使用额</button>
+            <button class="secondary delete-user" type="button" data-user-id="${escapeHtml(user.id)}" data-user-name="${escapeHtml(user.name)}" data-username="${escapeHtml(user.username)}">删除</button>
           </div>
         </td>
       </tr>
@@ -181,6 +190,41 @@ function renderUsers() {
       openUsageDetail(button.dataset.userId, button.dataset.userName, button.dataset.username);
     });
   });
+  list.querySelectorAll(".delete-user").forEach(button => {
+    button.addEventListener("click", () => openDeleteDialog(
+      button.dataset.userId, button.dataset.userName, button.dataset.username,
+    ));
+  });
+}
+
+function openDeleteDialog(userId, name, username) {
+  deletingUser = {id: userId, name, username};
+  document.querySelector("#delete-dialog-title").textContent = `删除 ${name}`;
+  document.querySelector("#delete-dialog-summary").textContent = `@${username}`;
+  document.querySelector("#delete-dialog-message").classList.add("hidden");
+  const confirm = document.querySelector("#delete-dialog-confirm");
+  confirm.disabled = false;
+  confirm.textContent = "确认删除";
+  deleteDialog.showModal();
+}
+
+async function submitDelete() {
+  if (!deletingUser) return;
+  const confirm = document.querySelector("#delete-dialog-confirm");
+  const target = deletingUser;
+  confirm.disabled = true;
+  confirm.textContent = "删除中…";
+  try {
+    await api(`/api/admin/users/${target.id}`, {method: "DELETE"});
+    deleteDialog.close();
+    deletingUser = null;
+    showMessage(message, `账号 ${target.name} 已删除`, false);
+    await load();
+  } catch (error) {
+    showMessage(document.querySelector("#delete-dialog-message"), error.message, true);
+    confirm.disabled = false;
+    confirm.textContent = "确认删除";
+  }
 }
 
 function openEditor(userId) {

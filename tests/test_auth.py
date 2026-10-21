@@ -134,6 +134,61 @@ class AuthenticationTests(unittest.TestCase):
         finally:
             member.close()
 
+    def test_admin_can_delete_account_and_sessions_end(self):
+        user = self.create_member(["text_to_image"])
+        member = self.login_member()
+        try:
+            self.assertEqual(member.get("/api/auth/me").status_code, 200)
+            deleted = self.admin.delete(f"/api/admin/users/{user['id']}")
+            self.assertEqual(deleted.status_code, 200)
+            self.assertEqual(member.get("/api/auth/me").status_code, 401)
+            usernames = [item["username"] for item in self.admin.get("/api/admin/users").json()["users"]]
+            self.assertNotIn("designer", usernames)
+        finally:
+            member.close()
+
+    def test_admin_cannot_delete_the_signed_in_account(self):
+        current = self.admin.get("/api/auth/me").json()["user"]
+        response = self.admin.delete(f"/api/admin/users/{current['id']}")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["code"], "SELF_DELETE")
+
+    def test_member_can_change_own_password(self):
+        self.create_member(["text_to_image"])
+        member = self.login_member()
+        try:
+            changed = member.post("/api/auth/password", json={
+                "current_password": "designer-password-123", "new_password": "new-designer-password-456",
+            })
+            self.assertEqual(changed.status_code, 200)
+            self.assertEqual(member.get("/api/auth/me").status_code, 200)
+        finally:
+            member.close()
+        again = TestClient(app_module.app)
+        try:
+            stale = again.post("/api/auth/login", json={
+                "username": "designer", "password": "designer-password-123",
+            })
+            self.assertEqual(stale.status_code, 401)
+            fresh = again.post("/api/auth/login", json={
+                "username": "designer", "password": "new-designer-password-456",
+            })
+            self.assertEqual(fresh.status_code, 200)
+        finally:
+            again.close()
+
+    def test_changing_password_requires_the_current_one(self):
+        self.create_member(["text_to_image"])
+        member = self.login_member()
+        try:
+            wrong = member.post("/api/auth/password", json={
+                "current_password": "not-the-password", "new_password": "another-password-789",
+            })
+            self.assertEqual(wrong.status_code, 401)
+            self.assertEqual(wrong.json()["code"], "PASSWORD_MISMATCH")
+        finally:
+            member.close()
+
     def test_admin_can_edit_features_and_disable_account(self):
         user = self.create_member([])
         member = self.login_member()

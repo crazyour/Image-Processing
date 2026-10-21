@@ -122,6 +122,24 @@ footer { display: flex; justify-content: space-between; margin-top: clamp(42px, 
   footer { display: grid; gap: 5px; margin-top: 38px; }
 }
 
+/* Password dialog */
+.home-dialog { width: min(460px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 22px; background: transparent; box-shadow: 0 26px 70px rgba(20, 48, 38, .28); }
+.home-dialog::backdrop { background: rgba(18, 38, 31, .48); backdrop-filter: blur(5px); }
+.home-dialog-card { padding: 26px; border-radius: 22px; background: #fff; }
+.home-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.home-dialog-head h2 { margin: 0; font-size: 21px; letter-spacing: -.01em; }
+.home-dialog-head p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.home-dialog-close { width: 36px; height: 36px; border: 0; border-radius: 11px; background: rgba(35, 58, 47, .06); color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+.home-dialog-close:hover { background: rgba(35, 58, 47, .12); }
+.home-dialog-body { display: grid; gap: 14px; margin-top: 18px; }
+.home-dialog-body label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.home-dialog-body input { width: 100%; padding: 11px 13px; border: 1px solid rgba(35, 58, 47, .16); border-radius: 11px; background: #fff; color: var(--ink); font: inherit; outline: none; }
+.home-dialog-body input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(47, 107, 87, .14); }
+.home-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.home-dialog-actions .primary { padding: 11px 18px; border: 0; border-radius: 11px; background: var(--green); color: #fff; font: 700 13px/1 inherit; cursor: pointer; }
+.home-dialog-actions .primary:disabled { opacity: .6; cursor: not-allowed; }
+.home-dialog .access-message { width: auto; margin: 16px 0 0 !important; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

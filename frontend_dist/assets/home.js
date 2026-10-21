@@ -5,6 +5,10 @@ const accountName = document.querySelector("#account-name");
 const adminEntry = document.querySelector("#admin-entry");
 const logoutButton = document.querySelector("#logout");
 const accessMessage = document.querySelector("#access-message");
+const passwordEntry = document.querySelector("#password-entry");
+const passwordDialog = document.querySelector("#password-dialog");
+const passwordForm = document.querySelector("#password-form");
+const passwordMessage = document.querySelector("#password-message");
 
 async function api(path, options = {}) {
   const response = await fetch(path, {credentials: "same-origin", ...options});
@@ -73,6 +77,56 @@ logoutButton?.addEventListener("click", async () => {
     location.href = "/login";
   } catch (_) {
     logoutButton.disabled = false;
+  }
+});
+
+function closePasswordDialog() {
+  passwordDialog.close();
+  passwordForm.reset();
+  passwordMessage.classList.add("hidden");
+  passwordMessage.textContent = "";
+}
+
+passwordEntry?.addEventListener("click", () => {
+  passwordForm.reset();
+  passwordMessage.classList.add("hidden");
+  passwordDialog.showModal();
+  passwordForm.elements.current_password.focus();
+});
+document.querySelector("#password-dialog-close")?.addEventListener("click", closePasswordDialog);
+document.querySelector("#password-cancel")?.addEventListener("click", closePasswordDialog);
+passwordDialog?.addEventListener("click", event => {
+  if (event.target === passwordDialog) closePasswordDialog();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && passwordDialog?.open) closePasswordDialog();
+});
+
+passwordForm?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const values = new FormData(passwordForm);
+  const currentPassword = values.get("current_password");
+  const newPassword = values.get("new_password");
+  const confirmPassword = values.get("confirm_password");
+  if (newPassword !== confirmPassword) {
+    passwordMessage.textContent = "两次输入的新密码不一致";
+    passwordMessage.classList.remove("hidden");
+    return;
+  }
+  const submit = passwordForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    await api("/api/auth/password", {
+      method: "POST",
+      body: JSON.stringify({current_password: currentPassword, new_password: newPassword}),
+    });
+    closePasswordDialog();
+    showAccessMessage("密码已修改，其它设备需要重新登录。");
+  } catch (error) {
+    passwordMessage.textContent = error.message;
+    passwordMessage.classList.remove("hidden");
+  } finally {
+    submit.disabled = false;
   }
 });
 
