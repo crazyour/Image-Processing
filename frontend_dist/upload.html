@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f4f6f2">
+  <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
+  <link rel="stylesheet" href="/assets/upload.css?v=20261021-1">
+  <title>成果文件上传 · 灵界</title>
+</head>
+<body>
+  <main class="shell">
+    <header><a class="back" href="/">← 返回功能列表</a></header>
+    <section class="intro">
+      <p>DELIVERABLE UPLOAD</p>
+      <h1>成果文件上传</h1>
+      <span>将生成后可使用的文件保存到系统，上传完成后可直接复制链接或下载。</span>
+    </section>
+
+    <section class="panel">
+      <label id="drop-zone" class="drop-zone" for="file-input">
+        <span class="upload-icon">⇧</span>
+        <strong>点击选择或将文件拖到这里</strong>
+        <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>
+        <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx">
+      </label>
+      <div class="action-row">
+        <span id="selection-summary">尚未选择文件</span>
+        <button id="upload-button" type="button" disabled>开始上传</button>
+      </div>
+    </section>
+
+    <section id="results" class="results" aria-live="polite" hidden>
+      <div class="results-heading"><h2>上传结果</h2><span id="progress"></span></div>
+      <div id="file-list" class="file-list"></div>
+    </section>
+  </main>
+  <script src="/assets/upload.js?v=20261021-1" defer></script>
+</body>
+</html>

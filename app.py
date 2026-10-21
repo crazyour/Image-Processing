@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import mimetypes
 import os
 import re
 import secrets
@@ -94,6 +95,13 @@ MAX_REFERENCE_UPLOAD_BYTES = 4_000_000
 MAX_AUTOMATIC_CUTOUT_REPAIRS = 2
 CUTOUT_REPAIR_MODEL = "gpt-image-2.5-sunburst"
 CUTOUT_REPAIR_QUALITY = "high"
+MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
+DELIVERABLE_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp",
+    ".svg", ".ai", ".psd", ".pdf", ".dxf", ".dwg", ".stl", ".obj", ".glb",
+    ".gltf", ".fbx", ".step", ".stp", ".iges", ".igs", ".3mf", ".zip",
+    ".7z", ".rar", ".txt", ".csv", ".json", ".doc", ".docx", ".xls", ".xlsx",
+}
 
 app = FastAPI(title="图片生成 3D", version="1.0.0")
 app.include_router(similarity_search_router)
@@ -1969,6 +1977,53 @@ def text_to_image_page():
 def similarity_search_page():
     return FileResponse(
         SIMILARITY_SEARCH_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post("/api/deliverables/upload", status_code=201)
+async def upload_deliverable(file: UploadFile = File(...)):
+    """Store a generated deliverable and return a shareable download URL."""
+    original_name = Path(file.filename or "").name.strip()
+    extension = Path(original_name).suffix.lower()
+    if not original_name or extension not in DELIVERABLE_EXTENSIONS:
+        raise HTTPException(status_code=422, detail="不支持该文件类型")
+
+    data = await file.read(MAX_DELIVERABLE_UPLOAD_BYTES + 1)
+    await file.close()
+    if not data:
+        raise HTTPException(status_code=422, detail="文件内容为空")
+    if len(data) > MAX_DELIVERABLE_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="单个文件不能超过 4 MB")
+
+    safe_stem = re.sub(r"[^\w\-.]+", "-", Path(original_name).stem, flags=re.UNICODE).strip("-._")
+    safe_name = f"{safe_stem[:80] or 'file'}{extension}"
+    content_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    # Vector markup is downloadable as data rather than executable browser content.
+    if extension in {".svg", ".ai"}:
+        content_type = "application/octet-stream"
+    upload_id = uuid.uuid4().hex
+    try:
+        url = PublicBlobStore().put(
+            f"deliverables/{time.strftime('%Y/%m/%d')}/{upload_id}/{safe_name}",
+            data,
+            content_type,
+        )
+    except StoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "id": upload_id,
+        "name": original_name,
+        "size": len(data),
+        "content_type": content_type,
+        "url": url,
+    }
+
+
+@app.get("/file-upload", include_in_schema=False)
+def file_upload_page():
+    return FileResponse(
+        ORIGINAL_FRONTEND / "upload.html",
         headers={"Cache-Control": "no-store"},
     )
 

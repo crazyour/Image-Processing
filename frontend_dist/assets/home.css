@@ -69,6 +69,7 @@ a { -webkit-tap-highlight-color: transparent; }
 .tone-color .tool-symbol { color: #76516e; background: #efe4ed; }
 .tone-visual .tool-symbol { color: #496a3f; background: #e5eddd; }
 .tone-svg .tool-symbol, .tone-dxf .tool-symbol { color: #456366; background: #e0eceb; }
+.tone-upload .tool-symbol { color: #315f4e; background: #dcecdf; }
 
 footer { display: flex; justify-content: space-between; margin-top: clamp(42px, 8vh, 74px); color: #89948e; font-size: 10px; letter-spacing: .04em; }
 
