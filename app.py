@@ -29,12 +29,14 @@ from vercel_app.store import (
     SessionNotFound,
     StoreError,
     create_session,
+    list_deliverables as list_deliverable_records,
     list_local_sessions,
     load_local_preferences,
+    load_session,
     local_blob_path,
     local_library_available,
-    load_session,
     rotate_local_session_token,
+    save_deliverable,
     save_local_preferences,
     save_session,
     storage_status,
@@ -2260,10 +2262,11 @@ def similarity_search_page():
 
 @app.post("/api/deliverables/upload", status_code=201)
 async def upload_deliverable(
+    request: Request,
     file: UploadFile = File(...),
     task: str = Form("other"),
 ):
-    """Store a generated deliverable and return a shareable download URL."""
+    """Store a shared asset; the uploader is taken from the signed-in account."""
     original_name = Path(file.filename or "").name.strip()
     extension = Path(original_name).suffix.lower()
     if not original_name or extension not in DELIVERABLE_EXTENSIONS:
@@ -2285,51 +2288,80 @@ async def upload_deliverable(
     if extension in {".svg", ".ai"}:
         content_type = "application/octet-stream"
     upload_id = uuid.uuid4().hex
+    pathname = f"deliverables/{task}/{time.strftime('%Y/%m/%d')}/{upload_id}/{safe_name}"
     try:
-        url = PublicBlobStore().put(
-            f"deliverables/{task}/{time.strftime('%Y/%m/%d')}/{upload_id}/{safe_name}",
-            data,
-            content_type,
-        )
+        url = PublicBlobStore().put(pathname, data, content_type)
     except StoreError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {
+    uploader = _account_user(request) or {}
+    record = save_deliverable({
         "id": upload_id,
-        "name": original_name,
-        "size": len(data),
-        "content_type": content_type,
-        "url": url,
         "task": task,
-        "task_label": DELIVERABLE_TASKS[task],
+        "name": original_name,
+        "pathname": pathname,
+        "url": url,
+        "size_bytes": len(data),
+        "content_type": content_type,
+        "uploader_id": uploader.get("id"),
+        "uploader_name": uploader.get("name"),
+        "uploader_username": uploader.get("username"),
+        "created_at": time.time(),
+    })
+    return {
+        "id": record["id"],
+        "name": record["name"],
+        "size": record["size_bytes"],
+        "content_type": record["content_type"],
+        "url": record["url"],
+        "task": record["task"],
+        "task_label": DELIVERABLE_TASKS[record["task"]],
+        "uploader_name": record.get("uploader_name"),
+        "uploader_username": record.get("uploader_username"),
+        "uploaded_at": record["created_at"],
     }
 
 
 @app.get("/api/deliverables")
 def list_deliverables():
+    """Shared assets with their uploader, so the page can group by account and type."""
     try:
-        stored = PublicBlobStore().list("deliverables/", limit=100)
+        records = list_deliverable_records(limit=500)
     except StoreError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp"}
     items = []
-    for item in stored:
-        path_parts = Path(item["pathname"]).parts
-        task = path_parts[1] if len(path_parts) > 1 and path_parts[1] in DELIVERABLE_TASKS else "uncategorized"
-        name = Path(item["pathname"]).name
+    for record in records:
+        name = record.get("name") or Path(record["pathname"]).name
         extension = Path(name).suffix.lower()
-        uploaded_at = item["uploaded_at"]
-        if hasattr(uploaded_at, "isoformat"):
-            uploaded_at = uploaded_at.isoformat()
         items.append({
-            "name": name, "url": item["url"], "size": item["size"],
+            "id": record["id"],
+            "name": name,
+            "size": int(record.get("size_bytes") or 0),
             "type": "image" if extension in image_extensions else "file",
             "extension": extension.removeprefix(".").upper() or "FILE",
-            "uploaded_at": uploaded_at,
-            "task": task,
-            "task_label": DELIVERABLE_TASKS.get(task, "未分类"),
+            "url": record["url"],
+            "task": record["task"],
+            "task_label": DELIVERABLE_TASKS.get(record["task"], "未分类"),
+            "uploader_id": record.get("uploader_id"),
+            "uploader_name": record.get("uploader_name") or "未标注上传者",
+            "uploader_username": record.get("uploader_username") or "",
+            "uploaded_at": record.get("created_at"),
         })
-    items.sort(key=lambda item: str(item["uploaded_at"]), reverse=True)
-    return {"items": items}
+    items.sort(key=lambda item: item["uploaded_at"] or 0, reverse=True)
+    uploaders: dict[str, dict[str, Any]] = {}
+    for item in items:
+        key = item["uploader_id"] or item["uploader_name"]
+        if key not in uploaders:
+            uploaders[key] = {
+                "id": key,
+                "name": item["uploader_name"],
+                "username": item["uploader_username"],
+            }
+    return {
+        "items": items,
+        "accounts": sorted(uploaders.values(), key=lambda account: account["name"]),
+        "tasks": [{"key": key, "label": label} for key, label in DELIVERABLE_TASKS.items()],
+    }
 
 
 @app.get("/file-upload", include_in_schema=False)

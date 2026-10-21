@@ -5,53 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f4f6f2">
   <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
-  <link rel="stylesheet" href="/assets/upload.css?v=20261021-2">
+  <link rel="stylesheet" href="/assets/upload.css?v=20261021-3">
   <title>成果素材库 · 灵界</title>
 </head>
 <body>
   <main class="shell">
-    <header><a class="back" href="/">← 返回功能列表</a></header>
+    <header class="topbar">
+      <a class="back" href="/">← 返回功能列表</a>
+      <span id="viewer-name" class="viewer-name"></span>
+    </header>
+
     <section class="intro">
-      <p>READY-TO-USE ASSETS</p>
+      <p>SHARED ASSET LIBRARY</p>
       <h1>成果素材库</h1>
-      <span>查看别人已经制作完成并上传的素材，可直接预览、下载和使用。</span>
+      <span>云端共享的团队成果：按上传账号和业务类型查看，或者上传你自己的成果给同事使用。</span>
     </section>
 
-    <section class="library" aria-labelledby="library-title">
+    <nav class="tabs" role="tablist" aria-label="素材库功能">
+      <button id="tab-browse" class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-browse">素材展示</button>
+      <button id="tab-upload" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-upload">上传素材</button>
+    </nav>
+
+    <section id="panel-browse" class="panel" role="tabpanel" aria-labelledby="tab-browse">
       <div class="library-heading">
-        <div><h2 id="library-title">可用素材</h2><span id="asset-count">正在读取…</span></div>
+        <div><h2>素材展示</h2><span id="asset-count">正在读取…</span></div>
         <button id="refresh-button" class="secondary" type="button">刷新</button>
+      </div>
+      <div class="filters">
+        <label>账号
+          <select id="filter-account"><option value="">全部账号</option></select>
+        </label>
+        <label>业务类型
+          <select id="filter-task"><option value="">全部类型</option></select>
+        </label>
       </div>
       <div id="asset-gallery" class="asset-groups" aria-live="polite"></div>
       <div id="empty-state" class="empty-state" hidden><strong>还没有可用素材</strong><span>第一份上传的成果会显示在这里。</span></div>
     </section>
 
-    <details class="upload-panel">
-      <summary>上传新素材</summary>
-      <section class="panel">
-        <label class="task-field" for="upload-task"><span>所属任务</span>
-          <select id="upload-task">
-            <option value="text-image">文生图</option>
-            <option value="animal-cutout">照片转镂空剪影</option>
-            <option value="image-3d">图生 3D</option>
-            <option value="design-engineering">设计与工程文件</option>
-            <option value="other">其他成果</option>
-          </select>
-        </label>
-        <label id="drop-zone" class="drop-zone" for="file-input">
-          <span class="upload-icon">⇧</span><strong>点击选择或将文件拖到这里</strong>
-          <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>
-          <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx">
-        </label>
-        <div class="action-row"><span id="selection-summary">尚未选择文件</span><button id="upload-button" type="button" disabled>开始上传</button></div>
-      </section>
-    </details>
+    <section id="panel-upload" class="panel" role="tabpanel" aria-labelledby="tab-upload" hidden>
+      <div class="library-heading">
+        <div><h2>上传素材</h2><span>选择文件并标注业务类型，系统会自动记下上传账号。</span></div>
+      </div>
+      <p id="upload-owner" class="owner-hint"></p>
+      <label class="task-field" for="upload-task"><span>业务类型</span>
+        <select id="upload-task">
+          <option value="text-image">文生图</option>
+          <option value="animal-cutout">照片转镂空剪影</option>
+          <option value="image-3d">图生 3D</option>
+          <option value="design-engineering">设计与工程文件</option>
+          <option value="other">其他成果</option>
+        </select>
+      </label>
+      <label id="drop-zone" class="drop-zone" for="file-input">
+        <span class="upload-icon">⇧</span><strong>点击选择或将文件拖到这里</strong>
+        <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>
+        <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx">
+      </label>
+      <div class="action-row"><span id="selection-summary">尚未选择文件</span><button id="upload-button" type="button" disabled>开始上传</button></div>
 
-    <section id="results" class="results" aria-live="polite" hidden>
-      <div class="results-heading"><h2>上传结果</h2><span id="progress"></span></div>
-      <div id="file-list" class="file-list"></div>
+      <div id="results" class="results" aria-live="polite" hidden>
+        <div class="results-heading"><h2>上传结果</h2><span id="progress"></span></div>
+        <div id="file-list" class="file-list"></div>
+      </div>
     </section>
   </main>
-  <script src="/assets/upload.js?v=20261021-2" defer></script>
+  <script src="/assets/upload.js?v=20261021-3" defer></script>
 </body>
 </html>

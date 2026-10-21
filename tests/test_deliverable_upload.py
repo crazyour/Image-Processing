@@ -63,6 +63,74 @@ class DeliverableUploadTests(unittest.TestCase):
         self.assertEqual(listed.json()["items"][0]["type"], "file")
         self.assertEqual(listed.json()["items"][0]["task"], "image-3d")
 
+    def test_upload_is_attributed_to_the_signed_in_account(self):
+        response = self.client.post(
+            "/api/deliverables/upload",
+            files={"file": ("design.dxf", b"dxf", "application/dxf")},
+            data={"task": "design-engineering"},
+        )
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["uploader_username"], "asset-admin")
+        self.assertEqual(payload["uploader_name"], "素材库管理员")
+        listed = self.client.get("/api/deliverables").json()
+        self.assertEqual(listed["items"][0]["uploader_username"], "asset-admin")
+        self.assertEqual(listed["accounts"][0]["username"], "asset-admin")
+        self.assertIn(
+            {"key": "design-engineering", "label": "设计与工程文件"},
+            listed["tasks"],
+        )
+
+    def test_assets_from_different_accounts_and_types_are_grouped(self):
+        self.client.post(
+            "/api/admin/users", json={
+                "username": "member", "name": "成员甲", "password": "member-password",
+                "role": "member", "features": ["asset_library"],
+            },
+        )
+        member = TestClient(app_module.app)
+        member.post("/api/auth/login", json={
+            "username": "member", "password": "member-password",
+        })
+        try:
+            member.post(
+                "/api/deliverables/upload",
+                files={"file": ("photo.png", b"png", "image/png")},
+                data={"task": "text-image"},
+            )
+        finally:
+            member.close()
+        self.client.post(
+            "/api/deliverables/upload",
+            files={"file": ("plan.dxf", b"dxf", "application/dxf")},
+            data={"task": "design-engineering"},
+        )
+        listed = self.client.get("/api/deliverables").json()
+        self.assertEqual(len(listed["items"]), 2)
+        self.assertEqual(len(listed["accounts"]), 2)
+        by_account = {item["uploader_username"]: item for item in listed["items"]}
+        self.assertEqual(by_account["member"]["task"], "text-image")
+        self.assertEqual(by_account["asset-admin"]["task"], "design-engineering")
+
+    def test_member_without_library_permission_cannot_upload(self):
+        self.client.post("/api/admin/users", json={
+            "username": "outsider", "name": "外部成员", "password": "outsider-password",
+            "role": "member", "features": ["text_to_image"],
+        })
+        outsider = TestClient(app_module.app)
+        outsider.post("/api/auth/login", json={
+            "username": "outsider", "password": "outsider-password",
+        })
+        try:
+            response = outsider.post(
+                "/api/deliverables/upload",
+                files={"file": ("secret.png", b"png", "image/png")},
+                data={"task": "text-image"},
+            )
+            self.assertEqual(response.status_code, 403)
+        finally:
+            outsider.close()
+
     def test_rejects_unknown_task(self):
         response = self.client.post(
             "/api/deliverables/upload",

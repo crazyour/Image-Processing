@@ -123,6 +123,23 @@ def _ensure_postgres_schema(connection) -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deliverables (
+                id TEXT PRIMARY KEY,
+                task TEXT NOT NULL,
+                name TEXT NOT NULL,
+                pathname TEXT NOT NULL,
+                url TEXT NOT NULL,
+                size_bytes BIGINT NOT NULL DEFAULT 0,
+                content_type TEXT,
+                uploader_id TEXT,
+                uploader_name TEXT,
+                uploader_username TEXT,
+                created_at DOUBLE PRECISION NOT NULL
+            )
+            """
+        )
         connection.commit()
         _schema_ready.add(key)
 
@@ -166,6 +183,23 @@ def _ensure_sqlite_schema(connection: sqlite3.Connection, database_path: Path) -
                 enabled INTEGER NOT NULL DEFAULT 0,
                 prompt TEXT NOT NULL DEFAULT '',
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deliverables (
+                id TEXT PRIMARY KEY,
+                task TEXT NOT NULL,
+                name TEXT NOT NULL,
+                pathname TEXT NOT NULL,
+                url TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                content_type TEXT,
+                uploader_id TEXT,
+                uploader_name TEXT,
+                uploader_username TEXT,
+                created_at REAL NOT NULL
             )
             """
         )
@@ -277,6 +311,75 @@ def list_local_sessions(limit: int = 200) -> list[dict[str, Any]]:
             "updated_at": row["updated_at"],
         })
     return result
+
+
+def save_deliverable(record: dict[str, Any]) -> dict[str, Any]:
+    """Remember who uploaded a shared asset and under which business type."""
+    if _configured("DATABASE_URL"):
+        with _connect_postgres() as connection:
+            connection.execute(
+                """INSERT INTO deliverables
+                   (id, task, name, pathname, url, size_bytes, content_type,
+                    uploader_id, uploader_name, uploader_username, created_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    record["id"], record["task"], record["name"], record["pathname"],
+                    record["url"], int(record.get("size_bytes") or 0), record.get("content_type"),
+                    record.get("uploader_id"), record.get("uploader_name"),
+                    record.get("uploader_username"), float(record.get("created_at") or 0),
+                ),
+            )
+            connection.commit()
+    else:
+        with _connect_sqlite() as connection:
+            connection.execute(
+                """INSERT INTO deliverables
+                   (id, task, name, pathname, url, size_bytes, content_type,
+                    uploader_id, uploader_name, uploader_username, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    record["id"], record["task"], record["name"], record["pathname"],
+                    record["url"], int(record.get("size_bytes") or 0), record.get("content_type"),
+                    record.get("uploader_id"), record.get("uploader_name"),
+                    record.get("uploader_username"), float(record.get("created_at") or 0),
+                ),
+            )
+            connection.commit()
+    return record
+
+
+def list_deliverables(limit: int = 500) -> list[dict[str, Any]]:
+    """Shared assets ordered from newest to oldest."""
+    if _configured("DATABASE_URL"):
+        with _connect_postgres() as connection:
+            rows = connection.execute(
+                """SELECT id, task, name, pathname, url, size_bytes, content_type,
+                          uploader_id, uploader_name, uploader_username, created_at
+                   FROM deliverables ORDER BY created_at DESC LIMIT %s""",
+                (int(limit),),
+            ).fetchall()
+    else:
+        with _connect_sqlite() as connection:
+            rows = connection.execute(
+                """SELECT id, task, name, pathname, url, size_bytes, content_type,
+                          uploader_id, uploader_name, uploader_username, created_at
+                   FROM deliverables ORDER BY created_at DESC LIMIT ?""",
+                (int(limit),),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def delete_deliverable(deliverable_id: str) -> bool:
+    """Remove the record of a shared asset."""
+    if _configured("DATABASE_URL"):
+        with _connect_postgres() as connection:
+            connection.execute("DELETE FROM deliverables WHERE id = %s", (deliverable_id,))
+            connection.commit()
+    else:
+        with _connect_sqlite() as connection:
+            connection.execute("DELETE FROM deliverables WHERE id = ?", (deliverable_id,))
+            connection.commit()
+    return True
 
 
 def rotate_local_session_token(session_id: str, token: str) -> dict[str, Any]:
