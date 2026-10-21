@@ -282,6 +282,59 @@ function showWorkflow(name) {
   $("#show-animal-workflow").setAttribute("aria-pressed", String(animal));
 }
 
+const LOCK_ICON = '<svg class="lock-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+
+function showFeatureLockMessage(text) {
+  const box = $("#feature-lock-message");
+  if (!box) return;
+  box.textContent = text;
+  box.classList.remove("hidden");
+}
+
+function lockWorkflowButton(button, title) {
+  if (!button || button.classList.contains("is-locked")) return;
+  button.classList.add("is-locked");
+  button.setAttribute("aria-disabled", "true");
+  button.setAttribute("title", `${title}尚未开通，请联系管理员分配权限`);
+  button.insertAdjacentHTML("afterbegin", LOCK_ICON);
+}
+
+async function applyFeatureLocks() {
+  let user = null;
+  try {
+    const response = await fetch("/api/auth/me", {headers: {Accept: "application/json"}});
+    if (!response.ok) {
+      await loadAnimalPromptTemplate();
+      return;
+    }
+    const payload = await response.json();
+    user = payload.user || null;
+  } catch (_) {
+    await loadAnimalPromptTemplate();
+    return;
+  }
+  if (!user) {
+    await loadAnimalPromptTemplate();
+    return;
+  }
+  const granted = new Set(user.role === "admin" ? [
+    "text_to_image", "animal_cutout", "image_to_3d", "similarity_search", "asset_library",
+  ] : (user.features || []));
+  const textButton = $("#show-text-workflow");
+  const animalButton = $("#show-animal-workflow");
+  const textAllowed = granted.has("text_to_image");
+  const animalAllowed = granted.has("animal_cutout");
+  if (!textAllowed) lockWorkflowButton(textButton, "文字生成图片");
+  if (!animalAllowed) lockWorkflowButton(animalButton, "照片转镂空剪影");
+  if (!textAllowed && animalAllowed) showWorkflow("animal");
+  if (!animalAllowed && textAllowed) showWorkflow("text");
+  if (!textAllowed && !animalAllowed) {
+    showWorkflow("text");
+    showFeatureLockMessage("当前账号尚未开通图片生成功能，请联系管理员分配权限。");
+  }
+  if (animalAllowed) await loadAnimalPromptTemplate();
+}
+
 function savedAnimalSession() {
   try { return JSON.parse(sessionStorage.getItem("animal-cutout-task") || "null"); }
   catch { sessionStorage.removeItem("animal-cutout-task"); return null; }
@@ -740,8 +793,20 @@ $("#add-example-reference").addEventListener("click", () => $("#example-referenc
     addReferenceFiles(kind, incoming);
   });
 });
-$("#show-text-workflow").addEventListener("click", () => showWorkflow("text"));
-$("#show-animal-workflow").addEventListener("click", () => showWorkflow("animal"));
+$("#show-text-workflow").addEventListener("click", () => {
+  if ($("#show-text-workflow").classList.contains("is-locked")) {
+    showFeatureLockMessage("「文字生成图片」尚未开通，请联系管理员分配权限。");
+    return;
+  }
+  showWorkflow("text");
+});
+$("#show-animal-workflow").addEventListener("click", () => {
+  if ($("#show-animal-workflow").classList.contains("is-locked")) {
+    showFeatureLockMessage("「照片转镂空剪影」尚未开通，请联系管理员分配权限。");
+    return;
+  }
+  showWorkflow("animal");
+});
 $("#reset-animal-prompt").addEventListener("click", () => {
   if (!defaultAnimalPrompt) return;
   $("#animal-prompt").value = defaultAnimalPrompt;
@@ -825,7 +890,7 @@ $("#new-task").addEventListener("click", resetTask);
 const initialAnimalSettings = { ...defaultAnimalSettings, ...JSON.parse(localStorage.getItem("animal-cutout-settings") || "{}") };
 $("#animal-generation-count").value = String(initialAnimalSettings.generation_count);
 $("#reset-animal-prompt").disabled = true;
-loadAnimalPromptTemplate();
+applyFeatureLocks();
 addPrompt();
 const previous = savedSession();
 if (previous) {

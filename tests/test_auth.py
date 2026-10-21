@@ -134,6 +134,24 @@ class AuthenticationTests(unittest.TestCase):
         finally:
             member.close()
 
+    def test_text_image_page_locks_the_module_without_permission(self):
+        self.create_member(["text_to_image"])
+        member = self.login_member()
+        try:
+            page = member.get("/text-to-image")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn('data-feature="text_to_image"', page.text)
+            self.assertIn('data-feature="animal_cutout"', page.text)
+            self.assertIn('id="feature-lock-message"', page.text)
+            self.assertEqual(member.get("/api/animal-cutout/prompt-template").status_code, 403)
+        finally:
+            member.close()
+        script = (
+            Path(__file__).resolve().parent.parent / "text2image_frontend" / "app.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("is-locked", script)
+        self.assertIn("/api/auth/me", script)
+
     def test_admin_can_delete_account_and_sessions_end(self):
         user = self.create_member(["text_to_image"])
         member = self.login_member()

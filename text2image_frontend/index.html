@@ -39,9 +39,10 @@
     </section>
 
     <nav class="workflow-tabs" aria-label="图片生成方式">
-      <button id="show-text-workflow" type="button" aria-pressed="true">文字生成图片</button>
-      <button id="show-animal-workflow" type="button" aria-pressed="false">照片转镂空剪影</button>
+      <button id="show-text-workflow" type="button" data-feature="text_to_image" aria-pressed="true">文字生成图片</button>
+      <button id="show-animal-workflow" type="button" data-feature="animal_cutout" aria-pressed="false">照片转镂空剪影</button>
     </nav>
+    <p id="feature-lock-message" class="feature-lock-message hidden" role="status"></p>
 
     <section class="panel text-workflow">
       <div class="section-heading">
