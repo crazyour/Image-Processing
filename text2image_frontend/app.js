@@ -1,6 +1,26 @@
 const $ = (selector) => document.querySelector(selector);
-if (new URLSearchParams(location.search).get("embedded") === "1") {
+const pageParams = new URLSearchParams(location.search);
+const visualMode = location.pathname.replace(/\/$/, "") === "/tools/visual" || pageParams.get("mode") === "visual";
+const textTaskSessionKey = visualMode ? "visual-studio-task" : "text-image-task";
+if (pageParams.get("embedded") === "1") {
   document.body.classList.add("embedded");
+}
+if (visualMode) {
+  document.body.classList.add("visual-mode");
+  document.title = "灵界 · 视觉工作室";
+  $("#page-eyebrow").textContent = "LINGJIE · VISUAL STUDIO";
+  $("#page-title").textContent = "视觉工作室";
+  $("#page-description").textContent = "上传产品图与场景参考，制作家居、庭院或商业空间展示效果图。系统会按队列逐张生成并保存。";
+  $("#workflow-tabs").classList.add("hidden");
+  $("#feature-lock-message").classList.add("hidden");
+  $("#input-section-title").textContent = "设置展示场景";
+  $("#input-section-description").textContent = "添加产品图，可选添加场景参考，再描述空间、构图、光线和氛围。";
+  $("#add-example-reference").textContent = "＋ 添加场景参考";
+  $("#example-reference-title").textContent = "场景参考图片";
+  $("#generation-cost-note").textContent = "制作效果图会调用 API 并计入当前账号用量。每张独立保存，刷新页面不会重复生成。";
+  $("#submit-task").textContent = "开始制作";
+  $("#result-section-title").textContent = "展示效果图";
+  $("#result-section-description").textContent = "完成一张就显示一张；可单独下载，失败项可单独重试。";
 }
 
 const statusLabels = {
@@ -24,8 +44,8 @@ let animalBusy = false;
 let animalPreviewUrl = null;
 
 function savedSession() {
-  try { return JSON.parse(sessionStorage.getItem("text-image-task") || "null"); }
-  catch { sessionStorage.removeItem("text-image-task"); return null; }
+  try { return JSON.parse(sessionStorage.getItem(textTaskSessionKey) || "null"); }
+  catch { sessionStorage.removeItem(textTaskSessionKey); return null; }
 }
 
 async function api(path, options = {}, timeout = 30_000, accessToken = task?.token) {
@@ -86,7 +106,10 @@ function addPrompt(value = "") {
   row.className = "prompt-row";
   row.innerHTML = `
     <span class="prompt-number"></span>
-    <label><span class="hidden">这一组图片的统一要求</span><textarea class="prompt-input" maxlength="2000" required placeholder="例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示"></textarea></label>`;
+    <label><span class="hidden">这一组图片的统一要求</span><textarea class="prompt-input" maxlength="2000" required></textarea></label>`;
+  row.querySelector("textarea").placeholder = visualMode
+    ? "例如：将产品自然放置在现代客厅的窗边，柔和侧光，保持产品结构、材质和颜色不变"
+    : "例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示";
   row.querySelector("textarea").value = value;
   $("#prompt-list").appendChild(row);
   updatePromptControls();
@@ -95,7 +118,9 @@ function addPrompt(value = "") {
 function setBusy(value) {
   busy = value;
   $("#submit-task").disabled = value;
-  $("#submit-task").textContent = value ? "队列生成中…" : "开始生成";
+  $("#submit-task").textContent = value
+    ? (visualMode ? "正在制作…" : "队列生成中…")
+    : (visualMode ? "开始制作" : "开始生成");
   document.querySelectorAll(".prompt-input, .remove-prompt").forEach((element) => { element.disabled = value; });
   $("#add-product-reference").disabled = value;
   $("#add-example-reference").disabled = value;
@@ -128,7 +153,7 @@ function renderReferenceGroup(kind) {
   $(`#${kind}-reference-preview`).classList.toggle("hidden", group.files.length === 0);
   $("#reference-groups").classList.toggle("hidden", !referenceGroups.product.files.length && !referenceGroups.example.files.length);
   const button = kind === "product" ? $("#add-product-reference") : $("#add-example-reference");
-  const label = kind === "product" ? "产品图片" : "生成样例";
+  const label = kind === "product" ? "产品图片" : (visualMode ? "场景参考" : "生成样例");
   button.textContent = group.files.length ? `＋ 继续添加${label}（${group.files.length}/6）` : `＋ 添加${label}`;
 }
 
@@ -264,7 +289,7 @@ async function runQueue(indexes = null) {
 
 function resetTask() {
   task = null;
-  sessionStorage.removeItem("text-image-task");
+  sessionStorage.removeItem(textTaskSessionKey);
   $("#result-grid").replaceChildren();
   $("#queue-summary").textContent = "尚未提交任务。";
   $("#refresh-task").disabled = true;
@@ -300,6 +325,7 @@ function lockWorkflowButton(button, title) {
 }
 
 async function applyFeatureLocks() {
+  if (visualMode) return;
   let user = null;
   try {
     const response = await fetch("/api/auth/me", {headers: {Accept: "application/json"}});
@@ -755,9 +781,12 @@ $("#task-form").addEventListener("submit", async (event) => {
   const prompts = Array.from({ length: count }, () => prompt);
   setBusy(true);
   try {
-    const state = await api("/api/text-image/tasks", { method: "POST", body: JSON.stringify({ prompts }) });
+    const state = await api("/api/text-image/tasks", {
+      method: "POST",
+      body: JSON.stringify({ prompts, purpose: visualMode ? "visual_studio" : "general" }),
+    });
     task = { id: state.task_id, token: state.access_token, state };
-    sessionStorage.setItem("text-image-task", JSON.stringify({ id: task.id, token: task.token }));
+    sessionStorage.setItem(textTaskSessionKey, JSON.stringify({ id: task.id, token: task.token }));
     if (referenceGroups.product.files.length || referenceGroups.example.files.length) {
       let updated = state;
       for (const [field, files] of [
@@ -898,7 +927,7 @@ if (previous) {
   refreshTask().catch((error) => { showError(error); resetTask(); });
 }
 const previousAnimal = savedAnimalSession();
-if (previousAnimal) {
+if (!visualMode && previousAnimal) {
   animalTask = previousAnimal;
   showWorkflow("animal");
   refreshAnimalTask()
@@ -915,6 +944,6 @@ if (previousAnimal) {
       sessionStorage.removeItem("animal-cutout-task");
     });
 }
-if (!previousAnimal && new URLSearchParams(location.search).get("workflow") === "animal") {
+if (!visualMode && !previousAnimal && pageParams.get("workflow") === "animal") {
   showWorkflow("animal");
 }

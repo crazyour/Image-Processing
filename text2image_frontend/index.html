@@ -11,9 +11,9 @@
     <header class="hero">
       <a class="back-link" href="/">← 返回灵界工作台</a>
       <button id="library-toggle" class="library-toggle" type="button" aria-controls="library-panel" aria-expanded="false">作品记录</button>
-      <p class="eyebrow">LINGJIE · TEXT TO IMAGE</p>
-      <h1>文生图</h1>
-      <p>输入一组统一的图片要求，一次生成 1–5 张候选图。系统会按队列逐张生成，每张完成后立即保存。</p>
+      <p id="page-eyebrow" class="eyebrow">LINGJIE · TEXT TO IMAGE</p>
+      <h1 id="page-title">文生图</h1>
+      <p id="page-description">输入一组统一的图片要求，一次生成 1–5 张候选图。系统会按队列逐张生成，每张完成后立即保存。</p>
     </header>
 
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
@@ -38,7 +38,7 @@
       <div id="library-grid" class="library-grid"></div>
     </section>
 
-    <nav class="workflow-tabs" aria-label="图片生成方式">
+    <nav id="workflow-tabs" class="workflow-tabs" aria-label="图片生成方式">
       <button id="show-text-workflow" type="button" data-feature="text_to_image" aria-pressed="true">文字生成图片</button>
       <button id="show-animal-workflow" type="button" data-feature="animal_cutout" aria-pressed="false">照片转镂空剪影</button>
     </nav>
@@ -46,7 +46,7 @@
 
     <section class="panel text-workflow">
       <div class="section-heading">
-        <div><span>01</span><div><h2>填写图片要求</h2><p>填写一组统一要求，再选择这组要生成的候选图数量。</p></div></div>
+        <div><span>01</span><div><h2 id="input-section-title">填写图片要求</h2><p id="input-section-description">填写一组统一要求，再选择这组要生成的候选图数量。</p></div></div>
         <b id="task-state">等待输入</b>
       </div>
       <form id="task-form">
@@ -76,12 +76,12 @@
             <div id="product-reference-grid" class="reference-preview-grid"></div>
           </section>
           <section id="example-reference-preview" class="reference-preview hidden">
-            <div class="reference-preview-heading"><strong>生成样例图片</strong><small>用于确定产品摆放位置、构图、视角和场景效果，最多 6 张</small></div>
+            <div class="reference-preview-heading"><strong id="example-reference-title">生成样例图片</strong><small>用于确定产品摆放位置、构图、视角和场景效果，最多 6 张</small></div>
             <div id="example-reference-grid" class="reference-preview-grid"></div>
           </section>
         </div>
         <div class="submit-row">
-          <p>生成图片会调用 API 并产生费用。系统按队列逐张提交，不会因刷新读取而重复生成。</p>
+          <p id="generation-cost-note">生成图片会调用 API 并产生费用。系统按队列逐张提交，不会因刷新读取而重复生成。</p>
           <button id="submit-task" class="primary" type="submit">开始生成</button>
         </div>
       </form>
@@ -89,7 +89,7 @@
 
     <section class="panel text-workflow">
       <div class="section-heading">
-        <div><span>02</span><div><h2>生成结果</h2><p>成功图片立即保存，可单独下载；失败项可以单独重试。</p></div></div>
+        <div><span>02</span><div><h2 id="result-section-title">生成结果</h2><p id="result-section-description">成功图片立即保存，可单独下载；失败项可以单独重试。</p></div></div>
         <div class="header-actions">
           <button id="refresh-task" class="secondary" type="button" disabled>刷新状态</button>
           <button id="new-task" class="secondary" type="button">新建任务</button>
@@ -189,7 +189,7 @@
       </div>
     </section>
   </main>
-  <script src="/text-image-static/app.js?v=20261017-1"></script>
-  <script src="/assets/local-library.js?v=20261017-1"></script>
+  <script src="/text-image-static/app.js?v=20261022-1"></script>
+  <script src="/assets/local-library.js?v=20261022-1"></script>
 </body>
 </html>

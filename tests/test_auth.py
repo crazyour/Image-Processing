@@ -120,6 +120,31 @@ class AuthenticationTests(unittest.TestCase):
         finally:
             member.close()
 
+    def test_visual_studio_uses_the_live_image_workflow_and_its_permission(self):
+        user = self.create_member([])
+        member = self.login_member()
+        try:
+            denied = member.get("/tools/visual", follow_redirects=False)
+            self.assertEqual(denied.status_code, 303)
+
+            granted = self.admin.patch(
+                f"/api/admin/users/{user['id']}",
+                json={"features": ["text_to_image"]},
+            )
+            self.assertEqual(granted.status_code, 200)
+            page = member.get("/tools/visual")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn('id="task-form"', page.text)
+            self.assertIn("/text-image-static/app.js", page.text)
+            self.assertNotIn("/assets/tool-entry.js", page.text)
+        finally:
+            member.close()
+
+    def test_http_errors_use_code_and_message_contract(self):
+        response = self.admin.get("/api/route-that-does-not-exist")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"code": "NOT_FOUND", "message": "Not Found"})
+
     def test_workspace_cannot_be_assigned_or_revoked(self):
         user = self.create_member(["text_to_image"])
         response = self.admin.patch(

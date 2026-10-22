@@ -80,14 +80,18 @@ ADMIN_NAME=系统管理员
 
 每次调用付费接口（文生图、照片转镂空剪影、图生 3D 的 AI 分析 / 四视图 / 微调 / 混元 STL）都会写入 `auth_usage_events` 表，记录账号、功能、模型、token 数和美元花费。管理员在 `/admin` 的账号列表里能看到每个账号的使用额，点“使用额”按钮会打开该账号的明细弹窗（各功能的调用次数与费用，以及按模型、按计价方式的拆分）。
 
-花费优先使用接口响应里返回的价格：`usage` 块里或响应顶层的 `cost`、`total_cost`、`price`、`amount` 等字段都支持，嵌套写法（如 `usage.cost.total`）也能识别。抓到的是哪个字段会一并记在 `cost_field` 里，并在明细弹窗的“计价方式”中显示（例如“接口返回（usage.cost）”），便于核对。接口没有返回价格时，图片和 3D 任务使用 `USAGE_PRICE_IMAGE_PER_IMAGE` 与 `USAGE_PRICE_3D_PER_TASK` 的每次预设单价；视觉/文本模型则按 `USAGE_PRICE_VISION_INPUT_PER_MILLION` 和 `USAGE_PRICE_VISION_OUTPUT_PER_MILLION` 配置的每百万 Token 美元单价计算：`(输入 Token × 输入单价 + 输出 Token × 输出单价) / 1,000,000`。管理员页同时显示输入、输出和总 Token，即使单价未配置也能看到用量。每条记录还会保存接口返回的原始 `usage` 内容（`raw` 列），方便事后核对。没有 token 消耗的本地功能（相似素材检索、主工作台里的本地工具）不计入统计。
+花费优先使用接口响应里返回的价格：`usage` 块里或响应顶层的 `cost`、`total_cost`、`price`、`amount` 等字段都支持，嵌套写法（如 `usage.cost.total`）也能识别。抓到的是哪个字段会一并记在 `cost_field` 里，并在明细弹窗的“计价方式”中显示（例如“接口返回（usage.cost）”），便于核对。
+
+接口没有返回价格时，按“token × 单价”计算，token 数与花费一一对应，单价表见 `vercel_app/pricing.py`，默认取 OpenAI 官方价目（https://platform.openai.com/docs/pricing）：GPT Image 家族按“文本输入 $5/1M、图像输入 $8/1M、缓存输入 $2/1M、输出 $30/1M”计算，参考图按图像输入价计费；视觉/文本模型按各自的每百万 token 单价计算。`USAGE_PRICE_IMAGE_TEXT_INPUT_PER_MILLION`、`USAGE_PRICE_IMAGE_INPUT_PER_MILLION`、`USAGE_PRICE_IMAGE_OUTPUT_PER_MILLION`、`USAGE_PRICE_CACHED_INPUT_PER_MILLION`、`USAGE_PRICE_VISION_INPUT_PER_MILLION`、`USAGE_PRICE_VISION_OUTPUT_PER_MILLION` 可覆盖这些单价，留空即使用官方价。只有完全没有 token 的调用才退回固定单价：腾讯混元 3D 按 `USAGE_PRICE_3D_PER_TASK` 计费，图片按 `USAGE_PRICE_IMAGE_PER_IMAGE` 兜底。
+
+管理员页同时显示输入、输出和总 Token，即使单价未配置也能看到用量。每条记录还会保存接口返回的原始 `usage` 内容（`raw` 列），方便事后核对。升级到按 token 计费后，系统会自动用同一套单价重算历史记录里“token 与花费对不上”的行（接口自带价格的记录保持不变），因此管理员页上的花费会与 token 对得上。没有 token 消耗的本地功能（相似素材检索、主工作台里的本地工具）不计入统计。
 
 管理员可在每个账号的“额度控制”弹窗中设置每日、每周和每月的美元上限；留空表示不限额，`0` 表示禁止新的付费 AI 请求。系统在调用供应商之前先预占预估费用，因此并发请求也不会轻易穿透限额；调用成功后再用实际费用结算。默认按 `Asia/Tokyo` 的自然日、周一起始的自然周和自然月计算，可用 `USAGE_LIMIT_TIMEZONE` 修改时区。“重置”只改变当前周期的计算起点，不删除历史明细。未知单价的视觉调用默认预占 `$0.10`，可通过 `USAGE_RESERVE_VISION_PER_CALL_USD` 调整。
 
-可以用下面的命令验证某个接口返回能否被抓到（把实际响应粘进去即可）：
+可以用下面的命令验证某个接口返回会被记成多少花费（带上模型名可以查到对应单价）：
 
 ```bash
-echo '{"usage":{"total_tokens":1200,"cost":0.14}}' | python -m vercel_app.usage
+echo '{"usage":{"total_tokens":1200}}' | python -m vercel_app.usage gpt-image-2.5-flare
 ```
 
 未开通的功能不会隐藏，而是在功能列表页显示为灰色并带锁图标，点击后提示联系管理员；直接请求对应地址依然会被后端拦截。
@@ -114,7 +118,7 @@ echo '{"usage":{"total_tokens":1200,"cost":0.14}}' | python -m vercel_app.usage
 
 Vercel 应用支持 AI 生成或用户上传正、左、右、背四视图，并在提交 3D 前分阶段人工确认：
 
-- 站内 AI 自动生成约 1 元/张，四视图约 4 元/次；
+- 站内 AI 自动生成的四视图按实际 token 计费：文生图单张约 $0.01，带多张参考图的编辑单张约 $0.2~0.3，一次四视图约 $1；
 - 也可先用豆包等网页 AI 生成四视图后自行上传，此时本站不收图片生成费（外部平台额度与费用以其规则为准）。
 
 1. AI 模式上传 1–6 张同一对象的参考图；图片逐张上传，安全解码并统一为 PNG；

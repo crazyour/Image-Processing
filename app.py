@@ -17,6 +17,7 @@ from typing import Literal
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import cv2
 import numpy as np
 from PIL import Image
@@ -188,6 +189,8 @@ def _required_feature(path: str) -> str | None:
         return "image_to_3d"
     if path == "/text-to-image":
         return "text_or_cutout"
+    if path == "/tools/visual":
+        return "text_to_image"
     if path.startswith("/api/material-search") or path == "/similarity-search":
         return "similarity_search"
     if path.startswith("/api/deliverables") or path == "/file-upload":
@@ -259,6 +262,7 @@ class Generate3DRequest(BaseModel):
 class TextImageTaskRequest(BaseModel):
     prompts: list[str] = Field(min_length=1, max_length=5)
     use_preferences: bool = True
+    purpose: Literal["general", "visual_studio"] = "general"
 
 
 class LibraryTaskUpdate(BaseModel):
@@ -379,6 +383,11 @@ def _asset_urls(value) -> set[str]:
 def _library_summary(record: dict) -> dict:
     state = record["state"]
     workflow = state.get("workflow") or "image-to-3d"
+    library_workflow = (
+        "visual-studio"
+        if workflow == "text-to-image" and state.get("purpose") == "visual_studio"
+        else workflow
+    )
     library = state.get("library") or {}
     if workflow == "text-to-image":
         items = state.get("items") or []
@@ -388,7 +397,9 @@ def _library_summary(record: dict) -> dict:
             items,
             state.get("reference_images"),
         )
-        default_title = prompt[:60] or "文生图任务"
+        default_title = prompt[:60] or (
+            "视觉工作室任务" if library_workflow == "visual-studio" else "文生图任务"
+        )
     elif workflow == "animal-photo-cutout":
         prompt = str(state.get("prompt") or "")
         preview_url = _first_url(
@@ -406,7 +417,7 @@ def _library_summary(record: dict) -> dict:
         default_title = prompt[:60] or "图生 3D 任务"
     return {
         "id": record["id"],
-        "workflow": workflow,
+        "workflow": library_workflow,
         "status": state.get("status", "UNKNOWN"),
         "title": str(library.get("title") or default_title)[:120],
         "favorite": bool(library.get("favorite")),
@@ -457,6 +468,31 @@ def store_error(_, exc: StoreError):
 @app.exception_handler(AuthError)
 def auth_error(_, exc: AuthError):
     return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
+
+
+@app.exception_handler(StarletteHTTPException)
+def http_error(_, exc: StarletteHTTPException):
+    """Keep every API failure compatible with clients expecting code/message JSON."""
+    status_codes = {
+        400: "BAD_REQUEST",
+        401: "UNAUTHENTICATED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        405: "METHOD_NOT_ALLOWED",
+        409: "CONFLICT",
+        413: "PAYLOAD_TOO_LARGE",
+        422: "INVALID_INPUT",
+        429: "RATE_LIMITED",
+        500: "INTERNAL_ERROR",
+        502: "UPSTREAM_ERROR",
+        503: "SERVICE_UNAVAILABLE",
+    }
+    detail = exc.detail if isinstance(exc.detail, str) else "请求未完成"
+    return JSONResponse(
+        {"code": status_codes.get(exc.status_code, f"HTTP_{exc.status_code}"), "message": detail},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -609,6 +645,7 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
         "created_at": state["created_at"],
         "updated_at": state["updated_at"],
         "preference_prompt": state.get("preference_prompt", ""),
+        "purpose": state.get("purpose", "general"),
     }
     if token:
         result["access_token"] = token
@@ -876,11 +913,20 @@ def resume_local_library_task(
     token = secrets.token_urlsafe(32)
     state = rotate_local_session_token(task_id, token)
     workflow = state.get("workflow") or "image-to-3d"
+    public_workflow = (
+        "visual-studio"
+        if workflow == "text-to-image" and state.get("purpose") == "visual_studio"
+        else workflow
+    )
     return {
         "task_id": task_id,
         "access_token": token,
-        "workflow": workflow,
-        "page": "/text-to-image" if workflow in {"text-to-image", "animal-photo-cutout"} else "/image-to-3d",
+        "workflow": public_workflow,
+        "page": (
+            "/tools/visual" if public_workflow == "visual-studio"
+            else "/text-to-image" if workflow in {"text-to-image", "animal-photo-cutout"}
+            else "/image-to-3d"
+        ),
     }
 
 
@@ -1138,6 +1184,7 @@ def create_text_image_task(data: TextImageTaskRequest):
     state = {
         "session_id": task_id,
         "workflow": "text-to-image",
+        "purpose": data.purpose,
         "status": "QUEUED",
         "items": [
             {
@@ -2469,6 +2516,11 @@ def file_upload_page():
 def standalone_tool_page(tool_slug: str):
     if tool_slug not in WORKBENCH_TOOLS:
         raise HTTPException(status_code=404, detail="功能不存在")
+    if tool_slug == "visual":
+        return FileResponse(
+            TEXT2IMAGE_FRONTEND / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
     return FileResponse(
         ORIGINAL_FRONTEND / "index.html",
         headers={"Cache-Control": "no-store"},

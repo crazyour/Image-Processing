@@ -12,6 +12,13 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from vercel_app.auth import database_connection
+from vercel_app.pricing import (
+    estimated_call_cost,
+    input_token_details,
+    pricing_signature,
+    token_cost,
+)
+from vercel_app.settings import optional_float
 
 
 FEATURE_LABELS = {
@@ -32,6 +39,9 @@ SOURCE_PROVIDER = "接口返回"
 SOURCE_PRESET = "预设价格"
 SOURCE_TOKEN_PRICE = "Token 单价估算"
 SOURCE_UNPRICED = "未计价"
+
+# Tracks the price configuration and row count the stored rows were last repriced with.
+_backfill_state: dict[str, Any] = {"signature": None, "count": None}
 
 logger = logging.getLogger(__name__)
 
@@ -62,16 +72,6 @@ class UsageLimitError(RuntimeError):
         self.resets_at = resets_at
         self.message = f"{PERIOD_LABELS[period]} AI 使用额已不足"
         super().__init__(self.message)
-
-
-def _configured_float(name: str, default: float) -> float:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
 
 
 def _number(value: Any) -> float | None:
@@ -128,28 +128,23 @@ def extract_cost(payload: Any) -> float | None:
     return find_cost(payload)[0]
 
 
-def _preset_price(model: str | None, feature: str, input_tokens: int = 0,
-                  output_tokens: int = 0) -> tuple[float, str]:
-    """Fallback price used when the provider response does not carry a price."""
+def _preset_price(model: str | None) -> tuple[float, str]:
+    """Flat price used when a call reports no tokens to price."""
     name = (model or "").lower()
     if name.startswith("hy-"):
-        return _configured_float("USAGE_PRICE_3D_PER_TASK", 0.5), SOURCE_PRESET
+        return optional_float("USAGE_PRICE_3D_PER_TASK", 0.5), SOURCE_PRESET
     if "image" in name:
-        return _configured_float("USAGE_PRICE_IMAGE_PER_IMAGE", 0.14), SOURCE_PRESET
-    input_price = _configured_float("USAGE_PRICE_VISION_INPUT_PER_MILLION", 0.0)
-    output_price = _configured_float("USAGE_PRICE_VISION_OUTPUT_PER_MILLION", 0.0)
-    if not input_price and not output_price:
-        return 0.0, SOURCE_UNPRICED
-    cost = (
-        (max(input_tokens, 0) * input_price)
-        + (max(output_tokens, 0) * output_price)
-    ) / 1_000_000
-    return cost, SOURCE_TOKEN_PRICE
+        return optional_float("USAGE_PRICE_IMAGE_PER_IMAGE", 0.14), SOURCE_PRESET
+    return 0.0, SOURCE_UNPRICED
 
 
 def normalize_usage(payload: Any, model: str | None = None,
                     feature: str = "") -> dict[str, Any]:
-    """Turn a provider response or usage payload into tokens and US dollars."""
+    """Turn a provider response or usage payload into tokens and US dollars.
+
+    The price is taken from the provider when the response carries one, otherwise
+    it is computed as ``tokens x unit rate`` for the model that was called.
+    """
     payload = payload if isinstance(payload, dict) else {}
     nested = payload.get("usage")
     nested = nested if isinstance(nested, dict) else {}
@@ -163,14 +158,19 @@ def normalize_usage(payload: Any, model: str | None = None,
         total_tokens = _first_number(scope, TOTAL_TOKEN_KEYS) or total_tokens
     if not total_tokens:
         total_tokens = input_tokens + output_tokens
+    text_tokens, image_tokens, cached_tokens = input_token_details(payload)
 
     cost, field = find_cost(payload)
-    source = SOURCE_PROVIDER if cost is not None else ""
-    if cost is None:
-        cost, source = _preset_price(
-            model, feature, int(input_tokens), int(output_tokens),
-        )
+    if cost is not None:
+        source = SOURCE_PROVIDER
+    else:
         field = None
+        cost = token_cost(
+            model, input_tokens, output_tokens, text_tokens, image_tokens, cached_tokens,
+        )
+        source = SOURCE_TOKEN_PRICE if cost is not None else ""
+        if cost is None:
+            cost, source = _preset_price(model)
     return {
         "input_tokens": int(input_tokens),
         "output_tokens": int(output_tokens),
@@ -466,10 +466,18 @@ def reset_usage_limits(user_id: str, period: str,
 
 
 def _estimated_usage_cost(model: str | None, feature: str) -> float:
-    estimated, source = _preset_price(model, feature)
+    """Amount reserved before a paid call, before its tokens are known."""
+    estimated, source = _preset_price(model)
     if source == SOURCE_UNPRICED:
-        estimated = _configured_float("USAGE_RESERVE_VISION_PER_CALL_USD", 0.10)
-    return round(max(0.0, estimated), 6)
+        estimated = optional_float("USAGE_RESERVE_VISION_PER_CALL_USD", 0.10)
+        return round(max(0.0, estimated), 6)
+    # Reference images make an edit call far more expensive than a plain
+    # generation, so reserve against the token estimate as well.
+    reference_images = 6 if feature == "image_to_3d" else 1
+    token_estimate = estimated_call_cost(model, reference_images)
+    if token_estimate is None:
+        return round(max(0.0, estimated), 6)
+    return round(max(0.0, max(estimated, token_estimate)), 6)
 
 
 def reserve_usage(user: dict[str, Any] | None, feature: str, model: str | None,
@@ -500,7 +508,7 @@ def reserve_usage(user: dict[str, Any] | None, feature: str, model: str | None,
                 )
         placeholder = "%s" if is_postgres else "?"
         reservation_id = uuid.uuid4().hex
-        ttl = max(60.0, _configured_float("USAGE_RESERVATION_TTL_SECONDS", 1800.0))
+        ttl = max(60.0, optional_float("USAGE_RESERVATION_TTL_SECONDS", 1800.0))
         connection.execute(
             f"""INSERT INTO auth_usage_reservations
                 (id, user_id, feature, action, model, estimated_usd, actual_usd,
@@ -552,29 +560,62 @@ def _add_missing_columns(connection: Any, is_postgres: bool) -> None:
         )
 
 
+def _stored_token_details(raw: Any) -> tuple[float, float, float]:
+    """Read the token split that was stored with the original provider response."""
+    if not raw:
+        return 0.0, 0.0, 0.0
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return 0.0, 0.0, 0.0
+    return input_token_details(payload)
+
+
 def _backfill_token_costs(connection: Any, is_postgres: bool) -> None:
-    """Price older token-bearing rows that were stored before token pricing worked."""
-    input_price = _configured_float("USAGE_PRICE_VISION_INPUT_PER_MILLION", 0.0)
-    output_price = _configured_float("USAGE_PRICE_VISION_OUTPUT_PER_MILLION", 0.0)
-    if not input_price and not output_price:
-        return
+    """Reprice stored rows from their token counts so tokens and dollars agree.
+
+    Rows that carry a price from the provider are left untouched, because that
+    price is what the provider actually charged. The scan is skipped until the
+    price configuration or the number of candidate rows changes.
+    """
     placeholder = "%s" if is_postgres else "?"
-    connection.execute(
-        f"""UPDATE auth_usage_events
-            SET cost_usd = ((input_tokens * {placeholder}) + (output_tokens * {placeholder}))
-                           / 1000000.0,
-                cost_source = {placeholder},
-                cost_field = NULL
-            WHERE COALESCE(cost_usd, 0) = 0
-              AND (input_tokens > 0 OR output_tokens > 0)
-              AND COALESCE(cost_source, '') <> {placeholder}
-              AND LOWER(COALESCE(model, '')) NOT LIKE {placeholder}
-              AND LOWER(COALESCE(model, '')) NOT LIKE {placeholder}""",
-        (
-            input_price, output_price, SOURCE_TOKEN_PRICE, SOURCE_PROVIDER,
-            "%image%", "hy-%",
-        ),
-    )
+    candidates = f"""COALESCE(cost_source, '') <> {placeholder}
+              AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0)"""
+    counted = connection.execute(
+        f"SELECT COUNT(*) AS total FROM auth_usage_events WHERE {candidates}",
+        (SOURCE_PROVIDER,),
+    ).fetchone()
+    candidate_count = int(dict(counted)["total"])
+    signature = pricing_signature()
+    if (_backfill_state["signature"] == signature
+            and _backfill_state["count"] == candidate_count):
+        return
+    _backfill_state["signature"] = signature
+    _backfill_state["count"] = candidate_count
+    rows = connection.execute(
+        f"""SELECT id, model, feature, input_tokens, output_tokens, cost_usd, raw
+            FROM auth_usage_events WHERE {candidates}""",
+        (SOURCE_PROVIDER,),
+    ).fetchall()
+    for row in rows:
+        data = dict(row)
+        text_tokens, image_tokens, cached_tokens = _stored_token_details(data.get("raw"))
+        cost = token_cost(
+            data.get("model"),
+            float(data.get("input_tokens") or 0),
+            float(data.get("output_tokens") or 0),
+            text_tokens, image_tokens, cached_tokens,
+        )
+        if cost is None:
+            continue
+        if abs(float(data.get("cost_usd") or 0.0) - cost) < 1e-9:
+            continue
+        connection.execute(
+            f"""UPDATE auth_usage_events
+                SET cost_usd = {placeholder}, cost_source = {placeholder}, cost_field = NULL
+                WHERE id = {placeholder}""",
+            (cost, SOURCE_TOKEN_PRICE, data["id"]),
+        )
 
 
 def _raw_payload(payload: Any) -> str | None:
@@ -785,31 +826,35 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
 
 
 def _probe() -> int:
-    """Check which price field would be picked from a provider response.
+    """Show how a provider response is priced.
 
-    Usage: echo '{"usage":{"cost":0.14}}' | python -m vercel_app.usage
+    Usage: echo '{"usage":{"total_tokens":1200}}' | python -m vercel_app.usage
     """
     import sys
 
     raw = sys.stdin.read().strip()
     if not raw:
         print("请把接口返回的 JSON 粘进来，例如：")
-        print("""echo '{"usage":{"total_tokens":1200,"cost":0.14}}' | python -m vercel_app.usage""")
+        print("""echo '{"usage":{"total_tokens":1200}}' | python -m vercel_app.usage""")
         return 1
     try:
         payload = json.loads(raw)
     except ValueError as error:
         print(f"JSON 解析失败：{error}")
         return 1
+    model = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
     cost, field = find_cost(payload)
-    normalized = normalize_usage(payload)
+    normalized = normalize_usage(payload, model or None)
+    print(f"模型：{model or '未指定'}")
     print(f"抓到费用：{cost}  字段：{field or '未找到'}")
     print(f"token：输入 {normalized['input_tokens']} / 输出 {normalized['output_tokens']}"
           f" / 合计 {normalized['total_tokens']}")
     print(f"计价方式：{normalized['cost_source']}")
+    print(f"记账金额：{normalized['cost_usd']} 美元")
     if cost is None:
-        print("提示：这个响应里没有识别到费用字段，会退回预设单价。")
-        print("把完整的接口返回贴给开发，可以据此补上对应的字段名。")
+        print("提示：响应里没有费用字段，已按 token × 单价折算。")
+        print("带上模型名可以查到对应单价，例如：")
+        print("""echo '{"usage":{"total_tokens":1200}}' | python -m vercel_app.usage gpt-image-2.5-flare""")
     return 0
 
 

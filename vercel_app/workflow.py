@@ -115,13 +115,40 @@ def data_uri(image: bytes) -> str:
 def _provider_error(provider: str, response: httpx.Response) -> WorkflowError:
     labels = {401: "API Key 无效", 402: "余额或积分不足", 413: "文件过大", 429: "请求过于频繁"}
     detail = ""
+    error_code = ""
+    error_type = ""
     try:
         body = response.json()
-        detail = body.get("error", body.get("message", ""))
-        if isinstance(detail, dict):
-            detail = detail.get("message", detail.get("code", ""))
+        error = body.get("error", body.get("message", ""))
+        if isinstance(error, dict):
+            detail = error.get("message", error.get("code", ""))
+            error_code = str(error.get("code") or "")
+            error_type = str(error.get("type") or "")
+        else:
+            detail = error
     except (ValueError, AttributeError, httpx.ResponseNotRead):
         pass
+    combined = f"{error_code} {error_type} {detail}".lower()
+    credit_markers = (
+        "no credits remaining", "insufficient_quota", "billing_hard_limit",
+        "billing hard limit", "exceeded your current quota", "credit balance",
+        "余额不足", "积分不足",
+    )
+    if provider == "OpenAI" and (
+        response.status_code == 402 or any(marker in combined for marker in credit_markers)
+    ):
+        return WorkflowError(
+            "OPENAI_CREDITS_EXHAUSTED",
+            "OpenAI API 余额已用完。请管理员在 OpenAI Platform 的 Billing 页面充值，"
+            "并确认当前 API Key 所属组织和项目有可用额度。",
+            402,
+        )
+    if provider == "OpenAI" and response.status_code == 429:
+        return WorkflowError(
+            "OPENAI_RATE_LIMITED",
+            "OpenAI API 当前请求过于频繁，请稍后重试。",
+            429,
+        )
     message = f"{provider} {labels.get(response.status_code, '请求失败')}"
     if detail:
         message += f"：{str(detail)[:300]}"

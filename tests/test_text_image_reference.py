@@ -75,6 +75,22 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(len(items), 3)
         self.assertEqual([item["prompt"] for item in items], [prompt, prompt, prompt])
 
+    def test_visual_studio_task_keeps_its_purpose(self):
+        response = self.client.post("/api/text-image/tasks", json={
+            "prompts": ["产品放在现代庭院的石材展台上"],
+            "purpose": "visual_studio",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["purpose"], "visual_studio")
+        task = self.client.get(
+            f"/api/text-image/tasks/{body['task_id']}",
+            headers={"X-Session-Token": body["access_token"]},
+        )
+        self.assertEqual(task.status_code, 200)
+        self.assertEqual(task.json()["purpose"], "visual_studio")
+
     def test_reference_is_saved_and_used_for_image_editing(self):
         task_id, headers = self.create_task()
         reference = sample_png()

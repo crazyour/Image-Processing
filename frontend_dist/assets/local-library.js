@@ -9,6 +9,7 @@
   const workflowLabels = {
     "image-to-3d": "图生 3D",
     "text-to-image": "文生图",
+    "visual-studio": "视觉工作室",
     "animal-photo-cutout": "照片转镂空剪影",
   };
   const statusLabels = {
@@ -74,6 +75,8 @@
         sessionStorage.setItem("image3d-session", saved);
       } else if (resumed.workflow === "animal-photo-cutout") {
         sessionStorage.setItem("animal-cutout-task", saved);
+      } else if (resumed.workflow === "visual-studio") {
+        sessionStorage.setItem("visual-studio-task", saved);
       } else {
         sessionStorage.setItem("text-image-task", saved);
       }
@@ -206,6 +209,8 @@
   $("#library-new-task")?.addEventListener("click", () => {
     if (location.pathname.includes("image-to-3d")) {
       sessionStorage.removeItem("image3d-session");
+    } else if (location.pathname.includes("/tools/visual")) {
+      sessionStorage.removeItem("visual-studio-task");
     } else {
       sessionStorage.removeItem("text-image-task");
       sessionStorage.removeItem("animal-cutout-task");

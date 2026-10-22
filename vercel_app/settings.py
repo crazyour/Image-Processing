@@ -22,6 +22,17 @@ def _required(name: str) -> str:
     return value
 
 
+def optional_float(name: str, default: float) -> float:
+    """Read a numeric environment value, falling back to the default."""
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class OpenAISettings:
     api_key: str

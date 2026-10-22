@@ -8,6 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import app as app_module
+from vercel_app.auth import database_connection
 from vercel_app.usage import extract_cost, find_cost, normalize_usage, record_usage, usage_report
 
 
@@ -110,6 +111,74 @@ class UsageLedgerTests(unittest.TestCase):
         self.assertEqual(normalized["cost_usd"], 2.0)
         self.assertEqual(normalized["cost_source"], "Token 单价估算")
         self.assertIsNone(normalized["cost_field"])
+
+    def test_image_model_is_priced_by_tokens(self):
+        normalized = normalize_usage({
+            "input_tokens": 25,
+            "output_tokens": 424,
+            "total_tokens": 449,
+        }, "gpt-image-2.5-flare", "text_to_image")
+        # 25 text input tokens at $5/1M plus 424 output tokens at $30/1M.
+        self.assertEqual(normalized["cost_usd"], 0.01292)
+        self.assertEqual(normalized["cost_source"], "Token 单价估算")
+
+    def test_reference_images_are_priced_at_the_image_input_rate(self):
+        normalized = normalize_usage({
+            "input_tokens": 28_400,
+            "output_tokens": 1_056,
+            "total_tokens": 29_456,
+            "input_tokens_details": {"text_tokens": 40, "image_tokens": 28_360},
+        }, "gpt-image-2.5-flare", "image_to_3d")
+        # 40 text tokens at $5/1M, 28360 image tokens at $8/1M, 1056 output at $30/1M.
+        self.assertEqual(normalized["cost_usd"], 0.25876)
+        self.assertEqual(normalized["cost_source"], "Token 单价估算")
+
+    def test_vision_model_uses_the_published_rates(self):
+        normalized = normalize_usage({
+            "input_tokens": 1_250,
+            "output_tokens": 700,
+            "total_tokens": 1_950,
+        }, "gpt-6-luna", "image_to_3d")
+        # gpt-6-luna bills $0.10/1M input and $0.50/1M output.
+        self.assertEqual(normalized["cost_usd"], 0.000475)
+        self.assertEqual(normalized["cost_source"], "Token 单价估算")
+
+    def test_tasks_without_tokens_keep_their_flat_price(self):
+        normalized = normalize_usage(
+            {"id": "task-1", "status": "queued"}, "hy-3d-3.1", "image_to_3d",
+        )
+        self.assertEqual(normalized["cost_usd"], 0.5)
+        self.assertEqual(normalized["cost_source"], "预设价格")
+
+    def test_stored_rows_are_repriced_from_their_tokens(self):
+        user = {"id": "legacy-user", "username": "legacy", "name": "旧账号"}
+        record_usage(user, "text_to_image", "gpt-image-2.5-flare", {
+            "input_tokens": 25,
+            "output_tokens": 424,
+            "total_tokens": 449,
+        })
+        report = usage_report([user])
+        self.assertEqual(report["accounts"][0]["total_tokens"], 449)
+        self.assertEqual(report["accounts"][0]["total_usd"], 0.01292)
+        self.assertEqual(report["accounts"][0]["sources"][0]["source"], "Token 单价估算")
+
+    def test_rows_stored_with_a_flat_price_are_repriced(self):
+        user = {"id": "flat-user", "username": "flat", "name": "旧账号"}
+        record_usage(user, "text_to_image", "gpt-image-2.5-flare", {
+            "input_tokens": 25,
+            "output_tokens": 424,
+            "total_tokens": 449,
+        })
+        with database_connection() as connection:
+            connection.execute(
+                "UPDATE auth_usage_events SET cost_usd = 0.14, cost_source = ?",
+                ("预设价格",),
+            )
+            connection.commit()
+
+        report = usage_report([user])
+        self.assertEqual(report["accounts"][0]["total_usd"], 0.01292)
+        self.assertEqual(report["accounts"][0]["sources"][0]["source"], "Token 单价估算")
 
     def test_existing_unpriced_token_rows_are_backfilled_after_prices_are_configured(self):
         user = {"id": "legacy-user", "username": "legacy", "name": "旧账号"}
