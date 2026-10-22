@@ -61,8 +61,38 @@ function formatUsd(value) {
   return `$${amount.toFixed(2)}`;
 }
 
+function tokenAmount(value) {
+  return Math.max(0, Number(value || 0));
+}
+
+function formatExactTokens(value) {
+  return tokenAmount(value).toLocaleString("zh-CN");
+}
+
 function formatTokens(value) {
-  return Math.max(0, Number(value || 0)).toLocaleString("zh-CN");
+  const amount = tokenAmount(value);
+  const units = [
+    [1_000_000_000, "B"],
+    [1_000_000, "M"],
+    [1_000, "K"],
+  ];
+  for (const [threshold, suffix] of units) {
+    if (amount < threshold) continue;
+    const compact = amount / threshold;
+    const rounded = compact >= 100 ? compact.toFixed(0) : compact.toFixed(1);
+    return `${Number(rounded)}${suffix}`;
+  }
+  return formatExactTokens(amount);
+}
+
+function tokenTitle(value) {
+  return `${formatExactTokens(value)} tokens`;
+}
+
+function setTokenText(selector, value) {
+  const element = document.querySelector(selector);
+  element.textContent = formatTokens(value);
+  element.title = tokenTitle(value);
 }
 
 function usageFor(userId, username) {
@@ -83,29 +113,31 @@ function openUsageDetail(key, fallbackName = "", fallbackUsername = "") {
   const outputTokens = account?.output_tokens || 0;
   const totalTokens = account?.total_tokens || 0;
   document.querySelector("#usage-dialog-title").textContent = `${name} · 使用明细`;
-  document.querySelector("#usage-dialog-summary").textContent =
+  const summary = document.querySelector("#usage-dialog-summary");
+  summary.textContent =
     `${username ? `@${username} · ` : ""}${formatTokens(totalTokens)} tokens · ${formatUsd(total)}`;
+  summary.title = tokenTitle(totalTokens);
   const features = account?.features || [];
   document.querySelector("#usage-detail-list").innerHTML = features.length
     ? features.map(feature => `
       <tr>
         <td>${escapeHtml(feature.label)}</td>
         <td>${feature.calls} 次</td>
-        <td>${formatTokens(feature.input_tokens)}</td>
-        <td>${formatTokens(feature.output_tokens)}</td>
-        <td>${formatTokens(feature.total_tokens)}</td>
+        <td title="${tokenTitle(feature.input_tokens)}">${formatTokens(feature.input_tokens)}</td>
+        <td title="${tokenTitle(feature.output_tokens)}">${formatTokens(feature.output_tokens)}</td>
+        <td title="${tokenTitle(feature.total_tokens)}">${formatTokens(feature.total_tokens)}</td>
         <td>${formatUsd(feature.cost_usd)}</td>
       </tr>
     `).join("")
     : '<tr><td class="empty" colspan="6">该账号还没有 AI 调用记录。</td></tr>';
   document.querySelector("#usage-detail-calls").textContent = `${calls} 次`;
-  document.querySelector("#usage-detail-input-tokens").textContent = formatTokens(inputTokens);
-  document.querySelector("#usage-detail-output-tokens").textContent = formatTokens(outputTokens);
-  document.querySelector("#usage-detail-total-tokens").textContent = formatTokens(totalTokens);
+  setTokenText("#usage-detail-input-tokens", inputTokens);
+  setTokenText("#usage-detail-output-tokens", outputTokens);
+  setTokenText("#usage-detail-total-tokens", totalTokens);
   document.querySelector("#usage-detail-total").textContent = formatUsd(total);
   const models = features.flatMap(feature =>
     (feature.models || []).map(model => `
-      <span class="usage-model-chip">${escapeHtml(feature.label)} · ${escapeHtml(model.model)}：${model.calls} 次 / ${formatTokens(model.total_tokens)} tokens / ${formatUsd(model.cost_usd)}</span>
+      <span class="usage-model-chip" title="${tokenTitle(model.total_tokens)}">${escapeHtml(feature.label)} · ${escapeHtml(model.model)}：${model.calls} 次 / ${formatTokens(model.total_tokens)} tokens / ${formatUsd(model.cost_usd)}</span>
     `),
   );
   const sources = (account?.sources || []).map(item => `
@@ -154,7 +186,7 @@ function renderStats() {
     <div><strong>${users.length}</strong><span>全部账号</span></div>
     <div><strong>${active}</strong><span>已启用</span></div>
     <div><strong>${admins}</strong><span>管理员</span></div>
-    <div><strong>${formatTokens(usageReport.grand_total_tokens)}</strong><span>Token 合计</span></div>
+    <div title="${tokenTitle(usageReport.grand_total_tokens)}"><strong>${formatTokens(usageReport.grand_total_tokens)}</strong><span>Token 合计</span></div>
     <div><strong>${formatUsd(usageReport.grand_total_usd)}</strong><span>使用额合计</span></div>
   `;
 }
@@ -187,7 +219,7 @@ function renderUsers() {
         <td><span class="badge">${roleLabel}</span></td>
         <td><span class="feature-count">${enabledFeatures} 项功能</span></td>
         <td><span class="status-dot ${user.active ? "online" : ""}">${user.active ? "已启用" : "已停用"}</span></td>
-        <td><strong class="usage-tokens">${formatTokens(usage?.total_tokens || 0)}</strong></td>
+        <td title="${tokenTitle(usage?.total_tokens || 0)}"><strong class="usage-tokens">${formatTokens(usage?.total_tokens || 0)}</strong></td>
         <td><strong class="usage-amount">${formatUsd(usage?.total_usd || 0)}</strong></td>
         <td class="operation-column">
           <div class="row-actions">
