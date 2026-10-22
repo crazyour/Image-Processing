@@ -150,6 +150,15 @@ class UsageLedgerTests(unittest.TestCase):
         self.assertEqual(normalized["cost_usd"], 0.5)
         self.assertEqual(normalized["cost_source"], "预设价格")
 
+    def test_total_tokens_without_a_split_is_still_priced_by_tokens(self):
+        normalized = normalize_usage(
+            {"total_tokens": 446}, "gpt-image-2.5-flare", "text_to_image",
+        )
+        # No input/output split reported, so the whole count is billed as output.
+        self.assertEqual(normalized["total_tokens"], 446)
+        self.assertEqual(normalized["cost_usd"], round(446 * 30 / 1_000_000, 6))
+        self.assertEqual(normalized["cost_source"], "Token 单价估算")
+
     def test_stored_rows_are_repriced_from_their_tokens(self):
         user = {"id": "legacy-user", "username": "legacy", "name": "旧账号"}
         record_usage(user, "text_to_image", "gpt-image-2.5-flare", {

@@ -165,8 +165,12 @@ def normalize_usage(payload: Any, model: str | None = None,
         source = SOURCE_PROVIDER
     else:
         field = None
+        # Some providers only report total_tokens with no input/output split;
+        # bill the unexplained remainder as output so the charge still tracks
+        # the token count instead of falling back to the flat preset price.
+        priced_output = output_tokens + max(total_tokens - input_tokens - output_tokens, 0.0)
         cost = token_cost(
-            model, input_tokens, output_tokens, text_tokens, image_tokens, cached_tokens,
+            model, input_tokens, priced_output, text_tokens, image_tokens, cached_tokens,
         )
         source = SOURCE_TOKEN_PRICE if cost is not None else ""
         if cost is None:
@@ -580,7 +584,8 @@ def _backfill_token_costs(connection: Any, is_postgres: bool) -> None:
     """
     placeholder = "%s" if is_postgres else "?"
     candidates = f"""COALESCE(cost_source, '') <> {placeholder}
-              AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0)"""
+              AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0
+                   OR COALESCE(total_tokens, 0) > 0)"""
     counted = connection.execute(
         f"SELECT COUNT(*) AS total FROM auth_usage_events WHERE {candidates}",
         (SOURCE_PROVIDER,),
@@ -593,17 +598,20 @@ def _backfill_token_costs(connection: Any, is_postgres: bool) -> None:
     _backfill_state["signature"] = signature
     _backfill_state["count"] = candidate_count
     rows = connection.execute(
-        f"""SELECT id, model, feature, input_tokens, output_tokens, cost_usd, raw
+        f"""SELECT id, model, feature, input_tokens, output_tokens, total_tokens, cost_usd, raw
             FROM auth_usage_events WHERE {candidates}""",
         (SOURCE_PROVIDER,),
     ).fetchall()
     for row in rows:
         data = dict(row)
         text_tokens, image_tokens, cached_tokens = _stored_token_details(data.get("raw"))
+        input_tokens = float(data.get("input_tokens") or 0)
+        output_tokens = float(data.get("output_tokens") or 0)
+        total_tokens = float(data.get("total_tokens") or 0)
+        priced_output = output_tokens + max(total_tokens - input_tokens - output_tokens, 0.0)
         cost = token_cost(
             data.get("model"),
-            float(data.get("input_tokens") or 0),
-            float(data.get("output_tokens") or 0),
+            input_tokens, priced_output,
             text_tokens, image_tokens, cached_tokens,
         )
         if cost is None:
