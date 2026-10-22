@@ -62,10 +62,18 @@ from vercel_app.connectivity import (
     ConnectivityError,
     analyze_connectivity,
     create_repair_mask,
-    remove_disconnected_islands,
 )
 from vercel_app.similarity_api import router as similarity_search_router
-from vercel_app.usage import record_usage, usage_report
+from vercel_app.usage import (
+    UsageLimitError,
+    get_usage_limits,
+    record_usage,
+    release_usage_reservation,
+    reserve_usage,
+    reset_usage_limits,
+    set_usage_limits,
+    usage_report,
+)
 from vercel_app.workflow import (
     AI_GENERATED_VIEWS,
     GENERATED_VIEWS,
@@ -156,6 +164,19 @@ def _account_user(request: Request | None) -> dict | None:
     if request is None:
         return None
     return getattr(request.state, "user", None)
+
+
+def _metered_provider_call(user: dict | None, feature: str, model: str,
+                           action: str, provider_call):
+    """Reserve budget, run one paid call, then settle it with provider usage."""
+    reservation_id = reserve_usage(user, feature, model, action)
+    try:
+        result, usage = provider_call()
+    except Exception:
+        release_usage_reservation(reservation_id)
+        raise
+    record_usage(user, feature, model, usage, action, reservation_id)
+    return result, usage
 
 
 def _required_feature(path: str) -> str | None:
@@ -281,6 +302,16 @@ class UserUpdateRequest(BaseModel):
     features: list[str] | None = None
 
 
+class UsageLimitsUpdateRequest(BaseModel):
+    daily_limit_usd: float | None = Field(default=None, ge=0, le=1_000_000)
+    weekly_limit_usd: float | None = Field(default=None, ge=0, le=1_000_000)
+    monthly_limit_usd: float | None = Field(default=None, ge=0, le=1_000_000)
+
+
+class UsageLimitResetRequest(BaseModel):
+    period: Literal["day", "week", "month", "all"]
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=150)
     new_password: str = Field(min_length=1, max_length=150)
@@ -392,6 +423,20 @@ def _library_summary(record: dict) -> dict:
 @app.exception_handler(WorkflowError)
 def workflow_error(_, exc: WorkflowError):
     return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
+
+
+@app.exception_handler(UsageLimitError)
+def usage_limit_error(_, exc: UsageLimitError):
+    return JSONResponse({
+        "code": exc.code,
+        "message": exc.message,
+        "period": exc.period,
+        "used_usd": exc.used_usd,
+        "limit_usd": exc.limit_usd,
+        "remaining_usd": exc.remaining_usd,
+        "estimated_usd": exc.estimated_usd,
+        "resets_at": exc.resets_at,
+    }, status_code=exc.status)
 
 
 @app.exception_handler(SessionNotFound)
@@ -930,6 +975,13 @@ def admin_users():
     return {"users": list_users(), "feature_catalog": FEATURES}
 
 
+def _require_managed_user(user_id: str) -> dict:
+    user = next((item for item in list_users() if item["id"] == user_id), None)
+    if not user:
+        raise AuthError("USER_NOT_FOUND", "账号不存在", 404)
+    return user
+
+
 @app.post("/api/admin/users", status_code=201, include_in_schema=False)
 def admin_create_user(data: UserCreateRequest):
     user = create_user(data.username, data.name, data.password, data.role, data.features)
@@ -947,6 +999,32 @@ def admin_delete_user(user_id: str, request: Request):
     """Delete a team account. Its sessions end immediately."""
     delete_user(user_id, request.state.user["id"])
     return {"ok": True}
+
+
+@app.get("/api/admin/users/{user_id}/usage-limits", include_in_schema=False)
+def admin_get_usage_limits(user_id: str):
+    _require_managed_user(user_id)
+    return {"limits": get_usage_limits(user_id)}
+
+
+@app.put("/api/admin/users/{user_id}/usage-limits", include_in_schema=False)
+def admin_set_usage_limits(user_id: str, data: UsageLimitsUpdateRequest, request: Request):
+    _require_managed_user(user_id)
+    return {"limits": set_usage_limits(
+        user_id,
+        daily_limit_usd=data.daily_limit_usd,
+        weekly_limit_usd=data.weekly_limit_usd,
+        monthly_limit_usd=data.monthly_limit_usd,
+        actor_id=request.state.user["id"],
+    )}
+
+
+@app.post("/api/admin/users/{user_id}/usage-limits/reset", include_in_schema=False)
+def admin_reset_usage_limits(user_id: str, data: UsageLimitResetRequest, request: Request):
+    _require_managed_user(user_id)
+    return {"limits": reset_usage_limits(
+        user_id, data.period, actor_id=request.state.user["id"],
+    )}
 
 
 @app.post("/api/auth/password", include_in_schema=False)
@@ -1189,18 +1267,21 @@ def generate_text_image_item(task_id: str, item_index: int, request: Request,
                 fetch_bytes(reference["url"], 20_000_000)
                 for reference in references[:MAX_REFERENCE_IMAGES]
             ]
-            generated, usage = generate_view(
-                reference_bytes,
-                _text_image_edit_prompt(generation_prompt, len(product_references), len(example_references)),
-                settings["model"], settings["quality"], settings["size"],
+            generated, usage = _metered_provider_call(
+                _account_user(request), "text_to_image", settings["model"], "生成图片",
+                lambda: generate_view(
+                    reference_bytes,
+                    _text_image_edit_prompt(generation_prompt, len(product_references), len(example_references)),
+                    settings["model"], settings["quality"], settings["size"],
+                ),
             )
         else:
-            generated, usage = generate_image(
-                generation_prompt, settings["model"], settings["quality"], settings["size"],
+            generated, usage = _metered_provider_call(
+                _account_user(request), "text_to_image", settings["model"], "生成图片",
+                lambda: generate_image(
+                    generation_prompt, settings["model"], settings["quality"], settings["size"],
+                ),
             )
-        record_usage(
-            _account_user(request), "text_to_image", settings["model"], usage, "生成图片",
-        )
         url = PublicBlobStore().put(
             f"text-image/{task_id}/{item_index + 1}.png",
             generated,
@@ -1240,7 +1321,7 @@ def generate_text_image_item(task_id: str, item_index: int, request: Request,
             _save(state, version)
         except StoreError:
             pass
-        if isinstance(exc, (WorkflowError, StoreError)):
+        if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
             raise
         raise WorkflowError("IMAGE_GENERATION_FAILED", "图片生成发生意外错误", 502) from exc
 
@@ -1374,14 +1455,16 @@ def generate_animal_cutout_task(task_id: str, request: Request,
         generation_count = int(state.get("generation_count", 1))
 
         def generate_candidate(index: int) -> dict:
-            generated, usage = generate_view(
-                [source],
-                state["prompt"],
-                settings["model"],
-                settings["quality"],
-                settings["size"],
+            generated, usage = _metered_provider_call(
+                account, "animal_cutout", settings["model"], "生成剪影候选",
+                lambda: generate_view(
+                    [source],
+                    state["prompt"],
+                    settings["model"],
+                    settings["quality"],
+                    settings["size"],
+                ),
             )
-            record_usage(account, "animal_cutout", settings["model"], usage, "生成剪影候选")
             candidate_url = PublicBlobStore().put(
                 f"animal-cutout/{task_id}/candidate-{index + 1}.png",
                 generated,
@@ -1397,6 +1480,7 @@ def generate_animal_cutout_task(task_id: str, request: Request,
 
         candidates: list[dict] = []
         failures: list[dict] = []
+        quota_errors: list[UsageLimitError] = []
         with ThreadPoolExecutor(max_workers=min(generation_count, 3)) as executor:
             futures = {
                 executor.submit(generate_candidate, index): index
@@ -1407,6 +1491,8 @@ def generate_animal_cutout_task(task_id: str, request: Request,
                 try:
                     candidates.append(future.result())
                 except Exception as exc:
+                    if isinstance(exc, UsageLimitError):
+                        quota_errors.append(exc)
                     failures.append({
                         "index": index,
                         "code": getattr(exc, "code", "CUTOUT_CANDIDATE_FAILED"),
@@ -1414,6 +1500,8 @@ def generate_animal_cutout_task(task_id: str, request: Request,
                     })
         candidates.sort(key=lambda item: item["index"])
         if not candidates:
+            if quota_errors:
+                raise quota_errors[0]
             first_error = failures[0] if failures else {"message": "候选图生成失败"}
             raise WorkflowError("CUTOUT_CANDIDATES_FAILED", first_error["message"], 502)
 
@@ -1448,7 +1536,7 @@ def generate_animal_cutout_task(task_id: str, request: Request,
             _save(state, version)
         except StoreError:
             pass
-        if isinstance(exc, (WorkflowError, StoreError)):
+        if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
             raise
         raise WorkflowError("CUTOUT_GENERATION_FAILED", "镂空剪影候选生成发生意外错误", 502) from exc
 
@@ -1571,28 +1659,21 @@ def repair_animal_cutout_task(
         repair_model = settings.get("repair_model", CUTOUT_REPAIR_MODEL)
         repair_quality = settings.get("repair_quality", CUTOUT_REPAIR_QUALITY)
         repair_prompt = _cutout_repair_prompt(repair_connectivity)
-        repaired, usage = generate_view(
-            [current],
-            repair_prompt,
-            repair_model,
-            repair_quality,
-            settings["size"],
-            repair_mask,
-        )
-        record_usage(
-            _account_user(request), "animal_cutout", repair_model, usage, "修复剪影",
+        repaired, usage = _metered_provider_call(
+            _account_user(request), "animal_cutout", repair_model, "修复剪影",
+            lambda: generate_view(
+                [current],
+                repair_prompt,
+                repair_model,
+                repair_quality,
+                settings["size"],
+                repair_mask,
+            ),
         )
         ai_repaired_url = PublicBlobStore().put(
             f"animal-cutout/{task_id}/repair-{attempt}-ai.png", repaired, "image/png",
         )
         repaired_connectivity, _ = analyze_connectivity(repaired)
-        local_cleanup_applied = False
-        if repaired_connectivity.get("disconnected_island_count", 0) > 0:
-            cleaned = remove_disconnected_islands(repaired)
-            cleaned_connectivity, _ = analyze_connectivity(cleaned)
-            if cleaned_connectivity.get("island_count", 0) < repaired_connectivity.get("island_count", 0):
-                repaired = cleaned
-                local_cleanup_applied = True
         repaired_url = PublicBlobStore().put(
             f"animal-cutout/{task_id}/repair-{attempt}.png", repaired, "image/png",
         )
@@ -1614,7 +1695,6 @@ def repair_animal_cutout_task(
             "input_url": result["url"],
             "mask_url": mask_url,
             "ai_result_url": ai_repaired_url,
-            "local_cleanup_applied": local_cleanup_applied,
             "url": repaired_url,
             "result": repaired_result,
             "connectivity": repaired_connectivity,
@@ -1652,7 +1732,7 @@ def repair_animal_cutout_task(
             _save(state, version)
         except StoreError:
             pass
-        if isinstance(exc, (WorkflowError, StoreError)):
+        if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
             raise
         raise WorkflowError("ANIMAL_REPAIR_FAILED", "AI 修复发生意外错误", 502) from exc
 
@@ -1793,11 +1873,11 @@ def analyze_references(session_id: str, request: Request,
     version = _save(state, version)
     try:
         images = [fetch_bytes(item["url"], 20_000_000) for item in references[:MAX_REFERENCE_IMAGES]]
-        analysis, usage = analyze_images(
-            images, state.get("input_notes", ""), models["vision_model"],
-        )
-        record_usage(
-            _account_user(request), "image_to_3d", models["vision_model"], usage, "AI 分析参考图",
+        analysis, usage = _metered_provider_call(
+            _account_user(request), "image_to_3d", models["vision_model"], "AI 分析参考图",
+            lambda: analyze_images(
+                images, state.get("input_notes", ""), models["vision_model"],
+            ),
         )
     except Exception as exc:
         state["status"] = "REFERENCES_READY"
@@ -1806,7 +1886,7 @@ def analyze_references(session_id: str, request: Request,
             "message": str(exc)[:500] or "参考图分析失败",
         }
         _save(state, version)
-        if isinstance(exc, (WorkflowError, StoreError)):
+        if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
             raise
         raise WorkflowError("REFERENCE_ANALYSIS_FAILED", "参考图分析发生意外错误", 502) from exc
     user_prompt = _apply_personal_preferences(
@@ -1946,15 +2026,22 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
         if not references:
             raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
         sources = [fetch_bytes(item["url"], 20_000_000) for item in references[:MAX_REFERENCE_IMAGES]]
-        with ThreadPoolExecutor(max_workers=min(4, len(requested))) as executor:
-            futures = {
-                executor.submit(
-                    generate_view,
+        account = _account_user(request)
+
+        def generate_requested_view(view: str):
+            return _metered_provider_call(
+                account, "image_to_3d", models["image_model"], "生成四视图",
+                lambda: generate_view(
                     sources,
                     view_prompt(state["user_prompt"], view),
                     models["image_model"],
                     models["image_quality"],
-                ): view
+                ),
+            )
+
+        with ThreadPoolExecutor(max_workers=min(4, len(requested))) as executor:
+            futures = {
+                executor.submit(generate_requested_view, view): view
                 for view in requested
             }
             for future in as_completed(futures):
@@ -1969,9 +2056,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     if generated_views:
         try:
             blobs = PublicBlobStore()
-            account = _account_user(request)
             for view, (generated, usage) in generated_views.items():
-                record_usage(account, "image_to_3d", models["image_model"], usage, "生成四视图")
                 previous = state["views"].get(view, {})
                 revision = int(previous.get("revision", 0)) + 1
                 url = blobs.put(
@@ -1998,7 +2083,9 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
             VIEW_NAMES.get(view, "视图") for view, _ in failures if view not in {"all", "storage"}
         )
         first_error = failures[0][1]
-        message = str(first_error) if isinstance(first_error, (WorkflowError, StoreError)) else "多视图生成发生意外错误"
+        message = str(first_error) if isinstance(
+            first_error, (WorkflowError, StoreError, UsageLimitError),
+        ) else "多视图生成发生意外错误"
         if failed_names:
             message = f"{failed_names}生成失败：{message}；其他已完成视图已保留"
         state["last_error"] = {
@@ -2010,10 +2097,12 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     _save(state, version)
     if failures:
         first_error = failures[0][1]
+        if isinstance(first_error, UsageLimitError) and not generated_views:
+            raise first_error
         raise WorkflowError(
             state["last_error"]["code"],
             state["last_error"]["message"],
-            first_error.status if isinstance(first_error, WorkflowError) else 502,
+            first_error.status if isinstance(first_error, (WorkflowError, UsageLimitError)) else 502,
         )
     return _response(state)
 
@@ -2039,12 +2128,12 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
         fetch_bytes(state["views"][other]["url"], 20_000_000)
         for other in AI_GENERATED_VIEWS if other != view and other in state["views"]
     )
-    generated, usage = generate_view(
-        references, view_prompt(state["user_prompt"], view, data.prompt),
-        models["image_model"], models["image_quality"],
-    )
-    record_usage(
-        _account_user(request), "image_to_3d", models["image_model"], usage, "微调视图",
+    generated, usage = _metered_provider_call(
+        _account_user(request), "image_to_3d", models["image_model"], "微调视图",
+        lambda: generate_view(
+            references, view_prompt(state["user_prompt"], view, data.prompt),
+            models["image_model"], models["image_quality"],
+        ),
     )
     revision = int(state["views"][view].get("revision", 0)) + 1
     url = PublicBlobStore().put(
@@ -2096,13 +2185,8 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     if data.generate_type not in GENERATE_TYPES:
         raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
     options = data.model_dump()
-    state["status"] = "SUBMITTING_3D"
-    state["hunyuan_task"] = None
-    state["last_error"] = None
-    version = _save(state, version)
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
-        state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
             "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
@@ -2113,6 +2197,13 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
             "本地图片无法被腾讯混元访问，请配置 BLOB_READ_WRITE_TOKEN 后重新创建会话",
             409,
         )
+    reservation_id = reserve_usage(
+        _account_user(request), "image_to_3d", models["hunyuan_model"], "生成 STL",
+    )
+    state["status"] = "SUBMITTING_3D"
+    state["hunyuan_task"] = None
+    state["last_error"] = None
+    version = _save(state, version)
     try:
         created, hunyuan_model = submit_hunyuan(
             snapshot["views"]["front"]["url"],
@@ -2120,11 +2211,16 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
             options,
             models["hunyuan_model"],
         )
-    except WorkflowError as exc:
+    except (WorkflowError, UsageLimitError) as exc:
+        release_usage_reservation(reservation_id)
         state["status"] = "VIEWS_CONFIRMED"
         state["last_error"] = {"code": exc.code, "message": exc.message}
         _save(state, version)
         raise
+    record_usage(
+        _account_user(request), "image_to_3d", hunyuan_model, created, "生成 STL",
+        reservation_id,
+    )
     task_id = str(created.get("id", ""))
     if not TASK_ID.fullmatch(task_id):
         state["status"] = "VIEWS_CONFIRMED"
@@ -2134,9 +2230,6 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
         }
         _save(state, version)
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元没有返回任务编号", 502)
-    record_usage(
-        _account_user(request), "image_to_3d", hunyuan_model, created, "生成 STL",
-    )
     state["hunyuan_task"] = {
         "id": task_id,
         "model": hunyuan_model,

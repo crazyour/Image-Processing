@@ -237,7 +237,7 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         self.assertEqual(body["repair_attempts"], 0)
         self.assertEqual(image_edit.call_count, 1)
 
-    def test_automatic_repair_falls_back_to_local_island_cleanup(self):
+    def test_automatic_repair_never_deletes_disconnected_parts(self):
         task_id, headers = self.create_task()
         generated = image_with_island()
 
@@ -259,10 +259,12 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             )
             body = second.json()
             self.assertEqual(second.status_code, 200)
-            self.assertEqual(body["status"], "SUCCEEDED")
-            self.assertTrue(body["connectivity"]["passed"])
+            self.assertEqual(body["status"], "REPAIR_REQUIRED")
+            self.assertFalse(body["connectivity"]["passed"])
+            self.assertEqual(body["connectivity"]["disconnected_island_count"], 1)
             self.assertEqual(body["repair_attempts"], 1)
             self.assertEqual(image_edit.call_count, 2)
+            self.assertNotIn("local_cleanup_applied", body["process_details"]["repairs"][0])
 
     def test_generation_and_repair_use_separate_model_settings(self):
         source = connected_image()

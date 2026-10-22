@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from vercel_app.auth import database_connection
 
@@ -31,6 +34,34 @@ SOURCE_TOKEN_PRICE = "Token 单价估算"
 SOURCE_UNPRICED = "未计价"
 
 logger = logging.getLogger(__name__)
+
+PERIODS = ("day", "week", "month")
+LIMIT_COLUMNS = {
+    "day": "daily_limit_usd",
+    "week": "weekly_limit_usd",
+    "month": "monthly_limit_usd",
+}
+RESET_COLUMNS = {
+    "day": "daily_reset_at",
+    "week": "weekly_reset_at",
+    "month": "monthly_reset_at",
+}
+PERIOD_LABELS = {"day": "今日", "week": "本周", "month": "本月"}
+
+
+class UsageLimitError(RuntimeError):
+    def __init__(self, period: str, used_usd: float, limit_usd: float,
+                 estimated_usd: float, resets_at: float):
+        self.code = "AI_USAGE_LIMIT_EXCEEDED"
+        self.status = 429
+        self.period = period
+        self.used_usd = round(used_usd, 6)
+        self.limit_usd = round(limit_usd, 6)
+        self.estimated_usd = round(estimated_usd, 6)
+        self.remaining_usd = round(max(0.0, limit_usd - used_usd), 6)
+        self.resets_at = resets_at
+        self.message = f"{PERIOD_LABELS[period]} AI 使用额已不足"
+        super().__init__(self.message)
 
 
 def _configured_float(name: str, default: float) -> float:
@@ -196,9 +227,310 @@ def _ensure_usage_schema(connection: Any) -> None:
             )
             """
         )
+    numeric_type = "DOUBLE PRECISION" if is_postgres else "REAL"
+    connection.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS auth_usage_limits (
+            user_id TEXT PRIMARY KEY,
+            daily_limit_usd {numeric_type},
+            weekly_limit_usd {numeric_type},
+            monthly_limit_usd {numeric_type},
+            daily_reset_at {numeric_type},
+            weekly_reset_at {numeric_type},
+            monthly_reset_at {numeric_type},
+            updated_by TEXT,
+            updated_at {numeric_type} NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS auth_usage_reservations (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            feature TEXT NOT NULL,
+            action TEXT,
+            model TEXT,
+            estimated_usd {numeric_type} NOT NULL,
+            actual_usd {numeric_type},
+            status TEXT NOT NULL,
+            created_at {numeric_type} NOT NULL,
+            expires_at {numeric_type} NOT NULL,
+            settled_at {numeric_type}
+        )
+        """
+    )
+    connection.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS auth_usage_limit_audit (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            actor_id TEXT,
+            operation TEXT NOT NULL,
+            period TEXT,
+            details TEXT,
+            created_at {numeric_type} NOT NULL
+        )
+        """
+    )
     _add_missing_columns(connection, is_postgres)
     _backfill_token_costs(connection, is_postgres)
     connection.commit()
+
+
+def _usage_timezone() -> ZoneInfo:
+    name = os.getenv("USAGE_LIMIT_TIMEZONE", "Asia/Tokyo").strip() or "Asia/Tokyo"
+    try:
+        return ZoneInfo(name)
+    except ZoneInfoNotFoundError:
+        logger.warning("Unknown USAGE_LIMIT_TIMEZONE=%s; falling back to Asia/Tokyo", name)
+        return ZoneInfo("Asia/Tokyo")
+
+
+def _period_window(period: str, now: float) -> tuple[float, float]:
+    local_now = datetime.fromtimestamp(now, timezone.utc).astimezone(_usage_timezone())
+    if period == "day":
+        start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+    elif period == "week":
+        start = (local_now - timedelta(days=local_now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+        end = start + timedelta(days=7)
+    elif period == "month":
+        start = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = (
+            start.replace(year=start.year + 1, month=1)
+            if start.month == 12 else start.replace(month=start.month + 1)
+        )
+    else:
+        raise ValueError(f"unsupported usage period: {period}")
+    return start.timestamp(), end.timestamp()
+
+
+def _limit_row(connection: Any, user_id: str, *, lock: bool = False) -> dict[str, Any] | None:
+    is_postgres = str(connection.__class__.__module__).startswith("psycopg")
+    placeholder = "%s" if is_postgres else "?"
+    suffix = " FOR UPDATE" if lock and is_postgres else ""
+    row = connection.execute(
+        f"SELECT * FROM auth_usage_limits WHERE user_id = {placeholder}{suffix}",
+        (user_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _period_usage(connection: Any, user_id: str, start: float, now: float) -> tuple[float, float]:
+    is_postgres = str(connection.__class__.__module__).startswith("psycopg")
+    placeholder = "%s" if is_postgres else "?"
+    used = connection.execute(
+        f"""SELECT COALESCE(SUM(cost_usd), 0) AS total
+            FROM auth_usage_events
+            WHERE user_id = {placeholder} AND created_at >= {placeholder}
+              AND created_at <= {placeholder}""",
+        (user_id, start, now),
+    ).fetchone()
+    reserved = connection.execute(
+        f"""SELECT COALESCE(SUM(estimated_usd), 0) AS total
+            FROM auth_usage_reservations
+            WHERE user_id = {placeholder} AND status = 'RESERVED'
+              AND expires_at > {placeholder}""",
+        (user_id, now),
+    ).fetchone()
+    return float(used["total"] or 0), float(reserved["total"] or 0)
+
+
+def _limit_status(connection: Any, user_id: str, now: float,
+                  row: dict[str, Any] | None = None) -> dict[str, Any]:
+    row = row if row is not None else _limit_row(connection, user_id)
+    periods: dict[str, dict[str, Any]] = {}
+    for period in PERIODS:
+        natural_start, natural_end = _period_window(period, now)
+        reset_at = float((row or {}).get(RESET_COLUMNS[period]) or 0)
+        start = max(natural_start, reset_at)
+        used, reserved = _period_usage(connection, user_id, start, now)
+        limit_value = (row or {}).get(LIMIT_COLUMNS[period])
+        limit = float(limit_value) if limit_value is not None else None
+        effective = used + reserved
+        periods[period] = {
+            "limit_usd": round(limit, 6) if limit is not None else None,
+            "used_usd": round(used, 6),
+            "reserved_usd": round(reserved, 6),
+            "effective_used_usd": round(effective, 6),
+            "remaining_usd": round(max(0.0, limit - effective), 6) if limit is not None else None,
+            "period_started_at": start,
+            "resets_at": natural_end,
+            "manually_reset_at": reset_at or None,
+        }
+    return {
+        "user_id": user_id,
+        "timezone": str(_usage_timezone()),
+        "periods": periods,
+        "updated_at": float((row or {}).get("updated_at") or 0) or None,
+    }
+
+
+def _validate_limit(value: float | None) -> float | None:
+    if value is None:
+        return None
+    number = float(value)
+    if not math.isfinite(number) or number < 0 or number > 1_000_000:
+        raise ValueError("usage limit must be between 0 and 1000000 USD")
+    return round(number, 6)
+
+
+def get_usage_limits(user_id: str) -> dict[str, Any]:
+    """Return the current daily, weekly, and monthly budget state for one account."""
+    with database_connection() as connection:
+        _ensure_usage_schema(connection)
+        return _limit_status(connection, user_id, time.time())
+
+
+def set_usage_limits(user_id: str, *, daily_limit_usd: float | None,
+                     weekly_limit_usd: float | None,
+                     monthly_limit_usd: float | None,
+                     actor_id: str | None = None) -> dict[str, Any]:
+    """Replace all three account limits. None means unlimited; zero blocks usage."""
+    values = {
+        "daily_limit_usd": _validate_limit(daily_limit_usd),
+        "weekly_limit_usd": _validate_limit(weekly_limit_usd),
+        "monthly_limit_usd": _validate_limit(monthly_limit_usd),
+    }
+    now = time.time()
+    with database_connection() as connection:
+        _ensure_usage_schema(connection)
+        is_postgres = str(connection.__class__.__module__).startswith("psycopg")
+        placeholder = "%s" if is_postgres else "?"
+        connection.execute(
+            f"""INSERT INTO auth_usage_limits
+                (user_id, daily_limit_usd, weekly_limit_usd, monthly_limit_usd,
+                 updated_by, updated_at)
+                VALUES ({', '.join([placeholder] * 6)})
+                ON CONFLICT(user_id) DO UPDATE SET
+                    daily_limit_usd = excluded.daily_limit_usd,
+                    weekly_limit_usd = excluded.weekly_limit_usd,
+                    monthly_limit_usd = excluded.monthly_limit_usd,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at""",
+            (
+                user_id, values["daily_limit_usd"], values["weekly_limit_usd"],
+                values["monthly_limit_usd"], actor_id, now,
+            ),
+        )
+        connection.execute(
+            f"""INSERT INTO auth_usage_limit_audit
+                (id, user_id, actor_id, operation, period, details, created_at)
+                VALUES ({', '.join([placeholder] * 7)})""",
+            (
+                uuid.uuid4().hex, user_id, actor_id, "SET_LIMITS", None,
+                json.dumps(values, ensure_ascii=False), now,
+            ),
+        )
+        connection.commit()
+        return _limit_status(connection, user_id, now)
+
+
+def reset_usage_limits(user_id: str, period: str,
+                       actor_id: str | None = None) -> dict[str, Any]:
+    """Reset a period's counter without deleting its immutable usage history."""
+    selected = list(PERIODS) if period == "all" else [period]
+    if any(item not in PERIODS for item in selected):
+        raise ValueError("usage period must be day, week, month, or all")
+    now = time.time()
+    with database_connection() as connection:
+        _ensure_usage_schema(connection)
+        is_postgres = str(connection.__class__.__module__).startswith("psycopg")
+        placeholder = "%s" if is_postgres else "?"
+        connection.execute(
+            f"""INSERT INTO auth_usage_limits (user_id, updated_by, updated_at)
+                VALUES ({placeholder}, {placeholder}, {placeholder})
+                ON CONFLICT(user_id) DO NOTHING""",
+            (user_id, actor_id, now),
+        )
+        assignments = ", ".join(
+            f"{RESET_COLUMNS[item]} = {placeholder}" for item in selected
+        )
+        connection.execute(
+            f"""UPDATE auth_usage_limits
+                SET {assignments}, updated_by = {placeholder}, updated_at = {placeholder}
+                WHERE user_id = {placeholder}""",
+            tuple([now] * len(selected) + [actor_id, now, user_id]),
+        )
+        connection.execute(
+            f"""INSERT INTO auth_usage_limit_audit
+                (id, user_id, actor_id, operation, period, details, created_at)
+                VALUES ({', '.join([placeholder] * 7)})""",
+            (uuid.uuid4().hex, user_id, actor_id, "RESET_USAGE", period, None, now),
+        )
+        connection.commit()
+        return _limit_status(connection, user_id, now)
+
+
+def _estimated_usage_cost(model: str | None, feature: str) -> float:
+    estimated, source = _preset_price(model, feature)
+    if source == SOURCE_UNPRICED:
+        estimated = _configured_float("USAGE_RESERVE_VISION_PER_CALL_USD", 0.10)
+    return round(max(0.0, estimated), 6)
+
+
+def reserve_usage(user: dict[str, Any] | None, feature: str, model: str | None,
+                  action: str = "") -> str | None:
+    """Atomically reserve estimated spend before a paid provider request."""
+    user_id = str((user or {}).get("id") or "")
+    if not user_id:
+        return None
+    now = time.time()
+    with database_connection() as connection:
+        _ensure_usage_schema(connection)
+        is_postgres = str(connection.__class__.__module__).startswith("psycopg")
+        if not is_postgres:
+            connection.execute("BEGIN IMMEDIATE")
+        row = _limit_row(connection, user_id, lock=True)
+        if not row or all(row.get(LIMIT_COLUMNS[item]) is None for item in PERIODS):
+            if not is_postgres:
+                connection.commit()
+            return None
+        estimated = _estimated_usage_cost(model, feature)
+        status = _limit_status(connection, user_id, now, row)
+        for period in PERIODS:
+            item = status["periods"][period]
+            limit = item["limit_usd"]
+            if limit is not None and item["effective_used_usd"] + estimated > limit + 1e-9:
+                raise UsageLimitError(
+                    period, item["effective_used_usd"], limit, estimated, item["resets_at"],
+                )
+        placeholder = "%s" if is_postgres else "?"
+        reservation_id = uuid.uuid4().hex
+        ttl = max(60.0, _configured_float("USAGE_RESERVATION_TTL_SECONDS", 1800.0))
+        connection.execute(
+            f"""INSERT INTO auth_usage_reservations
+                (id, user_id, feature, action, model, estimated_usd, actual_usd,
+                 status, created_at, expires_at, settled_at)
+                VALUES ({', '.join([placeholder] * 11)})""",
+            (
+                reservation_id, user_id, feature, action, model, estimated, None,
+                "RESERVED", now, now + ttl, None,
+            ),
+        )
+        connection.commit()
+        return reservation_id
+
+
+def release_usage_reservation(reservation_id: str | None) -> None:
+    if not reservation_id:
+        return
+    try:
+        with database_connection() as connection:
+            _ensure_usage_schema(connection)
+            placeholder = "%s" if str(connection.__class__.__module__).startswith("psycopg") else "?"
+            connection.execute(
+                f"""UPDATE auth_usage_reservations
+                    SET status = 'RELEASED', settled_at = {placeholder}
+                    WHERE id = {placeholder} AND status = 'RESERVED'""",
+                (time.time(), reservation_id),
+            )
+            connection.commit()
+    except Exception:
+        logger.exception("Failed to release usage reservation id=%s", reservation_id)
 
 
 def _add_missing_columns(connection: Any, is_postgres: bool) -> None:
@@ -256,7 +588,8 @@ def _raw_payload(payload: Any) -> str | None:
 
 
 def record_usage(user: dict[str, Any] | None, feature: str, model: str | None,
-                 payload: Any, action: str = "") -> dict[str, Any]:
+                 payload: Any, action: str = "",
+                 reservation_id: str | None = None) -> dict[str, Any]:
     """Store one provider call. Never breaks the request when storage fails."""
     normalized = normalize_usage(payload, model, feature)
     event = {
@@ -291,6 +624,14 @@ def record_usage(user: dict[str, Any] | None, feature: str, model: str | None,
                     VALUES ({', '.join([placeholder] * len(columns))})""",
                 tuple(event[column] for column in columns),
             )
+            if reservation_id:
+                connection.execute(
+                    f"""UPDATE auth_usage_reservations
+                        SET status = 'SETTLED', actual_usd = {placeholder},
+                            settled_at = {placeholder}
+                        WHERE id = {placeholder} AND status = 'RESERVED'""",
+                    (event["cost_usd"], time.time(), reservation_id),
+                )
             connection.commit()
     except Exception:
         logger.exception(

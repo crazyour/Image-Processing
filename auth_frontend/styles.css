@@ -128,6 +128,8 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .operation-column{text-align:right!important}.manage-user{padding:8px 12px}
 .row-actions{display:inline-flex;gap:8px;justify-content:flex-end}
 .account-usage-button{padding:8px 12px}
+.account-quota-button{padding:8px 12px;background:#fff3d8;color:#77530b}
+.account-quota-button:hover{background:#fbe8bd}
 .delete-user{padding:8px 12px;background:#fbe9e7;color:#a33b36}
 .delete-user:hover{background:#f7dedb}
 .dialog-card-compact{width:min(520px,calc(100vw - 32px))}
@@ -144,6 +146,20 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .usage-model-chip{padding:6px 11px;border:1px solid var(--line);border-radius:99px;background:#fff;color:#315747;font-size:12px}
 .usage-source-chip{padding:6px 11px;border:1px solid var(--line);border-radius:99px;background:#fff;color:#315747;font-size:12px}
 .usage-source-chip.source-provider{background:#eaf4ee;color:#1f5c40}
+.quota-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}
+.quota-card{display:grid;gap:9px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--wash)}
+.quota-card>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.quota-card span,.quota-card small{color:var(--muted);font-size:11px}
+.quota-card b{font-size:14px;font-variant-numeric:tabular-nums}
+.quota-progress{height:6px;overflow:hidden;border-radius:99px;background:#dce5df}
+.quota-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3b8467,#d5a33c)}
+.quota-form{align-items:end}
+.quota-note{align-self:center;margin:0;font-size:12px}
+.quota-reset{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid #eadfc5;border-radius:13px;background:#fffaf0}
+.quota-reset strong,.quota-reset span{display:block}
+.quota-reset span{margin-top:3px;color:var(--muted);font-size:12px;font-weight:400}
+.quota-reset-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.quota-reset-actions button{padding:8px 10px;font-size:12px;white-space:nowrap}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .account-dialog{width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;border:0;border-radius:20px;background:transparent;box-shadow:0 25px 80px rgba(14,36,27,.28)}
 .account-dialog::backdrop{background:rgba(14,30,24,.52);backdrop-filter:blur(4px)}
@@ -165,4 +181,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
   .dialog-card{padding:21px}
   .account-dialog .user-form{grid-template-columns:1fr}
   .account-dialog .wide{grid-column:auto}
+  .quota-status{grid-template-columns:1fr}
+  .quota-reset{align-items:stretch;flex-direction:column}
+  .quota-reset-actions{justify-content:flex-start}
 }

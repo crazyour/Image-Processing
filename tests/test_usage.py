@@ -187,6 +187,76 @@ class UsageLedgerTests(unittest.TestCase):
         finally:
             member.close()
 
+    def test_admin_can_set_and_reset_each_period_without_deleting_history(self):
+        user = self.create_member(["text_to_image"])
+        record_usage(user, "text_to_image", "gpt-image-2.5-flare", {"cost": 0.42})
+
+        saved = self.admin.put(f"/api/admin/users/{user['id']}/usage-limits", json={
+            "daily_limit_usd": 1,
+            "weekly_limit_usd": 2,
+            "monthly_limit_usd": 3,
+        })
+        self.assertEqual(saved.status_code, 200)
+        periods = saved.json()["limits"]["periods"]
+        self.assertEqual(periods["day"]["used_usd"], 0.42)
+        self.assertEqual(periods["week"]["used_usd"], 0.42)
+        self.assertEqual(periods["month"]["used_usd"], 0.42)
+
+        reset = self.admin.post(
+            f"/api/admin/users/{user['id']}/usage-limits/reset", json={"period": "day"},
+        )
+        self.assertEqual(reset.status_code, 200)
+        periods = reset.json()["limits"]["periods"]
+        self.assertEqual(periods["day"]["used_usd"], 0)
+        self.assertEqual(periods["week"]["used_usd"], 0.42)
+        self.assertEqual(periods["month"]["used_usd"], 0.42)
+        self.assertEqual(self.admin.get("/api/admin/usage").json()["grand_total_usd"], 0.42)
+
+    def test_zero_limit_blocks_only_that_account_before_provider_call(self):
+        user = self.create_member(["text_to_image"])
+        configured = self.admin.put(f"/api/admin/users/{user['id']}/usage-limits", json={
+            "daily_limit_usd": 0,
+            "weekly_limit_usd": None,
+            "monthly_limit_usd": None,
+        })
+        self.assertEqual(configured.status_code, 200)
+        member = self.login_member()
+        try:
+            created = member.post("/api/text-image/tasks", json={"prompts": ["一只木椅"]})
+            body = created.json()
+            headers = {"X-Session-Token": body["access_token"]}
+            with patch.object(app_module, "generate_image") as provider:
+                blocked = member.post(
+                    f"/api/text-image/tasks/{body['task_id']}/items/0/generate", headers=headers,
+                )
+            self.assertEqual(blocked.status_code, 429)
+            self.assertEqual(blocked.json()["code"], "AI_USAGE_LIMIT_EXCEEDED")
+            self.assertEqual(blocked.json()["period"], "day")
+            provider.assert_not_called()
+
+            own_task = self.admin.post("/api/text-image/tasks", json={"prompts": ["管理员的图"]}).json()
+            with patch.object(
+                app_module, "generate_image",
+                return_value=(png_bytes(), {"total_tokens": 10, "cost": 0.14}),
+            ) as admin_provider:
+                allowed = self.admin.post(
+                    f"/api/text-image/tasks/{own_task['task_id']}/items/0/generate",
+                    headers={"X-Session-Token": own_task["access_token"]},
+                )
+            self.assertEqual(allowed.status_code, 200)
+            admin_provider.assert_called_once()
+        finally:
+            member.close()
+
+    def test_usage_limit_management_is_admin_only(self):
+        user = self.create_member(["text_to_image"])
+        member = self.login_member()
+        try:
+            response = member.get(f"/api/admin/users/{user['id']}/usage-limits")
+            self.assertEqual(response.status_code, 403)
+        finally:
+            member.close()
+
     def test_image_to_3d_steps_are_recorded_per_account(self):
         self.create_member(["image_to_3d"])
         member = self.login_member()

@@ -130,18 +130,6 @@ def create_repair_mask(image_bytes: bytes) -> bytes:
     return _encode_png(rgba, "无法生成局部修复蒙版")
 
 
-def remove_disconnected_islands(image_bytes: bytes) -> bytes:
-    """Return a hard black/white PNG containing only the largest component."""
-    mask = _black_mask(image_bytes)
-    component_count, labels, stats = _components(mask)
-    component_labels = list(range(1, component_count))
-    component_labels.sort(key=lambda label: int(stats[label, cv2.CC_STAT_AREA]), reverse=True)
-    cleaned = np.full(mask.shape, 255, dtype=np.uint8)
-    if component_labels:
-        cleaned[labels == component_labels[0]] = 0
-    return _encode_png(cleaned, "无法执行本地孤岛清理")
-
-
 def analyze_connectivity(image_bytes: bytes) -> tuple[dict, bytes]:
     """Return a connectivity report and color diagnostic.
 

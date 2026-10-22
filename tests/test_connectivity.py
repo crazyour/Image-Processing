@@ -5,7 +5,7 @@ import unittest
 import cv2
 import numpy as np
 
-from vercel_app.connectivity import analyze_connectivity, create_repair_mask, remove_disconnected_islands
+from vercel_app.connectivity import analyze_connectivity, create_repair_mask
 
 
 def png_with_shapes(draw_shapes) -> bytes:
@@ -75,18 +75,6 @@ class ConnectivityTests(unittest.TestCase):
         self.assertEqual(int(alpha[45, 76]), 0)  # island is editable
         self.assertEqual(int(alpha[45, 60]), 0)  # white gap corridor is editable
         self.assertEqual(int(alpha[90, 90]), 255)  # unrelated background is protected
-
-    def test_local_cleanup_keeps_only_largest_component(self):
-        def shapes(canvas):
-            cv2.rectangle(canvas, (10, 10), (60, 80), (0, 0, 0), -1)
-            cv2.circle(canvas, (82, 20), 7, (0, 0, 0), -1)
-
-        cleaned = remove_disconnected_islands(png_with_shapes(shapes))
-        report, _ = analyze_connectivity(cleaned)
-
-        self.assertTrue(report["passed"])
-        self.assertEqual(report["black_component_count"], 1)
-
 
 if __name__ == "__main__":
     unittest.main()

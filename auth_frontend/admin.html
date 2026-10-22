@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>账号管理 · 灵界</title>
-  <link rel="stylesheet" href="/auth-static/styles.css?v=20261022-1">
+  <link rel="stylesheet" href="/auth-static/styles.css?v=20261022-2">
 </head>
 <body>
   <main class="app-shell">
@@ -45,7 +45,7 @@
             <button id="create-account" class="primary" type="button">新建账号</button>
           </div>
         </div>
-        <p class="muted account-help">点击“管理账号”再查看和修改详细设置；点击“使用额”查看该账号的 Token 与费用明细。</p>
+        <p class="muted account-help">点击“额度控制”可设置每日、每周和每月的 AI 费用上限；点击“使用额”查看 Token 与费用明细。</p>
         <div class="account-table-wrap">
           <table class="account-table">
             <thead>
@@ -127,6 +127,49 @@
     </div>
   </dialog>
 
+  <dialog id="quota-dialog" class="account-dialog" aria-labelledby="quota-dialog-title">
+    <div class="dialog-card">
+      <header class="dialog-head">
+        <div>
+          <span class="panel-kicker">AI BUDGET CONTROL</span>
+          <h2 id="quota-dialog-title">额度控制</h2>
+          <p id="quota-dialog-summary" class="muted"></p>
+        </div>
+        <button id="quota-dialog-close" class="icon-button" type="button" aria-label="关闭">×</button>
+      </header>
+      <p id="quota-message" class="message hidden" role="status"></p>
+      <div id="quota-status" class="quota-status" aria-live="polite"></div>
+      <form id="quota-form" class="user-form quota-form">
+        <label>每日上限（USD）
+          <input name="daily_limit_usd" type="number" min="0" max="1000000" step="0.01" placeholder="留空表示不限额">
+        </label>
+        <label>每周上限（USD）
+          <input name="weekly_limit_usd" type="number" min="0" max="1000000" step="0.01" placeholder="留空表示不限额">
+        </label>
+        <label>每月上限（USD）
+          <input name="monthly_limit_usd" type="number" min="0" max="1000000" step="0.01" placeholder="留空表示不限额">
+        </label>
+        <p class="muted quota-note">设为 0 会禁止该账号发起新的付费 AI 请求。任意一项到达上限都会拦截。</p>
+        <div class="quota-reset wide">
+          <div>
+            <strong>重新计算使用额</strong>
+            <span>保留历史明细，仅将所选周期从现在开始重新计算。</span>
+          </div>
+          <div class="quota-reset-actions">
+            <button class="secondary" type="button" data-quota-reset="day">重置今日</button>
+            <button class="secondary" type="button" data-quota-reset="week">重置本周</button>
+            <button class="secondary" type="button" data-quota-reset="month">重置本月</button>
+            <button class="danger" type="button" data-quota-reset="all">全部重置</button>
+          </div>
+        </div>
+        <div class="dialog-actions wide">
+          <button id="quota-dialog-cancel" class="secondary" type="button">取消</button>
+          <button class="primary" type="submit">保存限额</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
   <dialog id="create-dialog" class="account-dialog" aria-labelledby="create-dialog-title">
     <div class="dialog-card">
       <header class="dialog-head">
@@ -203,6 +246,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/auth-static/admin.js?v=20261022-2"></script>
+  <script type="module" src="/auth-static/admin.js?v=20261022-3"></script>
 </body>
 </html>

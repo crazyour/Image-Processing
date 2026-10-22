@@ -10,12 +10,15 @@ const editForm = document.querySelector("#edit-form");
 const createDialog = document.querySelector("#create-dialog");
 const dialog = document.querySelector("#user-dialog");
 const usageDialog = document.querySelector("#usage-dialog");
+const quotaDialog = document.querySelector("#quota-dialog");
+const quotaForm = document.querySelector("#quota-form");
 const deleteDialog = document.querySelector("#delete-dialog");
 let catalog = {};
 let currentUser = null;
 let users = [];
 let editingUser = null;
 let deletingUser = null;
+let quotaUser = null;
 let usageReport = {
   accounts: [], feature_totals: [], grand_total_usd: 0, grand_total_calls: 0,
   grand_input_tokens: 0, grand_output_tokens: 0, grand_total_tokens: 0,
@@ -34,6 +37,8 @@ document.querySelector("#create-dialog-cancel").addEventListener("click", () => 
 document.querySelector("#dialog-close").addEventListener("click", () => dialog.close());
 document.querySelector("#dialog-cancel").addEventListener("click", () => dialog.close());
 document.querySelector("#usage-dialog-close").addEventListener("click", () => usageDialog.close());
+document.querySelector("#quota-dialog-close").addEventListener("click", () => quotaDialog.close());
+document.querySelector("#quota-dialog-cancel").addEventListener("click", () => quotaDialog.close());
 document.querySelector("#delete-dialog-close").addEventListener("click", () => deleteDialog.close());
 document.querySelector("#delete-dialog-cancel").addEventListener("click", () => deleteDialog.close());
 document.querySelector("#delete-dialog-confirm").addEventListener("click", submitDelete);
@@ -46,6 +51,9 @@ dialog.addEventListener("click", event => {
 });
 usageDialog.addEventListener("click", event => {
   if (event.target === usageDialog) usageDialog.close();
+});
+quotaDialog.addEventListener("click", event => {
+  if (event.target === quotaDialog) quotaDialog.close();
 });
 deleteDialog.addEventListener("click", event => {
   if (event.target === deleteDialog) deleteDialog.close();
@@ -88,6 +96,110 @@ function formatTokens(value) {
 function tokenTitle(value) {
   return `${formatExactTokens(value)} tokens`;
 }
+
+function formatResetTime(timestamp) {
+  if (!timestamp) return "";
+  return new Date(timestamp * 1000).toLocaleString("zh-CN", {
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function renderQuotaStatus(limits) {
+  const labels = {day: "今日", week: "本周", month: "本月"};
+  document.querySelector("#quota-status").innerHTML = Object.entries(labels).map(([key, label]) => {
+    const item = limits.periods[key];
+    const limit = item.limit_usd;
+    const effective = item.effective_used_usd || 0;
+    const progress = limit === null ? 0 : Math.min(100, limit > 0 ? (effective / limit) * 100 : 100);
+    const amount = limit === null
+      ? `${formatUsd(effective)} / 不限额`
+      : `${formatUsd(effective)} / ${formatUsd(limit)}`;
+    const remaining = limit === null ? "剩余不限" : `剩余 ${formatUsd(item.remaining_usd)}`;
+    return `
+      <div class="quota-card">
+        <div><strong>${label}</strong><span>${remaining}</span></div>
+        <b>${amount}</b>
+        <div class="quota-progress"><i style="width:${progress}%"></i></div>
+        <small>周期结束：${formatResetTime(item.resets_at)}</small>
+      </div>
+    `;
+  }).join("");
+}
+
+function applyQuotaValues(limits) {
+  for (const period of ["day", "week", "month"]) {
+    const input = quotaForm.elements[`${period === "day" ? "daily" : period === "week" ? "weekly" : "monthly"}_limit_usd`];
+    input.value = limits.periods[period].limit_usd ?? "";
+  }
+  renderQuotaStatus(limits);
+}
+
+async function openQuotaDialog(userId) {
+  quotaUser = users.find(user => user.id === userId);
+  if (!quotaUser) return;
+  quotaForm.reset();
+  document.querySelector("#quota-message").classList.add("hidden");
+  document.querySelector("#quota-dialog-title").textContent = `${quotaUser.name} · 额度控制`;
+  document.querySelector("#quota-dialog-summary").textContent = `@${quotaUser.username} · 按 ${Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo"} 自然周期计算`;
+  document.querySelector("#quota-status").innerHTML = '<p class="muted">正在读取额度…</p>';
+  quotaDialog.showModal();
+  try {
+    const response = await api(`/api/admin/users/${quotaUser.id}/usage-limits`);
+    applyQuotaValues(response.limits);
+    document.querySelector("#quota-dialog-summary").textContent = `@${quotaUser.username} · 时区 ${response.limits.timezone}`;
+  } catch (error) {
+    showMessage(document.querySelector("#quota-message"), error.message, true);
+  }
+}
+
+quotaForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!quotaUser) return;
+  const values = new FormData(quotaForm);
+  const parseLimit = name => {
+    const value = String(values.get(name) ?? "").trim();
+    return value === "" ? null : Number(value);
+  };
+  const submit = quotaForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    const response = await api(`/api/admin/users/${quotaUser.id}/usage-limits`, {
+      method: "PUT",
+      body: JSON.stringify({
+        daily_limit_usd: parseLimit("daily_limit_usd"),
+        weekly_limit_usd: parseLimit("weekly_limit_usd"),
+        monthly_limit_usd: parseLimit("monthly_limit_usd"),
+      }),
+    });
+    applyQuotaValues(response.limits);
+    showMessage(document.querySelector("#quota-message"), "使用限额已保存。", false);
+  } catch (error) {
+    showMessage(document.querySelector("#quota-message"), error.message, true);
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+quotaDialog.querySelectorAll("[data-quota-reset]").forEach(button => {
+  button.addEventListener("click", async () => {
+    if (!quotaUser) return;
+    const period = button.dataset.quotaReset;
+    const labels = {day: "今日", week: "本周", month: "本月", all: "全部周期"};
+    if (!window.confirm(`确定将 ${quotaUser.name} 的${labels[period]}使用额从现在开始重新计算吗？`)) return;
+    button.disabled = true;
+    try {
+      const response = await api(`/api/admin/users/${quotaUser.id}/usage-limits/reset`, {
+        method: "POST", body: JSON.stringify({period}),
+      });
+      applyQuotaValues(response.limits);
+      showMessage(document.querySelector("#quota-message"), `${labels[period]}使用额已重置，历史明细已保留。`, false);
+    } catch (error) {
+      showMessage(document.querySelector("#quota-message"), error.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
 
 function setTokenText(selector, value) {
   const element = document.querySelector(selector);
@@ -224,6 +336,7 @@ function renderUsers() {
         <td class="operation-column">
           <div class="row-actions">
             <button class="secondary manage-user" type="button" data-user-id="${escapeHtml(user.id)}">管理</button>
+            <button class="secondary account-quota-button" type="button" data-user-id="${escapeHtml(user.id)}">额度控制</button>
             <button class="secondary account-usage-button" type="button" data-user-id="${escapeHtml(user.id)}" data-user-name="${escapeHtml(user.name)}" data-username="${escapeHtml(user.username)}">使用额</button>
             <button class="secondary delete-user" type="button" data-user-id="${escapeHtml(user.id)}" data-user-name="${escapeHtml(user.name)}" data-username="${escapeHtml(user.username)}">删除</button>
           </div>
@@ -239,6 +352,9 @@ function renderUsers() {
       await loadUsage();
       openUsageDetail(button.dataset.userId, button.dataset.userName, button.dataset.username);
     });
+  });
+  list.querySelectorAll(".account-quota-button").forEach(button => {
+    button.addEventListener("click", () => openQuotaDialog(button.dataset.userId));
   });
   list.querySelectorAll(".delete-user").forEach(button => {
     button.addEventListener("click", () => openDeleteDialog(
