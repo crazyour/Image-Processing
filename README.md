@@ -80,7 +80,7 @@ ADMIN_NAME=系统管理员
 
 每次调用付费接口（文生图、照片转镂空剪影、图生 3D 的 AI 分析 / 四视图 / 微调 / 混元 STL）都会写入 `auth_usage_events` 表，记录账号、功能、模型、token 数和美元花费。管理员在 `/admin` 的账号列表里能看到每个账号的使用额，点“使用额”按钮会打开该账号的明细弹窗（各功能的调用次数与费用，以及按模型、按计价方式的拆分）。
 
-花费优先使用接口响应里返回的价格：`usage` 块里或响应顶层的 `cost`、`total_cost`、`price`、`amount` 等字段都支持，嵌套写法（如 `usage.cost.total`）也能识别。抓到的是哪个字段会一并记在 `cost_field` 里，并在明细弹窗的“计价方式”中显示（例如“接口返回（usage.cost）”），便于核对。接口没有返回价格时，才使用环境变量里的预设单价（`USAGE_PRICE_IMAGE_PER_IMAGE`、`USAGE_PRICE_3D_PER_TASK`、`USAGE_PRICE_VISION_*_PER_MILLION`），此时标记为“预设价格”。每条记录还会保存接口返回的原始 `usage` 内容（`raw` 列），方便事后核对。没有 token 消耗的本地功能（相似素材检索、主工作台里的本地工具）不计入统计。
+花费优先使用接口响应里返回的价格：`usage` 块里或响应顶层的 `cost`、`total_cost`、`price`、`amount` 等字段都支持，嵌套写法（如 `usage.cost.total`）也能识别。抓到的是哪个字段会一并记在 `cost_field` 里，并在明细弹窗的“计价方式”中显示（例如“接口返回（usage.cost）”），便于核对。接口没有返回价格时，图片和 3D 任务使用 `USAGE_PRICE_IMAGE_PER_IMAGE` 与 `USAGE_PRICE_3D_PER_TASK` 的每次预设单价；视觉/文本模型则按 `USAGE_PRICE_VISION_INPUT_PER_MILLION` 和 `USAGE_PRICE_VISION_OUTPUT_PER_MILLION` 配置的每百万 Token 美元单价计算：`(输入 Token × 输入单价 + 输出 Token × 输出单价) / 1,000,000`。管理员页同时显示输入、输出和总 Token，即使单价未配置也能看到用量。每条记录还会保存接口返回的原始 `usage` 内容（`raw` 列），方便事后核对。没有 token 消耗的本地功能（相似素材检索、主工作台里的本地工具）不计入统计。
 
 可以用下面的命令验证某个接口返回能否被抓到（把实际响应粘进去即可）：
 

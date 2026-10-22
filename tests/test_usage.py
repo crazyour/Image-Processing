@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import app as app_module
-from vercel_app.usage import extract_cost, find_cost, normalize_usage
+from vercel_app.usage import extract_cost, find_cost, normalize_usage, record_usage, usage_report
 
 
 def png_bytes() -> bytes:
@@ -94,6 +94,43 @@ class UsageLedgerTests(unittest.TestCase):
         self.assertEqual(find_cost(with_usage), (0.14, "usage.cost"))
         self.assertEqual(find_cost({"usage": {"total_tokens": 1200}}), (None, None))
 
+    def test_token_usage_is_converted_with_per_million_prices(self):
+        with patch.dict(os.environ, {
+            "USAGE_PRICE_VISION_INPUT_PER_MILLION": "4",
+            "USAGE_PRICE_VISION_OUTPUT_PER_MILLION": "20",
+        }):
+            normalized = normalize_usage({
+                "input_tokens": 250_000,
+                "output_tokens": 50_000,
+                "total_tokens": 300_000,
+            }, "gpt-6-luna", "image_to_3d")
+        self.assertEqual(normalized["input_tokens"], 250_000)
+        self.assertEqual(normalized["output_tokens"], 50_000)
+        self.assertEqual(normalized["total_tokens"], 300_000)
+        self.assertEqual(normalized["cost_usd"], 2.0)
+        self.assertEqual(normalized["cost_source"], "Token 单价估算")
+        self.assertIsNone(normalized["cost_field"])
+
+    def test_existing_unpriced_token_rows_are_backfilled_after_prices_are_configured(self):
+        user = {"id": "legacy-user", "username": "legacy", "name": "旧账号"}
+        with patch.dict(os.environ, {
+            "USAGE_PRICE_VISION_INPUT_PER_MILLION": "0",
+            "USAGE_PRICE_VISION_OUTPUT_PER_MILLION": "0",
+        }):
+            record_usage(user, "image_to_3d", "gpt-6-luna", {
+                "input_tokens": 250_000,
+                "output_tokens": 50_000,
+                "total_tokens": 300_000,
+            })
+        with patch.dict(os.environ, {
+            "USAGE_PRICE_VISION_INPUT_PER_MILLION": "4",
+            "USAGE_PRICE_VISION_OUTPUT_PER_MILLION": "20",
+        }):
+            report = usage_report([user])
+        self.assertEqual(report["accounts"][0]["total_tokens"], 300_000)
+        self.assertEqual(report["accounts"][0]["total_usd"], 2.0)
+        self.assertEqual(report["accounts"][0]["sources"][0]["source"], "Token 单价估算")
+
     def test_generation_usage_is_recorded_for_the_signed_in_account(self):
         self.create_member(["text_to_image"])
         member = self.login_member()
@@ -119,10 +156,15 @@ class UsageLedgerTests(unittest.TestCase):
             report = self.admin.get("/api/admin/usage").json()
             self.assertEqual(report["grand_total_usd"], 0.42)
             self.assertEqual(report["grand_total_calls"], 1)
+            self.assertEqual(report["grand_input_tokens"], 100)
+            self.assertEqual(report["grand_output_tokens"], 40)
+            self.assertEqual(report["grand_total_tokens"], 140)
             self.assertEqual(len(report["accounts"]), 1)
             account = report["accounts"][0]
             self.assertEqual(account["name"], "设计成员")
             self.assertEqual(account["total_usd"], 0.42)
+            self.assertEqual(account["input_tokens"], 100)
+            self.assertEqual(account["output_tokens"], 40)
             self.assertEqual(account["total_tokens"], 140)
             feature = account["features"][0]
             self.assertEqual(feature["feature"], "text_to_image")

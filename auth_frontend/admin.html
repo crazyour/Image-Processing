@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>账号管理 · 灵界</title>
-  <link rel="stylesheet" href="/auth-static/styles.css?v=20261021-2">
+  <link rel="stylesheet" href="/auth-static/styles.css?v=20261022-1">
 </head>
 <body>
   <main class="app-shell">
@@ -45,7 +45,7 @@
             <button id="create-account" class="primary" type="button">新建账号</button>
           </div>
         </div>
-        <p class="muted account-help">点击“管理账号”再查看和修改详细设置；点击“使用额”查看该账号的接口花费明细。</p>
+        <p class="muted account-help">点击“管理账号”再查看和修改详细设置；点击“使用额”查看该账号的 Token 与费用明细。</p>
         <div class="account-table-wrap">
           <table class="account-table">
             <thead>
@@ -55,12 +55,13 @@
                 <th scope="col">角色</th>
                 <th scope="col">功能权限</th>
                 <th scope="col">状态</th>
+                <th scope="col">Token 用量</th>
                 <th scope="col">使用额</th>
                 <th scope="col" class="operation-column">操作</th>
               </tr>
             </thead>
             <tbody id="user-list">
-              <tr><td class="empty" colspan="7">正在读取账号…</td></tr>
+              <tr><td class="empty" colspan="8">正在读取账号…</td></tr>
             </tbody>
           </table>
         </div>
@@ -103,12 +104,22 @@
             <tr>
               <th scope="col">功能</th>
               <th scope="col">调用次数</th>
+              <th scope="col">输入 Token</th>
+              <th scope="col">输出 Token</th>
+              <th scope="col">总 Token</th>
               <th scope="col">使用额</th>
             </tr>
           </thead>
           <tbody id="usage-detail-list"></tbody>
           <tfoot>
-            <tr><th scope="row">合计</th><td id="usage-detail-calls">0</td><td id="usage-detail-total">$0.00</td></tr>
+            <tr>
+              <th scope="row">合计</th>
+              <td id="usage-detail-calls">0</td>
+              <td id="usage-detail-input-tokens">0</td>
+              <td id="usage-detail-output-tokens">0</td>
+              <td id="usage-detail-total-tokens">0</td>
+              <td id="usage-detail-total">$0.00</td>
+            </tr>
           </tfoot>
         </table>
       </div>
@@ -192,6 +203,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/auth-static/admin.js?v=20261021-2"></script>
+  <script type="module" src="/auth-static/admin.js?v=20261022-1"></script>
 </body>
 </html>

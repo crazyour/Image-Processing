@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -26,7 +27,10 @@ TOTAL_TOKEN_KEYS = ("total_tokens", "total")
 
 SOURCE_PROVIDER = "接口返回"
 SOURCE_PRESET = "预设价格"
+SOURCE_TOKEN_PRICE = "Token 单价估算"
 SOURCE_UNPRICED = "未计价"
+
+logger = logging.getLogger(__name__)
 
 
 def _configured_float(name: str, default: float) -> float:
@@ -93,7 +97,8 @@ def extract_cost(payload: Any) -> float | None:
     return find_cost(payload)[0]
 
 
-def _preset_price(model: str | None, feature: str) -> tuple[float, str]:
+def _preset_price(model: str | None, feature: str, input_tokens: int = 0,
+                  output_tokens: int = 0) -> tuple[float, str]:
     """Fallback price used when the provider response does not carry a price."""
     name = (model or "").lower()
     if name.startswith("hy-"):
@@ -104,7 +109,11 @@ def _preset_price(model: str | None, feature: str) -> tuple[float, str]:
     output_price = _configured_float("USAGE_PRICE_VISION_OUTPUT_PER_MILLION", 0.0)
     if not input_price and not output_price:
         return 0.0, SOURCE_UNPRICED
-    return 0.0, SOURCE_PRESET
+    cost = (
+        (max(input_tokens, 0) * input_price)
+        + (max(output_tokens, 0) * output_price)
+    ) / 1_000_000
+    return cost, SOURCE_TOKEN_PRICE
 
 
 def normalize_usage(payload: Any, model: str | None = None,
@@ -127,7 +136,9 @@ def normalize_usage(payload: Any, model: str | None = None,
     cost, field = find_cost(payload)
     source = SOURCE_PROVIDER if cost is not None else ""
     if cost is None:
-        cost, source = _preset_price(model, feature)
+        cost, source = _preset_price(
+            model, feature, int(input_tokens), int(output_tokens),
+        )
         field = None
     return {
         "input_tokens": int(input_tokens),
@@ -186,6 +197,7 @@ def _ensure_usage_schema(connection: Any) -> None:
             """
         )
     _add_missing_columns(connection, is_postgres)
+    _backfill_token_costs(connection, is_postgres)
     connection.commit()
 
 
@@ -206,6 +218,31 @@ def _add_missing_columns(connection: Any, is_postgres: bool) -> None:
         connection.execute(
             f"ALTER TABLE auth_usage_events ADD COLUMN {column} {column_type}"
         )
+
+
+def _backfill_token_costs(connection: Any, is_postgres: bool) -> None:
+    """Price older token-bearing rows that were stored before token pricing worked."""
+    input_price = _configured_float("USAGE_PRICE_VISION_INPUT_PER_MILLION", 0.0)
+    output_price = _configured_float("USAGE_PRICE_VISION_OUTPUT_PER_MILLION", 0.0)
+    if not input_price and not output_price:
+        return
+    placeholder = "%s" if is_postgres else "?"
+    connection.execute(
+        f"""UPDATE auth_usage_events
+            SET cost_usd = ((input_tokens * {placeholder}) + (output_tokens * {placeholder}))
+                           / 1000000.0,
+                cost_source = {placeholder},
+                cost_field = NULL
+            WHERE COALESCE(cost_usd, 0) = 0
+              AND (input_tokens > 0 OR output_tokens > 0)
+              AND COALESCE(cost_source, '') <> {placeholder}
+              AND LOWER(COALESCE(model, '')) NOT LIKE {placeholder}
+              AND LOWER(COALESCE(model, '')) NOT LIKE {placeholder}""",
+        (
+            input_price, output_price, SOURCE_TOKEN_PRICE, SOURCE_PROVIDER,
+            "%image%", "hy-%",
+        ),
+    )
 
 
 def _raw_payload(payload: Any) -> str | None:
@@ -256,6 +293,10 @@ def record_usage(user: dict[str, Any] | None, feature: str, model: str | None,
             )
             connection.commit()
     except Exception:
+        logger.exception(
+            "Failed to persist usage event for feature=%s model=%s user_id=%s",
+            feature, model, event["user_id"],
+        )
         return event
     return event
 
@@ -276,6 +317,7 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
                    GROUP BY user_id, username, user_name, feature, model, cost_source, cost_field"""
             ).fetchall()
     except Exception:
+        logger.exception("Failed to build the administrator usage report")
         rows = []
 
     identities: dict[str, dict[str, Any]] = {}
@@ -298,6 +340,8 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
             "username": username,
             "total_usd": 0.0,
             "total_calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
             "total_tokens": 0,
             "features": {},
             "sources": [],
@@ -305,6 +349,8 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
         feature = data["feature"]
         calls = int(data.get("calls") or 0)
         cost = float(data.get("cost_usd") or 0.0)
+        input_tokens = int(data.get("input_tokens") or 0)
+        output_tokens = int(data.get("output_tokens") or 0)
         tokens = int(data.get("total_tokens") or 0)
         source = data.get("cost_source") or SOURCE_UNPRICED
         field = data.get("cost_field")
@@ -321,13 +367,15 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
             "sources": [],
         })
         bucket["calls"] += calls
-        bucket["input_tokens"] += int(data.get("input_tokens") or 0)
-        bucket["output_tokens"] += int(data.get("output_tokens") or 0)
+        bucket["input_tokens"] += input_tokens
+        bucket["output_tokens"] += output_tokens
         bucket["total_tokens"] += tokens
         bucket["cost_usd"] = round(bucket["cost_usd"] + cost, 6)
         bucket["models"].append({
             "model": data.get("model") or "-",
             "calls": calls,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
             "total_tokens": tokens,
             "cost_usd": round(cost, 6),
         })
@@ -343,6 +391,8 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
             priced["cost_usd"] = round(priced["cost_usd"] + cost, 6)
         account["total_usd"] = round(account["total_usd"] + cost, 6)
         account["total_calls"] += calls
+        account["input_tokens"] += input_tokens
+        account["output_tokens"] += output_tokens
         account["total_tokens"] += tokens
         account_source = next(
             (item for item in account["sources"] if item["source"] == label), None,
@@ -361,10 +411,14 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
             "feature": feature,
             "label": FEATURE_LABELS.get(feature, feature),
             "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
             "total_tokens": 0,
             "cost_usd": 0.0,
         })
         total["calls"] += calls
+        total["input_tokens"] += input_tokens
+        total["output_tokens"] += output_tokens
         total["total_tokens"] += tokens
         total["cost_usd"] = round(total["cost_usd"] + cost, 6)
 
@@ -383,6 +437,9 @@ def usage_report(accounts: list[dict[str, Any]] | None = None) -> dict[str, Any]
         ),
         "grand_total_usd": grand_total,
         "grand_total_calls": grand_calls,
+        "grand_input_tokens": sum(item["input_tokens"] for item in account_rows),
+        "grand_output_tokens": sum(item["output_tokens"] for item in account_rows),
+        "grand_total_tokens": sum(item["total_tokens"] for item in account_rows),
     }
 
 

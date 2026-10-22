@@ -16,7 +16,10 @@ let currentUser = null;
 let users = [];
 let editingUser = null;
 let deletingUser = null;
-let usageReport = {accounts: [], feature_totals: [], grand_total_usd: 0, grand_total_calls: 0};
+let usageReport = {
+  accounts: [], feature_totals: [], grand_total_usd: 0, grand_total_calls: 0,
+  grand_input_tokens: 0, grand_output_tokens: 0, grand_total_tokens: 0,
+};
 
 document.querySelector("#logout").addEventListener("click", logout);
 document.querySelector("#create-account").addEventListener("click", () => {
@@ -58,6 +61,10 @@ function formatUsd(value) {
   return `$${amount.toFixed(2)}`;
 }
 
+function formatTokens(value) {
+  return Math.max(0, Number(value || 0)).toLocaleString("zh-CN");
+}
+
 function usageFor(userId, username) {
   return (usageReport.accounts || []).find(
     item => (item.user_id || item.username) === (userId || username),
@@ -72,24 +79,33 @@ function openUsageDetail(key, fallbackName = "", fallbackUsername = "") {
   const username = account?.username || fallbackUsername;
   const total = account?.total_usd || 0;
   const calls = account?.total_calls || 0;
+  const inputTokens = account?.input_tokens || 0;
+  const outputTokens = account?.output_tokens || 0;
+  const totalTokens = account?.total_tokens || 0;
   document.querySelector("#usage-dialog-title").textContent = `${name} · 使用明细`;
   document.querySelector("#usage-dialog-summary").textContent =
-    `${username ? `@${username} · ` : ""}合计 ${formatUsd(total)}`;
+    `${username ? `@${username} · ` : ""}${formatTokens(totalTokens)} tokens · ${formatUsd(total)}`;
   const features = account?.features || [];
   document.querySelector("#usage-detail-list").innerHTML = features.length
     ? features.map(feature => `
       <tr>
         <td>${escapeHtml(feature.label)}</td>
         <td>${feature.calls} 次</td>
+        <td>${formatTokens(feature.input_tokens)}</td>
+        <td>${formatTokens(feature.output_tokens)}</td>
+        <td>${formatTokens(feature.total_tokens)}</td>
         <td>${formatUsd(feature.cost_usd)}</td>
       </tr>
     `).join("")
-    : '<tr><td class="empty" colspan="3">该账号还没有产生费用的调用记录。</td></tr>';
+    : '<tr><td class="empty" colspan="6">该账号还没有 AI 调用记录。</td></tr>';
   document.querySelector("#usage-detail-calls").textContent = `${calls} 次`;
+  document.querySelector("#usage-detail-input-tokens").textContent = formatTokens(inputTokens);
+  document.querySelector("#usage-detail-output-tokens").textContent = formatTokens(outputTokens);
+  document.querySelector("#usage-detail-total-tokens").textContent = formatTokens(totalTokens);
   document.querySelector("#usage-detail-total").textContent = formatUsd(total);
   const models = features.flatMap(feature =>
     (feature.models || []).map(model => `
-      <span class="usage-model-chip">${escapeHtml(feature.label)} · ${escapeHtml(model.model)}：${model.calls} 次 / ${formatUsd(model.cost_usd)}</span>
+      <span class="usage-model-chip">${escapeHtml(feature.label)} · ${escapeHtml(model.model)}：${model.calls} 次 / ${formatTokens(model.total_tokens)} tokens / ${formatUsd(model.cost_usd)}</span>
     `),
   );
   const sources = (account?.sources || []).map(item => `
@@ -138,6 +154,7 @@ function renderStats() {
     <div><strong>${users.length}</strong><span>全部账号</span></div>
     <div><strong>${active}</strong><span>已启用</span></div>
     <div><strong>${admins}</strong><span>管理员</span></div>
+    <div><strong>${formatTokens(usageReport.grand_total_tokens)}</strong><span>Token 合计</span></div>
     <div><strong>${formatUsd(usageReport.grand_total_usd)}</strong><span>使用额合计</span></div>
   `;
 }
@@ -148,7 +165,7 @@ function renderUsers() {
     !query || user.name.toLowerCase().includes(query) || user.username.toLowerCase().includes(query)
   ));
   if (!filtered.length) {
-    list.innerHTML = `<tr><td class="empty" colspan="7">${query ? "没有找到匹配的账号。" : "暂无账号。"}</td></tr>`;
+    list.innerHTML = `<tr><td class="empty" colspan="8">${query ? "没有找到匹配的账号。" : "暂无账号。"}</td></tr>`;
     return;
   }
   list.innerHTML = filtered.map(user => {
@@ -170,6 +187,7 @@ function renderUsers() {
         <td><span class="badge">${roleLabel}</span></td>
         <td><span class="feature-count">${enabledFeatures} 项功能</span></td>
         <td><span class="status-dot ${user.active ? "online" : ""}">${user.active ? "已启用" : "已停用"}</span></td>
+        <td><strong class="usage-tokens">${formatTokens(usage?.total_tokens || 0)}</strong></td>
         <td><strong class="usage-amount">${formatUsd(usage?.total_usd || 0)}</strong></td>
         <td class="operation-column">
           <div class="row-actions">

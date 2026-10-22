@@ -94,7 +94,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
 
 /* Compact account administration */
 .admin-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:28px}
-.account-stats{display:grid;grid-template-columns:repeat(4,minmax(86px,1fr));gap:10px;min-width:320px}
+.account-stats{display:grid;grid-template-columns:repeat(5,minmax(86px,1fr));gap:10px;min-width:420px}
 .account-stats div{padding:14px 16px;border:1px solid #ffffff2e;border-radius:14px;background:#ffffff12;backdrop-filter:blur(8px)}
 .account-stats strong,.account-stats span{display:block}
 .account-stats strong{font-size:24px}
@@ -133,6 +133,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .dialog-card-compact{width:min(520px,calc(100vw - 32px))}
 .delete-hint{margin:14px 0 0}
 .usage-amount{color:#1f4b3a;font-variant-numeric:tabular-nums}
+.usage-tokens{color:#315747;font-variant-numeric:tabular-nums}
 .usage-detail-table-wrap{margin-top:18px;overflow-x:auto;border:1px solid var(--line);border-radius:14px}
 .usage-detail-table{width:100%;min-width:520px;border-collapse:collapse;background:#fff}
 .usage-detail-table th,.usage-detail-table td{padding:11px 14px;border-top:1px solid var(--line);text-align:left;white-space:nowrap}
