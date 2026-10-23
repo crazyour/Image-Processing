@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -144,6 +146,15 @@ class AuthenticationTests(unittest.TestCase):
         response = self.admin.get("/api/route-that-does-not-exist")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json(), {"code": "NOT_FOUND", "message": "Not Found"})
+
+    def test_login_database_failure_returns_actionable_json(self):
+        with patch("vercel_app.auth._connection", side_effect=sqlite3.OperationalError("offline")):
+            response = self.admin.post("/api/auth/login", json={
+                "username": "owner", "password": "owner-password-123",
+            })
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], "AUTH_STORAGE_UNAVAILABLE")
+        self.assertIn("DATABASE_URL", response.json()["message"])
 
     def test_workspace_cannot_be_assigned_or_revoked(self):
         user = self.create_member(["text_to_image"])

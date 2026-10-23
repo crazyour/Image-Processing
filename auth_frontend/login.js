@@ -1,4 +1,4 @@
-import {api, showMessage} from "/auth-static/common.js";
+import {api, showMessage} from "/auth-static/common.js?v=20261023-1";
 
 const form = document.querySelector("#login-form");
 const message = document.querySelector("#message");

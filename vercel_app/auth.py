@@ -270,26 +270,33 @@ def create_user(username: str, name: str, password: str, role: str = "member",
 
 
 def authenticate(username: str, password: str) -> tuple[str, dict[str, Any]]:
-    ensure_initial_admin()
     try:
-        normalized = _normalize_username(username)
-    except AuthError:
-        normalized = username.strip().lower()
-    with _connection() as connection:
-        row = _execute(connection, "SELECT * FROM auth_users WHERE username = ?", (normalized,)).fetchone()
-        encoded = row["password_hash"] if row else _hash_password("dummy-password-value")
-        if not row or not bool(row["active"]) or not _verify_password(password, encoded):
-            raise AuthError("LOGIN_FAILED", "账号或密码错误", 401)
-        token = secrets.token_urlsafe(48)
-        now = time.time()
-        _execute(connection, "DELETE FROM auth_sessions WHERE expires_at <= ?", (now,))
-        _execute(
-            connection,
-            "INSERT INTO auth_sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
-            (_token_hash(token), row["id"], now + SESSION_TTL_SECONDS, now),
-        )
-        connection.commit()
-        return token, _user_dict(row)
+        ensure_initial_admin()
+        try:
+            normalized = _normalize_username(username)
+        except AuthError:
+            normalized = username.strip().lower()
+        with _connection() as connection:
+            row = _execute(connection, "SELECT * FROM auth_users WHERE username = ?", (normalized,)).fetchone()
+            encoded = row["password_hash"] if row else _hash_password("dummy-password-value")
+            if not row or not bool(row["active"]) or not _verify_password(password, encoded):
+                raise AuthError("LOGIN_FAILED", "账号或密码错误", 401)
+            token = secrets.token_urlsafe(48)
+            now = time.time()
+            _execute(connection, "DELETE FROM auth_sessions WHERE expires_at <= ?", (now,))
+            _execute(
+                connection,
+                "INSERT INTO auth_sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
+                (_token_hash(token), row["id"], now + SESSION_TTL_SECONDS, now),
+            )
+            connection.commit()
+            return token, _user_dict(row)
+    except (sqlite3.Error, psycopg.Error, OSError) as exc:
+        raise AuthError(
+            "AUTH_STORAGE_UNAVAILABLE",
+            "登录服务暂时不可用，请稍后重试；若持续出现，请检查 DATABASE_URL 和数据库状态",
+            503,
+        ) from exc
 
 
 def current_user(token: str | None) -> dict[str, Any] | None:
