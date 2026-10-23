@@ -5,3 +5,4 @@ __pycache__/
 var/
 .vercel/
 .venv/
+.env.local

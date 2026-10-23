@@ -4,7 +4,12 @@ recovery_evidence/
 COMPILE_ERRORS.txt
 var/
 tests/
+.venv/
+.agents/
+.claude/
+skills-lock.json
 **/__pycache__/
 **/*.pyc
 .DS_Store
 .env
+.env.local

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -14,9 +15,12 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import urlsplit
 
 import psycopg
 from psycopg.rows import dict_row
+
+logger = logging.getLogger("lingjie.auth")
 
 
 FEATURES = {
@@ -58,24 +62,55 @@ def _local_database_path() -> Path:
 
 
 def _is_postgres() -> bool:
-    return bool(_configured("DATABASE_URL"))
+    return bool(database_url())
+
+
+def database_url() -> str:
+    """Runtime traffic prefers a pooled endpoint; the direct one stays for tooling."""
+    return _configured("DATABASE_URL_POOLED") or _configured("DATABASE_URL")
+
+
+def database_target() -> str:
+    """Describe the storage backend without exposing the connection secret."""
+    if not _is_postgres():
+        return f"sqlite:{_local_database_path()}"
+    url = database_url()
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "postgresql:<unparsable url>"
+    host = parts.hostname or ""
+    port = f":{parts.port}" if parts.port else ""
+    name = parts.path.lstrip("/")
+    user = parts.username or ""
+    prefix = f"postgresql://{user}@" if user else "postgresql://"
+    return f"{prefix}{host}{port}/{name}"
 
 
 @contextmanager
 def _connection() -> Iterator[Any]:
-    if _is_postgres():
-        connection = psycopg.connect(
-            _configured("DATABASE_URL"), row_factory=dict_row, connect_timeout=10,
-        )
-    else:
-        path = _local_database_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(path, timeout=30)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA foreign_keys=ON")
     try:
-        _ensure_schema(connection)
+        if _is_postgres():
+            connection = psycopg.connect(
+                database_url(), row_factory=dict_row, connect_timeout=30,
+                prepare_threshold=None,
+            )
+        else:
+            path = _local_database_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            connection = sqlite3.connect(path, timeout=30)
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA foreign_keys=ON")
+    except Exception:
+        logger.exception("Cannot open the account database at %s", database_target())
+        raise
+    try:
+        try:
+            _ensure_schema(connection)
+        except Exception:
+            logger.exception("Cannot prepare the account database at %s", database_target())
+            raise
         yield connection
     finally:
         connection.close()
@@ -292,6 +327,7 @@ def authenticate(username: str, password: str) -> tuple[str, dict[str, Any]]:
             connection.commit()
             return token, _user_dict(row)
     except (sqlite3.Error, psycopg.Error, OSError) as exc:
+        logger.error("Account storage is unavailable at %s: %s", database_target(), exc)
         raise AuthError(
             "AUTH_STORAGE_UNAVAILABLE",
             "登录服务暂时不可用，请稍后重试；若持续出现，请检查 DATABASE_URL 和数据库状态",

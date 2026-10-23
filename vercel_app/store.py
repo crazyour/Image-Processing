@@ -14,6 +14,8 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from .auth import database_url
+
 try:
     from vercel.blob.sync import put_blob
 except ImportError:  # vercel < 0.12
@@ -86,19 +88,20 @@ def local_blob_path(url_or_path: str) -> Path | None:
 
 def storage_status() -> dict[str, str]:
     return {
-        "database": "postgresql" if _configured("DATABASE_URL") else "local-sqlite",
+        "database": "postgresql" if database_url() else "local-sqlite",
         "blob": "vercel-blob" if _configured("BLOB_READ_WRITE_TOKEN") else "local-filesystem",
     }
 
 
 def local_library_available() -> bool:
     """Return whether this process owns a durable, single-user local library."""
-    return not _configured("DATABASE_URL") and not _configured("VERCEL")
+    return not database_url() and not _configured("VERCEL")
 
 
 def _connect_postgres():
     connection = psycopg.connect(
-        _configured("DATABASE_URL"), row_factory=dict_row, connect_timeout=10,
+        database_url(), row_factory=dict_row, connect_timeout=30,
+        prepare_threshold=None,
     )
     _ensure_postgres_schema(connection)
     return connection
@@ -213,7 +216,7 @@ def token_hash(token: str) -> str:
 
 def create_session(session_id: str, token: str, state: dict[str, Any]) -> int:
     serialized = json.dumps(state, ensure_ascii=False)
-    if _configured("DATABASE_URL"):
+    if database_url():
         with _connect_postgres() as connection:
             connection.execute(
                 "INSERT INTO image3d_sessions (id, token_hash, state) VALUES (%s, %s, %s::jsonb)",
@@ -231,7 +234,7 @@ def create_session(session_id: str, token: str, state: dict[str, Any]) -> int:
 
 
 def load_session(session_id: str, token: str) -> tuple[dict[str, Any], int]:
-    if _configured("DATABASE_URL"):
+    if database_url():
         with _connect_postgres() as connection:
             row = connection.execute(
                 "SELECT token_hash, state, version FROM image3d_sessions WHERE id = %s",
@@ -253,7 +256,7 @@ def load_session(session_id: str, token: str) -> tuple[dict[str, Any], int]:
 
 def save_session(session_id: str, state: dict[str, Any], expected_version: int) -> int:
     serialized = json.dumps(state, ensure_ascii=False)
-    if _configured("DATABASE_URL"):
+    if database_url():
         with _connect_postgres() as connection:
             cursor = connection.execute(
                 """
@@ -315,7 +318,7 @@ def list_local_sessions(limit: int = 200) -> list[dict[str, Any]]:
 
 def save_deliverable(record: dict[str, Any]) -> dict[str, Any]:
     """Remember who uploaded a shared asset and under which business type."""
-    if _configured("DATABASE_URL"):
+    if database_url():
         with _connect_postgres() as connection:
             connection.execute(
                 """INSERT INTO deliverables
@@ -350,7 +353,7 @@ def save_deliverable(record: dict[str, Any]) -> dict[str, Any]:
 
 def list_deliverables(limit: int = 500) -> list[dict[str, Any]]:
     """Shared assets ordered from newest to oldest."""
-    if _configured("DATABASE_URL"):
+    if database_url():
         with _connect_postgres() as connection:
             rows = connection.execute(
                 """SELECT id, task, name, pathname, url, size_bytes, content_type,
@@ -371,7 +374,7 @@ def list_deliverables(limit: int = 500) -> list[dict[str, Any]]:
 
 def delete_deliverable(deliverable_id: str) -> bool:
     """Remove the record of a shared asset."""
-    if _configured("DATABASE_URL"):
+    if database_url():
         with _connect_postgres() as connection:
             connection.execute("DELETE FROM deliverables WHERE id = %s", (deliverable_id,))
             connection.commit()

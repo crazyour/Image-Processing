@@ -9,7 +9,8 @@ import time
 import uuid
 from typing import Any
 
-from .store import _configured, _connect_postgres, _connect_sqlite, token_hash
+from .auth import database_url
+from .store import _connect_postgres, _connect_sqlite, token_hash
 
 
 _schema_lock = threading.Lock()
@@ -28,7 +29,7 @@ def _public_library_token() -> str:
 
 
 def _postgres() -> bool:
-    return bool(_configured("DATABASE_URL"))
+    return bool(database_url())
 
 
 def _connection():

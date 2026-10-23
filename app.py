@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import mimetypes
 import os
 import re
@@ -467,6 +468,10 @@ def store_error(_, exc: StoreError):
 
 @app.exception_handler(AuthError)
 def auth_error(_, exc: AuthError):
+    if exc.__cause__ is not None:
+        logging.getLogger("lingjie.app").error(
+            "Authentication failure %s", exc.code, exc_info=exc.__cause__,
+        )
     return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
 
 
