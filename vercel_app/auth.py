@@ -66,8 +66,35 @@ def _is_postgres() -> bool:
 
 
 def database_url() -> str:
-    """Runtime traffic prefers a pooled endpoint; the direct one stays for tooling."""
-    return _configured("DATABASE_URL_POOLED") or _configured("DATABASE_URL")
+    """Return the intended application database without letting another integration win.
+
+    Vercel integrations can install several generic connection variables.  In
+    particular, a later integration may add ``DATABASE_URL_POOLED`` while the
+    existing Neon integration continues to own ``POSTGRES_URL`` and
+    ``DATABASE_URL``.  Prefer an explicit Neon override, then the connection
+    supplied by the Neon integration, before considering the legacy pooled
+    fallback.
+    """
+    return (
+        _configured("NEON_DATABASE_URL")
+        or _configured("POSTGRES_URL")
+        or _configured("DATABASE_URL")
+        or _configured("DATABASE_URL_POOLED")
+    )
+
+
+def database_provider() -> str:
+    """Describe the selected database provider without exposing credentials."""
+    url = database_url()
+    if not url:
+        return "local-sqlite"
+    try:
+        host = (urlsplit(url).hostname or "").lower()
+    except ValueError:
+        host = ""
+    if _configured("NEON_PROJECT_ID") or host.endswith(".neon.tech"):
+        return "neon-postgresql"
+    return "postgresql"
 
 
 def database_target() -> str:

@@ -14,7 +14,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from .auth import database_url
+from .auth import database_provider, database_url
 
 try:
     from vercel.blob.sync import put_blob
@@ -88,7 +88,7 @@ def local_blob_path(url_or_path: str) -> Path | None:
 
 def storage_status() -> dict[str, str]:
     return {
-        "database": "postgresql" if database_url() else "local-sqlite",
+        "database": database_provider(),
         "blob": "vercel-blob" if _configured("BLOB_READ_WRITE_TOKEN") else "local-filesystem",
     }
 

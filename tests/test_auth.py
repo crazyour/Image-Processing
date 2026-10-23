@@ -10,6 +10,13 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import app as app_module
+from vercel_app.auth import database_provider, database_url
+
+
+DATABASE_ENVIRONMENT = (
+    "NEON_DATABASE_URL", "POSTGRES_URL", "DATABASE_URL", "DATABASE_URL_POOLED",
+    "NEON_PROJECT_ID",
+)
 
 
 class AuthenticationTests(unittest.TestCase):
@@ -17,8 +24,13 @@ class AuthenticationTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.saved_environment = {
             name: os.environ.get(name)
-            for name in ("LOCAL_DATA_DIR", "ADMIN_USERNAME", "ADMIN_PASSWORD", "ADMIN_NAME")
+            for name in (
+                "LOCAL_DATA_DIR", "ADMIN_USERNAME", "ADMIN_PASSWORD", "ADMIN_NAME",
+                *DATABASE_ENVIRONMENT,
+            )
         }
+        for name in DATABASE_ENVIRONMENT:
+            os.environ.pop(name, None)
         os.environ.update({
             "LOCAL_DATA_DIR": self.tempdir.name,
             "ADMIN_USERNAME": "owner",
@@ -73,6 +85,30 @@ class AuthenticationTests(unittest.TestCase):
             self.assertNotIn("注册账号", login.text)
         finally:
             anonymous.close()
+
+    def test_neon_connection_variables_win_over_legacy_pooled_database(self):
+        with patch.dict(os.environ, {
+            "NEON_DATABASE_URL": "postgresql://neon-explicit.example/app",
+            "POSTGRES_URL": "postgresql://neon-integration.example/app",
+            "DATABASE_URL": "postgresql://neon-generic.example/app",
+            "DATABASE_URL_POOLED": "postgresql://other-provider.example/app",
+        }, clear=False):
+            self.assertEqual(
+                database_url(), "postgresql://neon-explicit.example/app",
+            )
+
+        with patch.dict(os.environ, {
+            "NEON_DATABASE_URL": "",
+            "POSTGRES_URL": "postgresql://ep-example.us-east-1.aws.neon.tech/app",
+            "DATABASE_URL": "postgresql://generic.example/app",
+            "DATABASE_URL_POOLED": "postgresql://other-provider.example/app",
+            "NEON_PROJECT_ID": "project-id",
+        }, clear=False):
+            self.assertEqual(
+                database_url(),
+                "postgresql://ep-example.us-east-1.aws.neon.tech/app",
+            )
+            self.assertEqual(database_provider(), "neon-postgresql")
 
     def test_member_can_only_use_granted_features(self):
         self.create_member(["text_to_image"])
