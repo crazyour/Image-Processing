@@ -11,8 +11,13 @@
   <script src="/assets/tool-entry.js"></script>
   <script type="module" crossorigin src="/assets/index-DRoc9wD_.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-9DdLma_o.css">
+  <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
+  <aside class="paid-feature-banner paid-feature-banner--conditional" role="note" aria-label="费用提示">
+    <strong>费用提示</strong>
+    <span id="paid-feature-message">AI 生成或图片修改会调用模型并产生费用；查看、下载和本地处理不收费。</span>
+  </aside>
   <a class="standalone-home" href="/" aria-label="返回功能首页">← 返回功能首页</a>
   <div id="root"></div>
   <section id="image3d-panel" class="image3d-panel" aria-labelledby="image3d-title" role="region" tabindex="-1" hidden>
@@ -32,6 +37,7 @@
   <style>
     .standalone-home{display:none}
     html[data-standalone-tool="true"] .standalone-home{position:fixed;z-index:20;top:14px;left:18px;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1px solid #dce4df;border-radius:999px;color:#345046;background:#fffffff0;box-shadow:0 5px 18px #1f3e3020;font:700 13px/1 system-ui;text-decoration:none}
+    html[data-paid-feature-banner="true"] .standalone-home{top:72px}
     html[data-standalone-tool="true"] .sidebar,html[data-standalone-tool="true"] .topbar{display:none!important}
     html[data-standalone-tool="true"] .main-area,html[data-standalone-tool="true"] .nav-compact .main-area{width:100%!important;margin-left:0!important}
     html[data-standalone-tool="true"] .main-area main{padding-top:72px}
@@ -82,6 +88,7 @@
         font-size: 13px;
       }
     }
+    @media(max-width:700px){html[data-paid-feature-banner="true"] .standalone-home{top:94px}}
   </style>
   <script>
     (() => {

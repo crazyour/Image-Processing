@@ -5,6 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -18,6 +19,7 @@ os.environ["ADMIN_NAME"] = "素材检索管理员"
 
 from fastapi.testclient import TestClient
 from app import app
+from vercel_app.similarity_api import _search_materials
 from vercel_app.similarity_engine import image_geometric_similarity, process_image
 from vercel_app.similarity_store import _connection, _ensure_schema
 
@@ -175,6 +177,45 @@ EOF
         self.assertGreater(matching["score"], non_matching["score"] + 0.25)
         self.assertIn(matching["label"], {"可能同款", "高度可信"})
 
+    def test_image_search_runs_geometry_only_for_cosine_top_ten(self) -> None:
+        candidates = [
+            {
+                "folder_id": f"folder-{index}",
+                "folder_name": f"folder-{index}",
+                "asset_id": f"asset-{index}",
+                "original_name": f"image-{index}.png",
+                "preview_url": f"preview-{index}",
+                "vector": [1.0, index / 10.0],
+                "metadata": {"feature_version": "material-search-v3-perspective-sift"},
+            }
+            for index in range(12)
+        ]
+
+        def geometric(_query, _candidate, global_score):
+            return {
+                "score": global_score,
+                "label": "可能同款",
+                "inliers": 8,
+                "inlier_ratio": 0.4,
+                "coverage": 0.1,
+                "method": "sift-ransac",
+            }
+
+        folder = {"previews": [], "assets": [], "zip_url": None}
+        with (
+            patch("vercel_app.similarity_api.process_file", return_value=("image", b"preview", [1.0, 0.0], {})),
+            patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
+            patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch("vercel_app.similarity_api.image_geometric_similarity", side_effect=geometric) as verify,
+        ):
+            payload = _search_materials("library", "query.png", b"query")
+
+        self.assertEqual(len(payload["results"]), 10)
+        self.assertEqual(verify.call_count, 10)
+        self.assertEqual(payload["results"][0]["matched_asset_id"], "asset-0")
+        self.assertEqual(payload["geometric_best"]["matched_asset_id"], "asset-0")
+        self.assertEqual(payload["geometric_best"]["first_search_rank"], 1)
+
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
         missing_name = self.client.post(
             "/api/material-search/folders", headers=self.headers, json={"name": "   "}
@@ -238,12 +279,18 @@ EOF
                 "/api/material-search/search", headers=self.headers, files={"file": (name, raw)}
             )
             self.assertEqual(response.status_code, 200, response.text)
-            result = response.json()["results"][0]
+            payload = response.json()
+            result = payload["results"][0]
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99)
             if name == "preview.png":
-                self.assertEqual(response.json()["algorithm"], "sift-ransac")
-                self.assertEqual(result["match_label"], "同图")
+                self.assertEqual(payload["algorithm"], "cosine-then-sift-ransac")
+                self.assertEqual(result["match_label"], "全局相似")
+                self.assertEqual(payload["geometric_best"]["match_label"], "同图")
+                self.assertEqual(payload["geometric_best"]["matched_asset_id"], result["matched_asset_id"])
+                self.assertEqual(payload["geometric_best"]["first_search_rank"], 1)
+            else:
+                self.assertIsNone(payload["geometric_best"])
 
         different = Image.new("RGB", (240, 160), "white")
         different_draw = ImageDraw.Draw(different)
@@ -256,7 +303,8 @@ EOF
             files={"file": ("different.png", different_raw.getvalue())},
         )
         self.assertEqual(different_search.status_code, 200, different_search.text)
-        different_result = different_search.json()["results"][0]
+        different_payload = different_search.json()
+        different_result = different_payload["geometric_best"]
         self.assertLess(different_result["score"], 50)
         self.assertEqual(different_result["match_label"], "未验证")
 

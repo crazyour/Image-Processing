@@ -455,6 +455,23 @@ async function openFolder(folderId, matchedAssetId = null) {
   }
 }
 
+function resultCard(item, options = {}) {
+  const isBest = Boolean(options.isBest);
+  const geometryLine = item.match_method === "sift-ransac"
+    ? `<p class="result-verification">几何有效匹配点：${item.inliers}</p>`
+    : "";
+  const sourceRank = item.first_search_rank
+    ? `<p>第一次搜索排名：${item.first_search_rank}</p>`
+    : "";
+  return `<article class="result-card${isBest ? " geometric-best" : ""}">${isBest ? '<span class="best-marker">几何验证最佳</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(item.match_label || "特征相似")} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${sourceRank}${geometryLine}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
+}
+
+function activateResultCards(root) {
+  root.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
+  root.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder, button.dataset.asset)));
+  root.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
+}
+
 async function search() {
   if (!state.queryFile) return;
   const button = $("#search-button");
@@ -471,21 +488,30 @@ async function search() {
     );
     const result = await response.json();
     $("#search-output").hidden = false;
-    $("#results-title").textContent = `${labels[result.kind]}${result.algorithm === "sift-ransac" ? "几何验证" : ""}检索结果 · 前 ${result.results.length} 个文件`;
+    const twoStage = result.algorithm === "cosine-then-sift-ransac";
+    $("#results-title").textContent = `${labels[result.kind]}${twoStage ? "两阶段" : ""}检索结果`;
+    $("#first-search-copy").textContent = twoStage
+      ? `使用全局余弦相似度取前 ${result.results.length} 张图片。`
+      : `使用特征余弦相似度取前 ${result.results.length} 个文件。`;
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
     const list = $("#results-list");
     if (!result.results.length) {
       list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
     } else {
-      list.innerHTML = result.results.map(item => `<article class="result-card"><div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(item.match_label || "特征相似")} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${item.match_method === "sift-ransac" ? `<p class="result-verification">几何有效匹配点：${item.inliers}</p>` : ""}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`).join("");
-      list.querySelectorAll("img[data-protected-src]").forEach(image => setProtectedImage(image, image.dataset.protectedSrc));
-      list.querySelectorAll("button[data-folder]").forEach(button => button.addEventListener("click", () => openFolder(button.dataset.folder, button.dataset.asset)));
-      list.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
+      list.innerHTML = result.results.map(item => resultCard(item, {
+        isBest: result.geometric_best?.matched_asset_id === item.matched_asset_id,
+      })).join("");
     }
+    const secondSearch = $("#second-search");
+    secondSearch.hidden = !result.geometric_best;
+    $("#geometric-best-list").innerHTML = result.geometric_best
+      ? resultCard(result.geometric_best, { isBest: true })
+      : "";
+    activateResultCards($("#search-output"));
     if (result.outdated_images) {
       setMessage("#search-message", `有 ${result.outdated_images} 张云端图片缺少新版几何索引，需要重新上传后才能参与精确匹配。`);
     } else {
-      setMessage("#search-message", result.algorithm === "sift-ransac" ? "检索完成。图片结果已经过SIFT局部特征和RANSAC几何一致性验证。" : "检索完成。相似度用于排序，不代表识别准确率。", "success");
+      setMessage("#search-message", twoStage ? "检索完成。先取全局余弦相似度前10名，再对候选图片进行SIFT + RANSAC几何验证。" : "检索完成。相似度用于排序，不代表识别准确率。", "success");
     }
   } catch (error) {
     setMessage("#search-message", error.message, "error");

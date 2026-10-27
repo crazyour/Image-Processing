@@ -44,3 +44,17 @@
 .result-image .rank,.result-image .score{z-index:1}
 .result-body{position:relative;z-index:2;border-top:1px solid var(--line);background:#fff}
 @media(max-width:620px){.result-image{flex-basis:210px;height:210px}}
+
+/* Two-stage image retrieval: broad visual recall, then one geometric winner. */
+.search-stage{margin-top:18px;padding:22px;border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.72)}
+.search-stage[hidden]{display:none}
+.stage-head{margin-bottom:16px}
+.stage-head>div{display:flex;align-items:flex-start;gap:12px}
+.stage-number{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:10px;background:var(--deep);color:#fff;font-size:11px;font-weight:900}
+.stage-head h3{margin:0 0 4px;font-size:19px}
+.stage-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+.second-search{background:linear-gradient(145deg,rgba(216,231,165,.28),rgba(255,255,255,.9));border-color:#c8d8b2}
+.geometric-best-list{grid-template-columns:minmax(240px,320px)}
+.result-card.geometric-best{position:relative;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,107,87,.10),0 12px 34px rgba(37,65,52,.10)}
+.best-marker{position:absolute;z-index:3;top:11px;left:48px;padding:6px 9px;border-radius:999px;background:var(--lime);color:var(--deep);font-size:10px;font-weight:900}
+@media(max-width:620px){.search-stage{padding:15px}.geometric-best-list{grid-template-columns:1fr}}

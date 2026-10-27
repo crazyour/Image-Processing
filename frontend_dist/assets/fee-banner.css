@@ -1,0 +1,47 @@
+.paid-feature-banner {
+  position: sticky;
+  z-index: 1200;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 58px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 22px;
+  color: #593d12;
+  background: #fff3cf;
+  border-bottom: 1px solid #e5c670;
+  box-shadow: 0 5px 18px #5f45151c;
+  font: 14px/1.55 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.paid-feature-banner strong {
+  flex: none;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #fff;
+  background: #9a6419;
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+.paid-feature-banner--conditional {
+  display: none;
+}
+
+html[data-paid-feature-banner="true"] .paid-feature-banner--conditional {
+  display: flex;
+}
+
+@media (max-width: 700px) {
+  .paid-feature-banner {
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 82px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}

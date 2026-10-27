@@ -806,6 +806,7 @@ ANIMAL_CUTOUT_PROMPT = """
 - 连接方式尽量顺着主体的自然轮廓、结构走势、纹理方向或景物层次。
 - 不要使用生硬横杆、机械式桥接，也不要大面积涂黑粗暴吞掉细节。
 - 整体轮廓和内部负形简洁清楚，适合后续人工检查与矢量化。
+- 外轮廓和孔洞边界应连续、平滑，不得出现像素台阶、锯齿、重复小折线或抖动边缘。
 
 输出要求
 - 只输出一张完整设计图。
@@ -1444,20 +1445,64 @@ def read_animal_cutout_task(task_id: str, x_session_token: str | None = Header(d
     return _animal_cutout_response(state)
 
 
+def _smooth_cutout_contour(contour: np.ndarray, supersample: int) -> np.ndarray:
+    """Remove sub-pixel stair steps while keeping the traced outline bounded."""
+    points = contour.reshape(-1, 2).astype(np.float64) / supersample
+    if len(points) < 8:
+        return points
+
+    # The contour is sampled at almost uniform pixel steps.  A short circular
+    # Gaussian removes raster staircase reversals without the corner cutting
+    # and shrinkage caused by repeated polygon subdivision.
+    sigma = 0.65
+    radius = 2
+    offsets = np.arange(-radius, radius + 1, dtype=np.float64)
+    weights = np.exp(-(offsets ** 2) / (2.0 * sigma ** 2))
+    weights /= weights.sum()
+    smoothed = sum(
+        weight * np.roll(points, int(offset), axis=0)
+        for offset, weight in zip(offsets, weights)
+    )
+
+    perimeter = cv2.arcLength(smoothed.astype(np.float32).reshape(-1, 1, 2), True)
+    epsilon = max(0.12, perimeter * 0.00012)
+    simplified = cv2.approxPolyDP(
+        smoothed.astype(np.float32).reshape(-1, 1, 2), epsilon, True,
+    ).reshape(-1, 2)
+
+    # Keep DXF files practical for large generated images.  Raising epsilon is
+    # deterministic and only applies when the first smooth trace is excessive.
+    while len(simplified) > 4000:
+        epsilon *= 1.35
+        simplified = cv2.approxPolyDP(
+            smoothed.astype(np.float32).reshape(-1, 1, 2), epsilon, True,
+        ).reshape(-1, 2)
+    return simplified.astype(np.float64)
+
+
 def _cutout_dxf(image_bytes: bytes) -> bytes:
-    """Trace black raster regions into closed, millimetre-based DXF polylines."""
+    """Trace black raster regions into smooth closed millimetre DXF paths."""
     with Image.open(io.BytesIO(image_bytes)) as source:
         gray = np.asarray(source.convert("L"))
     mask = np.where(gray < 128, 255, 0).astype(np.uint8)
-    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    supersample = 4
+    antialiased = cv2.resize(
+        cv2.GaussianBlur(mask, (0, 0), 0.55),
+        None,
+        fx=supersample,
+        fy=supersample,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    traced = np.where(antialiased >= 128, 255, 0).astype(np.uint8)
+    contours, _ = cv2.findContours(traced, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     height, width = mask.shape
     scale = 100.0 / max(width, height)
     entities = []
     for contour in contours:
-        perimeter = cv2.arcLength(contour, True)
-        simplified = cv2.approxPolyDP(contour, max(0.8, perimeter * 0.0015), True)
-        points = simplified.reshape(-1, 2)
-        if len(points) < 3 or abs(cv2.contourArea(simplified)) < 4:
+        if abs(cv2.contourArea(contour)) / (supersample ** 2) < 4:
+            continue
+        points = _smooth_cutout_contour(contour, supersample)
+        if len(points) < 3:
             continue
         vertices = "".join(
             f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n"

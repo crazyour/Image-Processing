@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -367,6 +368,27 @@ class AnimalCutoutFlowTests(unittest.TestCase):
             self.assertEqual(selected_body["selected_candidate_index"], 1)
             self.assertIsNotNone(selected_body["connectivity"])
             self.assertEqual(inspect.call_count, 1)
+
+
+class CutoutDxfTests(unittest.TestCase):
+    def test_dxf_trace_smooths_pixel_stair_steps(self):
+        canvas = np.full((96, 96, 3), 255, dtype=np.uint8)
+        cv2.circle(canvas, (48, 48), 31, (0, 0, 0), -1)
+        ok, encoded = cv2.imencode(".png", canvas)
+        self.assertTrue(ok)
+
+        dxf = app_module._cutout_dxf(encoded.tobytes()).decode("ascii")
+        pairs = re.findall(r"10\n(-?\d+\.\d+)\n20\n(-?\d+\.\d+)", dxf)
+        points = np.asarray([(float(x), float(y)) for x, y in pairs])
+
+        self.assertGreater(len(points), 24)
+        self.assertLess(len(points), 4000)
+        center = points.mean(axis=0)
+        radii = np.linalg.norm(points - center, axis=1)
+        self.assertLess(float(radii.std()), 0.32)
+
+    def test_default_ai_prompt_requests_smooth_vector_ready_edges(self):
+        self.assertIn("不得出现像素台阶", app_module.ANIMAL_CUTOUT_PROMPT)
 
 
 if __name__ == "__main__":

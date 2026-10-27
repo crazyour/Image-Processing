@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=8">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=9">
 </head>
 <body>
   <header class="topbar">
@@ -75,9 +75,9 @@
     <section id="search-panel" class="panel">
       <article class="card search-card">
         <div class="search-intro">
-          <p class="eyebrow">TOP 5 SIMILAR FOLDERS</p>
+          <p class="eyebrow">TWO-STAGE IMAGE SEARCH</p>
           <h2>上传一个查询文件</h2>
-          <p>系统自动识别类型，只在相同格式的已完成素材中比较。查询文件仅用于本次计算，不会保存。</p>
+          <p>系统只比较同格式素材。图片先查找全局相似度前 10 张，再进行几何验证；查询文件不会保存。</p>
         </div>
         <label class="query-dropzone">
           <input id="query-input" type="file" accept=".png,.jpg,.jpeg,.webp,.dxf,.ai">
@@ -110,10 +110,21 @@
 
       <section id="search-output" class="search-output" hidden>
         <header class="results-head">
-          <div><p class="eyebrow">SEARCH RESULT</p><h2 id="results-title">最相似的文件夹</h2></div>
+          <div><p class="eyebrow">SEARCH RESULT</p><h2 id="results-title">检索结果</h2></div>
           <div id="query-preview" class="query-preview"></div>
         </header>
-        <div id="results-list" class="results-list"></div>
+        <section class="search-stage" aria-labelledby="first-search-title">
+          <header class="stage-head">
+            <div><span class="stage-number">01</span><div><h3 id="first-search-title">第一次搜索</h3><p id="first-search-copy">使用全局视觉特征找到相似度最高的文件。</p></div></div>
+          </header>
+          <div id="results-list" class="results-list"></div>
+        </section>
+        <section id="second-search" class="search-stage second-search" aria-labelledby="second-search-title" hidden>
+          <header class="stage-head">
+            <div><span class="stage-number">02</span><div><h3 id="second-search-title">第二次搜索</h3><p>对第一次搜索的候选图片进行 SIFT + RANSAC 几何验证。</p></div></div>
+          </header>
+          <div id="geometric-best-list" class="results-list geometric-best-list"></div>
+        </section>
       </section>
     </section>
 
@@ -147,6 +158,6 @@
     </div>
   </dialog>
 
-  <script src="/similarity-search-static/app.js?v=12" defer></script>
+  <script src="/similarity-search-static/app.js?v=13" defer></script>
 </body>
 </html>

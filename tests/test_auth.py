@@ -158,6 +158,35 @@ class AuthenticationTests(unittest.TestCase):
         finally:
             member.close()
 
+    def test_dxf_page_marks_and_explains_the_paid_ai_step(self):
+        root = Path(__file__).resolve().parent.parent / "frontend_dist"
+        script = (root / "assets" / "tool-entry.js").read_text(encoding="utf-8")
+        page = (root / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('"/tools/dxf": { page: "DXF_STUDIO", title: "图片转 DXF", paidNotice:', script)
+        self.assertIn('dataset.paidFeatureBanner = "true"', script)
+        self.assertIn("使用 AI 清稿会调用图片模型并产生费用", script)
+        self.assertIn("上传图片、本地轮廓平滑和 DXF 导出免费", script)
+        self.assertIn('id="paid-feature-message"', page)
+
+    def test_every_paid_entry_has_the_fee_banner(self):
+        root = Path(__file__).resolve().parent.parent
+        script = (root / "frontend_dist" / "assets" / "tool-entry.js").read_text(encoding="utf-8")
+        for route in ("creative", "photo-craft", "products", "color-finish", "dxf"):
+            line = next(line for line in script.splitlines() if f'"/tools/{route}"' in line)
+            self.assertIn("paidNotice:", line)
+        for route in ("svg", "files", "delivery"):
+            line = next(line for line in script.splitlines() if f'"/tools/{route}"' in line)
+            self.assertNotIn("paidNotice:", line)
+
+        text_image = (root / "text2image_frontend" / "index.html").read_text(encoding="utf-8")
+        image_3d = (root / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('class="paid-feature-banner"', text_image)
+        self.assertIn("AI 图片生成", text_image)
+        self.assertIn("照片转镂空剪影", text_image)
+        self.assertIn('class="paid-feature-banner"', image_3d)
+        self.assertIn("3D 模型生成会按实际调用产生费用", image_3d)
+
     def test_visual_studio_uses_the_live_image_workflow_and_its_permission(self):
         user = self.create_member([])
         member = self.login_member()

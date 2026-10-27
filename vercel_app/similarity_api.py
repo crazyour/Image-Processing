@@ -591,51 +591,71 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
         if kind == "image":
             if (candidate.get("metadata") or {}).get("feature_version") != FEATURE_VERSION:
                 outdated_images += 1
-            verification = image_geometric_similarity(metadata, candidate.get("metadata") or {}, global_score)
-        else:
-            verification = {
-                "score": global_score,
-                "label": "特征相似",
-                "inliers": 0,
-                "inlier_ratio": 0.0,
-                "coverage": 0.0,
-                "method": "cosine",
-            }
         matches.append({
             **candidate,
-            "raw_score": verification["score"],
-            "verification": verification,
+            "global_score": global_score,
         })
 
-    # Rank files globally; one folder may contribute multiple top-five files.
-    ranked = sorted(matches, key=lambda item: item["raw_score"], reverse=True)[:5]
-    results = []
-    for rank, item in enumerate(ranked, start=1):
+    def result_item(item: dict, rank: int, score: float, verification: dict) -> dict | None:
         folder = get_folder(library_id, item["folder_id"])
         if not folder:
-            continue
-        results.append({
+            return None
+        return {
             "rank": rank,
             "folder_id": item["folder_id"],
             "folder_name": item["folder_name"],
-            "score": round(item["raw_score"] * 100, 1),
+            "score": round(score * 100, 1),
             "matched_asset_id": item["asset_id"],
             "matched_file": item["original_name"],
             "matched_preview_url": f"/api/material-search/assets/{item['asset_id']}/preview",
-            "match_label": item["verification"]["label"],
-            "match_method": item["verification"]["method"],
-            "inliers": item["verification"]["inliers"],
-            "inlier_ratio": round(item["verification"]["inlier_ratio"], 3),
-            "coverage": round(item["verification"]["coverage"], 3),
+            "match_label": verification["label"],
+            "match_method": verification["method"],
+            "inliers": verification["inliers"],
+            "inlier_ratio": round(verification["inlier_ratio"], 3),
+            "coverage": round(verification["coverage"], 3),
             "previews": folder["previews"],
             "zip_url": f"/api/material-search/folders/{folder['id']}/download" if folder.get("zip_url") else None,
             "asset_count": len(folder["assets"]),
-        })
+        }
+
+    # Image search is deliberately two-stage: cheap cosine retrieval over the
+    # whole library, followed by SIFT/RANSAC reranking of only those ten files.
+    first_limit = 10 if kind == "image" else 5
+    first_ranked = sorted(matches, key=lambda item: item["global_score"], reverse=True)[:first_limit]
+    results = []
+    for rank, item in enumerate(first_ranked, start=1):
+        verification = {
+            "label": "全局相似" if kind == "image" else "特征相似",
+            "inliers": 0,
+            "inlier_ratio": 0.0,
+            "coverage": 0.0,
+            "method": "cosine",
+        }
+        result = result_item(item, rank, item["global_score"], verification)
+        if result:
+            results.append(result)
+
+    geometric_best = None
+    if kind == "image" and first_ranked:
+        verified = []
+        for first_rank, item in enumerate(first_ranked, start=1):
+            verification = image_geometric_similarity(
+                metadata,
+                item.get("metadata") or {},
+                item["global_score"],
+            )
+            verified.append((verification["score"], first_rank, item, verification))
+        best_score, first_rank, best_item, best_verification = max(verified, key=lambda value: value[0])
+        geometric_best = result_item(best_item, 1, best_score, best_verification)
+        if geometric_best:
+            geometric_best["first_search_rank"] = first_rank
+
     return {
         "kind": kind,
         "query_preview_data_url": "data:image/png;base64," + base64.b64encode(preview).decode("ascii"),
         "query_metadata": {key: value for key, value in metadata.items() if key not in {"local_features", "image_fingerprint"}},
-        "algorithm": "sift-ransac" if kind == "image" else "cosine",
+        "algorithm": "cosine-then-sift-ransac" if kind == "image" else "cosine",
         "outdated_images": outdated_images,
         "results": results,
+        "geometric_best": geometric_best,
     }
