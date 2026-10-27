@@ -642,13 +642,10 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
             verification = image_geometric_similarity(
                 metadata,
                 item.get("metadata") or {},
-                item["global_score"],
             )
             verified.append((verification["score"], first_rank, item, verification))
         best_score, first_rank, best_item, best_verification = max(verified, key=lambda value: value[0])
         geometric_best = result_item(best_item, 1, best_score, best_verification)
-        if geometric_best:
-            geometric_best["first_search_rank"] = first_rank
 
     return {
         "kind": kind,

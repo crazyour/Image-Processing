@@ -456,14 +456,15 @@ async function openFolder(folderId, matchedAssetId = null) {
 }
 
 function resultCard(item, options = {}) {
-  const isBest = Boolean(options.isBest);
-  const geometryLine = item.match_method === "sift-ransac"
-    ? `<p class="result-verification">几何有效匹配点：${item.inliers}</p>`
+  const stage = options.stage || "feature";
+  const isGeometric = stage === "geometric";
+  const geometryLine = isGeometric && item.match_method === "sift-ransac"
+    ? `<p class="result-verification">SIFT + RANSAC 有效匹配点：${item.inliers}</p>`
     : "";
-  const sourceRank = item.first_search_rank
-    ? `<p>第一次搜索排名：${item.first_search_rank}</p>`
-    : "";
-  return `<article class="result-card${isBest ? " geometric-best" : ""}">${isBest ? '<span class="best-marker">几何验证最佳</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(item.match_label || "特征相似")} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${sourceRank}${geometryLine}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
+  const scoreLabel = stage === "global"
+    ? "全局余弦相似度"
+    : isGeometric ? "几何相似度" : "特征余弦相似度";
+  return `<article class="result-card${isGeometric ? " geometric-best" : ""}">${isGeometric ? '<span class="best-marker">第二次搜索第 1 名</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${scoreLabel} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${geometryLine}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
 }
 
 function activateResultCards(root) {
@@ -499,13 +500,13 @@ async function search() {
       list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
     } else {
       list.innerHTML = result.results.map(item => resultCard(item, {
-        isBest: result.geometric_best?.matched_asset_id === item.matched_asset_id,
+        stage: twoStage ? "global" : "feature",
       })).join("");
     }
     const secondSearch = $("#second-search");
     secondSearch.hidden = !result.geometric_best;
     $("#geometric-best-list").innerHTML = result.geometric_best
-      ? resultCard(result.geometric_best, { isBest: true })
+      ? resultCard(result.geometric_best, { stage: "geometric" })
       : "";
     activateResultCards($("#search-output"));
     if (result.outdated_images) {

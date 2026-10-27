@@ -146,7 +146,6 @@ def _point_coverage(points: np.ndarray) -> float:
 def image_geometric_similarity(
     query_metadata: dict[str, Any],
     candidate_metadata: dict[str, Any],
-    global_similarity: float = 0.0,
 ) -> dict[str, Any]:
     """Verify that two images contain the same concrete design, not just similar semantics."""
     if query_metadata.get("image_fingerprint") == candidate_metadata.get("image_fingerprint"):
@@ -162,16 +161,16 @@ def image_geometric_similarity(
     query_features = _decode_local_features(query_metadata)
     candidate_features = _decode_local_features(candidate_metadata)
     if not query_features or not candidate_features:
-        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+        return {"score": 0.0, "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
     query_points, query_descriptors = query_features
     candidate_points, candidate_descriptors = candidate_features
     if len(query_descriptors) < 4 or len(candidate_descriptors) < 4:
-        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+        return {"score": 0.0, "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
 
     matches = cv2.BFMatcher(cv2.NORM_L2).knnMatch(candidate_descriptors, query_descriptors, k=2)
     good = [pair[0] for pair in matches if len(pair) == 2 and pair[0].distance < 0.82 * pair[1].distance]
     if len(good) < 4:
-        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+        return {"score": 0.0, "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
 
     candidate_matched = np.float32([candidate_points[match.queryIdx] for match in good])
     query_matched = np.float32([query_points[match.trainIdx] for match in good])
@@ -184,7 +183,7 @@ def image_geometric_similarity(
         confidence=0.995,
     )
     if homography is None or mask is None:
-        return {"score": min(global_similarity * 0.12, 0.12), "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
+        return {"score": 0.0, "label": "未验证", "inliers": 0, "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac"}
 
     inlier_mask = mask.ravel().astype(bool)
     inliers = int(inlier_mask.sum())
@@ -195,7 +194,7 @@ def image_geometric_similarity(
     count_score = min(inliers / 18.0, 1.0)
     ratio_score = max(0.0, min(1.0, (inlier_ratio - 0.12) / 0.48))
     coverage_score = min(coverage / 0.20, 1.0)
-    score = 0.50 * count_score + 0.25 * ratio_score + 0.20 * coverage_score + 0.05 * global_similarity
+    score = 0.53 * count_score + 0.26 * ratio_score + 0.21 * coverage_score
     if inliers < 6:
         score *= 0.5
     score = max(0.0, min(0.98, score))

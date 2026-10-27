@@ -5,6 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import cv2
@@ -171,8 +172,8 @@ EOF
         _, reference_vector, reference_metadata = process_image(reference_buffer.getvalue())
         _, query_vector, query_metadata = process_image(scene_buffer.getvalue())
         _, distractor_vector, distractor_metadata = process_image(distractor_buffer.getvalue())
-        matching = image_geometric_similarity(query_metadata, reference_metadata, 0.5)
-        non_matching = image_geometric_similarity(query_metadata, distractor_metadata, 0.5)
+        matching = image_geometric_similarity(query_metadata, reference_metadata)
+        non_matching = image_geometric_similarity(query_metadata, distractor_metadata)
         self.assertGreaterEqual(matching["inliers"], 8)
         self.assertGreater(matching["score"], non_matching["score"] + 0.25)
         self.assertIn(matching["label"], {"可能同款", "高度可信"})
@@ -191,9 +192,9 @@ EOF
             for index in range(12)
         ]
 
-        def geometric(_query, _candidate, global_score):
+        def geometric(_query, _candidate):
             return {
-                "score": global_score,
+                "score": 0.8,
                 "label": "可能同款",
                 "inliers": 8,
                 "inlier_ratio": 0.4,
@@ -214,7 +215,19 @@ EOF
         self.assertEqual(verify.call_count, 10)
         self.assertEqual(payload["results"][0]["matched_asset_id"], "asset-0")
         self.assertEqual(payload["geometric_best"]["matched_asset_id"], "asset-0")
-        self.assertEqual(payload["geometric_best"]["first_search_rank"], 1)
+
+    def test_second_search_is_shown_above_first_with_separate_labels(self) -> None:
+        root = Path(__file__).resolve().parent.parent / "similarity_search_frontend"
+        page = (root / "index.html").read_text(encoding="utf-8")
+        script = (root / "app.js").read_text(encoding="utf-8")
+
+        self.assertLess(page.index('id="second-search"'), page.index('id="first-search-title"'))
+        self.assertIn('stage: twoStage ? "global" : "feature"', script)
+        self.assertIn('resultCard(result.geometric_best, { stage: "geometric" })', script)
+        self.assertIn("全局余弦相似度", script)
+        self.assertIn("几何相似度", script)
+        self.assertNotIn("几何验证最佳", script)
+        self.assertNotIn("第一次搜索排名", script)
 
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
         missing_name = self.client.post(
@@ -288,7 +301,6 @@ EOF
                 self.assertEqual(result["match_label"], "全局相似")
                 self.assertEqual(payload["geometric_best"]["match_label"], "同图")
                 self.assertEqual(payload["geometric_best"]["matched_asset_id"], result["matched_asset_id"])
-                self.assertEqual(payload["geometric_best"]["first_search_rank"], 1)
             else:
                 self.assertIsNone(payload["geometric_best"])
 
