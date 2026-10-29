@@ -95,6 +95,12 @@ class PhotographyCenterTests(unittest.TestCase):
         folders = self.member.get("/api/photography/folders").json()["folders"]
         self.assertEqual([item["id"] for item in folders], [folder["id"]])
 
+    def test_home_places_photography_center_in_craft_tools(self):
+        home = self.member.get("/")
+        self.assertEqual(home.status_code, 200)
+        self.assertIn('class="tool-card tone-photography" href="/photography-center"', home.text)
+        self.assertNotIn("card-photography", home.text)
+
     def test_member_uploads_only_compressed_image_and_download_restores_dimensions(self):
         folder = self.create_folder()
         original = self.jpeg()
