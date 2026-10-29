@@ -68,7 +68,7 @@
         <input id="upload-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff,video/mp4,video/quicktime,video/webm,video/x-msvideo" required>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"/></svg>
         <strong id="file-label">选择图片或视频</strong>
-        <span>图片会转为 WebP；视频会转为压缩 MP4，单个文件不超过 200 MB</span>
+        <span>大文件会自动分片上传，不受 4 MB 限制；单个文件不超过 200 MB</span>
       </label>
       <label class="field">保存名称<input id="custom-filename" name="filename" maxlength="100" placeholder="例如：秋季产品主图" required><small>无需输入扩展名，下载时系统会自动补全。</small></label>
       <div id="upload-progress" class="progress hidden"><i></i><span>准备上传…</span></div>
@@ -130,7 +130,7 @@
             <dl>
               <div><dt>图片</dt><dd>JPG、JPEG、PNG、WebP、BMP、TIFF</dd></div>
               <div><dt>视频</dt><dd>MP4、MOV、M4V、WebM、AVI、MKV</dd></div>
-              <div><dt>大小</dt><dd>单个文件不超过 200 MB</dd></div>
+              <div><dt>大小</dt><dd>不受 4 MB 上传限制；单个文件不超过 200 MB</dd></div>
             </dl>
           </div>
           <div>

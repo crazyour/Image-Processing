@@ -110,6 +110,14 @@ class PhotographyCenterTests(unittest.TestCase):
         self.assertNotIn("saved-total", page)
         self.assertNotIn("saving_percent", script)
         self.assertNotIn("已节省", script)
+        self.assertIn("不受 4 MB 上传限制", page)
+
+    def test_browser_upload_uses_chunks_smaller_than_four_mb(self):
+        script = (
+            Path(__file__).resolve().parent.parent / "photography_frontend" / "app.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("const chunkSize = 3_000_000", script)
+        self.assertIn("/chunks/${index}", script)
 
     def test_member_uploads_only_compressed_image_and_download_restores_dimensions(self):
         folder = self.create_folder()
