@@ -8,20 +8,27 @@ import mimetypes
 import os
 import re
 import secrets
+import shutil
+import subprocess
+import tempfile
 import time
 import uuid
 import io
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
+from urllib.parse import quote
 
+import httpx
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps, UnidentifiedImageError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -60,11 +67,24 @@ from vercel_app.auth import (
     setup_required,
     update_user,
 )
+from vercel_app.photography import (
+    PhotographyError,
+    create_folder as create_photography_folder,
+    delete_folder as delete_photography_folder,
+    get_media as get_photography_media,
+    list_folders as list_photography_folders,
+    list_folders_for_admin,
+    list_media as list_photography_media,
+    require_folder_access,
+    save_media as save_photography_media,
+    update_folder as update_photography_folder,
+)
 from vercel_app.connectivity import (
     ConnectivityError,
     analyze_connectivity,
     create_repair_mask,
 )
+from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.usage import (
     UsageLimitError,
@@ -101,6 +121,7 @@ IMAGE3D_FRONTEND = ROOT / "image3d_frontend"
 TEXT2IMAGE_FRONTEND = ROOT / "text2image_frontend"
 AUTH_FRONTEND = ROOT / "auth_frontend"
 SIMILARITY_SEARCH_FRONTEND = ROOT / "similarity_search_frontend"
+PHOTOGRAPHY_FRONTEND = ROOT / "photography_frontend"
 WORKBENCH_TOOLS = {
     "creative", "photo-craft", "products", "color-finish", "visual",
     "svg", "dxf", "files", "delivery",
@@ -140,6 +161,13 @@ IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
 IMAGE3D_VIEW_QUALITY = "medium"
 IMAGE3D_MODEL = "hy-3d-3.1"
 MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
+MAX_PHOTOGRAPHY_UPLOAD_BYTES = 200_000_000
+MAX_PHOTOGRAPHY_CHUNK_BYTES = 3_500_000
+PHOTOGRAPHY_IMAGE_MAX_EDGE = 2560
+PHOTOGRAPHY_VIDEO_MAX_WIDTH = 1920
+PHOTOGRAPHY_VIDEO_MAX_HEIGHT = 1080
+PHOTOGRAPHY_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+PHOTOGRAPHY_VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv"}
 DELIVERABLE_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp",
     ".svg", ".ai", ".psd", ".pdf", ".dxf", ".dwg", ".stl", ".obj", ".glb",
@@ -322,6 +350,17 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=1, max_length=150)
 
 
+class PhotographyFolderRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    member_ids: list[str] = Field(default_factory=list, max_length=500)
+
+
+class PhotographyUploadCompleteRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    custom_filename: str = Field(default="", max_length=100)
+    chunk_count: int = Field(ge=1, le=100)
+
+
 def _require_local_library_access(header: str | None, request: Request) -> None:
     client_host = request.client.host if request.client else ""
     if (
@@ -472,6 +511,11 @@ def auth_error(_, exc: AuthError):
         logging.getLogger("lingjie.app").error(
             "Authentication failure %s", exc.code, exc_info=exc.__cause__,
         )
+    return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
+
+
+@app.exception_handler(PhotographyError)
+def photography_error(_, exc: PhotographyError):
     return JSONResponse({"code": exc.code, "message": exc.message}, status_code=exc.status)
 
 
@@ -2450,6 +2494,498 @@ def similarity_search_page():
     )
 
 
+def _photography_stem(value: str, fallback: str = "media") -> str:
+    value = value.replace("\\", "/").split("/")[-1].strip()
+    stem = Path(value).stem if Path(value).suffix else value
+    stem = re.sub(r"[^\w\-.()\u4e00-\u9fff]+", "-", stem, flags=re.UNICODE).strip("-._ ")
+    return (stem[:100] or fallback)
+
+
+def _scaled_size(width: int, height: int, max_width: int, max_height: int) -> tuple[int, int]:
+    ratio = min(1.0, max_width / max(1, width), max_height / max(1, height))
+    scaled_width = max(2, int(width * ratio))
+    scaled_height = max(2, int(height * ratio))
+    return scaled_width - scaled_width % 2, scaled_height - scaled_height % 2
+
+
+def _compress_photography_image(data: bytes) -> tuple[bytes, int, int, int, int]:
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            source.load()
+            image = ImageOps.exif_transpose(source)
+            original_width, original_height = image.size
+            stored_width, stored_height = _scaled_size(
+                original_width, original_height,
+                PHOTOGRAPHY_IMAGE_MAX_EDGE, PHOTOGRAPHY_IMAGE_MAX_EDGE,
+            )
+            if (stored_width, stored_height) != image.size:
+                image = image.resize((stored_width, stored_height), Image.Resampling.LANCZOS)
+            has_alpha = image.mode in {"RGBA", "LA"} or "transparency" in image.info
+            image = image.convert("RGBA" if has_alpha else "RGB")
+            output = io.BytesIO()
+            image.save(output, format="WEBP", quality=72 if not has_alpha else 78, method=6)
+            compressed = output.getvalue()
+            if len(compressed) >= len(data) and max(stored_width, stored_height) > 1200:
+                retry_size = _scaled_size(stored_width, stored_height, 2048, 2048)
+                if retry_size != image.size:
+                    image = image.resize(retry_size, Image.Resampling.LANCZOS)
+                    stored_width, stored_height = retry_size
+                output = io.BytesIO()
+                image.save(output, format="WEBP", quality=62, method=6)
+                compressed = output.getvalue()
+            return compressed, original_width, original_height, stored_width, stored_height
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise PhotographyError("INVALID_IMAGE", "图片无法读取或文件已经损坏", 422) from exc
+
+
+def _ffmpeg_binary(name: str) -> str:
+    binary = shutil.which(name)
+    if not binary and name == "ffmpeg":
+        try:
+            import imageio_ffmpeg
+            binary = imageio_ffmpeg.get_ffmpeg_exe()
+        except (ImportError, RuntimeError, OSError):
+            binary = None
+    if not binary:
+        raise PhotographyError(
+            "VIDEO_CODEC_UNAVAILABLE",
+            "服务器尚未安装 FFmpeg，暂时不能压缩视频；图片上传不受影响",
+            503,
+        )
+    return binary
+
+
+def _probe_video(path: Path) -> tuple[int, int]:
+    capture = cv2.VideoCapture(str(path))
+    try:
+        if not capture.isOpened():
+            raise PhotographyError("INVALID_VIDEO", "视频无法读取或不包含有效画面", 422)
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if width < 2 or height < 2:
+            raise PhotographyError("INVALID_VIDEO", "视频无法读取或不包含有效画面", 422)
+        return width, height
+    finally:
+        capture.release()
+
+
+def _compress_photography_video(data: bytes, extension: str) -> tuple[bytes, int, int, int, int]:
+    directory = Path(tempfile.mkdtemp(prefix="photography-upload-"))
+    source = directory / f"source{extension}"
+    output = directory / "compressed.mp4"
+    try:
+        source.write_bytes(data)
+        original_width, original_height = _probe_video(source)
+        stored_width, stored_height = _scaled_size(
+            original_width, original_height,
+            PHOTOGRAPHY_VIDEO_MAX_WIDTH, PHOTOGRAPHY_VIDEO_MAX_HEIGHT,
+        )
+        command = [
+            _ffmpeg_binary("ffmpeg"), "-y", "-v", "error", "-i", str(source),
+            "-map", "0:v:0", "-map", "0:a?", "-vf", f"scale={stored_width}:{stored_height}:flags=lanczos",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "29", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(output),
+        ]
+        try:
+            subprocess.run(command, capture_output=True, timeout=900, check=True)
+        except subprocess.SubprocessError as exc:
+            raise PhotographyError("VIDEO_COMPRESSION_FAILED", "视频压缩失败，请检查文件编码", 422) from exc
+        compressed = output.read_bytes()
+        if not compressed:
+            raise PhotographyError("VIDEO_COMPRESSION_FAILED", "视频压缩没有生成有效文件", 422)
+        return compressed, original_width, original_height, stored_width, stored_height
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def _public_photography_media(record: dict) -> dict:
+    original_size = int(record["original_size_bytes"])
+    stored_size = int(record["stored_size_bytes"])
+    return {
+        "id": record["id"],
+        "folder_id": record["folder_id"],
+        "name": record["display_name"],
+        "media_type": record["media_type"],
+        "content_type": record["content_type"],
+        "original_width": record["original_width"],
+        "original_height": record["original_height"],
+        "stored_width": record["stored_width"],
+        "stored_height": record["stored_height"],
+        "original_size_bytes": original_size,
+        "stored_size_bytes": stored_size,
+        "saved_bytes": max(0, original_size - stored_size),
+        "saving_percent": round(max(0, 1 - stored_size / max(1, original_size)) * 100, 1),
+        "uploader_name": record["uploader_name"],
+        "created_at": record["created_at"],
+        "content_url": f"/api/photography/media/{record['id']}/content",
+        "download_url": f"/api/photography/media/{record['id']}/download",
+    }
+
+
+def _read_photography_blob(record: dict) -> bytes:
+    try:
+        data, _ = PrivateMaterialBlobStore().read(record["url"])
+        return data
+    except StoreError as exc:
+        raise PhotographyError("MEDIA_READ_FAILED", "压缩文件读取失败", 503) from exc
+
+
+def _download_header(filename: str) -> str:
+    fallback = re.sub(r"[^A-Za-z0-9_.-]+", "-", filename).strip("-.") or "download"
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+
+def _restore_image(record: dict, data: bytes) -> tuple[bytes, str, str]:
+    with Image.open(io.BytesIO(data)) as source:
+        source.load()
+        image = source
+        original_size = (record["original_width"], record["original_height"])
+        if image.size != original_size:
+            image = image.resize(original_size, Image.Resampling.LANCZOS)
+        extension = record["original_extension"].lower()
+        output = io.BytesIO()
+        if extension in {".png"}:
+            image.save(output, format="PNG", optimize=True)
+            content_type = "image/png"
+        elif extension in {".webp"}:
+            image.save(output, format="WEBP", quality=95, method=6)
+            content_type = "image/webp"
+        else:
+            if image.mode != "RGB":
+                background = Image.new("RGB", image.size, "white")
+                if image.mode == "RGBA":
+                    background.paste(image, mask=image.getchannel("A"))
+                else:
+                    background.paste(image.convert("RGB"))
+                image = background
+            image.save(output, format="JPEG", quality=95, optimize=True)
+            extension = ".jpg"
+            content_type = "image/jpeg"
+    return output.getvalue(), f"{record['display_name']}{extension}", content_type
+
+
+def _restore_video_to_file(record: dict, data: bytes, directory: Path) -> tuple[Path, str]:
+    source = directory / "compressed.mp4"
+    output = directory / "restored.mp4"
+    source.write_bytes(data)
+    command = [
+        _ffmpeg_binary("ffmpeg"), "-y", "-v", "error", "-i", str(source),
+        "-map", "0:v:0", "-map", "0:a?",
+    ]
+    if (record["stored_width"], record["stored_height"]) != (
+        record["original_width"], record["original_height"],
+    ):
+        command += [
+            "-vf", f"scale={record['original_width']}:{record['original_height']}:flags=lanczos",
+        ]
+    command += [
+        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-c:a", "copy", "-movflags", "+faststart", str(output),
+    ]
+    try:
+        subprocess.run(command, capture_output=True, timeout=1200, check=True)
+    except subprocess.SubprocessError as exc:
+        raise PhotographyError("VIDEO_RESTORE_FAILED", "视频恢复尺寸失败", 503) from exc
+    return output, f"{record['display_name']}.mp4"
+
+
+@app.get("/api/photography/folders", include_in_schema=False)
+def photography_folders(request: Request):
+    return {"folders": list_photography_folders(request.state.user)}
+
+
+@app.get("/api/admin/photography/folders", include_in_schema=False)
+def admin_photography_folders():
+    members = [
+        {"id": user["id"], "name": user["name"], "username": user["username"]}
+        for user in list_users() if user["role"] == "member" and user["active"]
+    ]
+    return {"folders": list_folders_for_admin(), "members": members}
+
+
+@app.post("/api/admin/photography/folders", status_code=201, include_in_schema=False)
+def admin_create_photography_folder(data: PhotographyFolderRequest, request: Request):
+    folder = create_photography_folder(data.name, data.member_ids, request.state.user["id"])
+    return {"folder": folder}
+
+
+@app.put("/api/admin/photography/folders/{folder_id}", include_in_schema=False)
+def admin_update_photography_folder(
+    folder_id: str, data: PhotographyFolderRequest, request: Request,
+):
+    folder = update_photography_folder(folder_id, data.name, data.member_ids, request.state.user["id"])
+    return {"folder": folder}
+
+
+@app.delete("/api/admin/photography/folders/{folder_id}", include_in_schema=False)
+def admin_delete_photography_folder(folder_id: str):
+    delete_photography_folder(folder_id)
+    return {"ok": True}
+
+
+@app.get("/api/photography/folders/{folder_id}/media", include_in_schema=False)
+def photography_media(folder_id: str, request: Request):
+    items = list_photography_media(request.state.user, folder_id)
+    return {"items": [_public_photography_media(item) for item in items]}
+
+
+def _store_photography_upload(
+    folder_id: str,
+    user: dict,
+    original_filename: str,
+    custom_filename: str,
+    data: bytes,
+) -> dict:
+    original_filename = Path(original_filename).name.strip()
+    extension = Path(original_filename).suffix.lower()
+    if extension not in PHOTOGRAPHY_IMAGE_EXTENSIONS | PHOTOGRAPHY_VIDEO_EXTENSIONS:
+        raise PhotographyError("UNSUPPORTED_MEDIA", "只支持常见图片和视频格式", 422)
+    if not data:
+        raise PhotographyError("EMPTY_MEDIA", "上传文件为空", 422)
+    if len(data) > MAX_PHOTOGRAPHY_UPLOAD_BYTES:
+        raise PhotographyError("MEDIA_TOO_LARGE", "单个文件不能超过 200 MB", 413)
+
+    media_id = uuid.uuid4().hex
+    display_name = _photography_stem(custom_filename or original_filename, "media")
+    if extension in PHOTOGRAPHY_IMAGE_EXTENSIONS:
+        compressed, original_width, original_height, stored_width, stored_height = (
+            _compress_photography_image(data)
+        )
+        media_type = "image"
+        stored_extension = ".webp"
+        content_type = "image/webp"
+    else:
+        compressed, original_width, original_height, stored_width, stored_height = (
+            _compress_photography_video(data, extension)
+        )
+        media_type = "video"
+        stored_extension = ".mp4"
+        content_type = "video/mp4"
+
+    # Recheck after potentially long video transcoding in case access was revoked meanwhile.
+    require_folder_access(user, folder_id)
+    pathname = f"photography/{folder_id}/{time.strftime('%Y/%m')}/{media_id}{stored_extension}"
+    try:
+        # Final media is private. Preview and download routes enforce folder access.
+        url = PrivateMaterialBlobStore().put(pathname, compressed, content_type)
+    except StoreError as exc:
+        raise PhotographyError("MEDIA_SAVE_FAILED", str(exc), 503) from exc
+    record = save_photography_media({
+        "id": media_id,
+        "folder_id": folder_id,
+        "display_name": display_name,
+        "original_filename": original_filename,
+        "original_extension": extension,
+        "pathname": pathname,
+        "url": url,
+        "media_type": media_type,
+        "content_type": content_type,
+        "original_width": original_width,
+        "original_height": original_height,
+        "stored_width": stored_width,
+        "stored_height": stored_height,
+        "original_size_bytes": len(data),
+        "stored_size_bytes": len(compressed),
+        "uploader_id": user["id"],
+        "uploader_name": user["name"],
+        "created_at": time.time(),
+    })
+    return {"item": _public_photography_media(record)}
+
+
+@app.post("/api/photography/folders/{folder_id}/media", status_code=201, include_in_schema=False)
+async def upload_photography_media(
+    folder_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    filename: str = Form(""),
+):
+    user = request.state.user
+    require_folder_access(user, folder_id)
+    original_filename = Path(file.filename or "").name.strip()
+    data = await file.read(MAX_PHOTOGRAPHY_UPLOAD_BYTES + 1)
+    await file.close()
+    return _store_photography_upload(folder_id, user, original_filename, filename, data)
+
+
+def _photography_staging_references(folder_id: str, user_id: str, upload_id: str, count: int) -> list[str]:
+    return [
+        f"photography-staging/{folder_id}/{user_id}/{upload_id}/{index:04d}.part"
+        for index in range(count)
+    ]
+
+
+@app.post(
+    "/api/photography/folders/{folder_id}/uploads/{upload_id}/chunks/{chunk_index}",
+    include_in_schema=False,
+)
+async def upload_photography_chunk(
+    folder_id: str,
+    upload_id: str,
+    chunk_index: int,
+    request: Request,
+    chunk: UploadFile = File(...),
+):
+    user = request.state.user
+    require_folder_access(user, folder_id)
+    if not re.fullmatch(r"[a-f0-9]{32}", upload_id) or chunk_index < 0 or chunk_index >= 100:
+        raise PhotographyError("INVALID_UPLOAD", "上传分片标识无效", 422)
+    data = await chunk.read(MAX_PHOTOGRAPHY_CHUNK_BYTES + 1)
+    await chunk.close()
+    if not data:
+        raise PhotographyError("EMPTY_MEDIA_CHUNK", "上传分片为空", 422)
+    if len(data) > MAX_PHOTOGRAPHY_CHUNK_BYTES:
+        raise PhotographyError("MEDIA_CHUNK_TOO_LARGE", "上传分片超过 3.5 MB", 413)
+    reference = _photography_staging_references(folder_id, user["id"], upload_id, chunk_index + 1)[-1]
+    try:
+        PrivateMaterialBlobStore().put(reference, data, "application/octet-stream")
+    except StoreError as exc:
+        raise PhotographyError("MEDIA_CHUNK_SAVE_FAILED", str(exc), 503) from exc
+    return {"chunk_index": chunk_index}
+
+
+@app.post(
+    "/api/photography/folders/{folder_id}/uploads/{upload_id}/complete",
+    status_code=201,
+    include_in_schema=False,
+)
+def complete_photography_upload(
+    folder_id: str,
+    upload_id: str,
+    data: PhotographyUploadCompleteRequest,
+    request: Request,
+):
+    user = request.state.user
+    require_folder_access(user, folder_id)
+    if not re.fullmatch(r"[a-f0-9]{32}", upload_id):
+        raise PhotographyError("INVALID_UPLOAD", "上传分片标识无效", 422)
+    references = _photography_staging_references(folder_id, user["id"], upload_id, data.chunk_count)
+    store = PrivateMaterialBlobStore()
+    parts: list[bytes] = []
+    total = 0
+    try:
+        for reference in references:
+            part, _ = store.read(reference)
+            total += len(part)
+            if total > MAX_PHOTOGRAPHY_UPLOAD_BYTES:
+                raise PhotographyError("MEDIA_TOO_LARGE", "单个文件不能超过 200 MB", 413)
+            parts.append(part)
+        return _store_photography_upload(
+            folder_id, user, data.filename, data.custom_filename, b"".join(parts),
+        )
+    except StoreError as exc:
+        raise PhotographyError("MEDIA_CHUNKS_MISSING", "上传分片不完整，请重新上传", 409) from exc
+    finally:
+        try:
+            store.delete(references)
+        except StoreError:
+            pass
+
+
+@app.get("/api/photography/media/{media_id}/content", include_in_schema=False)
+def photography_media_content(media_id: str, request: Request):
+    record = get_photography_media(request.state.user, media_id)
+    data = _read_photography_blob(record)
+    status_code = 200
+    response_headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=300",
+        "X-Content-Type-Options": "nosniff",
+    }
+    match = re.fullmatch(r"bytes=(\d*)-(\d*)", request.headers.get("range", ""))
+    if match and data:
+        start_text, end_text = match.groups()
+        if not start_text and end_text:
+            length = min(len(data), int(end_text))
+            start, end = len(data) - length, len(data) - 1
+        else:
+            start = int(start_text or 0)
+            end = min(len(data) - 1, int(end_text) if end_text else len(data) - 1)
+        if 0 <= start <= end < len(data):
+            response_headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
+            data = data[start:end + 1]
+            status_code = 206
+    response_headers["Content-Length"] = str(len(data))
+    return Response(
+        data,
+        status_code=status_code,
+        media_type=record["content_type"],
+        headers=response_headers,
+    )
+
+
+@app.get("/api/photography/media/{media_id}/download", include_in_schema=False)
+def download_photography_media(media_id: str, request: Request):
+    record = get_photography_media(request.state.user, media_id)
+    data = _read_photography_blob(record)
+    if record["media_type"] == "image":
+        restored, filename, content_type = _restore_image(record, data)
+        return Response(
+            restored,
+            media_type=content_type,
+            headers={"Content-Disposition": _download_header(filename), "Cache-Control": "no-store"},
+        )
+    directory = Path(tempfile.mkdtemp(prefix="photography-download-"))
+    try:
+        output, filename = _restore_video_to_file(record, data, directory)
+    except Exception:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    return FileResponse(
+        output,
+        media_type="video/mp4",
+        filename=filename,
+        background=BackgroundTask(shutil.rmtree, directory, ignore_errors=True),
+    )
+
+
+@app.get("/api/photography/folders/{folder_id}/download", include_in_schema=False)
+def download_photography_batch(folder_id: str, ids: str, request: Request):
+    all_items = list_photography_media(request.state.user, folder_id)
+    selected_ids = set(filter(None, ids.split(",")))
+    selected = [item for item in all_items if item["id"] in selected_ids][:50]
+    if not selected:
+        raise PhotographyError("NO_MEDIA_SELECTED", "请至少选择一个文件", 422)
+    directory = Path(tempfile.mkdtemp(prefix="photography-batch-"))
+    archive = directory / "photography-download.zip"
+    used_names: set[str] = set()
+    try:
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output_zip:
+            for record in selected:
+                data = _read_photography_blob(record)
+                if record["media_type"] == "image":
+                    restored, filename, _ = _restore_image(record, data)
+                    payload = restored
+                else:
+                    video, filename = _restore_video_to_file(record, data, directory)
+                    payload = video.read_bytes()
+                stem, suffix = Path(filename).stem, Path(filename).suffix
+                candidate = filename
+                counter = 2
+                while candidate in used_names:
+                    candidate = f"{stem}-{counter}{suffix}"
+                    counter += 1
+                used_names.add(candidate)
+                output_zip.writestr(candidate, payload)
+    except Exception:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    return FileResponse(
+        archive,
+        media_type="application/zip",
+        filename="photography-download.zip",
+        background=BackgroundTask(shutil.rmtree, directory, ignore_errors=True),
+    )
+
+
+@app.get("/photography-center", include_in_schema=False)
+def photography_center_page():
+    return FileResponse(
+        PHOTOGRAPHY_FRONTEND / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.post("/api/deliverables/upload", status_code=201)
 async def upload_deliverable(
     request: Request,
@@ -2598,6 +3134,11 @@ app.mount("/branding", StaticFiles(directory=ORIGINAL_FRONTEND / "branding"), na
 app.mount("/static", StaticFiles(directory=IMAGE3D_FRONTEND), name="static")
 app.mount("/text-image-static", StaticFiles(directory=TEXT2IMAGE_FRONTEND), name="text-image-static")
 app.mount("/auth-static", StaticFiles(directory=AUTH_FRONTEND), name="auth-static")
+app.mount(
+    "/photography-static",
+    StaticFiles(directory=PHOTOGRAPHY_FRONTEND),
+    name="photography-static",
+)
 app.mount(
     "/similarity-search-static",
     StaticFiles(directory=SIMILARITY_SEARCH_FRONTEND),

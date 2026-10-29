@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111716">
+  <meta name="description" content="团队摄影素材的压缩存储、预览和下载">
+  <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
+  <link rel="stylesheet" href="/photography-static/styles.css?v=20261029-2">
+  <title>摄影中心站 · 灵界</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="返回功能列表">
+      <img src="/branding/logo-mark-white.svg" width="30" height="30" alt="">
+      <span><strong>摄影中心站</strong><small>团队媒体库</small></span>
+    </a>
+    <div class="top-actions">
+      <span id="account-name" class="account-name"></span>
+      <button id="help-open" class="quiet-button" type="button">使用说明</button>
+      <button id="admin-open" class="quiet-button hidden" type="button">文件夹与成员</button>
+      <a class="quiet-button" href="/">返回功能列表</a>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="folder-rail" aria-label="可访问的文件夹">
+      <div class="rail-heading">
+        <div><h1>摄影目录</h1><p>只显示你可以访问的文件夹</p></div>
+        <span id="folder-count" class="count">0</span>
+      </div>
+      <nav id="folder-list" class="folder-list" aria-live="polite">
+        <p class="loading">正在读取目录…</p>
+      </nav>
+      <div class="storage-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5C4 5.6 7.6 4 12 4s8 1.6 8 3.5S16.4 11 12 11 4 9.4 4 7.5Z"/><path d="M4 7.5v4c0 1.9 3.6 3.5 8 3.5s8-1.6 8-3.5v-4M4 11.5v4c0 1.9 3.6 3.5 8 3.5s8-1.6 8-3.5v-4"/></svg>
+        <div><span>已节省空间</span><strong id="saved-total">0 B</strong></div>
+      </div>
+    </aside>
+
+    <section class="media-stage">
+      <header class="stage-heading">
+        <div>
+          <p id="stage-path" class="stage-path">摄影中心站</p>
+          <h2 id="folder-title">选择一个文件夹</h2>
+          <p id="folder-summary" class="folder-summary">进入目录后可以浏览、上传和下载全部内容。</p>
+        </div>
+        <div class="stage-actions">
+          <button id="batch-download" class="secondary-button hidden" type="button">下载所选 <span id="selected-count">0</span></button>
+          <button id="upload-open" class="primary-button" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"/></svg>
+            上传图片或视频
+          </button>
+        </div>
+      </header>
+
+      <p id="message" class="message hidden" role="status"></p>
+      <div id="media-grid" class="media-grid">
+        <div class="empty-state">
+          <span class="aperture" aria-hidden="true"></span>
+          <h3>从左侧选择摄影目录</h3>
+          <p>获得访问权后，上传、预览和下载功能都会自动开放。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="upload-dialog" class="dialog" aria-labelledby="upload-title">
+    <form id="upload-form" class="dialog-card">
+      <header class="dialog-head"><div><h2 id="upload-title">上传到 <span id="upload-folder-name"></span></h2><p>原文件不会保留。系统只保存压缩版本，下载时恢复原尺寸。</p></div><button class="icon-button" data-close="upload-dialog" type="button" aria-label="关闭">×</button></header>
+      <label class="file-drop" id="file-drop">
+        <input id="upload-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff,video/mp4,video/quicktime,video/webm,video/x-msvideo" required>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"/></svg>
+        <strong id="file-label">选择图片或视频</strong>
+        <span>图片会转为 WebP；视频会转为压缩 MP4，单个文件不超过 200 MB</span>
+      </label>
+      <label class="field">保存名称<input id="custom-filename" name="filename" maxlength="100" placeholder="例如：秋季产品主图" required><small>无需输入扩展名，下载时系统会自动补全。</small></label>
+      <div id="upload-progress" class="progress hidden"><i></i><span>准备上传…</span></div>
+      <p id="upload-message" class="message hidden" role="alert"></p>
+      <footer class="dialog-actions"><button class="secondary-button" data-close="upload-dialog" type="button">取消</button><button class="primary-button" type="submit">压缩并上传</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="preview-dialog" class="preview-dialog" aria-labelledby="preview-title">
+    <div class="preview-shell">
+      <header><div><h2 id="preview-title"></h2><p id="preview-meta"></p></div><div><a id="preview-download" class="secondary-button" href="#">恢复原尺寸并下载</a><button class="icon-button" data-close="preview-dialog" type="button" aria-label="关闭">×</button></div></header>
+      <div id="preview-body" class="preview-body"></div>
+    </div>
+  </dialog>
+
+  <dialog id="help-dialog" class="dialog help-dialog" aria-labelledby="help-title">
+    <article class="help-card">
+      <header class="help-head">
+        <div>
+          <span class="help-mark" aria-hidden="true">◫</span>
+          <div><h2 id="help-title">摄影中心站使用说明</h2><p>文件夹授权、压缩存储和恢复尺寸下载</p></div>
+        </div>
+        <button class="icon-button" data-close="help-dialog" type="button" aria-label="关闭使用说明">×</button>
+      </header>
+
+      <div class="help-content">
+        <section class="help-intro" aria-labelledby="help-purpose">
+          <h3 id="help-purpose">这个功能用来做什么</h3>
+          <p>摄影中心站用于在团队内部集中保存图片和视频。管理员按文件夹分配账号，员工只会看到自己有权访问的摄影目录。</p>
+          <div class="help-rule"><strong>权限规则</strong><span>权限只分“可访问”和“不可访问”。获得文件夹访问权后，浏览、上传、预览、单独下载和批量下载都会开放。</span></div>
+        </section>
+
+        <section class="help-section" aria-labelledby="help-workflow">
+          <h3 id="help-workflow">日常使用</h3>
+          <ol class="help-steps">
+            <li><span>1</span><div><strong>选择摄影目录</strong><p>左侧只显示当前账号能够访问的文件夹。进入文件夹后可以查看已有图片和视频。</p></div></li>
+            <li><span>2</span><div><strong>上传并填写名称</strong><p>点击“上传图片或视频”，选择文件并填写保存名称。扩展名由系统自动处理，不需要手动输入。</p></div></li>
+            <li><span>3</span><div><strong>等待上传与压缩</strong><p>大文件会自动分片上传。全部分片完成后，系统开始压缩；关闭页面前请等待“已压缩保存”的提示。</p></div></li>
+            <li><span>4</span><div><strong>预览或下载</strong><p>点击缩略图查看大图或播放视频；点击“下载”恢复到上传时记录的宽高。勾选多个文件可打包下载。</p></div></li>
+          </ol>
+        </section>
+
+        <section class="help-section" aria-labelledby="help-compression">
+          <h3 id="help-compression">系统怎样节省容量</h3>
+          <div class="help-specs">
+            <div><strong>图片</strong><p>转为 WebP。最长边超过 2560 像素时会缩小，照片使用适合网页和日常交付的压缩质量。</p></div>
+            <div><strong>视频</strong><p>转为 H.264 MP4，最高保存为 1080p，并压缩视频码率与音频码率。</p></div>
+            <div><strong>原文件</strong><p>压缩完成后不再保留原文件，只保存压缩版本和原始宽高等记录，因此不会重复占用容量。</p></div>
+          </div>
+          <aside class="quality-notice">
+            <strong>关于“恢复原尺寸”</strong>
+            <p>下载可以恢复到原来的宽度和高度，但有损压缩已经删除的像素细节无法精确找回。恢复后的文件适合查看和普通使用，不等于上传前的逐像素原件。</p>
+          </aside>
+        </section>
+
+        <section class="help-section help-grid" aria-labelledby="help-limits">
+          <div>
+            <h3 id="help-limits">文件要求</h3>
+            <dl>
+              <div><dt>图片</dt><dd>JPG、JPEG、PNG、WebP、BMP、TIFF</dd></div>
+              <div><dt>视频</dt><dd>MP4、MOV、M4V、WebM、AVI、MKV</dd></div>
+              <div><dt>大小</dt><dd>单个文件不超过 200 MB</dd></div>
+            </dl>
+          </div>
+          <div>
+            <h3>管理员操作</h3>
+            <p>管理员点击页面顶部“文件夹与成员”，可以新建文件夹、修改名称和勾选可访问成员。已有文件的文件夹不能直接删除，以免误删素材。</p>
+          </div>
+        </section>
+
+        <section class="help-section" aria-labelledby="help-safety">
+          <h3 id="help-safety">访问与存储安全</h3>
+          <p>媒体文件保存在私有存储中。每次打开预览、下载文件或批量下载时，服务器都会重新检查账号是否仍然拥有该文件夹的访问权。</p>
+        </section>
+      </div>
+
+      <footer class="help-footer"><span>说明版本：2026.10</span><button class="primary-button" data-close="help-dialog" type="button">知道了</button></footer>
+    </article>
+  </dialog>
+
+  <dialog id="admin-dialog" class="dialog admin-dialog" aria-labelledby="admin-title">
+    <div class="dialog-card admin-card">
+      <header class="dialog-head"><div><h2 id="admin-title">文件夹与成员</h2><p>账号一旦获得文件夹访问权，即可浏览、上传和下载其中全部内容。</p></div><button class="icon-button" data-close="admin-dialog" type="button" aria-label="关闭">×</button></header>
+      <div class="admin-toolbar"><span id="admin-folder-count">0 个文件夹</span><button id="folder-create" class="primary-button" type="button">新建文件夹</button></div>
+      <div id="admin-folder-list" class="admin-folder-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="folder-dialog" class="dialog" aria-labelledby="folder-dialog-title">
+    <form id="folder-form" class="dialog-card folder-card">
+      <header class="dialog-head"><div><h2 id="folder-dialog-title">新建文件夹</h2><p>勾选的成员将获得这个文件夹的全部使用功能。</p></div><button class="icon-button" data-close="folder-dialog" type="button" aria-label="关闭">×</button></header>
+      <label class="field">文件夹名称<input name="name" maxlength="80" required placeholder="例如：2026 秋季产品拍摄"></label>
+      <fieldset><legend>允许访问的成员</legend><div id="member-options" class="member-options"></div></fieldset>
+      <p id="folder-message" class="message hidden" role="alert"></p>
+      <footer class="dialog-actions"><button id="folder-delete" class="danger-button hidden" type="button">删除空文件夹</button><span></span><button class="secondary-button" data-close="folder-dialog" type="button">取消</button><button class="primary-button" type="submit">保存文件夹</button></footer>
+    </form>
+  </dialog>
+
+  <script type="module" src="/photography-static/app.js?v=20261029-2"></script>
+</body>
+</html>
