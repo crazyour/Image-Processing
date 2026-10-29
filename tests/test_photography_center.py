@@ -101,6 +101,16 @@ class PhotographyCenterTests(unittest.TestCase):
         self.assertIn('class="tool-card tone-photography" href="/photography-center"', home.text)
         self.assertNotIn("card-photography", home.text)
 
+    def test_photography_page_uses_light_theme_without_savings_metrics(self):
+        root = Path(__file__).resolve().parent.parent / "photography_frontend"
+        css = (root / "styles.css").read_text(encoding="utf-8")
+        script = (root / "app.js").read_text(encoding="utf-8")
+        page = (root / "index.html").read_text(encoding="utf-8")
+        self.assertIn("color-scheme: light", css)
+        self.assertNotIn("saved-total", page)
+        self.assertNotIn("saving_percent", script)
+        self.assertNotIn("已节省", script)
+
     def test_member_uploads_only_compressed_image_and_download_restores_dimensions(self):
         folder = self.create_folder()
         original = self.jpeg()

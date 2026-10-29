@@ -46,7 +46,6 @@ function formatDate(timestamp) {
 
 function renderFolders() {
   $("#folder-count").textContent = state.folders.length;
-  $("#saved-total").textContent = formatBytes(state.folders.reduce((sum, folder) => sum + Math.max(0, folder.original_size_bytes - folder.stored_size_bytes), 0));
   if (!state.folders.length) {
     folderList.innerHTML = `<p class="loading">${state.user.role === "admin" ? "还没有文件夹，请先创建。" : "管理员尚未分配可访问的文件夹。"}</p>`;
     return;
@@ -78,7 +77,7 @@ function renderMedia() {
       </button>
       <div class="media-copy">
         <div class="media-title-line"><h3 title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h3><a href="${item.download_url}">下载</a></div>
-        <p class="media-meta">${item.stored_width} × ${item.stored_height} · ${formatBytes(item.stored_size_bytes)}<br><span class="saving">节省 ${item.saving_percent}%</span> · ${escapeHtml(item.uploader_name)} · ${formatDate(item.created_at)}</p>
+        <p class="media-meta">${item.stored_width} × ${item.stored_height}<br>${escapeHtml(item.uploader_name)} · ${formatDate(item.created_at)}</p>
       </div>
     </article>
   `).join("");
@@ -93,8 +92,7 @@ async function selectFolder(folderId) {
   renderFolders();
   $("#stage-path").textContent = `摄影目录 / ${folder.item_count} 个文件`;
   $("#folder-title").textContent = folder.name;
-  const saved = Math.max(0, folder.original_size_bytes - folder.stored_size_bytes);
-  $("#folder-summary").textContent = `压缩存储 ${formatBytes(folder.stored_size_bytes)}，已节省 ${formatBytes(saved)}。下载会恢复到原始宽高。`;
+  $("#folder-summary").textContent = `共 ${folder.item_count} 个文件。下载会恢复到上传时记录的宽高。`;
   $("#upload-open").disabled = false;
   mediaGrid.innerHTML = '<p class="loading">正在读取媒体…</p>';
   try {
@@ -235,7 +233,7 @@ uploadForm.addEventListener("submit", async event => {
       })},
     );
     uploadDialog.close();
-    showMessage(`“${response.item.name}”已压缩保存，节省 ${response.item.saving_percent}% 空间。`);
+    showMessage(`“${response.item.name}”已压缩保存。`);
     await loadFolders(false);
     await selectFolder(state.activeFolder.id);
   } catch (error) {
@@ -254,7 +252,7 @@ function renderAdminFolders() {
   }
   list.innerHTML = state.admin.folders.map(folder => `
     <div class="admin-folder-row">
-      <div><strong>${escapeHtml(folder.name)}</strong><p>${folder.item_count} 个文件 · ${formatBytes(folder.stored_size_bytes)}</p></div>
+      <div><strong>${escapeHtml(folder.name)}</strong><p>${folder.item_count} 个文件</p></div>
       <div class="member-chips">${folder.members.length ? folder.members.map(member => `<span>${escapeHtml(member.name)}</span>`).join("") : "<span>未分配成员</span>"}</div>
       <button class="secondary-button" type="button" data-edit-folder="${folder.id}">编辑</button>
     </div>
