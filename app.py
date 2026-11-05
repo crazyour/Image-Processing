@@ -1564,7 +1564,7 @@ def _smooth_cutout_contour(contour: np.ndarray, supersample: int) -> np.ndarray:
 
 
 def _cutout_dxf(image_bytes: bytes) -> bytes:
-    """Trace black raster regions into smooth closed millimetre DXF paths."""
+    """Trace black raster regions into AutoCAD R12 closed millimetre paths."""
     with Image.open(io.BytesIO(image_bytes)) as source:
         gray = np.asarray(source.convert("L"))
     mask = np.where(gray < 128, 255, 0).astype(np.uint8)
@@ -1580,7 +1580,15 @@ def _cutout_dxf(image_bytes: bytes) -> bytes:
     contours, _ = cv2.findContours(traced, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     height, width = mask.shape
     scale = 100.0 / max(width, height)
-    entities = []
+    entities: list[str] = []
+    next_handle = 0x100
+
+    def new_handle() -> str:
+        nonlocal next_handle
+        handle = f"{next_handle:X}"
+        next_handle += 1
+        return handle
+
     for contour in contours:
         if abs(cv2.contourArea(contour)) / (supersample ** 2) < 4:
             continue
@@ -1588,14 +1596,39 @@ def _cutout_dxf(image_bytes: bytes) -> bytes:
         if len(points) < 3:
             continue
         vertices = "".join(
-            f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n"
+            f"0\nVERTEX\n5\n{new_handle()}\n8\nCUT\n"
+            f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n30\n0.0000\n70\n0\n"
             for x, y in points
         )
-        entities.append(f"0\nLWPOLYLINE\n8\nCUT\n90\n{len(points)}\n70\n1\n{vertices}")
+        polyline_handle = new_handle()
+        seqend_handle = new_handle()
+        entities.append(
+            f"0\nPOLYLINE\n5\n{polyline_handle}\n8\nCUT\n66\n1\n"
+            "10\n0.0000\n20\n0.0000\n30\n0.0000\n70\n1\n"
+            f"{vertices}"
+            f"0\nSEQEND\n5\n{seqend_handle}\n8\nCUT\n"
+        )
     if not entities:
         raise WorkflowError("CUTOUT_DXF_EMPTY", "当前结果没有可导出的黑色轮廓", 409)
-    header = "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n"
-    return (header + "".join(entities) + "0\nENDSEC\n0\nEOF\n").encode("ascii")
+    document = (
+        "0\nSECTION\n2\nHEADER\n"
+        "9\n$ACADVER\n1\nAC1009\n"
+        "9\n$MEASUREMENT\n70\n1\n"
+        f"9\n$HANDSEED\n5\n{next_handle:X}\n"
+        "0\nENDSEC\n"
+        "0\nSECTION\n2\nTABLES\n"
+        "0\nTABLE\n2\nLTYPE\n70\n1\n"
+        "0\nLTYPE\n2\nCONTINUOUS\n70\n64\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n"
+        "0\nENDTAB\n"
+        "0\nTABLE\n2\nLAYER\n70\n1\n"
+        "0\nLAYER\n2\nCUT\n70\n0\n62\n7\n6\nCONTINUOUS\n"
+        "0\nENDTAB\n0\nENDSEC\n"
+        "0\nSECTION\n2\nBLOCKS\n0\nENDSEC\n"
+        "0\nSECTION\n2\nENTITIES\n"
+        + "".join(entities)
+        + "0\nENDSEC\n0\nEOF\n"
+    )
+    return document.replace("\n", "\r\n").encode("ascii")
 
 
 @app.get("/api/animal-cutout/tasks/{task_id}/dxf")

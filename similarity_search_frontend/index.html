@@ -46,7 +46,7 @@
             <input id="folder-name" type="text" maxlength="120" required autocomplete="off" placeholder="请输入保存到云端的文件夹名称">
           </label>
           <label class="dropzone" id="folder-dropzone">
-            <input id="folder-input" type="file" webkitdirectory multiple accept=".png,.jpg,.jpeg,.webp,.dxf,.ai">
+            <input id="folder-input" type="file" webkitdirectory multiple accept=".png,.jpg,.jpeg,.webp,.dxf,.ai" data-paste-label="素材文件夹">
             <span class="drop-icon">⌁</span>
             <strong>点击选择整个文件夹</strong>
             <small>支持 PNG / JPG / WebP / DXF / AI，大文件将自动分片上传</small>
@@ -80,7 +80,7 @@
           <p>系统只比较同格式素材。图片先查找全局相似度前 10 张，再进行几何验证；查询文件不会保存。</p>
         </div>
         <label class="query-dropzone">
-          <input id="query-input" type="file" accept=".png,.jpg,.jpeg,.webp,.dxf,.ai">
+          <input id="query-input" type="file" accept=".png,.jpg,.jpeg,.webp,.dxf,.ai" data-paste-label="查询图片">
           <span>＋</span><strong id="query-label">选择图片、DXF或AI文件</strong>
           <small>大文件将自动分片上传</small>
         </label>
@@ -158,6 +158,7 @@
     </div>
   </dialog>
 
+  <script src="/assets/paste-upload.js?v=20261105-1" defer></script>
   <script src="/similarity-search-static/app.js?v=14" defer></script>
 </body>
 </html>

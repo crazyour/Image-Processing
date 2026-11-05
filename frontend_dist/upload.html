@@ -60,7 +60,7 @@
       <label id="drop-zone" class="drop-zone" for="file-input">
         <span class="upload-icon">⇧</span><strong>点击选择或将文件拖到这里</strong>
         <small>支持图片、SVG / AI / PSD / PDF、DXF / STL / OBJ / GLB、ZIP 及常用文档；单个不超过 4 MB</small>
-        <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx">
+        <input id="file-input" type="file" multiple accept="image/*,.ai,.psd,.pdf,.dxf,.dwg,.stl,.obj,.glb,.gltf,.fbx,.step,.stp,.iges,.igs,.3mf,.zip,.7z,.rar,.txt,.csv,.json,.doc,.docx,.xls,.xlsx" data-paste-label="成果素材">
       </label>
       <div class="action-row"><span id="selection-summary">尚未选择文件</span><button id="upload-button" type="button" disabled>开始上传</button></div>
 
@@ -70,6 +70,7 @@
       </div>
     </section>
   </main>
+  <script src="/assets/paste-upload.js?v=20261105-1" defer></script>
   <script src="/assets/upload.js?v=20261021-3" defer></script>
 </body>
 </html>

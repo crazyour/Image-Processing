@@ -328,8 +328,14 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         )
         self.assertEqual(downloaded.status_code, 200)
         self.assertEqual(downloaded.headers["content-type"], "application/dxf")
-        self.assertIn("LWPOLYLINE", downloaded.text)
-        self.assertTrue(downloaded.text.endswith("0\nEOF\n"))
+        dxf = downloaded.content.decode("ascii").replace("\r\n", "\n")
+        self.assertIn("$ACADVER\n1\nAC1009", dxf)
+        self.assertIn("0\nPOLYLINE\n", dxf)
+        self.assertIn("0\nVERTEX\n", dxf)
+        self.assertIn("0\nSEQEND\n", dxf)
+        self.assertIn("$HANDSEED\n5\n", dxf)
+        self.assertNotIn("LWPOLYLINE", dxf)
+        self.assertTrue(dxf.endswith("0\nEOF\n"))
 
     def test_public_pages_do_not_offer_model_controls(self):
         page = self.client.get("/text-to-image").text
@@ -377,12 +383,22 @@ class CutoutDxfTests(unittest.TestCase):
         ok, encoded = cv2.imencode(".png", canvas)
         self.assertTrue(ok)
 
-        dxf = app_module._cutout_dxf(encoded.tobytes()).decode("ascii")
-        pairs = re.findall(r"10\n(-?\d+\.\d+)\n20\n(-?\d+\.\d+)", dxf)
+        raw = app_module._cutout_dxf(encoded.tobytes())
+        self.assertIn(b"\r\n", raw)
+        dxf = raw.decode("ascii").replace("\r\n", "\n")
+        vertex_entities = re.findall(
+            r"0\nVERTEX\n(.*?)(?=0\n(?:VERTEX|SEQEND)\n)", dxf, flags=re.DOTALL,
+        )
+        pairs = [
+            match.groups()
+            for entity in vertex_entities
+            if (match := re.search(r"10\n(-?\d+\.\d+)\n20\n(-?\d+\.\d+)", entity))
+        ]
         points = np.asarray([(float(x), float(y)) for x, y in pairs])
 
         self.assertGreater(len(points), 24)
         self.assertLess(len(points), 4000)
+        self.assertEqual(dxf.count("0\nPOLYLINE\n"), dxf.count("0\nSEQEND\n"))
         center = points.mean(axis=0)
         radii = np.linalg.norm(points - center, axis=1)
         self.assertLess(float(radii.std()), 0.32)
