@@ -702,19 +702,25 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
 
 
 def _image_svg(image: bytes, size: str) -> bytes:
-    """Wrap a generated PNG losslessly in an SVG document without claiming vector paths."""
+    """Wrap a generated PNG in an Illustrator-compatible SVG 1.1 document."""
     try:
-        width_text, height_text = size.lower().split("x", 1)
-        width, height = int(width_text), int(height_text)
-    except (AttributeError, TypeError, ValueError):
-        width = height = 1024
+        with Image.open(io.BytesIO(image)) as source:
+            width, height = source.size
+    except (OSError, ValueError):
+        try:
+            width_text, height_text = size.lower().split("x", 1)
+            width, height = int(width_text), int(height_text)
+        except (AttributeError, TypeError, ValueError):
+            width = height = 1024
     encoded = base64.b64encode(image).decode("ascii")
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-        f'viewBox="0 0 {width} {height}">\n'
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" '
+        f'width="{width}px" height="{height}px" viewBox="0 0 {width} {height}">\n'
         '  <title>AI generated image (embedded PNG)</title>\n'
-        f'  <image width="{width}" height="{height}" href="data:image/png;base64,{encoded}"/>\n'
+        f'  <image id="embedded-image" x="0" y="0" width="{width}" height="{height}" '
+        f'preserveAspectRatio="none" xlink:href="data:image/png;base64,{encoded}"/>\n'
         '</svg>\n'
     ).encode("utf-8")
 
@@ -1348,10 +1354,13 @@ def download_text_image_item(
     item = state["items"][item_index]
     if item.get("status") != "SUCCEEDED":
         raise WorkflowError("IMAGE_NOT_READY", "图片尚未生成完成", 409)
-    source_url = item.get("url" if file_type == "png" else "svg_url")
+    source_url = item.get("url")
     if not source_url:
-        raise WorkflowError("IMAGE_FILE_MISSING", f"{file_type.upper()} 文件不存在", 404)
-    payload = fetch_bytes(source_url, 30_000_000)
+        raise WorkflowError("IMAGE_FILE_MISSING", "PNG 文件不存在", 404)
+    png = fetch_bytes(source_url, 30_000_000)
+    payload = png if file_type == "png" else _image_svg(
+        png, (state.get("model_settings") or {}).get("size", TEXT_IMAGE_SIZE),
+    )
     filename = f"lingjie-image-{item_index + 1}.{file_type}"
     media_type = "image/png" if file_type == "png" else "image/svg+xml"
     return Response(

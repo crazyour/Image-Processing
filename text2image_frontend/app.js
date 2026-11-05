@@ -252,7 +252,7 @@ function applyTaskState(state) {
       download.textContent = "下载 PNG";
       download.addEventListener("click", () => downloadTextImageItem(item, "png", download));
       card.querySelector(".card-actions").appendChild(download);
-      if (item.svg_url) {
+      if (item.url) {
         const svgDownload = document.createElement("button");
         svgDownload.type = "button";
         svgDownload.textContent = "下载 SVG";

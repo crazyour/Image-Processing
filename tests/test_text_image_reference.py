@@ -120,8 +120,11 @@ class TextImageReferenceTests(unittest.TestCase):
         svg_response = self.client.get(svg_url)
         self.assertEqual(svg_response.status_code, 200)
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
-        self.assertIn(b'<image width="1024" height="1024"', svg_response.content)
-        self.assertIn(b'href="data:image/png;base64,', svg_response.content)
+        self.assertIn(b'width="128px" height="128px" viewBox="0 0 128 128"', svg_response.content)
+        self.assertIn(b'width="128" height="128"', svg_response.content)
+        self.assertIn(b'version="1.1"', svg_response.content)
+        self.assertIn(b'xmlns:xlink="http://www.w3.org/1999/xlink"', svg_response.content)
+        self.assertIn(b'xlink:href="data:image/png;base64,', svg_response.content)
         png_download = self.client.get(
             f"/api/text-image/tasks/{task_id}/items/0/download/png", headers=headers,
         )
