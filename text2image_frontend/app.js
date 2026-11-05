@@ -84,6 +84,39 @@ function notify(message) {
   setTimeout(() => $("#notice").classList.add("hidden"), 4200);
 }
 
+async function downloadTextImageItem(item, fileType, button) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "正在下载…";
+  try {
+    const response = await fetch(
+      `/api/text-image/tasks/${task.id}/items/${item.index}/download/${fileType}`,
+      { headers: { "X-Session-Token": task.token } },
+    );
+    if (!response.ok) {
+      let message = `下载失败（${response.status}）`;
+      try {
+        const body = await response.json();
+        message = body.message || body.detail || message;
+      } catch {}
+      throw new Error(message);
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `lingjie-image-${item.index + 1}.${fileType}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    showError(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function promptValues() {
   return [...document.querySelectorAll(".prompt-input")].map((input) => input.value.trim());
 }
@@ -214,17 +247,17 @@ function applyTaskState(state) {
       image.src = item.url;
       image.alt = `第 ${item.index + 1} 张生成结果`;
       frame.appendChild(image);
-      const download = document.createElement("a");
-      download.href = item.url;
-      download.download = "";
+      const download = document.createElement("button");
+      download.type = "button";
       download.textContent = "下载 PNG";
+      download.addEventListener("click", () => downloadTextImageItem(item, "png", download));
       card.querySelector(".card-actions").appendChild(download);
       if (item.svg_url) {
-        const svgDownload = document.createElement("a");
-        svgDownload.href = item.svg_url;
-        svgDownload.download = "";
+        const svgDownload = document.createElement("button");
+        svgDownload.type = "button";
         svgDownload.textContent = "下载 SVG";
         svgDownload.title = "SVG 容器会无损嵌入生成的 PNG，不会自动转换为可编辑路径";
+        svgDownload.addEventListener("click", () => downloadTextImageItem(item, "svg", svgDownload));
         card.querySelector(".card-actions").appendChild(svgDownload);
       }
     } else {

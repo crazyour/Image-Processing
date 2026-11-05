@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import os
 import sqlite3
@@ -228,6 +229,48 @@ EOF
         self.assertIn("几何相似度", script)
         self.assertNotIn("几何验证最佳", script)
         self.assertNotIn("第一次搜索排名", script)
+        self.assertIn('"X-Chunk-SHA256": await sha256Hex(chunk)', script)
+        self.assertIn("file_size: file.size", script)
+        self.assertIn("failures.push(error)", script)
+        self.assertIn("本次上传未保存", script)
+
+    def test_chunk_integrity_and_complete_size_are_validated(self) -> None:
+        raw = self.fixtures()["preview.png"]
+        invalid_hash = self.client.post(
+            f"/api/material-search/search/uploads/{'c' * 32}/chunks/0",
+            headers={
+                **self.headers,
+                "X-Chunk-Size": str(len(raw)),
+                "X-Chunk-SHA256": "0" * 64,
+            },
+            files={"chunk": ("preview.png.part", raw)},
+        )
+        self.assertEqual(invalid_hash.status_code, 422, invalid_hash.text)
+        self.assertEqual(invalid_hash.json()["message"], "上传分片内容校验失败，请重新上传")
+
+        upload_id = "d" * 32
+        uploaded = self.client.post(
+            f"/api/material-search/search/uploads/{upload_id}/chunks/0",
+            headers={
+                **self.headers,
+                "X-Chunk-Size": str(len(raw)),
+                "X-Chunk-SHA256": hashlib.sha256(raw).hexdigest(),
+            },
+            files={"chunk": ("preview.png.part", raw)},
+        )
+        self.assertEqual(uploaded.status_code, 200, uploaded.text)
+        invalid_size = self.client.post(
+            f"/api/material-search/search/uploads/{upload_id}/complete",
+            headers=self.headers,
+            json={
+                "filename": "preview.png",
+                "relative_path": "preview.png",
+                "chunk_count": 1,
+                "file_size": len(raw) + 1,
+            },
+        )
+        self.assertEqual(invalid_size.status_code, 422, invalid_size.text)
+        self.assertIn("文件分片合并后大小不一致", invalid_size.json()["message"])
 
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
         missing_name = self.client.post(
@@ -246,7 +289,11 @@ EOF
                 for chunk_index, chunk in enumerate((raw[:midpoint], raw[midpoint:])):
                     chunk_response = self.client.post(
                         f"/api/material-search/folders/{folder_id}/uploads/{upload_id}/chunks/{chunk_index}",
-                        headers=self.headers,
+                        headers={
+                            **self.headers,
+                            "X-Chunk-Size": str(len(chunk)),
+                            "X-Chunk-SHA256": hashlib.sha256(chunk).hexdigest(),
+                        },
                         files={"chunk": (f"{name}.part", chunk)},
                     )
                     self.assertEqual(chunk_response.status_code, 200, chunk_response.text)
@@ -257,6 +304,7 @@ EOF
                         "filename": name,
                         "relative_path": f"sample-folder/{name}",
                         "chunk_count": 2,
+                        "file_size": len(raw),
                     },
                 )
             else:
@@ -341,14 +389,23 @@ EOF
         for chunk_index, chunk in enumerate((query_raw[:query_midpoint], query_raw[query_midpoint:])):
             chunk_response = self.client.post(
                 f"/api/material-search/search/uploads/{query_upload_id}/chunks/{chunk_index}",
-                headers=self.headers,
+                headers={
+                    **self.headers,
+                    "X-Chunk-Size": str(len(chunk)),
+                    "X-Chunk-SHA256": hashlib.sha256(chunk).hexdigest(),
+                },
                 files={"chunk": (f"{query_name}.part", chunk)},
             )
             self.assertEqual(chunk_response.status_code, 200, chunk_response.text)
         chunked_search = self.client.post(
             f"/api/material-search/search/uploads/{query_upload_id}/complete",
             headers=self.headers,
-            json={"filename": query_name, "relative_path": query_name, "chunk_count": 2},
+            json={
+                "filename": query_name,
+                "relative_path": query_name,
+                "chunk_count": 2,
+                "file_size": len(query_raw),
+            },
         )
         self.assertEqual(chunked_search.status_code, 200, chunked_search.text)
         self.assertEqual(chunked_search.json()["results"][0]["folder_id"], folder_id)

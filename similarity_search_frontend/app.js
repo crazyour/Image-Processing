@@ -34,11 +34,35 @@ async function api(path, options = {}) {
     headers: { ...headers(options.json), ...(options.headers || {}) },
   });
   if (!response.ok) {
-    let detail = `请求失败（${response.status}）`;
-    try { detail = (await response.json()).detail || detail; } catch {}
-    throw new Error(detail);
+    const fallback = `请求失败（${response.status}）`;
+    let detail = fallback;
+    const body = await response.text();
+    if (body) {
+      try {
+        const payload = JSON.parse(body);
+        if (typeof payload.message === "string") detail = payload.message;
+        else if (typeof payload.detail === "string") detail = payload.detail;
+        else if (Array.isArray(payload.detail)) {
+          detail = payload.detail.map(item => {
+            const location = Array.isArray(item.loc) ? item.loc.filter(part => part !== "body").join(".") : "";
+            return `${location ? `${location}：` : ""}${item.msg || "请求参数无效"}`;
+          }).join("；");
+        }
+      } catch {
+        detail = body.trim().slice(0, 500) || fallback;
+      }
+    }
+    const error = new Error(detail);
+    error.status = response.status;
+    error.path = path;
+    throw error;
   }
   return response;
+}
+
+async function sha256Hex(blob) {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
 }
 
 async function ensureLibrary() {
@@ -226,16 +250,32 @@ async function uploadFileInChunks(file, chunkPath, completePath, completePayload
   if (!chunkCount) throw new Error(`${file.name} 是空文件`);
   for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
     const start = chunkIndex * uploadChunkBytes;
+    const chunk = file.slice(start, Math.min(start + uploadChunkBytes, file.size));
     const data = new FormData();
-    data.append("chunk", file.slice(start, Math.min(start + uploadChunkBytes, file.size)), `${file.name}.part`);
-    await api(`${chunkPath}/${chunkIndex}`, { method: "POST", body: data });
+    data.append("chunk", chunk, `${file.name}.part`);
+    try {
+      await api(`${chunkPath}/${chunkIndex}`, {
+        method: "POST",
+        body: data,
+        headers: {
+          "X-Chunk-Size": String(chunk.size),
+          "X-Chunk-SHA256": await sha256Hex(chunk),
+        },
+      });
+    } catch (error) {
+      throw new Error(`${file.name}：第 ${chunkIndex + 1}/${chunkCount} 个分片上传失败：${error.message}`, { cause: error });
+    }
     onChunk?.();
   }
-  return api(completePath, {
-    method: "POST",
-    json: true,
-    body: JSON.stringify({ ...completePayload, filename: file.name, chunk_count: chunkCount }),
-  });
+  try {
+    return await api(completePath, {
+      method: "POST",
+      json: true,
+      body: JSON.stringify({ ...completePayload, filename: file.name, chunk_count: chunkCount, file_size: file.size }),
+    });
+  } catch (error) {
+    throw new Error(`${file.name}：文件校验或索引建立失败：${error.message}`, { cause: error });
+  }
 }
 
 async function uploadFolder() {
@@ -253,22 +293,46 @@ async function uploadFolder() {
     const folder = await response.json();
     const totalChunks = state.selectedFiles.reduce((sum, file) => sum + Math.ceil(file.size / uploadChunkBytes), 0);
     let uploadedChunks = 0;
+    const failures = [];
     for (let index = 0; index < state.selectedFiles.length; index += 1) {
       const file = state.selectedFiles[index];
+      const fileChunkCount = Math.ceil(file.size / uploadChunkBytes);
+      const chunksBeforeFile = uploadedChunks;
       $("#progress-label").textContent = `处理 ${file.name}`;
       const currentUploadId = uploadId();
-      await uploadFileInChunks(
-        file,
-        `/api/material-search/folders/${folder.id}/uploads/${currentUploadId}/chunks`,
-        `/api/material-search/folders/${folder.id}/uploads/${currentUploadId}/complete`,
-        { relative_path: file.webkitRelativePath || file.name },
-        () => {
-          uploadedChunks += 1;
-          const percent = Math.round((uploadedChunks / totalChunks) * 90);
-          $("#progress-value").textContent = `${percent}%`;
-          $("#progress-bar").style.width = `${percent}%`;
-        },
-      );
+      try {
+        await uploadFileInChunks(
+          file,
+          `/api/material-search/folders/${folder.id}/uploads/${currentUploadId}/chunks`,
+          `/api/material-search/folders/${folder.id}/uploads/${currentUploadId}/complete`,
+          { relative_path: file.webkitRelativePath || file.name },
+          () => {
+            uploadedChunks += 1;
+            const percent = Math.round((uploadedChunks / Math.max(totalChunks, 1)) * 90);
+            $("#progress-value").textContent = `${percent}%`;
+            $("#progress-bar").style.width = `${percent}%`;
+          },
+        );
+      } catch (error) {
+        failures.push(error);
+        uploadedChunks = chunksBeforeFile + Math.max(fileChunkCount, 1);
+        const percent = Math.round((uploadedChunks / Math.max(totalChunks, 1)) * 90);
+        $("#progress-value").textContent = `${percent}%`;
+        $("#progress-bar").style.width = `${percent}%`;
+      }
+    }
+    if (failures.length) {
+      $("#progress-label").textContent = `检查完成，${failures.length} 个文件失败`;
+      try {
+        await api(`/api/material-search/folders/${folder.id}`, { method: "DELETE" });
+        await api(`/api/material-search/trash/${folder.id}`, { method: "DELETE" });
+      } catch {}
+      const displayed = failures.slice(0, 6).map(error => error.message).join("；");
+      const remaining = failures.length > 6 ? `；另有 ${failures.length - 6} 个失败文件` : "";
+      setMessage("#upload-message", `本次上传未保存。${displayed}${remaining}`, "error");
+      button.disabled = false;
+      await loadLibrary();
+      return;
     }
     $("#progress-label").textContent = "生成文件夹下载包";
     $("#progress-bar").style.width = "94%";

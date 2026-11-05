@@ -67,6 +67,7 @@ class ChunkCompleteRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     relative_path: str = Field(default="", max_length=1000)
     chunk_count: int = Field(ge=1)
+    file_size: int | None = Field(default=None, ge=1)
 
 
 def _authorise(library_id: str | None, token: str | None) -> str:
@@ -117,6 +118,25 @@ def _read_chunks(store: PrivateMaterialBlobStore, references: list[str]) -> byte
         return b"".join(store.read(reference)[0] for reference in references)
     except StoreError as exc:
         raise HTTPException(status_code=502, detail="上传分片不完整，请重新上传") from exc
+
+
+def _validate_chunk(raw: bytes, expected_size: int | None, expected_sha256: str | None) -> None:
+    if expected_size is not None and len(raw) != expected_size:
+        raise HTTPException(status_code=422, detail="上传分片大小校验失败，请重新上传")
+    if expected_sha256:
+        expected = expected_sha256.strip().lower()
+        if not re.fullmatch(r"[a-f0-9]{64}", expected):
+            raise HTTPException(status_code=422, detail="上传分片校验值格式无效")
+        if hashlib.sha256(raw).hexdigest() != expected:
+            raise HTTPException(status_code=422, detail="上传分片内容校验失败，请重新上传")
+
+
+def _validate_complete_file(raw: bytes, request: ChunkCompleteRequest) -> None:
+    if request.file_size is not None and len(raw) != request.file_size:
+        raise HTTPException(
+            status_code=422,
+            detail=f"文件分片合并后大小不一致（应为 {request.file_size} 字节，实际 {len(raw)} 字节），请重新上传",
+        )
 
 
 def _process_and_save_asset(
@@ -322,6 +342,8 @@ async def upload_asset_chunk(
     upload_id: str,
     chunk_index: int,
     chunk: UploadFile = File(...),
+    chunk_size: int | None = Header(default=None, alias="X-Chunk-Size"),
+    chunk_sha256: str | None = Header(default=None, alias="X-Chunk-SHA256"),
     library_id: str | None = Header(default=None, alias="X-Material-Library"),
     token: str | None = Header(default=None, alias="X-Material-Token"),
 ):
@@ -336,6 +358,7 @@ async def upload_asset_chunk(
         raise HTTPException(status_code=400, detail="上传分片为空")
     if len(raw) > MAX_CHUNK_BYTES:
         raise HTTPException(status_code=413, detail="上传分片超过平台请求限制")
+    _validate_chunk(raw, chunk_size, chunk_sha256)
     reference = f"material-search/{library_id}/{folder_id}/staging/{upload_id}/{chunk_index:08d}.part"
     try:
         PrivateMaterialBlobStore().put(reference, raw, "application/octet-stream")
@@ -363,6 +386,7 @@ def complete_asset_upload(
         raw = _read_chunks(store, references)
         if not raw:
             raise HTTPException(status_code=400, detail="文件为空")
+        _validate_complete_file(raw, request)
         asset = _process_and_save_asset(
             library_id, folder_id, request.filename, request.relative_path, raw,
         )
@@ -534,6 +558,8 @@ async def upload_search_chunk(
     upload_id: str,
     chunk_index: int,
     chunk: UploadFile = File(...),
+    chunk_size: int | None = Header(default=None, alias="X-Chunk-Size"),
+    chunk_sha256: str | None = Header(default=None, alias="X-Chunk-SHA256"),
     library_id: str | None = Header(default=None, alias="X-Material-Library"),
     token: str | None = Header(default=None, alias="X-Material-Token"),
 ):
@@ -546,6 +572,7 @@ async def upload_search_chunk(
         raise HTTPException(status_code=400, detail="上传分片为空")
     if len(raw) > MAX_CHUNK_BYTES:
         raise HTTPException(status_code=413, detail="上传分片超过平台请求限制")
+    _validate_chunk(raw, chunk_size, chunk_sha256)
     reference = f"material-search/{library_id}/query-staging/{upload_id}/{chunk_index:08d}.part"
     try:
         PrivateMaterialBlobStore().put(reference, raw, "application/octet-stream")
@@ -570,6 +597,7 @@ def complete_search_upload(
         raw = _read_chunks(store, references)
         if not raw:
             raise HTTPException(status_code=400, detail="查询文件为空")
+        _validate_complete_file(raw, request)
         return _search_materials(library_id, request.filename, raw)
     finally:
         try:

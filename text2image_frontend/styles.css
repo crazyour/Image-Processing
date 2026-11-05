@@ -81,7 +81,8 @@ label { display: grid; gap: 7px; color: #3c474d; font-weight: 700; }
 .spinner { width: 25px; height: 25px; margin: 0 auto 10px; border: 3px solid #d8dfda; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 .result-prompt { max-height: 4.8em; margin: 11px 0; overflow: auto; color: #46564d; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
 .card-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.card-actions a { padding: 10px 13px; border-radius: 11px; color: #fff; background: var(--accent); font-weight: 800; text-decoration: none; }
+.card-actions a,.card-actions button { padding: 10px 13px; border: 0; border-radius: 11px; color: #fff; background: var(--accent); font-weight: 800; text-decoration: none; cursor: pointer; }
+.card-actions button:disabled { opacity: .65; cursor: wait; }
 .error-copy { color: #8d2c22; }
 .notice, .error-panel { position: sticky; z-index: 5; top: 12px; margin-bottom: 14px; padding: 14px 17px; border-radius: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
 .notice { color: #fff; background: var(--ink); }

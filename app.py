@@ -1335,6 +1335,36 @@ def read_text_image_task(task_id: str, x_session_token: str | None = Header(defa
     return _text_image_response(state)
 
 
+@app.get("/api/text-image/tasks/{task_id}/items/{item_index}/download/{file_type}")
+def download_text_image_item(
+    task_id: str,
+    item_index: int,
+    file_type: Literal["png", "svg"],
+    x_session_token: str | None = Header(default=None),
+):
+    state, _ = _load_text_image_task(task_id, x_session_token)
+    if not 0 <= item_index < len(state["items"]):
+        raise WorkflowError("IMAGE_ITEM_NOT_FOUND", "图片任务不存在", 404)
+    item = state["items"][item_index]
+    if item.get("status") != "SUCCEEDED":
+        raise WorkflowError("IMAGE_NOT_READY", "图片尚未生成完成", 409)
+    source_url = item.get("url" if file_type == "png" else "svg_url")
+    if not source_url:
+        raise WorkflowError("IMAGE_FILE_MISSING", f"{file_type.upper()} 文件不存在", 404)
+    payload = fetch_bytes(source_url, 30_000_000)
+    filename = f"lingjie-image-{item_index + 1}.{file_type}"
+    media_type = "image/png" if file_type == "png" else "image/svg+xml"
+    return Response(
+        content=payload,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @app.post("/api/text-image/tasks/{task_id}/items/{item_index}/generate")
 def generate_text_image_item(task_id: str, item_index: int, request: Request,
                              x_session_token: str | None = Header(default=None)):

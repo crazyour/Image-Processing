@@ -122,6 +122,21 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
         self.assertIn(b'<image width="1024" height="1024"', svg_response.content)
         self.assertIn(b'href="data:image/png;base64,', svg_response.content)
+        png_download = self.client.get(
+            f"/api/text-image/tasks/{task_id}/items/0/download/png", headers=headers,
+        )
+        self.assertEqual(png_download.status_code, 200)
+        self.assertEqual(png_download.content, generated)
+        self.assertEqual(png_download.headers["content-type"], "image/png")
+        self.assertIn("attachment", png_download.headers["content-disposition"])
+        self.assertIn("lingjie-image-1.png", png_download.headers["content-disposition"])
+        svg_download = self.client.get(
+            f"/api/text-image/tasks/{task_id}/items/0/download/svg", headers=headers,
+        )
+        self.assertEqual(svg_download.status_code, 200)
+        self.assertEqual(svg_download.content, svg_response.content)
+        self.assertEqual(svg_download.headers["content-type"], "image/svg+xml")
+        self.assertIn("lingjie-image-1.svg", svg_download.headers["content-disposition"])
         text_image.assert_not_called()
         self.assertEqual(edit_image.call_count, 1)
         reference_inputs = edit_image.call_args.args[0]
