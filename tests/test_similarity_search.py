@@ -189,7 +189,7 @@ EOF
         self.assertGreater(matching["score"], non_matching["score"] + 0.25)
         self.assertIn(matching["label"], {"可能同款", "高度可信"})
 
-    def test_image_search_runs_geometry_only_for_cosine_top_ten(self) -> None:
+    def test_image_search_runs_geometry_only_for_fused_top_ten(self) -> None:
         candidates = [
             {
                 "folder_id": f"folder-{index}",
@@ -198,7 +198,10 @@ EOF
                 "original_name": f"image-{index}.png",
                 "preview_url": f"preview-{index}",
                 "vector": [1.0, index / 10.0],
-                "metadata": {"feature_version": FEATURE_VERSION},
+                "metadata": {
+                    "feature_version": FEATURE_VERSION,
+                    "semantic_vector": [1.0, max(0.0, 1.0 - index / 20.0)],
+                },
             }
             for index in range(12)
         ]
@@ -215,7 +218,9 @@ EOF
 
         folder = {"previews": [], "assets": [], "zip_url": None}
         with (
-            patch("vercel_app.similarity_api.process_file", return_value=("image", b"preview", [1.0, 0.0], {})),
+            patch("vercel_app.similarity_api.process_file", return_value=(
+                "image", b"preview", [1.0, 0.0], {"semantic_vector": [1.0, 1.0]},
+            )),
             patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
             patch("vercel_app.similarity_api.get_folder", return_value=folder),
             patch("vercel_app.similarity_api.image_geometric_similarity", side_effect=geometric) as verify,
@@ -226,6 +231,44 @@ EOF
         self.assertEqual(verify.call_count, 10)
         self.assertEqual(payload["results"][0]["matched_asset_id"], "asset-0")
         self.assertEqual(payload["geometric_best"]["matched_asset_id"], "asset-0")
+        self.assertEqual(payload["algorithm"], "semantic-shape-fusion-then-sift-ransac")
+        self.assertEqual(payload["fusion"]["semantic_weight"], 0.45)
+        self.assertEqual(payload["fusion"]["shape_weight"], 0.55)
+
+    def test_semantic_and_shape_rank_fusion_can_reject_a_wrong_category(self) -> None:
+        candidates = [
+            {
+                "folder_id": "wrong", "folder_name": "wrong", "asset_id": "wrong-shape",
+                "original_name": "sun.png", "preview_url": "wrong", "vector": [1.0, 0.0],
+                "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [0.0, 1.0]},
+            },
+            {
+                "folder_id": "correct", "folder_name": "correct", "asset_id": "correct-category",
+                "original_name": "chicken.png", "preview_url": "correct", "vector": [0.8, 0.6],
+                "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [1.0, 0.0]},
+            },
+            {
+                "folder_id": "other", "folder_name": "other", "asset_id": "other",
+                "original_name": "other.png", "preview_url": "other", "vector": [0.0, 1.0],
+                "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [0.7, 0.7]},
+            },
+        ]
+        folder = {"previews": [], "assets": [], "zip_url": None}
+        with (
+            patch("vercel_app.similarity_api.process_file", return_value=(
+                "image", b"preview", [1.0, 0.0], {"semantic_vector": [1.0, 0.0]},
+            )),
+            patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
+            patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch("vercel_app.similarity_api.image_geometric_similarity", return_value={
+                "score": 0.0, "label": "未验证", "inliers": 0,
+                "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac",
+            }),
+        ):
+            payload = _search_materials("library", "query.png", b"query")
+
+        self.assertEqual(payload["results"][0]["matched_asset_id"], "correct-category")
+        self.assertGreater(payload["results"][0]["semantic_score"], payload["results"][1]["semantic_score"])
 
     def test_second_search_is_shown_above_first_with_separate_labels(self) -> None:
         root = Path(__file__).resolve().parent.parent / "similarity_search_frontend"
@@ -233,9 +276,9 @@ EOF
         script = (root / "app.js").read_text(encoding="utf-8")
 
         self.assertLess(page.index('id="second-search"'), page.index('id="first-search-title"'))
-        self.assertIn('stage: twoStage ? "global" : "feature"', script)
+        self.assertIn('stage: imagePipeline ? "global" : "feature"', script)
         self.assertIn('resultCard(result.geometric_best, { stage: "geometric" })', script)
-        self.assertIn("主体形状相似度", script)
+        self.assertIn("语义45%＋轮廓55%", script)
         self.assertIn("几何相似度", script)
         self.assertNotIn("几何验证最佳", script)
         self.assertNotIn("第一次搜索排名", script)
@@ -417,6 +460,7 @@ EOF
         self.assertEqual(image_asset["metadata"]["feature_version"], FEATURE_VERSION)
         self.assertNotIn("local_features", image_asset["metadata"])
         self.assertNotIn("image_fingerprint", image_asset["metadata"])
+        self.assertNotIn("semantic_vector", image_asset["metadata"])
         self.assertEqual(self.client.get(folder["assets"][0]["preview_url"]).status_code, 401)
 
         for asset in folder["assets"]:
@@ -434,8 +478,8 @@ EOF
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99)
             if name == "preview.png":
-                self.assertEqual(payload["algorithm"], "shape-cosine-then-sift-ransac")
-                self.assertEqual(result["match_label"], "主体形状相似")
+                self.assertEqual(payload["algorithm"], "semantic-shape-fusion-then-sift-ransac")
+                self.assertEqual(result["match_label"], "语义与主体形状融合")
                 self.assertEqual(payload["geometric_best"]["match_label"], "同图")
                 self.assertEqual(payload["geometric_best"]["matched_asset_id"], result["matched_asset_id"])
             else:
@@ -483,6 +527,7 @@ EOF
         )
         self.assertEqual(forced_reindex.status_code, 200, forced_reindex.text)
         self.assertEqual(forced_reindex.json()["feature_version"], FEATURE_VERSION)
+        self.assertEqual(forced_reindex.json()["semantic_dimension"], 1000)
         self.assertGreaterEqual(forced_reindex.json()["local_feature_count"], 0)
 
         batch_reindex = self.client.post(
@@ -616,7 +661,7 @@ class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
         self.assertIn('context.globalCompositeOperation = "destination-in"', self.script)
         self.assertIn("context.drawImage(alphaMask, 0, 0)", self.script)
         self.assertIn('`${baseName}-subject.png`', self.script)
-        self.assertIn('"shape-cosine-then-sift-ransac"', self.script)
+        self.assertIn('"semantic-shape-fusion-then-sift-ransac"', self.script)
 
     def test_cpu_auto_selection_controls_and_point_prompts_are_present(self) -> None:
         self.assertIn('data-query-method="mask"', self.page)
@@ -702,6 +747,15 @@ class SubjectShapeFeatureTest(unittest.TestCase):
         self.assertEqual(metadata["subject_mask_source"], "alpha")
         self.assertEqual(metadata["shape_feature_schema"], "subject-mask-contour-bbox-v2")
         self.assertGreater(metadata["subject_bbox_aspect"], 1.0)
+
+    def test_image_index_stores_a_versioned_cpu_semantic_vector(self) -> None:
+        points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
+        _, _, metadata = process_image(self.polygon_image(points, color="orange"))
+        self.assertEqual(metadata["feature_version"], "material-search-v6-semantic-shape")
+        self.assertEqual(metadata["semantic_feature_schema"], "mobilenetv2-imagenet-logits-v1")
+        self.assertEqual(metadata["semantic_model"], "MobileNetV2-12-QDQ")
+        self.assertEqual(len(metadata["semantic_vector"]), 1000)
+        self.assertAlmostEqual(float(np.linalg.norm(metadata["semantic_vector"])), 1.0, places=4)
 
 
 class InteractiveSegmentationTransformTest(unittest.TestCase):

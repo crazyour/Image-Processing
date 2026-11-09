@@ -958,10 +958,13 @@ function resultCard(item, options = {}) {
   const geometryLine = isGeometric && item.match_method === "sift-ransac"
     ? `<p class="result-verification">SIFT + RANSAC 有效匹配点：${item.inliers}</p>`
     : "";
+  const fusionLine = stage === "global"
+    ? `<p class="result-verification">语义 ${item.semantic_score}% · 轮廓 ${item.shape_score}%</p>`
+    : "";
   const scoreLabel = stage === "global"
-    ? "主体形状相似度"
+    ? "语义45%＋轮廓55%"
     : isGeometric ? "几何相似度" : "特征余弦相似度";
-  return `<article class="result-card${isGeometric ? " geometric-best" : ""}">${isGeometric ? '<span class="best-marker">第二次搜索第 1 名</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${scoreLabel} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${geometryLine}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
+  return `<article class="result-card${isGeometric ? " geometric-best" : ""}">${isGeometric ? '<span class="best-marker">第二次搜索第 1 名</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${scoreLabel} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${fusionLine}${geometryLine}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
 }
 
 function activateResultCards(root) {
@@ -993,10 +996,10 @@ async function search() {
     );
     const result = await response.json();
     $("#search-output").hidden = false;
-    const twoStage = result.algorithm === "shape-cosine-then-sift-ransac";
-    $("#results-title").textContent = `${labels[result.kind]}${twoStage ? "两阶段" : ""}检索结果`;
-    $("#first-search-copy").textContent = twoStage
-      ? `使用归一化主体 Mask、外轮廓和边界框比例取前 ${result.results.length} 张图片。`
+    const imagePipeline = result.algorithm === "semantic-shape-fusion-then-sift-ransac";
+    $("#results-title").textContent = `${labels[result.kind]}${imagePipeline ? "三阶段" : ""}检索结果`;
+    $("#first-search-copy").textContent = imagePipeline
+      ? `语义和主体轮廓各自全库召回，按语义45%＋轮廓55%融合取前 ${result.results.length} 张图片。`
       : `使用特征余弦相似度取前 ${result.results.length} 个文件。`;
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
     const list = $("#results-list");
@@ -1004,7 +1007,7 @@ async function search() {
       list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
     } else {
       list.innerHTML = result.results.map(item => resultCard(item, {
-        stage: twoStage ? "global" : "feature",
+        stage: imagePipeline ? "global" : "feature",
       })).join("");
     }
     const secondSearch = $("#second-search");
@@ -1017,7 +1020,7 @@ async function search() {
       setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧特征图片。请在“素材库上传”页点击“一键重建全部特征”。`, "error");
     } else {
       const upgraded = result.reindexed_images ? `已自动升级 ${result.reindexed_images} 张旧图片索引。` : "";
-      setMessage("#search-message", twoStage ? `${upgraded}检索完成。先取主体整体形状前10名，再对候选图片进行SIFT + RANSAC几何验证。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
+      setMessage("#search-message", imagePipeline ? `${upgraded}检索完成。语义与轮廓并行召回并融合前10名，再进行SIFT + RANSAC同款验证。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
     }
   } catch (error) {
     setMessage("#search-message", error.message, "error");

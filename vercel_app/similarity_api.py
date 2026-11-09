@@ -60,6 +60,10 @@ MAX_CHUNK_BYTES = 3_000_000
 TRASH_RETENTION_SECONDS = 30 * 24 * 60 * 60
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+")
 UPLOAD_ID = re.compile(r"^[a-f0-9]{32}$")
+SEMANTIC_RECALL_LIMIT = 200
+SHAPE_RECALL_LIMIT = 200
+SEMANTIC_FUSION_WEIGHT = 0.45
+SHAPE_FUSION_WEIGHT = 0.55
 
 
 class FolderCreateRequest(BaseModel):
@@ -208,6 +212,7 @@ def _public_asset(asset: dict) -> dict:
     metadata.pop("local_features", None)
     metadata.pop("image_fingerprint", None)
     metadata.pop("normalised_subject_mask", None)
+    metadata.pop("semantic_vector", None)
     public["metadata"] = metadata
     return public
 
@@ -565,6 +570,8 @@ def _rebuild_image_index(library_id: str, asset_id: str) -> dict:
         "file_name": asset["original_name"],
         "old_version": old_version,
         "feature_version": metadata["feature_version"],
+        "semantic_feature_schema": metadata.get("semantic_feature_schema"),
+        "semantic_dimension": len(metadata.get("semantic_vector") or []),
         "local_feature_count": int((metadata.get("local_features") or {}).get("count", 0)),
     }
 
@@ -838,10 +845,18 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
             # library screen rebuilds these assets one per short request.
             outdated_images += 1
             continue
-        global_score = cosine_similarity(query_vector, candidate["vector"])
+        shape_score = cosine_similarity(query_vector, candidate["vector"])
+        semantic_score = 0.0
+        if kind == "image":
+            semantic_score = cosine_similarity(
+                metadata.get("semantic_vector") or [],
+                (candidate.get("metadata") or {}).get("semantic_vector") or [],
+            )
         matches.append({
             **candidate,
-            "global_score": global_score,
+            "global_score": shape_score,
+            "shape_score": shape_score,
+            "semantic_score": semantic_score,
         })
 
     def result_item(item: dict, rank: int, score: float, verification: dict) -> dict | None:
@@ -861,19 +876,57 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
             "inliers": verification["inliers"],
             "inlier_ratio": round(verification["inlier_ratio"], 3),
             "coverage": round(verification["coverage"], 3),
+            "semantic_score": round(float(item.get("semantic_score", 0.0)) * 100, 1),
+            "shape_score": round(float(item.get("shape_score", item.get("global_score", 0.0))) * 100, 1),
+            "semantic_rank_score": round(float(item.get("semantic_rank_score", 0.0)) * 100, 1),
+            "shape_rank_score": round(float(item.get("shape_rank_score", 0.0)) * 100, 1),
             "previews": folder["previews"],
             "zip_url": f"/api/material-search/folders/{folder['id']}/download" if folder.get("zip_url") else None,
             "asset_count": len(folder["assets"]),
         }
 
-    # Image search is deliberately two-stage: cheap cosine retrieval over the
-    # whole library, followed by SIFT/RANSAC reranking of only those ten files.
+    # Image search recalls by semantic evidence and subject shape in parallel.
+    # Rank-percentile fusion avoids mixing two differently calibrated cosine
+    # distributions while still allowing either channel to recover a candidate.
     first_limit = 10 if kind == "image" else 5
-    first_ranked = sorted(matches, key=lambda item: item["global_score"], reverse=True)[:first_limit]
+    if kind == "image" and matches:
+        semantic_ranked = sorted(matches, key=lambda item: item["semantic_score"], reverse=True)
+        shape_ranked = sorted(matches, key=lambda item: item["shape_score"], reverse=True)
+        count = len(matches)
+
+        def percentile(rank: int) -> float:
+            return 1.0 if count == 1 else 1.0 - rank / (count - 1)
+
+        semantic_ranks = {item["asset_id"]: rank for rank, item in enumerate(semantic_ranked)}
+        shape_ranks = {item["asset_id"]: rank for rank, item in enumerate(shape_ranked)}
+        recalled_ids = {
+            item["asset_id"] for item in semantic_ranked[:SEMANTIC_RECALL_LIMIT]
+        } | {
+            item["asset_id"] for item in shape_ranked[:SHAPE_RECALL_LIMIT]
+        }
+        recalled = []
+        for item in matches:
+            if item["asset_id"] not in recalled_ids:
+                continue
+            semantic_rank_score = percentile(semantic_ranks[item["asset_id"]])
+            shape_rank_score = percentile(shape_ranks[item["asset_id"]])
+            fusion_score = (
+                semantic_rank_score * SEMANTIC_FUSION_WEIGHT
+                + shape_rank_score * SHAPE_FUSION_WEIGHT
+            )
+            recalled.append({
+                **item,
+                "semantic_rank_score": semantic_rank_score,
+                "shape_rank_score": shape_rank_score,
+                "global_score": fusion_score,
+            })
+        first_ranked = sorted(recalled, key=lambda item: item["global_score"], reverse=True)[:first_limit]
+    else:
+        first_ranked = sorted(matches, key=lambda item: item["global_score"], reverse=True)[:first_limit]
     results = []
     for rank, item in enumerate(first_ranked, start=1):
         verification = {
-            "label": "主体形状相似" if kind == "image" else "特征相似",
+            "label": "语义与主体形状融合" if kind == "image" else "特征相似",
             "inliers": 0,
             "inlier_ratio": 0.0,
             "coverage": 0.0,
@@ -901,9 +954,15 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
         "query_metadata": {
             key: value
             for key, value in metadata.items()
-            if key not in {"local_features", "image_fingerprint", "normalised_subject_mask"}
+            if key not in {"local_features", "image_fingerprint", "normalised_subject_mask", "semantic_vector"}
         },
-        "algorithm": "shape-cosine-then-sift-ransac" if kind == "image" else "cosine",
+        "algorithm": "semantic-shape-fusion-then-sift-ransac" if kind == "image" else "cosine",
+        "fusion": {
+            "semantic_weight": SEMANTIC_FUSION_WEIGHT,
+            "shape_weight": SHAPE_FUSION_WEIGHT,
+            "semantic_recall_limit": SEMANTIC_RECALL_LIMIT,
+            "shape_recall_limit": SHAPE_RECALL_LIMIT,
+        } if kind == "image" else None,
         "outdated_images": outdated_images,
         "reindexed_images": reindexed_images,
         "results": results,

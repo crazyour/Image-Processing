@@ -5,7 +5,9 @@ import base64
 import hashlib
 import io
 import math
+import threading
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -13,7 +15,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v5-subject-shape"
+FEATURE_VERSION = "material-search-v6-semantic-shape"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
 MAX_LOCAL_FEATURES = 1200
@@ -21,6 +23,16 @@ SUBJECT_MASK_SIZE = 96
 SHAPE_FEATURE_SIZE = 32
 SHAPE_FEATURE_SCHEMA = "subject-mask-contour-bbox-v2"
 MAX_SUBJECT_ANALYSIS_DIMENSION = 1600
+SEMANTIC_FEATURE_SCHEMA = "mobilenetv2-imagenet-logits-v1"
+SEMANTIC_MODEL_NAME = "MobileNetV2-12-QDQ"
+SEMANTIC_MODEL_PATH = Path(__file__).resolve().parent / "models" / "mobilenetv2-12-qdq.onnx"
+SEMANTIC_INPUT_SIZE = 224
+SEMANTIC_MEAN = np.asarray([0.485, 0.456, 0.406], dtype=np.float32)[None, None, :]
+SEMANTIC_STD = np.asarray([0.229, 0.224, 0.225], dtype=np.float32)[None, None, :]
+
+
+_semantic_net: cv2.dnn.Net | None = None
+_semantic_net_lock = threading.Lock()
 
 
 class SimilarityFileError(ValueError):
@@ -208,6 +220,74 @@ def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
     return vector, metadata
 
 
+def _semantic_subject_image(image: Image.Image) -> np.ndarray:
+    """Place the detected subject on white and retain its complete bounding box."""
+    analysis_image = _subject_analysis_image(image)
+    rgb = np.asarray(_flatten(analysis_image), dtype=np.uint8)
+    mask, _ = _subject_mask(analysis_image)
+    points = cv2.findNonZero(mask)
+    if points is None:
+        subject = rgb
+    else:
+        x, y, width, height = cv2.boundingRect(points)
+        cropped_rgb = rgb[y:y + height, x:x + width]
+        cropped_mask = mask[y:y + height, x:x + width]
+        subject = np.full(cropped_rgb.shape, 255, dtype=np.uint8)
+        subject[cropped_mask > 0] = cropped_rgb[cropped_mask > 0]
+    height, width = subject.shape[:2]
+    side = max(height, width, 1)
+    square = np.full((side, side, 3), 255, dtype=np.uint8)
+    top = (side - height) // 2
+    left = (side - width) // 2
+    square[top:top + height, left:left + width] = subject
+    return cv2.resize(
+        square,
+        (SEMANTIC_INPUT_SIZE, SEMANTIC_INPUT_SIZE),
+        interpolation=cv2.INTER_AREA if side > SEMANTIC_INPUT_SIZE else cv2.INTER_CUBIC,
+    )
+
+
+def _semantic_runtime() -> cv2.dnn.Net:
+    global _semantic_net
+    if _semantic_net is not None:
+        return _semantic_net
+    with _semantic_net_lock:
+        if _semantic_net is None:
+            if not SEMANTIC_MODEL_PATH.is_file():
+                raise SimilarityFileError("语义匹配模型文件缺失，请重新部署")
+            try:
+                _semantic_net = cv2.dnn.readNetFromONNX(str(SEMANTIC_MODEL_PATH))
+                _semantic_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                _semantic_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+            except cv2.error as exc:
+                raise SimilarityFileError(f"语义匹配模型无法加载：{exc}") from exc
+    return _semantic_net
+
+
+def _semantic_vector(image: Image.Image) -> list[float]:
+    subject = _semantic_subject_image(image)
+    views = [subject, cv2.cvtColor(cv2.cvtColor(subject, cv2.COLOR_RGB2GRAY), cv2.COLOR_GRAY2RGB)]
+    tensors = []
+    for view in views:
+        normalised = (view.astype(np.float32) / 255.0 - SEMANTIC_MEAN) / SEMANTIC_STD
+        tensors.append(normalised.transpose(2, 0, 1))
+    net = _semantic_runtime()
+    try:
+        with _semantic_net_lock:
+            outputs = []
+            for tensor in tensors:
+                net.setInput(tensor[None].astype(np.float32, copy=False))
+                outputs.append(np.asarray(net.forward(), dtype=np.float32).reshape(-1))
+    except cv2.error as exc:
+        raise SimilarityFileError(f"语义特征提取失败：{exc}") from exc
+    # Average the colour and grayscale predictions. Centring the ImageNet
+    # logits makes cosine similarity compare class evidence instead of the
+    # model's common output bias.
+    logits = np.stack(outputs).mean(axis=0)
+    logits -= float(logits.mean())
+    return _normalise(logits)
+
+
 def _image_fingerprint(image: Image.Image) -> str:
     normalized = ImageOps.pad(_flatten(image).convert("L"), (128, 128), color="white", method=Image.Resampling.LANCZOS)
     normalized = ImageOps.autocontrast(normalized)
@@ -353,6 +433,7 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
     if image.width < 2 or image.height < 2:
         raise SimilarityFileError("图片尺寸无效")
     vector, shape_metadata = _shape_vector(image)
+    semantic_vector = _semantic_vector(image)
     return (
         _preview_png(image),
         vector,
@@ -360,6 +441,9 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
             "width": image.width,
             "height": image.height,
             "feature_version": FEATURE_VERSION,
+            "semantic_feature_schema": SEMANTIC_FEATURE_SCHEMA,
+            "semantic_model": SEMANTIC_MODEL_NAME,
+            "semantic_vector": semantic_vector,
             "image_fingerprint": _image_fingerprint(image),
             "local_features": _local_features(image),
             **shape_metadata,
