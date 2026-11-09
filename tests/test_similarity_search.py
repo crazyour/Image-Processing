@@ -759,13 +759,17 @@ class SubjectShapeFeatureTest(unittest.TestCase):
 
 
 class InteractiveSegmentationTransformTest(unittest.TestCase):
-    def test_edgesam_keeps_onnxruntime_for_model_compatibility(self) -> None:
-        requirements = (Path(__file__).resolve().parent.parent / "requirements.txt").read_text()
+    def test_edgesam_uses_the_bundled_onnxruntime_inference_core(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        requirements = (root / "requirements.txt").read_text()
         source = (
-            Path(__file__).resolve().parent.parent
-            / "vercel_app" / "interactive_segmentation.py"
+            root / "vercel_app" / "interactive_segmentation.py"
         ).read_text()
-        self.assertIn("onnxruntime", requirements)
+        bundled_runtime = root / "vercel_app" / "_vendor" / "onnxruntime"
+        self.assertNotIn("onnxruntime", requirements)
+        self.assertTrue((bundled_runtime / "LICENSE").is_file())
+        self.assertTrue(any((bundled_runtime / "capi").glob("onnxruntime_pybind11_state*.so")))
+        self.assertIn("_import_onnxruntime", source)
         self.assertIn("ort.InferenceSession", source)
         self.assertNotIn("cv2.dnn.readNetFromONNX", source)
 

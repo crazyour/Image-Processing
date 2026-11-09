@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import platform
+import sys
 import threading
 import time
 import urllib.error
@@ -57,16 +59,36 @@ class SegmentationSession:
     last_accessed_at: float
 
 
+def _import_onnxruntime() -> Any:
+    """Load ONNX Runtime, falling back to the bundled Linux inference core."""
+    try:
+        import onnxruntime as ort
+
+        return ort
+    except ImportError as first_error:
+        machine = platform.machine().lower()
+        if platform.system() != "Linux" or machine not in {"x86_64", "amd64"}:
+            raise SegmentationUnavailable("智能点选需要安装 onnxruntime。") from first_error
+
+        vendor_root = Path(__file__).resolve().parent / "_vendor"
+        if not (vendor_root / "onnxruntime" / "__init__.py").is_file():
+            raise SegmentationUnavailable("智能点选推理核心未随部署文件发布。") from first_error
+        vendor_path = str(vendor_root)
+        if vendor_path not in sys.path:
+            sys.path.insert(0, vendor_path)
+        try:
+            import onnxruntime as ort
+
+            return ort
+        except (ImportError, OSError) as exc:
+            raise SegmentationUnavailable(f"智能点选推理核心无法加载：{exc}") from exc
+
+
 class EdgeSamOnnxRuntime:
     """Small ONNX wrapper matching EdgeSAM's official SamPredictorONNX pipeline."""
 
     def __init__(self, encoder_path: Path, decoder_path: Path) -> None:
-        try:
-            import onnxruntime as ort
-        except ImportError as exc:  # pragma: no cover - exercised through availability tests
-            raise SegmentationUnavailable(
-                "智能点选需要安装 onnxruntime。"
-            ) from exc
+        ort = _import_onnxruntime()
 
         options = ort.SessionOptions()
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL

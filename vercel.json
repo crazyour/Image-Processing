@@ -4,7 +4,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 300,
-      "includeFiles": "{frontend_dist/**,image3d_frontend/**,text2image_frontend/**,similarity_search_frontend/**,photography_frontend/**,auth_frontend/**,vercel_app/models/**}",
+      "includeFiles": "{frontend_dist/**,image3d_frontend/**,text2image_frontend/**,similarity_search_frontend/**,photography_frontend/**,auth_frontend/**,vercel_app/models/**,vercel_app/_vendor/**}",
       "excludeFiles": "{.agents/**,.claude/**,.git/**,.pytest_cache/**,.venv/**,.vercel/**,backend/**,desktop/**,recovery_evidence/**,tests/**,var/**,COMPILE_ERRORS.txt,IMAGE_TO_3D_USER_GUIDE.md,README.md,skills-lock.json,**/__pycache__/**,**/*.pyc,**/.DS_Store}"
     }
   }
