@@ -7,7 +7,12 @@
   let lastTarget = null;
   let lastTargetAt = 0;
   let hoverTarget = null;
+  let dragAnchor = null;
   let toastTimer = 0;
+
+  function isFileInput(input) {
+    return input instanceof HTMLInputElement && input.type === "file" && !input.disabled;
+  }
 
   function isImageInput(input) {
     if (!(input instanceof HTMLInputElement) || input.type !== "file" || input.disabled) return false;
@@ -56,20 +61,23 @@
     return isImageInput(input) && input.isConnected && isVisible(targetAnchor(input));
   }
 
-  function inputFromElement(element) {
+  function inputFromElement(element, predicate = isImageInput) {
     if (!(element instanceof Element)) return null;
     const redirect = element.closest("[data-paste-for]");
     if (redirect) {
       const id = redirect.dataset.pasteFor;
       const input = id ? document.getElementById(id) : null;
-      if (isImageInput(input)) return input;
+      if (predicate(input)) return input;
     }
     const direct = element.closest('input[type="file"]');
-    if (isImageInput(direct)) return direct;
-    const container = element.closest("label, [data-paste-target], .dropzone, .drop-zone, .file-drop, .reference-upload, .manual-views");
-    if (!container) return null;
-    const nested = container.querySelector('input[type="file"]');
-    return isImageInput(nested) ? nested : null;
+    if (predicate(direct)) return direct;
+    let container = element;
+    while (container && container !== document.body) {
+      const inputs = Array.from(container.querySelectorAll('input[type="file"]')).filter(predicate);
+      if (inputs.length === 1) return inputs[0];
+      container = container.parentElement;
+    }
+    return null;
   }
 
   function rememberTarget(event) {
@@ -196,10 +204,146 @@
     return input.multiple ? files.length : Math.min(files.length, 1);
   }
 
+  function isFileDrag(event) {
+    return Array.from(event.dataTransfer?.types || []).includes("Files");
+  }
+
+  function acceptsFile(input, file) {
+    const rules = (input.accept || "").split(",").map((rule) => rule.trim().toLowerCase()).filter(Boolean);
+    if (!rules.length) return true;
+    const name = (file.name || "").toLowerCase();
+    const type = (file.type || "").toLowerCase();
+    return rules.some((rule) => {
+      const value = rule.split(";")[0].trim();
+      if (value.startsWith(".")) return name.endsWith(value);
+      if (value.endsWith("/*")) return type.startsWith(value.slice(0, -1));
+      return type === value;
+    });
+  }
+
+  function setRelativePath(file, relativePath) {
+    try {
+      Object.defineProperty(file, "webkitRelativePath", { configurable: true, value: relativePath });
+    } catch (_) {
+      // Older browsers may expose a non-configurable empty property. The file
+      // is still uploadable; only its nested folder display is unavailable.
+    }
+    return file;
+  }
+
+  function readFileEntry(entry, relativePath) {
+    return new Promise((resolve, reject) => {
+      entry.file((file) => resolve(setRelativePath(file, `${relativePath}${entry.name}`)), reject);
+    });
+  }
+
+  async function readDirectoryEntries(reader) {
+    const entries = [];
+    while (true) {
+      const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+      if (!batch.length) return entries;
+      entries.push(...batch);
+    }
+  }
+
+  async function filesFromEntry(entry, relativePath = "") {
+    if (entry.isFile) return [await readFileEntry(entry, relativePath)];
+    if (!entry.isDirectory) return [];
+    const prefix = `${relativePath}${entry.name}/`;
+    const children = await readDirectoryEntries(entry.createReader());
+    const nested = await Promise.all(children.map((child) => filesFromEntry(child, prefix)));
+    return nested.flat();
+  }
+
+  async function droppedFiles(input, dataTransfer) {
+    const acceptsDirectory = input.hasAttribute("webkitdirectory") || input.hasAttribute("directory");
+    if (!acceptsDirectory) return Array.from(dataTransfer.files || []);
+    const entries = Array.from(dataTransfer.items || [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.webkitGetAsEntry?.())
+      .filter(Boolean);
+    if (!entries.some((entry) => entry.isDirectory)) return Array.from(dataTransfer.files || []);
+    return (await Promise.all(entries.map((entry) => filesFromEntry(entry)))).flat();
+  }
+
+  function clearDragAnchor() {
+    if (dragAnchor) delete dragAnchor.dataset.fileDropActive;
+    dragAnchor = null;
+  }
+
+  function showDragAnchor(input) {
+    const anchor = targetAnchor(input);
+    if (anchor === dragAnchor) return;
+    clearDragAnchor();
+    dragAnchor = anchor;
+    dragAnchor.dataset.fileDropActive = "true";
+  }
+
+  function assignDroppedFiles(input, files) {
+    const transfer = new DataTransfer();
+    const accepted = files.filter((file) => acceptsFile(input, file));
+    const selected = input.multiple ? accepted : accepted.slice(0, 1);
+    selected.forEach((file) => transfer.items.add(file));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    lastTarget = isImageInput(input) ? input : lastTarget;
+    lastTargetAt = Date.now();
+    return { accepted: selected.length, ignored: files.length - selected.length };
+  }
+
+  const dragStyle = document.createElement("style");
+  dragStyle.textContent = `
+    [data-file-drop-active="true"] {
+      outline: 3px solid #2f6b57 !important;
+      outline-offset: 3px !important;
+      box-shadow: 0 0 0 7px rgba(47, 107, 87, .16) !important;
+      cursor: copy !important;
+    }
+  `;
+  document.head.appendChild(dragStyle);
+
   document.addEventListener("pointerover", rememberHoverTarget, true);
   document.addEventListener("focusin", rememberTarget, true);
   document.addEventListener("click", rememberTarget, true);
   document.addEventListener("change", rememberTarget, true);
+  document.addEventListener("dragover", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    const input = inputFromElement(event.target, isFileInput);
+    if (event.dataTransfer) event.dataTransfer.dropEffect = input ? "copy" : "none";
+    if (input) showDragAnchor(input);
+    else clearDragAnchor();
+  }, true);
+  document.addEventListener("dragleave", (event) => {
+    if (!event.relatedTarget) clearDragAnchor();
+  }, true);
+  document.addEventListener("dragend", clearDragAnchor, true);
+  document.addEventListener("drop", async (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    const input = inputFromElement(event.target, isFileInput);
+    clearDragAnchor();
+    if (!input) {
+      showToast("请将文件拖到具体的上传区域", "notice");
+      return;
+    }
+    event.stopImmediatePropagation();
+    try {
+      const files = await droppedFiles(input, event.dataTransfer);
+      const result = assignDroppedFiles(input, files);
+      if (!result.accepted) {
+        showToast("拖入的文件格式不受此上传区支持", "error");
+      } else if (result.ignored) {
+        showToast(`已拖入 ${result.accepted} 个文件，忽略 ${result.ignored} 个不支持或超出数量的文件`, "notice");
+      } else {
+        showToast(`已拖入 ${result.accepted} 个文件到“${targetLabel(input)}”`);
+      }
+    } catch (error) {
+      console.error("File drop upload failed", error);
+      showToast("读取拖入文件失败，请重试或使用文件选择器", "error");
+    }
+  }, true);
   document.addEventListener("paste", (event) => {
     const images = clipboardImages(event);
     if (!images.length || (isEditingText() && !isAvailable(hoverTarget))) return;

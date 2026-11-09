@@ -187,7 +187,7 @@ function renderReferenceGroup(kind) {
   $("#reference-groups").classList.toggle("hidden", !referenceGroups.product.files.length && !referenceGroups.example.files.length);
   const button = kind === "product" ? $("#add-product-reference") : $("#add-example-reference");
   const label = kind === "product" ? "产品图片" : (visualMode ? "场景参考" : "生成样例");
-  button.textContent = group.files.length ? `＋ 继续添加${label}（${group.files.length}/6）` : `＋ 添加${label}`;
+  button.textContent = group.files.length ? `＋ 继续添加/拖入${label}（${group.files.length}/6）` : `＋ 添加或拖入${label}`;
 }
 
 function clearReferenceImages() {

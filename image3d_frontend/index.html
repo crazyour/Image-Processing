@@ -71,16 +71,16 @@
           <p><strong>上传多张参考图</strong><span>第一张作为主参考，其余图片补充侧面、背面、底部、局部结构或材质信息。请勿混入不同物体。</span></p>
           <label class="dropzone" for="image-input">
             <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" multiple required data-paste-label="3D 参考图">
-            <span id="drop-copy">选择 1–6 张 PNG、JPEG 或 WebP 参考图</span>
+            <span id="drop-copy">点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图</span>
           </label>
           <div id="upload-previews" class="reference-previews"></div>
         </div>
         <div id="manual-views" class="manual-views hidden">
           <p><strong>分别上传完整四视图</strong><span>这里的四张图片会直接提交，不再使用上方参考图，也不会调用 GPT 分析或生成图片。</span></p>
-          <label>正视图<input id="front-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="正视图"></label>
-          <label>左视图<input id="left-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="左视图"></label>
-          <label>右视图<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="右视图"></label>
-          <label>背视图<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="背视图"></label>
+          <label>正视图（可拖入）<input id="front-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="正视图"></label>
+          <label>左视图（可拖入）<input id="left-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="左视图"></label>
+          <label>右视图（可拖入）<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="右视图"></label>
+          <label>背视图（可拖入）<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="背视图"></label>
         </div>
         <label id="prompt-requirement">补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
@@ -294,7 +294,7 @@
       <p class="guide-footnote">站内 AI 生成图片和腾讯混元生成 STL 都可能产生费用，请避免重复提交。</p>
     </div>
   </aside>
-  <script src="/assets/paste-upload.js?v=20261105-1" defer></script>
+  <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
   <script src="/static/app.js?v=20261017-1" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>

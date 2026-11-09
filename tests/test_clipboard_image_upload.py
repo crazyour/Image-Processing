@@ -38,6 +38,27 @@ class ClipboardImageUploadTests(unittest.TestCase):
         self.assertIn("inputs.length === 1 ? inputs[0] : null", source)
         self.assertIn("请先点击或将鼠标移到要上传图片的区域", source)
 
+    def test_shared_script_routes_file_drops_through_normal_input_changes(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        self.assertIn('document.addEventListener("dragover"', source)
+        self.assertIn('document.addEventListener("drop"', source)
+        self.assertIn("event.dataTransfer", source)
+        self.assertIn("assignDroppedFiles(input, files)", source)
+        self.assertIn('input.dispatchEvent(new Event("change", { bubbles: true }))', source)
+
+    def test_drop_supports_file_types_and_dragged_directories(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        self.assertIn("function acceptsFile(input, file)", source)
+        self.assertIn('input.hasAttribute("webkitdirectory")', source)
+        self.assertIn("webkitGetAsEntry", source)
+        self.assertIn('Object.defineProperty(file, "webkitRelativePath"', source)
+
+    def test_drop_gives_a_visible_target_and_does_not_open_files_in_browser(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        self.assertIn('dragAnchor.dataset.fileDropActive = "true"', source)
+        self.assertIn("event.preventDefault()", source)
+        self.assertIn("请将文件拖到具体的上传区域", source)
+
 
 if __name__ == "__main__":
     unittest.main()

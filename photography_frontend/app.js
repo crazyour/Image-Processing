@@ -143,7 +143,7 @@ const fileInput = $("#upload-file");
 
 function selectedFileChanged() {
   const file = fileInput.files[0];
-  $("#file-label").textContent = file ? `${file.name} · ${formatBytes(file.size)}` : "选择图片或视频";
+  $("#file-label").textContent = file ? `${file.name} · ${formatBytes(file.size)}` : "点击选择或拖入图片/视频";
   if (file && !$("#custom-filename").value) $("#custom-filename").value = file.name.replace(/\.[^.]+$/, "");
 }
 

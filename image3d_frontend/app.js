@@ -475,7 +475,7 @@ $("#image-input").addEventListener("change", (event) => {
   $("#upload-previews").innerHTML = files.map((file, index) =>
     `<article><img src="${URL.createObjectURL(file)}" alt="待上传参考图 ${index + 1}"><span>${index === 0 ? "主参考" : `补充 ${index}`}</span></article>`
   ).join("");
-  $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击可重新选择` : "选择 1–6 张 PNG、JPEG 或 WebP 参考图";
+  $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图";
 });
 
 function updateViewSource() {

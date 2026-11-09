@@ -58,9 +58,9 @@
         <div id="prompt-list" class="prompt-list"></div>
         <div class="prompt-actions">
           <div class="prompt-action-buttons">
-            <button id="add-product-reference" class="secondary" type="button" data-paste-for="product-reference-images">＋ 添加产品图片</button>
+            <button id="add-product-reference" class="secondary" type="button" data-paste-for="product-reference-images">＋ 添加或拖入产品图片</button>
             <input id="product-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-paste-label="产品参考图" data-paste-anchor="#add-product-reference">
-            <button id="add-example-reference" class="secondary" type="button" data-paste-for="example-reference-images">＋ 添加生成样例</button>
+            <button id="add-example-reference" class="secondary" type="button" data-paste-for="example-reference-images">＋ 添加或拖入生成样例</button>
             <input id="example-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-paste-label="生成样例图" data-paste-anchor="#add-example-reference">
           </div>
           <div class="generation-count-control">
@@ -111,7 +111,7 @@
       </div>
       <form id="animal-form">
         <div class="animal-input-grid">
-          <label>参考照片
+          <label>参考照片（可拖入）
             <input id="animal-image" type="file" accept="image/png,image/jpeg,image/webp" required data-paste-label="照片转镂空剪影参考图">
           </label>
           <div id="animal-source-preview" class="upload-preview"><span>支持 PNG、JPEG、WebP，至少 128 × 128，最大 4 MB</span></div>
@@ -194,7 +194,7 @@
       </div>
     </section>
   </main>
-  <script src="/assets/paste-upload.js?v=20261105-1"></script>
+  <script src="/assets/paste-upload.js?v=20261109-1"></script>
   <script src="/text-image-static/app.js?v=20261105-1"></script>
   <script src="/assets/local-library.js?v=20261022-1"></script>
 </body>
