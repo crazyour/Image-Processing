@@ -492,6 +492,7 @@ def searchable_assets(library_id: str, kind: str) -> list[dict[str, Any]]:
             "asset_id": row["id"],
             "original_name": row["original_name"],
             "preview_url": row["preview_url"],
+            "_blob_ref": row["blob_url"],
             "vector": json.loads(row["vector_json"]),
             "metadata": json.loads(row["metadata_json"] or "{}"),
         }

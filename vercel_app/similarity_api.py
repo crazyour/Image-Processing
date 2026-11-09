@@ -9,6 +9,7 @@ import time
 import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
@@ -16,6 +17,15 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from .material_blob import PrivateMaterialBlobStore
+from .interactive_segmentation import (
+    MAX_IMAGE_BYTES as MAX_SEGMENTATION_IMAGE_BYTES,
+    SegmentationError,
+    SegmentationSessionNotFound,
+    SegmentationUnavailable,
+    create_segmentation,
+    delete_segmentation,
+    predict_segmentation,
+)
 from .similarity_engine import (
     FEATURE_VERSION,
     SimilarityFileError,
@@ -68,6 +78,16 @@ class ChunkCompleteRequest(BaseModel):
     relative_path: str = Field(default="", max_length=1000)
     chunk_count: int = Field(ge=1)
     file_size: int | None = Field(default=None, ge=1)
+
+
+class SegmentationPoint(BaseModel):
+    x: float = Field(ge=0.0, le=1.0)
+    y: float = Field(ge=0.0, le=1.0)
+    label: Literal[0, 1]
+
+
+class SegmentationPredictRequest(BaseModel):
+    points: list[SegmentationPoint] = Field(min_length=1, max_length=32)
 
 
 def _authorise(library_id: str | None, token: str | None) -> str:
@@ -182,6 +202,7 @@ def _public_asset(asset: dict) -> dict:
     metadata = dict(public.get("metadata") or {})
     metadata.pop("local_features", None)
     metadata.pop("image_fingerprint", None)
+    metadata.pop("normalised_subject_mask", None)
     public["metadata"] = metadata
     return public
 
@@ -452,8 +473,7 @@ def reindex_library_images(
             if asset["kind"] != "image":
                 continue
             metadata = asset.get("metadata") or {}
-            features = metadata.get("local_features") or {}
-            if metadata.get("feature_version") == FEATURE_VERSION and features.get("data"):
+            if metadata.get("feature_version") == FEATURE_VERSION:
                 skipped += 1
                 continue
             try:
@@ -539,6 +559,68 @@ def folder_download(
     )
 
 
+@router.post("/segmentations")
+async def initialise_interactive_segmentation(
+    image: UploadFile = File(...),
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    raw = await image.read(MAX_SEGMENTATION_IMAGE_BYTES + 1)
+    try:
+        return create_segmentation(library_id, raw)
+    except SegmentationUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except SegmentationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/segmentations/{session_id}/mask")
+def interactive_segmentation_mask(
+    session_id: str,
+    request: SegmentationPredictRequest,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    if not UPLOAD_ID.fullmatch(session_id):
+        raise HTTPException(status_code=400, detail="智能选区编号无效")
+    try:
+        mask, score = predict_segmentation(
+            library_id,
+            session_id,
+            [point.model_dump() for point in request.points],
+        )
+    except SegmentationSessionNotFound as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    except SegmentationUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except SegmentationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        mask,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-Segmentation-Score": f"{score:.6f}",
+            "X-Segmentation-Model": "EdgeSAM-3x-ONNX",
+        },
+    )
+
+
+@router.delete("/segmentations/{session_id}", status_code=204)
+def discard_interactive_segmentation(
+    session_id: str,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    library_id = _authorise(library_id, token)
+    if UPLOAD_ID.fullmatch(session_id):
+        delete_segmentation(library_id, session_id)
+    return Response(status_code=204)
+
+
 @router.post("/search")
 async def search(
     file: UploadFile = File(...),
@@ -614,11 +696,28 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
 
     matches: list[dict] = []
     outdated_images = 0
+    reindexed_images = 0
+    store = PrivateMaterialBlobStore()
     for candidate in searchable_assets(library_id, kind):
-        global_score = cosine_similarity(query_vector, candidate["vector"])
-        if kind == "image":
-            if (candidate.get("metadata") or {}).get("feature_version") != FEATURE_VERSION:
+        if kind == "image" and (candidate.get("metadata") or {}).get("feature_version") != FEATURE_VERSION:
+            try:
+                candidate_raw, _ = store.read(candidate["_blob_ref"])
+                candidate_kind, _, candidate_vector, candidate_metadata = process_file(
+                    candidate["original_name"], candidate_raw,
+                )
+                if candidate_kind != "image" or not update_asset_index(
+                    library_id,
+                    candidate["asset_id"],
+                    vector=candidate_vector,
+                    metadata=candidate_metadata,
+                ):
+                    raise StoreError("图片索引记录不存在")
+                candidate["vector"] = candidate_vector
+                candidate["metadata"] = candidate_metadata
+                reindexed_images += 1
+            except (StoreError, SimilarityFileError, OSError):
                 outdated_images += 1
+        global_score = cosine_similarity(query_vector, candidate["vector"])
         matches.append({
             **candidate,
             "global_score": global_score,
@@ -653,7 +752,7 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     results = []
     for rank, item in enumerate(first_ranked, start=1):
         verification = {
-            "label": "全局相似" if kind == "image" else "特征相似",
+            "label": "主体形状相似" if kind == "image" else "特征相似",
             "inliers": 0,
             "inlier_ratio": 0.0,
             "coverage": 0.0,
@@ -678,9 +777,14 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     return {
         "kind": kind,
         "query_preview_data_url": "data:image/png;base64," + base64.b64encode(preview).decode("ascii"),
-        "query_metadata": {key: value for key, value in metadata.items() if key not in {"local_features", "image_fingerprint"}},
-        "algorithm": "cosine-then-sift-ransac" if kind == "image" else "cosine",
+        "query_metadata": {
+            key: value
+            for key, value in metadata.items()
+            if key not in {"local_features", "image_fingerprint", "normalised_subject_mask"}
+        },
+        "algorithm": "shape-cosine-then-sift-ransac" if kind == "image" else "cosine",
         "outdated_images": outdated_images,
+        "reindexed_images": reindexed_images,
         "results": results,
         "geometric_best": geometric_best,
     }

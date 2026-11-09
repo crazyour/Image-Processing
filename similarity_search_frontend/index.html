@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=9">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=12">
 </head>
 <body>
   <header class="topbar">
@@ -77,7 +77,7 @@
         <div class="search-intro">
           <p class="eyebrow">TWO-STAGE IMAGE SEARCH</p>
           <h2>上传一个查询文件</h2>
-          <p>系统只比较同格式素材。图片先查找全局相似度前 10 张，再进行几何验证；查询文件不会保存。</p>
+          <p>系统只比较同格式素材。图片先按主体轮廓和整体形状取前 10 张，再进行几何验证；查询文件不会保存。</p>
         </div>
         <label class="query-dropzone">
           <input id="query-input" type="file" accept=".png,.jpg,.jpeg,.webp,.dxf,.ai" data-paste-label="查询图片">
@@ -88,19 +88,29 @@
           <div class="subject-editor-head">
             <div>
               <span class="step">02</span>
-              <div><h3 id="subject-editor-title">框选要查找的主体</h3><p>在图片上按住并拖动，选区外的背景不会参与检索。</p></div>
+              <div><h3 id="subject-editor-title">点选要查找的主体</h3><p>点击主体后自动贴合物体边界；图片必须完成主体选择后才能检索。</p></div>
             </div>
-            <button id="use-full-image" class="ghost" type="button">使用整张图片</button>
+            <div class="subject-mode-actions">
+              <button id="start-auto-select" class="primary auto-select-start" type="button">智能点选主体</button>
+            </div>
           </div>
           <div class="subject-workspace">
             <div class="subject-canvas-wrap">
-              <canvas id="subject-canvas" role="img" aria-label="拖动框选查询图片中的主体"></canvas>
-              <span class="subject-drag-tip">拖动框选主体</span>
+              <canvas id="subject-canvas" role="img" aria-label="查询图片智能主体选择编辑器"></canvas>
             </div>
             <aside class="subject-status">
               <strong id="subject-status-title">当前使用整张图片</strong>
-              <p id="subject-status-copy">建议只框住要查找的产品或图案，尽量减少墙面、植物等背景。</p>
-              <button id="redraw-subject" class="ghost" type="button">清除选区并重新框选</button>
+              <p id="subject-status-copy">点击“智能点选主体”，再在图片中的物体上点一下。</p>
+              <div id="auto-point-tools" class="point-tools" hidden aria-label="智能点选类型">
+                <button class="active" type="button" data-point-label="1"><i></i>添加主体</button>
+                <button type="button" data-point-label="0"><i></i>排除背景</button>
+              </div>
+              <div class="subject-tools" aria-label="主体选择操作">
+                <button id="undo-subject" class="ghost" type="button" disabled>撤销</button>
+                <button id="reset-subject" class="ghost" type="button" disabled>重置</button>
+                <button id="preview-subject" class="ghost" type="button" disabled>预览主体</button>
+              </div>
+              <button id="confirm-subject-search" class="primary subject-confirm" type="button" disabled>确认并检索</button>
             </aside>
           </div>
         </section>
@@ -159,6 +169,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261105-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=14" defer></script>
+  <script src="/similarity-search-static/app.js?v=19" defer></script>
 </body>
 </html>

@@ -13,10 +13,13 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v3-perspective-sift"
+FEATURE_VERSION = "material-search-v4-subject-shape"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
 MAX_LOCAL_FEATURES = 1200
+SUBJECT_MASK_SIZE = 96
+SHAPE_FEATURE_SIZE = 32
+SHAPE_FEATURE_SCHEMA = "subject-mask-contour-bbox-v1"
 
 
 class SimilarityFileError(ValueError):
@@ -59,24 +62,136 @@ def _preview_png(image: Image.Image) -> bytes:
     return output.getvalue()
 
 
-def _visual_vector(image: Image.Image) -> list[float]:
-    rgb_image = _flatten(image)
-    width, height = rgb_image.size
-    fitted = ImageOps.pad(rgb_image, (128, 128), color="white", method=Image.Resampling.LANCZOS)
-    rgb = np.asarray(fitted, dtype=np.uint8)
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    histogram = cv2.calcHist([hsv], [0, 1, 2], None, [8, 4, 4], [0, 180, 0, 256, 0, 256]).flatten()
-    histogram /= max(float(histogram.sum()), 1.0)
-    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    thumbnail = cv2.resize(gray, (16, 16), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
-    edges = cv2.Canny(gray, 60, 160)
-    edge_thumbnail = cv2.resize(edges, (16, 16), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
-    aspect = width / max(height, 1)
-    size_features = np.array(
-        [min(aspect, 8.0) / 8.0, min(1.0 / max(aspect, 1e-6), 8.0) / 8.0],
-        dtype=np.float32,
-    )
-    return _normalise(np.concatenate([histogram, thumbnail.flatten(), edge_thumbnail.flatten(), size_features]))
+def _alpha_subject_mask(image: Image.Image) -> np.ndarray | None:
+    transposed = ImageOps.exif_transpose(image)
+    if transposed.mode not in {"RGBA", "LA"} and "transparency" not in transposed.info:
+        return None
+    alpha = np.asarray(transposed.convert("RGBA"), dtype=np.uint8)[:, :, 3]
+    mask = np.where(alpha >= 128, 255, 0).astype(np.uint8)
+    ratio = float(np.mean(mask > 0))
+    return mask if 0.001 <= ratio < 0.999 else None
+
+
+def _automatic_subject_mask(image: Image.Image) -> np.ndarray:
+    """Estimate one outer subject silhouette without using colour as a search feature."""
+    rgb = np.asarray(_flatten(image), dtype=np.uint8)
+    height, width = rgb.shape[:2]
+    border = max(1, min(height, width) // 40)
+    samples = np.concatenate([
+        rgb[:border].reshape(-1, 3),
+        rgb[-border:].reshape(-1, 3),
+        rgb[:, :border].reshape(-1, 3),
+        rgb[:, -border:].reshape(-1, 3),
+    ], axis=0)
+    background = np.median(samples.astype(np.float32), axis=0)
+    distance = np.sqrt(np.mean((rgb.astype(np.float32) - background) ** 2, axis=2))
+    distance_u8 = np.clip(distance, 0, 255).astype(np.uint8)
+    otsu, _ = cv2.threshold(distance_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    foreground = np.where(distance_u8 > max(8.0, float(otsu)), 255, 0).astype(np.uint8)
+    kernel_size = max(3, (min(height, width) // 180) * 2 + 1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    ratio = float(np.mean(foreground > 0))
+    if ratio < 0.001 or ratio > 0.90:
+        # Difficult photographic backgrounds get a conservative centre-biased
+        # GrabCut fallback. It is used only to obtain a silhouette; its colours
+        # are never placed in the retrieval vector.
+        grabcut_mask = np.zeros((height, width), dtype=np.uint8)
+        margin_x = max(1, round(width * 0.04))
+        margin_y = max(1, round(height * 0.04))
+        rectangle = (margin_x, margin_y, max(1, width - 2 * margin_x), max(1, height - 2 * margin_y))
+        background_model = np.zeros((1, 65), dtype=np.float64)
+        foreground_model = np.zeros((1, 65), dtype=np.float64)
+        try:
+            cv2.grabCut(rgb, grabcut_mask, rectangle, background_model, foreground_model, 3, cv2.GC_INIT_WITH_RECT)
+            foreground = np.where(
+                (grabcut_mask == cv2.GC_FGD) | (grabcut_mask == cv2.GC_PR_FGD),
+                255,
+                0,
+            ).astype(np.uint8)
+        except cv2.error:
+            foreground = np.full((height, width), 255, dtype=np.uint8)
+
+    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return np.full((height, width), 255, dtype=np.uint8)
+    largest_area = max(cv2.contourArea(contour) for contour in contours)
+    minimum_area = max(4.0, largest_area * 0.02)
+    silhouette = np.zeros((height, width), dtype=np.uint8)
+    retained = [contour for contour in contours if cv2.contourArea(contour) >= minimum_area]
+    cv2.drawContours(silhouette, retained or contours, -1, 255, thickness=cv2.FILLED)
+    return silhouette
+
+
+def _subject_mask(image: Image.Image) -> tuple[np.ndarray, str]:
+    alpha_mask = _alpha_subject_mask(image)
+    if alpha_mask is not None:
+        return alpha_mask, "alpha"
+    return _automatic_subject_mask(image), "border-background"
+
+
+def _normalised_subject_mask(mask: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    points = cv2.findNonZero(mask)
+    if points is None:
+        mask = np.full(mask.shape, 255, dtype=np.uint8)
+        points = cv2.findNonZero(mask)
+    x, y, width, height = cv2.boundingRect(points)
+    cropped = mask[y:y + height, x:x + width]
+    padding = 8
+    available = SUBJECT_MASK_SIZE - padding * 2
+    scale = available / max(width, height, 1)
+    resized_width = max(1, round(width * scale))
+    resized_height = max(1, round(height * scale))
+    resized = cv2.resize(cropped, (resized_width, resized_height), interpolation=cv2.INTER_NEAREST)
+    normalised = np.zeros((SUBJECT_MASK_SIZE, SUBJECT_MASK_SIZE), dtype=np.uint8)
+    left = (SUBJECT_MASK_SIZE - resized_width) // 2
+    top = (SUBJECT_MASK_SIZE - resized_height) // 2
+    normalised[top:top + resized_height, left:left + resized_width] = resized
+    return normalised, (x, y, width, height)
+
+
+def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
+    mask, source = _subject_mask(image)
+    normalised_mask, bbox = _normalised_subject_mask(mask)
+    contours, _ = cv2.findContours(normalised_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contour_mask = np.zeros_like(normalised_mask)
+    cv2.drawContours(contour_mask, contours, -1, 255, thickness=2)
+    mask_feature = cv2.resize(
+        normalised_mask, (SHAPE_FEATURE_SIZE, SHAPE_FEATURE_SIZE), interpolation=cv2.INTER_AREA,
+    ).astype(np.float32) / 255.0
+    contour_feature = cv2.resize(
+        contour_mask, (SHAPE_FEATURE_SIZE, SHAPE_FEATURE_SIZE), interpolation=cv2.INTER_AREA,
+    ).astype(np.float32) / 255.0
+    _, _, bbox_width, bbox_height = bbox
+    aspect = bbox_width / max(bbox_height, 1)
+    aspect_features = np.asarray([
+        min(aspect, 8.0) / 8.0,
+        min(1.0 / max(aspect, 1e-6), 8.0) / 8.0,
+    ], dtype=np.float32)
+    moments = cv2.HuMoments(cv2.moments(normalised_mask, binaryImage=True)).flatten()
+    hu = np.sign(moments) * np.log10(np.maximum(np.abs(moments), 1e-30))
+    hu = np.clip(hu, -30.0, 30.0).astype(np.float32) / 30.0
+    vector = _normalise(np.concatenate([
+        mask_feature.flatten(),
+        contour_feature.flatten() * 1.5,
+        aspect_features * 4.0,
+        hu * 2.0,
+    ]))
+    encoded_ok, encoded_mask = cv2.imencode(".png", normalised_mask)
+    metadata = {
+        "shape_feature_schema": SHAPE_FEATURE_SCHEMA,
+        "subject_mask_source": source,
+        "subject_bbox": list(bbox),
+        "subject_bbox_aspect": round(float(aspect), 6),
+        "subject_foreground_ratio": round(float(np.mean(mask > 0)), 6),
+        "normalised_subject_mask": {
+            "encoding": "png-base64-v1",
+            "size": SUBJECT_MASK_SIZE,
+            "data": base64.b64encode(encoded_mask.tobytes()).decode("ascii") if encoded_ok else "",
+        },
+    }
+    return vector, metadata
 
 
 def _image_fingerprint(image: Image.Image) -> str:
@@ -218,20 +333,22 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
     try:
         with Image.open(io.BytesIO(raw)) as source:
             source.load()
-            image = _flatten(source)
+            image = ImageOps.exif_transpose(source).copy()
     except (OSError, ValueError) as exc:
         raise SimilarityFileError("图片无法读取或已经损坏") from exc
     if image.width < 2 or image.height < 2:
         raise SimilarityFileError("图片尺寸无效")
+    vector, shape_metadata = _shape_vector(image)
     return (
         _preview_png(image),
-        _visual_vector(image),
+        vector,
         {
             "width": image.width,
             "height": image.height,
             "feature_version": FEATURE_VERSION,
             "image_fingerprint": _image_fingerprint(image),
             "local_features": _local_features(image),
+            **shape_metadata,
         },
     )
 
@@ -403,7 +520,8 @@ def process_dxf(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
             min(bounds["height"] / max(bounds["width"], 1e-6), 20.0) / 20.0,
         ], dtype=np.float32),
     ])
-    visual = np.asarray(_visual_vector(image), dtype=np.float32)
+    shape_vector, _ = _shape_vector(image)
+    visual = np.asarray(shape_vector, dtype=np.float32)
     vector = _normalise(np.concatenate([geometry * 2.0, visual]))
     metadata: dict[str, Any] = {
         "feature_version": FEATURE_VERSION,
@@ -433,10 +551,17 @@ def process_illustrator(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]
         raise
     except Exception as exc:
         raise SimilarityFileError("AI文件的PDF兼容内容无法解析") from exc
+    shape_vector, shape_metadata = _shape_vector(image)
     return (
         _preview_png(image),
-        _visual_vector(image),
-        {"width": width, "height": height, "pdf_compatible": True, "feature_version": FEATURE_VERSION},
+        shape_vector,
+        {
+            "width": width,
+            "height": height,
+            "pdf_compatible": True,
+            "feature_version": FEATURE_VERSION,
+            **shape_metadata,
+        },
     )
 
 

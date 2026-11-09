@@ -22,8 +22,14 @@ os.environ["ADMIN_NAME"] = "素材检索管理员"
 from fastapi.testclient import TestClient
 from app import app
 from vercel_app.similarity_api import _search_materials
-from vercel_app.similarity_engine import image_geometric_similarity, process_image
+from vercel_app.similarity_engine import (
+    FEATURE_VERSION,
+    cosine_similarity,
+    image_geometric_similarity,
+    process_image,
+)
 from vercel_app.similarity_store import _connection, _ensure_schema
+from vercel_app.interactive_segmentation import postprocess_mask, preprocess_image
 
 
 class SimilaritySearchEndToEndTest(unittest.TestCase):
@@ -188,7 +194,7 @@ EOF
                 "original_name": f"image-{index}.png",
                 "preview_url": f"preview-{index}",
                 "vector": [1.0, index / 10.0],
-                "metadata": {"feature_version": "material-search-v3-perspective-sift"},
+                "metadata": {"feature_version": FEATURE_VERSION},
             }
             for index in range(12)
         ]
@@ -225,7 +231,7 @@ EOF
         self.assertLess(page.index('id="second-search"'), page.index('id="first-search-title"'))
         self.assertIn('stage: twoStage ? "global" : "feature"', script)
         self.assertIn('resultCard(result.geometric_best, { stage: "geometric" })', script)
-        self.assertIn("全局余弦相似度", script)
+        self.assertIn("主体形状相似度", script)
         self.assertIn("几何相似度", script)
         self.assertNotIn("几何验证最佳", script)
         self.assertNotIn("第一次搜索排名", script)
@@ -271,6 +277,58 @@ EOF
         )
         self.assertEqual(invalid_size.status_code, 422, invalid_size.text)
         self.assertIn("文件分片合并后大小不一致", invalid_size.json()["message"])
+
+    def test_interactive_segmentation_endpoints_keep_the_model_pipeline_isolated(self) -> None:
+        raw = self.fixtures()["preview.png"]
+        session_id = "e" * 32
+        mask_stream = io.BytesIO()
+        Image.new("L", (240, 160), 255).save(mask_stream, "PNG")
+        with patch(
+            "vercel_app.similarity_api.create_segmentation",
+            return_value={
+                "session_id": session_id,
+                "width": 240,
+                "height": 160,
+                "model": "EdgeSAM-3x ONNX",
+                "encoding_ms": 18,
+                "expires_in": 900,
+            },
+        ) as create:
+            initialised = self.client.post(
+                "/api/material-search/segmentations",
+                headers=self.headers,
+                files={"image": ("query.png", raw)},
+            )
+        self.assertEqual(initialised.status_code, 200, initialised.text)
+        self.assertEqual(initialised.json()["session_id"], session_id)
+        create.assert_called_once_with(self.headers["X-Material-Library"], raw)
+
+        with patch(
+            "vercel_app.similarity_api.predict_segmentation",
+            return_value=(mask_stream.getvalue(), 0.875),
+        ) as predict:
+            predicted = self.client.post(
+                f"/api/material-search/segmentations/{session_id}/mask",
+                headers=self.headers,
+                json={"points": [{"x": 0.5, "y": 0.45, "label": 1}]},
+            )
+        self.assertEqual(predicted.status_code, 200, predicted.text)
+        self.assertEqual(predicted.headers["content-type"], "image/png")
+        self.assertEqual(predicted.headers["x-segmentation-score"], "0.875000")
+        predict.assert_called_once()
+
+        invalid = self.client.post(
+            f"/api/material-search/segmentations/{session_id}/mask",
+            headers=self.headers,
+            json={"points": [{"x": 1.2, "y": 0.5, "label": 1}]},
+        )
+        self.assertEqual(invalid.status_code, 422)
+        with patch("vercel_app.similarity_api.delete_segmentation", return_value=True) as delete:
+            discarded = self.client.delete(
+                f"/api/material-search/segmentations/{session_id}", headers=self.headers
+            )
+        self.assertEqual(discarded.status_code, 204)
+        delete.assert_called_once_with(self.headers["X-Material-Library"], session_id)
 
     def test_upload_preview_download_and_all_three_search_types(self) -> None:
         missing_name = self.client.post(
@@ -325,7 +383,7 @@ EOF
         self.assertEqual(len(folder["assets"]), 3)
         self.assertNotIn("_blob_ref", folder["assets"][0])
         image_asset = next(asset for asset in folder["assets"] if asset["kind"] == "image")
-        self.assertEqual(image_asset["metadata"]["feature_version"], "material-search-v3-perspective-sift")
+        self.assertEqual(image_asset["metadata"]["feature_version"], FEATURE_VERSION)
         self.assertNotIn("local_features", image_asset["metadata"])
         self.assertNotIn("image_fingerprint", image_asset["metadata"])
         self.assertEqual(self.client.get(folder["assets"][0]["preview_url"]).status_code, 401)
@@ -345,8 +403,8 @@ EOF
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99)
             if name == "preview.png":
-                self.assertEqual(payload["algorithm"], "cosine-then-sift-ransac")
-                self.assertEqual(result["match_label"], "全局相似")
+                self.assertEqual(payload["algorithm"], "shape-cosine-then-sift-ransac")
+                self.assertEqual(result["match_label"], "主体形状相似")
                 self.assertEqual(payload["geometric_best"]["match_label"], "同图")
                 self.assertEqual(payload["geometric_best"]["matched_asset_id"], result["matched_asset_id"])
             else:
@@ -460,6 +518,139 @@ EOF
             self.client.post(f"/api/material-search/trash/{folder_id}/restore", headers=self.headers).status_code,
             404,
         )
+
+
+class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
+    def setUp(self) -> None:
+        root = Path(__file__).resolve().parent.parent / "similarity_search_frontend"
+        self.page = (root / "index.html").read_text(encoding="utf-8")
+        self.script = (root / "app.js").read_text(encoding="utf-8")
+        self.styles = (root / "styles.css").read_text(encoding="utf-8")
+
+    def test_freehand_lasso_is_completely_removed(self) -> None:
+        combined = self.page + self.script + self.styles
+        self.assertNotIn("start-lasso", combined)
+        self.assertNotIn("redraw-subject", combined)
+        self.assertNotIn("自由套索", combined)
+        self.assertNotIn("subjectDraft", combined)
+        self.assertNotIn("finishSubjectLasso", combined)
+        for control_id in (
+            "undo-subject",
+            "reset-subject",
+            "preview-subject",
+            "confirm-subject-search",
+        ):
+            self.assertIn(f'id="{control_id}"', self.page)
+
+    def test_auto_selection_uses_normalised_points_and_an_original_size_binary_mask(self) -> None:
+        self.assertIn("x: point.x / canvas.width", self.script)
+        self.assertIn("y: point.y / canvas.height", self.script)
+        self.assertIn("full.width = image.naturalWidth", self.script)
+        self.assertIn("full.height = image.naturalHeight", self.script)
+        self.assertIn("value = fullPixels.data[offset] >= 128 ? 255 : 0", self.script)
+        self.assertIn("blob: binaryBlob", self.script)
+
+    def test_image_search_is_blocked_until_a_subject_mask_exists(self) -> None:
+        self.assertIn('kindOf(state.queryFile.name) === "image" && !state.queryMask', self.script)
+        self.assertIn("window.alert(prompt)", self.script)
+        self.assertIn('throw new Error("请先使用智能点选选择图片主体")', self.script)
+        self.assertIn('context.fillStyle = "#fff"', self.script)
+        self.assertIn('context.globalCompositeOperation = "destination-in"', self.script)
+        self.assertIn("context.drawImage(alphaMask, 0, 0)", self.script)
+        self.assertIn('`${baseName}-subject.png`', self.script)
+        self.assertIn('"shape-cosine-then-sift-ransac"', self.script)
+
+    def test_cpu_auto_selection_controls_and_point_prompts_are_present(self) -> None:
+        self.assertIn('id="start-auto-select"', self.page)
+        self.assertIn('data-point-label="1"', self.page)
+        self.assertIn('data-point-label="0"', self.page)
+        self.assertIn('api("/api/material-search/segmentations"', self.script)
+        self.assertIn('/mask`', self.script)
+        self.assertIn("state.segmentationPoints.push", self.script)
+        self.assertIn("event.button === 2 ? 0", self.script)
+
+    def test_image_upload_automatically_starts_subject_selection(self) -> None:
+        setup_start = self.script.index("async function setupSubjectEditor")
+        setup_end = self.script.index("function resetSubjectSelection", setup_start)
+        self.assertIn("await startAutoSelection();", self.script[setup_start:setup_end])
+
+
+class SubjectShapeFeatureTest(unittest.TestCase):
+    @staticmethod
+    def polygon_image(
+        points: list[tuple[int, int]],
+        *,
+        color: str = "black",
+        outline_only: bool = False,
+        mode: str = "RGB",
+    ) -> bytes:
+        background = (255, 255, 255, 0) if mode == "RGBA" else "white"
+        image = Image.new(mode, (320, 240), background)
+        draw = ImageDraw.Draw(image)
+        if outline_only:
+            draw.polygon(points, outline=color, width=8)
+        else:
+            draw.polygon(points, fill=color)
+        output = io.BytesIO()
+        image.save(output, "PNG")
+        return output.getvalue()
+
+    def test_colour_does_not_change_the_subject_shape_vector(self) -> None:
+        points = [(60, 180), (95, 55), (180, 35), (260, 115), (225, 195), (130, 210)]
+        _, red_vector, _ = process_image(self.polygon_image(points, color="red"))
+        _, black_vector, _ = process_image(self.polygon_image(points, color="black"))
+        self.assertGreater(cosine_similarity(red_vector, black_vector), 0.999)
+
+    def test_image_feature_source_contains_no_hsv_histogram_or_canny(self) -> None:
+        source = (
+            Path(__file__).resolve().parent.parent / "vercel_app" / "similarity_engine.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("cv2.calcHist", source)
+        self.assertNotIn("cv2.Canny", source)
+        self.assertNotIn("cv2.COLOR_RGB2HSV", source)
+
+    def test_closed_outline_and_filled_subject_compare_by_outer_shape(self) -> None:
+        points = [(55, 180), (90, 50), (190, 35), (270, 125), (215, 205), (120, 210)]
+        _, filled_vector, _ = process_image(self.polygon_image(points))
+        _, outline_vector, _ = process_image(self.polygon_image(points, outline_only=True))
+        self.assertGreater(cosine_similarity(filled_vector, outline_vector), 0.96)
+
+    def test_scale_and_position_are_normalised_but_different_shapes_stay_apart(self) -> None:
+        small = [(35, 175), (65, 65), (135, 45), (195, 115), (155, 190), (80, 205)]
+        large = [(80, 190), (120, 45), (215, 20), (295, 110), (245, 210), (145, 230)]
+        rectangle = [(90, 35), (230, 35), (230, 215), (90, 215)]
+        _, small_vector, _ = process_image(self.polygon_image(small))
+        _, large_vector, _ = process_image(self.polygon_image(large))
+        _, rectangle_vector, _ = process_image(self.polygon_image(rectangle))
+        same_shape = cosine_similarity(small_vector, large_vector)
+        different_shape = cosine_similarity(small_vector, rectangle_vector)
+        self.assertGreater(same_shape, 0.97)
+        self.assertGreater(same_shape, different_shape + 0.15)
+
+    def test_transparent_query_uses_its_alpha_channel_as_the_subject_mask(self) -> None:
+        points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
+        _, _, metadata = process_image(self.polygon_image(points, color="blue", mode="RGBA"))
+        self.assertEqual(metadata["subject_mask_source"], "alpha")
+        self.assertEqual(metadata["shape_feature_schema"], "subject-mask-contour-bbox-v1")
+        self.assertGreater(metadata["subject_bbox_aspect"], 1.0)
+
+
+class InteractiveSegmentationTransformTest(unittest.TestCase):
+    def test_preprocess_matches_edgesam_1024_square_input(self) -> None:
+        image = np.full((100, 200, 3), 127, dtype=np.uint8)
+        tensor, input_size = preprocess_image(image)
+        self.assertEqual(tensor.shape, (1, 3, 1024, 1024))
+        self.assertEqual(input_size, (512, 1024))
+        self.assertEqual(tensor.dtype, np.float32)
+        self.assertTrue(np.all(tensor[:, :, 512:, :] == 0))
+
+    def test_postprocess_returns_an_original_size_binary_mask(self) -> None:
+        logits = np.full((256, 256), -1.0, dtype=np.float32)
+        logits[64:192, 64:192] = 1.0
+        mask = postprocess_mask(logits, (512, 1024), (100, 200))
+        self.assertEqual(mask.shape, (100, 200))
+        self.assertEqual(mask.dtype, np.uint8)
+        self.assertEqual(set(np.unique(mask)), {0, 255})
 
 
 if __name__ == "__main__":
