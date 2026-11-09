@@ -57,39 +57,32 @@ class SegmentationSession:
     last_accessed_at: float
 
 
-class EdgeSamOpenCvRuntime:
-    """EdgeSAM ONNX inference on OpenCV's bundled, CPU-only DNN backend."""
+class EdgeSamOnnxRuntime:
+    """Small ONNX wrapper matching EdgeSAM's official SamPredictorONNX pipeline."""
 
     def __init__(self, encoder_path: Path, decoder_path: Path) -> None:
         try:
-            self.encoder = cv2.dnn.readNetFromONNX(str(encoder_path))
-            self.decoder = cv2.dnn.readNetFromONNX(str(decoder_path))
-            for network in (self.encoder, self.decoder):
-                network.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-                network.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+            import onnxruntime as ort
+        except ImportError as exc:  # pragma: no cover - exercised through availability tests
+            raise SegmentationUnavailable(
+                "智能点选需要安装 onnxruntime。"
+            ) from exc
+
+        options = ort.SessionOptions()
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        options.intra_op_num_threads = max(1, min(4, os.cpu_count() or 1))
+        options.inter_op_num_threads = 1
+        providers = ["CPUExecutionProvider"]
+        try:
+            self.encoder = ort.InferenceSession(str(encoder_path), sess_options=options, providers=providers)
+            self.decoder = ort.InferenceSession(str(decoder_path), sess_options=options, providers=providers)
         except Exception as exc:
             raise SegmentationUnavailable(f"智能点选模型无法加载：{exc}") from exc
-        # OpenCV Net instances reuse internal buffers and are not safe for
-        # concurrent setInput/forward calls inside one warm server process.
-        self._inference_lock = threading.Lock()
-
-    @staticmethod
-    def _forward_all(network: cv2.dnn.Net) -> list[np.ndarray]:
-        names = tuple(network.getUnconnectedOutLayersNames())
-        result = network.forward(names) if names else network.forward()
-        if isinstance(result, np.ndarray):
-            return [np.asarray(result)]
-        return [np.asarray(value) for value in result]
 
     def encode(self, image: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
         tensor, input_size = preprocess_image(image)
         try:
-            with self._inference_lock:
-                self.encoder.setInput(tensor, "image")
-                outputs = self._forward_all(self.encoder)
-            if not outputs:
-                raise ValueError("编码器未返回特征")
-            features = outputs[0]
+            features = self.encoder.run(None, {"image": tensor})[0]
         except Exception as exc:
             raise SegmentationError(f"主体分析失败：{exc}") from exc
         return np.asarray(features, dtype=np.float32), input_size
@@ -107,20 +100,16 @@ class EdgeSamOpenCvRuntime:
         )
         labels = np.asarray([[float(point["label"]) for point in points]], dtype=np.float32)
         try:
-            with self._inference_lock:
-                self.decoder.setInput(session.features, "image_embeddings")
-                self.decoder.setInput(coords, "point_coords")
-                self.decoder.setInput(labels, "point_labels")
-                outputs = self._forward_all(self.decoder)
-            mask_outputs = [value for value in outputs if value.ndim >= 3 and value.shape[-1] > 16]
-            score_outputs = [value for value in outputs if value.ndim < 3 or value.shape[-1] <= 16]
-            if not mask_outputs or not score_outputs:
-                raise ValueError("解码器输出结构不完整")
+            outputs = self.decoder.run(None, {
+                "image_embeddings": session.features,
+                "point_coords": coords,
+                "point_labels": labels,
+            })
         except Exception as exc:
             raise SegmentationError(f"选区计算失败：{exc}") from exc
 
-        scores = np.asarray(score_outputs[0], dtype=np.float32).reshape(-1)
-        low_res_masks = np.asarray(mask_outputs[0], dtype=np.float32)
+        scores = np.asarray(outputs[0]).reshape(-1)
+        low_res_masks = np.asarray(outputs[1], dtype=np.float32)
         best_index = int(np.argmax(scores))
         mask = postprocess_mask(
             low_res_masks[0, best_index],
@@ -130,7 +119,7 @@ class EdgeSamOpenCvRuntime:
         return mask, float(scores[best_index])
 
 
-_runtime: EdgeSamOpenCvRuntime | None = None
+_runtime: EdgeSamOnnxRuntime | None = None
 _runtime_lock = threading.Lock()
 _sessions: OrderedDict[str, SegmentationSession] = OrderedDict()
 _sessions_lock = threading.Lock()
@@ -194,14 +183,14 @@ def _model_paths() -> tuple[Path, Path]:
     return encoder, decoder
 
 
-def get_runtime() -> EdgeSamOpenCvRuntime:
+def get_runtime() -> EdgeSamOnnxRuntime:
     global _runtime
     if _runtime is not None:
         return _runtime
     with _runtime_lock:
         if _runtime is None:
             encoder, decoder = _model_paths()
-            _runtime = EdgeSamOpenCvRuntime(encoder, decoder)
+            _runtime = EdgeSamOnnxRuntime(encoder, decoder)
     return _runtime
 
 
