@@ -90,6 +90,10 @@ class SegmentationPredictRequest(BaseModel):
     points: list[SegmentationPoint] = Field(min_length=1, max_length=32)
 
 
+class ReindexBatchRequest(BaseModel):
+    asset_ids: list[str] = Field(min_length=1, max_length=10)
+
+
 def _authorise(library_id: str | None, token: str | None) -> str:
     if not library_id or not token:
         raise HTTPException(status_code=401, detail="缺少素材库访问令牌")
@@ -498,6 +502,98 @@ def reindex_library_images(
     }
 
 
+@router.get("/reindex/plan")
+def image_reindex_plan(
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    """Return a minimal, stable work list for browser-driven reindexing."""
+    library_id = _authorise(library_id, token)
+    items = []
+    for folder in list_folders(library_id):
+        for asset in folder["assets"]:
+            if asset["kind"] != "image":
+                continue
+            items.append({
+                "asset_id": asset["id"],
+                "file_name": asset["original_name"],
+                "folder_name": folder["name"],
+                "current_version": (asset.get("metadata") or {}).get("feature_version"),
+            })
+    return {
+        "feature_version": FEATURE_VERSION,
+        "total": len(items),
+        "items": items,
+    }
+
+
+@router.post("/reindex/assets/{asset_id}")
+def rebuild_image_index(
+    asset_id: str,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    """Force one image's two-stage search features to be atomically replaced."""
+    library_id = _authorise(library_id, token)
+    return _rebuild_image_index(library_id, asset_id)
+
+
+def _rebuild_image_index(library_id: str, asset_id: str) -> dict:
+    asset = get_asset(library_id, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="素材图片不存在")
+    if asset["kind"] != "image":
+        raise HTTPException(status_code=422, detail="只有图片需要重建二阶段检索特征")
+    old_version = (asset.get("metadata") or {}).get("feature_version")
+    try:
+        raw, _ = PrivateMaterialBlobStore().read(asset["_blob_ref"])
+        kind, _, vector, metadata = process_file(asset["original_name"], raw)
+        if kind != "image" or not update_asset_index(
+            library_id,
+            asset_id,
+            vector=vector,
+            metadata=metadata,
+        ):
+            raise StoreError("图片索引记录不存在")
+    except SimilarityFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except StoreError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "asset_id": asset_id,
+        "file_name": asset["original_name"],
+        "old_version": old_version,
+        "feature_version": metadata["feature_version"],
+        "local_feature_count": int((metadata.get("local_features") or {}).get("count", 0)),
+    }
+
+
+@router.post("/reindex/batch")
+def rebuild_image_index_batch(
+    request: ReindexBatchRequest,
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    """Rebuild a small batch while keeping each database replacement atomic."""
+    library_id = _authorise(library_id, token)
+    results = []
+    failures = []
+    for asset_id in dict.fromkeys(request.asset_ids):
+        try:
+            results.append(_rebuild_image_index(library_id, asset_id))
+        except HTTPException as exc:
+            failures.append({"asset_id": asset_id, "error": str(exc.detail)})
+        except (OSError, ValueError) as exc:
+            failures.append({"asset_id": asset_id, "error": str(exc)})
+    return {
+        "feature_version": FEATURE_VERSION,
+        "updated": len(results),
+        "failed": len(failures),
+        "results": results,
+        "failures": failures,
+    }
+
+
 @router.get("/assets/{asset_id}/preview")
 def asset_preview(
     asset_id: str,
@@ -697,26 +793,12 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     matches: list[dict] = []
     outdated_images = 0
     reindexed_images = 0
-    store = PrivateMaterialBlobStore()
     for candidate in searchable_assets(library_id, kind):
         if kind == "image" and (candidate.get("metadata") or {}).get("feature_version") != FEATURE_VERSION:
-            try:
-                candidate_raw, _ = store.read(candidate["_blob_ref"])
-                candidate_kind, _, candidate_vector, candidate_metadata = process_file(
-                    candidate["original_name"], candidate_raw,
-                )
-                if candidate_kind != "image" or not update_asset_index(
-                    library_id,
-                    candidate["asset_id"],
-                    vector=candidate_vector,
-                    metadata=candidate_metadata,
-                ):
-                    raise StoreError("图片索引记录不存在")
-                candidate["vector"] = candidate_vector
-                candidate["metadata"] = candidate_metadata
-                reindexed_images += 1
-            except (StoreError, SimilarityFileError, OSError):
-                outdated_images += 1
+            # Index maintenance must not block an interactive search. The
+            # library screen rebuilds these assets one per short request.
+            outdated_images += 1
+            continue
         global_score = cosine_similarity(query_vector, candidate["vector"])
         matches.append({
             **candidate,

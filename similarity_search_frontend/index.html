@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=12">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=14">
 </head>
 <body>
   <header class="topbar">
@@ -65,8 +65,16 @@
         <article class="card library-card">
           <header class="card-head compact">
             <div><span class="step">02</span><h2>已建立索引</h2></div>
-            <button id="refresh-library" class="ghost" type="button">刷新</button>
+            <div class="card-head-actions">
+              <button id="rebuild-indexes" class="ghost" type="button">一键重建全部特征</button>
+              <button id="refresh-library" class="ghost" type="button">刷新</button>
+            </div>
           </header>
+          <div id="reindex-progress" class="progress-wrap reindex-progress" hidden>
+            <div class="progress-meta"><span id="reindex-progress-label">准备重建</span><strong id="reindex-progress-value">0%</strong></div>
+            <div class="progress"><i id="reindex-progress-bar"></i></div>
+          </div>
+          <p id="reindex-message" class="message" role="status"></p>
           <div id="library-list" class="library-list"><p class="empty-copy">正在读取素材库…</p></div>
         </article>
       </div>
@@ -88,10 +96,12 @@
           <div class="subject-editor-head">
             <div>
               <span class="step">02</span>
-              <div><h3 id="subject-editor-title">点选要查找的主体</h3><p>点击主体后自动贴合物体边界；图片必须完成主体选择后才能检索。</p></div>
+              <div><h3 id="subject-editor-title">选择图片处理方式</h3><p>可直接使用原图、框选截图区域，或智能点选生成主体遮罩；无需强制选择。</p></div>
             </div>
-            <div class="subject-mode-actions">
-              <button id="start-auto-select" class="primary auto-select-start" type="button">智能点选主体</button>
+            <div class="query-methods" aria-label="图片检索方式">
+              <button class="active" type="button" data-query-method="original">原图检索</button>
+              <button type="button" data-query-method="crop">截图检索</button>
+              <button type="button" data-query-method="mask">遮罩检索</button>
             </div>
           </div>
           <div class="subject-workspace">
@@ -99,18 +109,18 @@
               <canvas id="subject-canvas" role="img" aria-label="查询图片智能主体选择编辑器"></canvas>
             </div>
             <aside class="subject-status">
-              <strong id="subject-status-title">当前使用整张图片</strong>
-              <p id="subject-status-copy">点击“智能点选主体”，再在图片中的物体上点一下。</p>
+              <strong id="subject-status-title">原图检索已就绪</strong>
+              <p id="subject-status-copy">将直接使用上传的完整图片生成查询特征。</p>
               <div id="auto-point-tools" class="point-tools" hidden aria-label="智能点选类型">
                 <button class="active" type="button" data-point-label="1"><i></i>添加主体</button>
                 <button type="button" data-point-label="0"><i></i>排除背景</button>
               </div>
-              <div class="subject-tools" aria-label="主体选择操作">
+              <div id="subject-tools" class="subject-tools" hidden aria-label="主体选择操作">
                 <button id="undo-subject" class="ghost" type="button" disabled>撤销</button>
                 <button id="reset-subject" class="ghost" type="button" disabled>重置</button>
                 <button id="preview-subject" class="ghost" type="button" disabled>预览主体</button>
               </div>
-              <button id="confirm-subject-search" class="primary subject-confirm" type="button" disabled>确认并检索</button>
+              <button id="confirm-subject-search" class="primary subject-confirm" type="button">使用原图检索</button>
             </aside>
           </div>
         </section>
@@ -169,6 +179,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=19" defer></script>
+  <script src="/similarity-search-static/app.js?v=21" defer></script>
 </body>
 </html>

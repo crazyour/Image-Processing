@@ -13,13 +13,14 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v4-subject-shape"
+FEATURE_VERSION = "material-search-v5-subject-shape"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
 MAX_LOCAL_FEATURES = 1200
 SUBJECT_MASK_SIZE = 96
 SHAPE_FEATURE_SIZE = 32
-SHAPE_FEATURE_SCHEMA = "subject-mask-contour-bbox-v1"
+SHAPE_FEATURE_SCHEMA = "subject-mask-contour-bbox-v2"
+MAX_SUBJECT_ANALYSIS_DIMENSION = 1600
 
 
 class SimilarityFileError(ValueError):
@@ -131,6 +132,17 @@ def _subject_mask(image: Image.Image) -> tuple[np.ndarray, str]:
     return _automatic_subject_mask(image), "border-background"
 
 
+def _subject_analysis_image(image: Image.Image) -> Image.Image:
+    """Bound silhouette extraction cost without changing the source image."""
+    analysis = ImageOps.exif_transpose(image).copy()
+    if max(analysis.size) > MAX_SUBJECT_ANALYSIS_DIMENSION:
+        analysis.thumbnail(
+            (MAX_SUBJECT_ANALYSIS_DIMENSION, MAX_SUBJECT_ANALYSIS_DIMENSION),
+            Image.Resampling.LANCZOS,
+        )
+    return analysis
+
+
 def _normalised_subject_mask(mask: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int, int]]:
     points = cv2.findNonZero(mask)
     if points is None:
@@ -152,7 +164,8 @@ def _normalised_subject_mask(mask: np.ndarray) -> tuple[np.ndarray, tuple[int, i
 
 
 def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
-    mask, source = _subject_mask(image)
+    analysis_image = _subject_analysis_image(image)
+    mask, source = _subject_mask(analysis_image)
     normalised_mask, bbox = _normalised_subject_mask(mask)
     contours, _ = cv2.findContours(normalised_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     contour_mask = np.zeros_like(normalised_mask)
@@ -185,6 +198,7 @@ def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
         "subject_bbox": list(bbox),
         "subject_bbox_aspect": round(float(aspect), 6),
         "subject_foreground_ratio": round(float(np.mean(mask > 0)), 6),
+        "subject_analysis_size": list(analysis_image.size),
         "normalised_subject_mask": {
             "encoding": "png-base64-v1",
             "size": SUBJECT_MASK_SIZE,

@@ -443,6 +443,29 @@ EOF
         self.assertEqual(reindex_again.status_code, 200, reindex_again.text)
         self.assertEqual(reindex_again.json()["skipped"], 1)
 
+        plan_response = self.client.get("/api/material-search/reindex/plan", headers=self.headers)
+        self.assertEqual(plan_response.status_code, 200, plan_response.text)
+        plan = plan_response.json()
+        self.assertEqual(plan["feature_version"], FEATURE_VERSION)
+        self.assertEqual(plan["total"], 1)
+        self.assertEqual(plan["items"][0]["asset_id"], image_asset["id"])
+
+        forced_reindex = self.client.post(
+            f"/api/material-search/reindex/assets/{image_asset['id']}", headers=self.headers,
+        )
+        self.assertEqual(forced_reindex.status_code, 200, forced_reindex.text)
+        self.assertEqual(forced_reindex.json()["feature_version"], FEATURE_VERSION)
+        self.assertGreaterEqual(forced_reindex.json()["local_feature_count"], 0)
+
+        batch_reindex = self.client.post(
+            "/api/material-search/reindex/batch",
+            headers=self.headers,
+            json={"asset_ids": [image_asset["id"], "missing-image"]},
+        )
+        self.assertEqual(batch_reindex.status_code, 200, batch_reindex.text)
+        self.assertEqual(batch_reindex.json()["updated"], 1)
+        self.assertEqual(batch_reindex.json()["failed"], 1)
+
         query_name = "preview.png"
         query_raw = self.fixtures()[query_name]
         query_upload_id = "b" * 32
@@ -553,10 +576,14 @@ class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
         self.assertIn("value = fullPixels.data[offset] >= 128 ? 255 : 0", self.script)
         self.assertIn("blob: binaryBlob", self.script)
 
-    def test_image_search_is_blocked_until_a_subject_mask_exists(self) -> None:
-        self.assertIn('kindOf(state.queryFile.name) === "image" && !state.queryMask', self.script)
-        self.assertIn("window.alert(prompt)", self.script)
-        self.assertIn('throw new Error("请先使用智能点选选择图片主体")', self.script)
+    def test_image_search_supports_original_crop_and_mask_without_forcing_a_mask(self) -> None:
+        self.assertIn('data-query-method="original"', self.page)
+        self.assertIn('data-query-method="crop"', self.page)
+        self.assertIn('data-query-method="mask"', self.page)
+        self.assertNotIn('kindOf(state.queryFile.name) === "image" && !state.queryMask', self.script)
+        self.assertNotIn("window.alert(prompt)", self.script)
+        self.assertIn('if (state.queryMethod === "original") return file', self.script)
+        self.assertIn('`${baseName}-crop.png`', self.script)
         self.assertIn('context.fillStyle = "#fff"', self.script)
         self.assertIn('context.globalCompositeOperation = "destination-in"', self.script)
         self.assertIn("context.drawImage(alphaMask, 0, 0)", self.script)
@@ -564,7 +591,7 @@ class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
         self.assertIn('"shape-cosine-then-sift-ransac"', self.script)
 
     def test_cpu_auto_selection_controls_and_point_prompts_are_present(self) -> None:
-        self.assertIn('id="start-auto-select"', self.page)
+        self.assertIn('data-query-method="mask"', self.page)
         self.assertIn('data-point-label="1"', self.page)
         self.assertIn('data-point-label="0"', self.page)
         self.assertIn('api("/api/material-search/segmentations"', self.script)
@@ -572,10 +599,18 @@ class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
         self.assertIn("state.segmentationPoints.push", self.script)
         self.assertIn("event.button === 2 ? 0", self.script)
 
-    def test_image_upload_automatically_starts_subject_selection(self) -> None:
+    def test_image_upload_defaults_to_original_and_does_not_start_the_model(self) -> None:
         setup_start = self.script.index("async function setupSubjectEditor")
         setup_end = self.script.index("function resetSubjectSelection", setup_start)
-        self.assertIn("await startAutoSelection();", self.script[setup_start:setup_end])
+        setup = self.script[setup_start:setup_end]
+        self.assertIn('state.queryMethod = "original"', setup)
+        self.assertNotIn("await startAutoSelection();", setup)
+
+    def test_crop_mode_maps_the_canvas_selection_back_to_original_pixels(self) -> None:
+        self.assertIn("crop.left * image.naturalWidth", self.script)
+        self.assertIn("crop.top * image.naturalHeight", self.script)
+        self.assertIn("sourceWidth", self.script)
+        self.assertIn("sourceHeight", self.script)
 
 
 class SubjectShapeFeatureTest(unittest.TestCase):
@@ -634,7 +669,7 @@ class SubjectShapeFeatureTest(unittest.TestCase):
         points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
         _, _, metadata = process_image(self.polygon_image(points, color="blue", mode="RGBA"))
         self.assertEqual(metadata["subject_mask_source"], "alpha")
-        self.assertEqual(metadata["shape_feature_schema"], "subject-mask-contour-bbox-v1")
+        self.assertEqual(metadata["shape_feature_schema"], "subject-mask-contour-bbox-v2")
         self.assertGreater(metadata["subject_bbox_aspect"], 1.0)
 
 

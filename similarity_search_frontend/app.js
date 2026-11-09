@@ -6,6 +6,9 @@ const state = {
   selectedFiles: [],
   queryFile: null,
   queryImage: null,
+  queryMethod: "original",
+  queryCrop: null,
+  cropPointerId: null,
   queryMask: null,
   subjectSelectionMode: null,
   subjectPreview: false,
@@ -19,6 +22,7 @@ const state = {
   trash: [],
   objectUrls: new Set(),
   activeFolder: null,
+  reindexBusy: false,
 };
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
@@ -207,6 +211,41 @@ function drawAutoPoints(context, width, height) {
   }
 }
 
+function normalisedCrop(crop = state.queryCrop) {
+  if (!crop) return null;
+  const left = Math.max(0, Math.min(crop.x1, crop.x2));
+  const top = Math.max(0, Math.min(crop.y1, crop.y2));
+  const right = Math.min(1, Math.max(crop.x1, crop.x2));
+  const bottom = Math.min(1, Math.max(crop.y1, crop.y2));
+  if (right - left < .005 || bottom - top < .005) return null;
+  return { left, top, right, bottom };
+}
+
+function drawCropSelection(context, image, width, height) {
+  const crop = normalisedCrop();
+  if (!crop) return;
+  const x = crop.left * width;
+  const y = crop.top * height;
+  const cropWidth = (crop.right - crop.left) * width;
+  const cropHeight = (crop.bottom - crop.top) * height;
+  context.save();
+  context.fillStyle = "rgba(9, 22, 17, .58)";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(
+    image,
+    crop.left * image.naturalWidth,
+    crop.top * image.naturalHeight,
+    (crop.right - crop.left) * image.naturalWidth,
+    (crop.bottom - crop.top) * image.naturalHeight,
+    x, y, cropWidth, cropHeight,
+  );
+  context.strokeStyle = "#d8e7a5";
+  context.lineWidth = Math.max(2, Math.min(width, height) / 180);
+  context.setLineDash([10, 6]);
+  context.strokeRect(x, y, cropWidth, cropHeight);
+  context.restore();
+}
+
 function drawSubjectEditor() {
   const canvas = $("#subject-canvas");
   const context = canvas.getContext("2d");
@@ -228,26 +267,47 @@ function drawSubjectEditor() {
   }
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  if (state.queryMask?.displayOverlay) context.drawImage(state.queryMask.displayOverlay, 0, 0);
-  if (state.subjectSelectionMode === "auto") drawAutoPoints(context, canvas.width, canvas.height);
+  if (state.queryMethod === "crop") drawCropSelection(context, image, canvas.width, canvas.height);
+  if (state.queryMethod === "mask" && state.queryMask?.displayOverlay) {
+    context.drawImage(state.queryMask.displayOverlay, 0, 0);
+  }
+  if (state.queryMethod === "mask" && state.subjectSelectionMode === "auto") {
+    drawAutoPoints(context, canvas.width, canvas.height);
+  }
 }
 
 function updateSubjectStatus() {
   const editor = $("#query-subject-editor");
-  const autoMode = state.subjectSelectionMode === "auto";
+  const method = state.queryMethod;
+  const autoMode = method === "mask" && state.subjectSelectionMode === "auto";
   const hasMask = Boolean(state.queryMask);
+  const hasCrop = Boolean(normalisedCrop());
   editor.classList.toggle("has-selection", hasMask);
   editor.classList.toggle("auto-selecting", autoMode);
+  editor.classList.toggle("crop-selecting", method === "crop");
   editor.classList.toggle("busy", state.segmentationBusy);
-  $("#auto-point-tools").hidden = !autoMode;
-  $("#start-auto-select").disabled = state.segmentationBusy;
-  $("#start-auto-select").textContent = state.segmentationBusy ? "正在分析图片…" : autoMode ? "智能点选中" : "智能点选主体";
+  $$('[data-query-method]').forEach(button => button.classList.toggle("active", button.dataset.queryMethod === method));
+  $("#auto-point-tools").hidden = method !== "mask" || !autoMode;
+  $("#subject-tools").hidden = method !== "mask";
   $("#undo-subject").disabled = state.segmentationBusy || state.segmentationPoints.length === 0;
   $("#reset-subject").disabled = state.segmentationBusy || state.segmentationPoints.length === 0;
   $("#preview-subject").disabled = state.segmentationBusy || !hasMask;
   $("#preview-subject").textContent = state.subjectPreview ? "返回选区" : "预览主体";
-  $("#confirm-subject-search").disabled = state.segmentationBusy || !hasMask;
-  if (autoMode) {
+  $("#confirm-subject-search").disabled = state.segmentationBusy || (method === "crop" && !hasCrop) || (method === "mask" && !hasMask);
+  $("#confirm-subject-search").textContent = method === "original" ? "使用原图检索" : method === "crop" ? "使用截图检索" : "使用遮罩检索";
+  if (method === "original") {
+    $("#subject-status-title").textContent = "原图检索已就绪";
+    $("#subject-status-copy").textContent = "将直接使用上传的完整图片生成查询特征，不需要选择主体。";
+    return;
+  }
+  if (method === "crop") {
+    $("#subject-status-title").textContent = hasCrop ? "截图区域已选定" : "拖动框选截图区域";
+    $("#subject-status-copy").textContent = hasCrop
+      ? "可重新拖动调整范围，检索时只使用亮色框内的图片。"
+      : "按住鼠标左键在图片上拖动，框住需要用于检索的区域。";
+    return;
+  }
+  if (autoMode || state.segmentationBusy) {
     const count = state.segmentationPoints.length;
     $("#subject-status-title").textContent = state.segmentationBusy
       ? (state.segmentationSessionId ? "正在更新物体边界" : "正在加载轻量分割模型")
@@ -259,13 +319,16 @@ function updateSubjectStatus() {
         : "左键添加主体点；切换“排除背景”或单击右键，可修正误选区域。";
     return;
   }
-  $("#subject-status-title").textContent = "必须选择图片主体";
-  $("#subject-status-copy").textContent = "点击“智能点选主体”，再点击图片中的物体。生成主体 Mask 后才能检索。";
+  $("#subject-status-title").textContent = "遮罩模型尚未启动";
+  $("#subject-status-copy").textContent = "再次点击“遮罩检索”启动模型，然后在物体内部点一下。";
 }
 
 async function setupSubjectEditor(file) {
   const editor = $("#query-subject-editor");
   disposeSegmentationSession();
+  state.queryMethod = "original";
+  state.queryCrop = null;
+  state.cropPointerId = null;
   state.queryMask = null;
   state.subjectSelectionMode = null;
   state.subjectPreview = false;
@@ -294,7 +357,6 @@ async function setupSubjectEditor(file) {
   editor.hidden = false;
   updateSubjectStatus();
   drawSubjectEditor();
-  await startAutoSelection();
 }
 
 function resetSubjectSelection() {
@@ -303,6 +365,20 @@ function resetSubjectSelection() {
   invalidateSubjectMask();
   updateSubjectStatus();
   drawSubjectEditor();
+}
+
+async function setQueryMethod(method) {
+  if (!state.queryImage || !["original", "crop", "mask"].includes(method)) return;
+  state.queryMethod = method;
+  state.subjectPreview = false;
+  if (method === "mask") {
+    await startAutoSelection();
+    return;
+  }
+  state.subjectSelectionMode = method === "crop" ? "crop" : null;
+  updateSubjectStatus();
+  drawSubjectEditor();
+  setMessage("#search-message", method === "original" ? "已选择原图检索。" : "请在图片上拖动框选截图区域。", "success");
 }
 
 async function undoSubjectSelection() {
@@ -495,7 +571,28 @@ async function preparedQueryFile() {
   const file = state.queryFile;
   const image = state.queryImage;
   if (!file || !image || kindOf(file.name) !== "image") return file;
-  if (!state.queryMask) throw new Error("请先使用智能点选选择图片主体");
+  if (state.queryMethod === "original") return file;
+  const baseName = file.name.replace(/\.[^.]+$/, "") || "query";
+  if (state.queryMethod === "crop") {
+    const crop = normalisedCrop();
+    if (!crop) throw new Error("请先在图片上框选截图区域");
+    const sourceX = Math.round(crop.left * image.naturalWidth);
+    const sourceY = Math.round(crop.top * image.naturalHeight);
+    const sourceWidth = Math.max(1, Math.round((crop.right - crop.left) * image.naturalWidth));
+    const sourceHeight = Math.max(1, Math.round((crop.bottom - crop.top) * image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = sourceWidth;
+    canvas.height = sourceHeight;
+    canvas.getContext("2d").drawImage(
+      image,
+      sourceX, sourceY, sourceWidth, sourceHeight,
+      0, 0, sourceWidth, sourceHeight,
+    );
+    const blob = await canvasBlob(canvas);
+    if (!blob) throw new Error("截图查询图生成失败，请重新框选");
+    return new File([blob], `${baseName}-crop.png`, { type: "image/png", lastModified: Date.now() });
+  }
+  if (!state.queryMask) throw new Error("请先在遮罩检索中点选图片主体");
   const mask = state.queryMask;
   const alphaMask = await subjectAlphaMaskCanvas(mask);
   const canvas = document.createElement("canvas");
@@ -508,7 +605,6 @@ async function preparedQueryFile() {
   context.globalCompositeOperation = "source-over";
   const blob = await canvasBlob(canvas);
   if (!blob) throw new Error("主体查询图生成失败，请重新选择主体");
-  const baseName = file.name.replace(/\.[^.]+$/, "") || "query";
   return new File([blob], `${baseName}-subject.png`, { type: "image/png", lastModified: Date.now() });
 }
 
@@ -654,6 +750,62 @@ async function loadLibrary() {
     list.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
     cloudList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
     trashList.innerHTML = `<p class="empty-copy">${safeText(error.message)}</p>`;
+  }
+}
+
+async function rebuildAllImageIndexes() {
+  if (state.reindexBusy) return;
+  const button = $("#rebuild-indexes");
+  let plan;
+  try {
+    const response = await api("/api/material-search/reindex/plan");
+    plan = await response.json();
+  } catch (error) {
+    setMessage("#reindex-message", error.message, "error");
+    return;
+  }
+  if (!plan.total) {
+    setMessage("#reindex-message", "素材库中没有需要建立检索特征的图片。", "success");
+    return;
+  }
+  if (!window.confirm(`将使用当前二阶段搜索算法重新计算 ${plan.total} 张图片的特征，并逐张覆盖旧特征。\n\n原图和预览不会被修改，是否继续？`)) return;
+
+  state.reindexBusy = true;
+  button.disabled = true;
+  $("#refresh-library").disabled = true;
+  $("#reindex-progress").hidden = false;
+  $("#reindex-progress-bar").style.width = "0%";
+  $("#reindex-progress-value").textContent = "0%";
+  setMessage("#reindex-message", `正在重建 0 / ${plan.total} 张图片…`);
+  const failures = [];
+  let completed = 0;
+  try {
+    for (const item of plan.items) {
+      $("#reindex-progress-label").textContent = `正在处理：${item.file_name}`;
+      try {
+        await api(`/api/material-search/reindex/assets/${encodeURIComponent(item.asset_id)}`, { method: "POST" });
+      } catch (error) {
+        failures.push(`${item.folder_name} / ${item.file_name}：${error.message}`);
+      }
+      completed += 1;
+      const percent = Math.round(completed / plan.total * 100);
+      $("#reindex-progress-bar").style.width = `${percent}%`;
+      $("#reindex-progress-value").textContent = `${percent}%`;
+      setMessage("#reindex-message", `已处理 ${completed} / ${plan.total} 张，成功 ${completed - failures.length} 张，失败 ${failures.length} 张。`, failures.length ? "error" : "");
+    }
+    $("#reindex-progress-label").textContent = failures.length ? "重建完成，部分文件失败" : "全部特征重建完成";
+    if (failures.length) {
+      const preview = failures.slice(0, 3).join("；");
+      const remaining = failures.length > 3 ? `；另有 ${failures.length - 3} 个失败文件` : "";
+      setMessage("#reindex-message", `成功覆盖 ${plan.total - failures.length} 张图片的旧特征，失败 ${failures.length} 张：${preview}${remaining}`, "error");
+    } else {
+      setMessage("#reindex-message", `已使用 ${plan.feature_version} 重建并保存 ${plan.total} 张图片的全部二阶段检索特征。`, "success");
+    }
+    await loadLibrary();
+  } finally {
+    state.reindexBusy = false;
+    button.disabled = false;
+    $("#refresh-library").disabled = false;
   }
 }
 
@@ -806,18 +958,16 @@ function activateResultCards(root) {
 
 async function search() {
   if (!state.queryFile) return;
-  if (kindOf(state.queryFile.name) === "image" && !state.queryMask) {
-    const prompt = "请先使用“智能点选主体”选择需要检索的物体，生成主体选区后才能检索。";
-    window.alert(prompt);
-    setMessage("#search-message", prompt, "error");
-    $("#query-subject-editor").scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
-  }
   const button = $("#search-button");
   const confirmButton = $("#confirm-subject-search");
   button.disabled = true;
   confirmButton.disabled = true;
-  setMessage("#search-message", state.queryMask ? "正在应用二值 Mask、排除背景并比较素材库…" : "正在生成查询特征并比较素材库…");
+  const methodCopy = state.queryMethod === "mask"
+    ? "正在应用二值 Mask、排除背景并比较素材库…"
+    : state.queryMethod === "crop"
+      ? "正在裁剪截图区域并比较素材库…"
+      : "正在使用原图生成查询特征…";
+  setMessage("#search-message", methodCopy);
   try {
     const queryFile = await preparedQueryFile();
     const currentUploadId = uploadId();
@@ -850,7 +1000,7 @@ async function search() {
       : "";
     activateResultCards($("#search-output"));
     if (result.outdated_images) {
-      setMessage("#search-message", `有 ${result.outdated_images} 张云端图片的主体形状索引升级失败，需要重新上传。`);
+      setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧特征图片。请在“素材库上传”页点击“一键重建全部特征”。`, "error");
     } else {
       const upgraded = result.reindexed_images ? `已自动升级 ${result.reindexed_images} 张旧图片索引。` : "";
       setMessage("#search-message", twoStage ? `${upgraded}检索完成。先取主体整体形状前10名，再对候选图片进行SIFT + RANSAC几何验证。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
@@ -859,7 +1009,7 @@ async function search() {
     setMessage("#search-message", error.message, "error");
   } finally {
     button.disabled = false;
-    confirmButton.disabled = !state.queryMask;
+    updateSubjectStatus();
   }
 }
 
@@ -875,6 +1025,7 @@ $("#folder-input").addEventListener("change", event => {
 });
 $("#folder-name").addEventListener("input", renderSelection);
 $("#upload-button").addEventListener("click", uploadFolder);
+$("#rebuild-indexes").addEventListener("click", rebuildAllImageIndexes);
 $("#refresh-library").addEventListener("click", loadLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
 $$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
@@ -883,6 +1034,9 @@ $("#query-input").addEventListener("change", async event => {
   disposeSegmentationSession();
   state.queryFile = file || null;
   state.queryImage = null;
+  state.queryMethod = "original";
+  state.queryCrop = null;
+  state.cropPointerId = null;
   state.queryMask = null;
   state.subjectSelectionMode = null;
   state.subjectPreview = false;
@@ -906,17 +1060,28 @@ $("#query-input").addEventListener("change", async event => {
     setMessage("#search-message", error.message, "error");
   }
 });
-$("#start-auto-select").addEventListener("click", startAutoSelection);
+$$('[data-query-method]').forEach(button => button.addEventListener("click", () => setQueryMethod(button.dataset.queryMethod)));
 $$('[data-point-label]').forEach(button => button.addEventListener("click", () => {
   state.segmentationPointLabel = Number(button.dataset.pointLabel);
   $$('[data-point-label]').forEach(item => item.classList.toggle("active", item === button));
 }));
 $("#subject-canvas").addEventListener("contextmenu", event => {
-  if (state.subjectSelectionMode === "auto") event.preventDefault();
+  if (state.queryMethod === "mask" && state.subjectSelectionMode === "auto") event.preventDefault();
 });
 $("#subject-canvas").addEventListener("pointerdown", event => {
   if (!state.queryImage) return;
-  if (state.subjectSelectionMode === "auto") {
+  if (state.queryMethod === "crop") {
+    if (event.button !== 0) return;
+    const point = normalisedSubjectPoint(event);
+    state.cropPointerId = event.pointerId;
+    state.queryCrop = { x1: point.x, y1: point.y, x2: point.x, y2: point.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateSubjectStatus();
+    drawSubjectEditor();
+    event.preventDefault();
+    return;
+  }
+  if (state.queryMethod === "mask" && state.subjectSelectionMode === "auto") {
     if (!state.segmentationSessionId || state.segmentationBusy) return;
     if (event.pointerType === "mouse" && ![0, 2].includes(event.button)) return;
     state.subjectPreview = false;
@@ -932,6 +1097,25 @@ $("#subject-canvas").addEventListener("pointerdown", event => {
     event.preventDefault();
   }
 });
+$("#subject-canvas").addEventListener("pointermove", event => {
+  if (state.queryMethod !== "crop" || state.cropPointerId !== event.pointerId || !state.queryCrop) return;
+  const point = normalisedSubjectPoint(event);
+  state.queryCrop.x2 = point.x;
+  state.queryCrop.y2 = point.y;
+  updateSubjectStatus();
+  drawSubjectEditor();
+  event.preventDefault();
+});
+function finishCropSelection(event) {
+  if (state.cropPointerId !== event.pointerId) return;
+  if (!normalisedCrop()) state.queryCrop = null;
+  state.cropPointerId = null;
+  updateSubjectStatus();
+  drawSubjectEditor();
+  setMessage("#search-message", state.queryCrop ? "截图区域已选定，可以检索。" : "截图区域太小，请重新拖动框选。", state.queryCrop ? "success" : "error");
+}
+$("#subject-canvas").addEventListener("pointerup", finishCropSelection);
+$("#subject-canvas").addEventListener("pointercancel", finishCropSelection);
 $("#undo-subject").addEventListener("click", undoSubjectSelection);
 $("#reset-subject").addEventListener("click", resetSubjectSelection);
 $("#preview-subject").addEventListener("click", async () => {
@@ -945,9 +1129,10 @@ $("#preview-subject").addEventListener("click", async () => {
   }
 });
 $("#confirm-subject-search").addEventListener("click", async () => {
-  if (!state.queryMask) return;
+  if (state.queryMethod === "crop" && !normalisedCrop()) return;
+  if (state.queryMethod === "mask" && !state.queryMask) return;
   try {
-    state.subjectPreview = true;
+    state.subjectPreview = state.queryMethod === "mask";
     updateSubjectStatus();
     drawSubjectEditor();
     await search();
