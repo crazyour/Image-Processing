@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import re
 import tempfile
 import time
@@ -701,6 +702,44 @@ def interactive_segmentation_mask(
             "X-Content-Type-Options": "nosniff",
             "X-Segmentation-Score": f"{score:.6f}",
             "X-Segmentation-Model": "EdgeSAM-3x-ONNX",
+        },
+    )
+
+
+@router.post("/segmentations/mask")
+async def stateless_interactive_segmentation_mask(
+    image: UploadFile = File(...),
+    points: str = Form(...),
+    library_id: str | None = Header(default=None, alias="X-Material-Library"),
+    token: str | None = Header(default=None, alias="X-Material-Token"),
+):
+    """Encode and decode in one invocation when a serverless session is lost."""
+    library_id = _authorise(library_id, token)
+    raw = await image.read(MAX_SEGMENTATION_IMAGE_BYTES + 1)
+    try:
+        request = SegmentationPredictRequest.model_validate({"points": json.loads(points)})
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="智能点选坐标无效") from exc
+    try:
+        session = create_segmentation(library_id, raw)
+        mask, score = predict_segmentation(
+            library_id,
+            session["session_id"],
+            [point.model_dump() for point in request.points],
+        )
+    except SegmentationUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except SegmentationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        mask,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-Segmentation-Score": f"{score:.6f}",
+            "X-Segmentation-Model": "EdgeSAM-3x-ONNX",
+            "X-Segmentation-Session": session["session_id"],
         },
     )
 

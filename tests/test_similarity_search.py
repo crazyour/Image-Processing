@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import os
 import sqlite3
 import tempfile
@@ -320,6 +321,33 @@ EOF
         self.assertEqual(predicted.headers["x-segmentation-score"], "0.875000")
         predict.assert_called_once()
 
+        replacement_session_id = "f" * 32
+        with patch(
+            "vercel_app.similarity_api.create_segmentation",
+            return_value={
+                "session_id": replacement_session_id,
+                "width": 240,
+                "height": 160,
+                "model": "EdgeSAM-3x ONNX",
+                "encoding_ms": 20,
+                "expires_in": 900,
+            },
+        ) as recreate, patch(
+            "vercel_app.similarity_api.predict_segmentation",
+            return_value=(mask_stream.getvalue(), 0.91),
+        ) as stateless_predict:
+            recovered = self.client.post(
+                "/api/material-search/segmentations/mask",
+                headers=self.headers,
+                files={"image": ("query.png", raw)},
+                data={"points": json.dumps([{"x": 0.5, "y": 0.45, "label": 1}])},
+            )
+        self.assertEqual(recovered.status_code, 200, recovered.text)
+        self.assertEqual(recovered.headers["x-segmentation-session"], replacement_session_id)
+        self.assertEqual(recovered.headers["x-segmentation-score"], "0.910000")
+        recreate.assert_called_once_with(self.headers["X-Material-Library"], raw)
+        stateless_predict.assert_called_once()
+
         invalid = self.client.post(
             f"/api/material-search/segmentations/{session_id}/mask",
             headers=self.headers,
@@ -598,6 +626,9 @@ class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
         self.assertIn('/mask`', self.script)
         self.assertIn("state.segmentationPoints.push", self.script)
         self.assertIn("event.button === 2 ? 0", self.script)
+        self.assertIn('api("/api/material-search/segmentations/mask"', self.script)
+        self.assertIn("error.status !== 410", self.script)
+        self.assertNotIn("智能分割会话已过期", self.script)
 
     def test_image_upload_defaults_to_original_and_does_not_start_the_model(self) -> None:
         setup_start = self.script.index("async function setupSubjectEditor")

@@ -510,18 +510,38 @@ async function startAutoSelection() {
   }
 }
 
+async function segmentationMaskResponse() {
+  if (state.segmentationSessionId) {
+    try {
+      return await api(`/api/material-search/segmentations/${state.segmentationSessionId}/mask`, {
+        method: "POST",
+        json: true,
+        body: JSON.stringify({ points: state.segmentationPoints }),
+      });
+    } catch (error) {
+      if (error.status !== 410) throw error;
+      state.segmentationSessionId = null;
+      state.segmentationMeta = null;
+      setMessage("#search-message", "服务器已切换实例，正在自动恢复遮罩分析…");
+    }
+  }
+  const data = new FormData();
+  data.append("image", await segmentationInputFile());
+  data.append("points", JSON.stringify(state.segmentationPoints));
+  const response = await api("/api/material-search/segmentations/mask", { method: "POST", body: data });
+  const replacementSessionId = response.headers.get("X-Segmentation-Session");
+  if (replacementSessionId) state.segmentationSessionId = replacementSessionId;
+  return response;
+}
+
 async function requestAutoMask(rollbackPointOnError = true) {
-  if (!state.segmentationSessionId || !state.segmentationPoints.length || state.segmentationBusy) return;
+  if (!state.segmentationPoints.length || state.segmentationBusy) return;
   state.segmentationBusy = true;
   state.subjectPreview = false;
   updateSubjectStatus();
   drawSubjectEditor();
   try {
-    const response = await api(`/api/material-search/segmentations/${state.segmentationSessionId}/mask`, {
-      method: "POST",
-      json: true,
-      body: JSON.stringify({ points: state.segmentationPoints }),
-    });
+    const response = await segmentationMaskResponse();
     await setQueryMaskFromBlob(await response.blob());
     const scoreHeader = response.headers.get("X-Segmentation-Score");
     const score = scoreHeader === null ? Number.NaN : Number(scoreHeader);
@@ -529,14 +549,8 @@ async function requestAutoMask(rollbackPointOnError = true) {
     setMessage("#search-message", `已自动贴合主体边界${scoreCopy}。可继续添加主体点或背景点修正。`, "success");
   } catch (error) {
     invalidateSubjectMask();
-    if (error.status === 410) {
-      disposeSegmentationSession();
-      state.segmentationPoints = [];
-      setMessage("#search-message", "智能分割会话已过期，请重新点击“智能点选主体”。", "error");
-    } else {
-      if (rollbackPointOnError) state.segmentationPoints.pop();
-      setMessage("#search-message", error.message, "error");
-    }
+    if (rollbackPointOnError) state.segmentationPoints.pop();
+    setMessage("#search-message", error.message, "error");
   } finally {
     state.segmentationBusy = false;
     updateSubjectStatus();
