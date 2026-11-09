@@ -4,8 +4,8 @@
   "functions": {
     "app.py": {
       "maxDuration": 300,
-      "includeFiles": "{frontend_dist/**,image3d_frontend/**,text2image_frontend/**,similarity_search_frontend/**,auth_frontend/**}",
-      "excludeFiles": "{backend/**,desktop/**,recovery_evidence/**,COMPILE_ERRORS.txt,**/__pycache__/**,**/*.pyc}"
+      "includeFiles": "{frontend_dist/**,image3d_frontend/**,text2image_frontend/**,similarity_search_frontend/**,photography_frontend/**,auth_frontend/**}",
+      "excludeFiles": "{.agents/**,.claude/**,.git/**,.pytest_cache/**,.venv/**,.vercel/**,backend/**,desktop/**,recovery_evidence/**,tests/**,var/**,COMPILE_ERRORS.txt,IMAGE_TO_3D_USER_GUIDE.md,README.md,skills-lock.json,**/__pycache__/**,**/*.pyc,**/.DS_Store}"
     }
   }
 }

@@ -2610,21 +2610,12 @@ def _compress_photography_image(data: bytes) -> tuple[bytes, int, int, int, int]
         raise PhotographyError("INVALID_IMAGE", "图片无法读取或文件已经损坏", 422) from exc
 
 
-def _ffmpeg_binary(name: str) -> str:
-    binary = shutil.which(name)
-    if not binary and name == "ffmpeg":
-        try:
-            import imageio_ffmpeg
-            binary = imageio_ffmpeg.get_ffmpeg_exe()
-        except (ImportError, RuntimeError, OSError):
-            binary = None
-    if not binary:
-        raise PhotographyError(
-            "VIDEO_CODEC_UNAVAILABLE",
-            "服务器尚未安装 FFmpeg，暂时不能压缩视频；图片上传不受影响",
-            503,
-        )
-    return binary
+def _ffmpeg_binary(name: str) -> str | None:
+    # Do not bundle imageio-ffmpeg's 165 MB executable into the Vercel
+    # function. Hosts that provide FFmpeg retain the higher-quality path;
+    # serverless hosts fall back to OpenCV, which is already required by image
+    # search and EdgeSAM inference.
+    return shutil.which(name)
 
 
 def _probe_video(path: Path) -> tuple[int, int]:
@@ -2641,6 +2632,55 @@ def _probe_video(path: Path) -> tuple[int, int]:
         capture.release()
 
 
+def _transcode_video_with_opencv(
+    source: Path,
+    output: Path,
+    width: int,
+    height: int,
+) -> None:
+    capture = cv2.VideoCapture(str(source))
+    writer: cv2.VideoWriter | None = None
+    frame_count = 0
+    try:
+        if not capture.isOpened():
+            raise PhotographyError("INVALID_VIDEO", "视频无法读取或不包含有效画面", 422)
+        fps = float(capture.get(cv2.CAP_PROP_FPS))
+        if not np.isfinite(fps) or fps < 1 or fps > 240:
+            fps = 24.0
+        writer = cv2.VideoWriter(
+            str(output),
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            fps,
+            (width, height),
+        )
+        if not writer.isOpened():
+            raise PhotographyError(
+                "VIDEO_CODEC_UNAVAILABLE",
+                "服务器视频编码器不可用，请改为上传图片",
+                503,
+            )
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            if frame.shape[1] != width or frame.shape[0] != height:
+                shrinking = width < frame.shape[1] or height < frame.shape[0]
+                frame = cv2.resize(
+                    frame,
+                    (width, height),
+                    interpolation=cv2.INTER_AREA if shrinking else cv2.INTER_CUBIC,
+                )
+            writer.write(frame)
+            frame_count += 1
+    finally:
+        capture.release()
+        if writer is not None:
+            writer.release()
+    if frame_count == 0 or not output.is_file() or output.stat().st_size == 0:
+        output.unlink(missing_ok=True)
+        raise PhotographyError("VIDEO_COMPRESSION_FAILED", "视频压缩没有生成有效文件", 422)
+
+
 def _compress_photography_video(data: bytes, extension: str) -> tuple[bytes, int, int, int, int]:
     directory = Path(tempfile.mkdtemp(prefix="photography-upload-"))
     source = directory / f"source{extension}"
@@ -2652,16 +2692,20 @@ def _compress_photography_video(data: bytes, extension: str) -> tuple[bytes, int
             original_width, original_height,
             PHOTOGRAPHY_VIDEO_MAX_WIDTH, PHOTOGRAPHY_VIDEO_MAX_HEIGHT,
         )
-        command = [
-            _ffmpeg_binary("ffmpeg"), "-y", "-v", "error", "-i", str(source),
-            "-map", "0:v:0", "-map", "0:a?", "-vf", f"scale={stored_width}:{stored_height}:flags=lanczos",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "29", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(output),
-        ]
-        try:
-            subprocess.run(command, capture_output=True, timeout=900, check=True)
-        except subprocess.SubprocessError as exc:
-            raise PhotographyError("VIDEO_COMPRESSION_FAILED", "视频压缩失败，请检查文件编码", 422) from exc
+        ffmpeg = _ffmpeg_binary("ffmpeg")
+        if ffmpeg:
+            command = [
+                ffmpeg, "-y", "-v", "error", "-i", str(source),
+                "-map", "0:v:0", "-map", "0:a?", "-vf", f"scale={stored_width}:{stored_height}:flags=lanczos",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "29", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(output),
+            ]
+            try:
+                subprocess.run(command, capture_output=True, timeout=900, check=True)
+            except subprocess.SubprocessError as exc:
+                raise PhotographyError("VIDEO_COMPRESSION_FAILED", "视频压缩失败，请检查文件编码", 422) from exc
+        else:
+            _transcode_video_with_opencv(source, output, stored_width, stored_height)
         compressed = output.read_bytes()
         if not compressed:
             raise PhotographyError("VIDEO_COMPRESSION_FAILED", "视频压缩没有生成有效文件", 422)
@@ -2740,24 +2784,40 @@ def _restore_video_to_file(record: dict, data: bytes, directory: Path) -> tuple[
     source = directory / "compressed.mp4"
     output = directory / "restored.mp4"
     source.write_bytes(data)
-    command = [
-        _ffmpeg_binary("ffmpeg"), "-y", "-v", "error", "-i", str(source),
-        "-map", "0:v:0", "-map", "0:a?",
-    ]
-    if (record["stored_width"], record["stored_height"]) != (
+    ffmpeg = _ffmpeg_binary("ffmpeg")
+    if ffmpeg:
+        command = [
+            ffmpeg, "-y", "-v", "error", "-i", str(source),
+            "-map", "0:v:0", "-map", "0:a?",
+        ]
+        if (record["stored_width"], record["stored_height"]) != (
+            record["original_width"], record["original_height"],
+        ):
+            command += [
+                "-vf", f"scale={record['original_width']}:{record['original_height']}:flags=lanczos",
+            ]
+        command += [
+            "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-c:a", "copy", "-movflags", "+faststart", str(output),
+        ]
+        try:
+            subprocess.run(command, capture_output=True, timeout=1200, check=True)
+        except subprocess.SubprocessError as exc:
+            raise PhotographyError("VIDEO_RESTORE_FAILED", "视频恢复尺寸失败", 503) from exc
+    elif (record["stored_width"], record["stored_height"]) == (
         record["original_width"], record["original_height"],
     ):
-        command += [
-            "-vf", f"scale={record['original_width']}:{record['original_height']}:flags=lanczos",
-        ]
-    command += [
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
-        "-c:a", "copy", "-movflags", "+faststart", str(output),
-    ]
-    try:
-        subprocess.run(command, capture_output=True, timeout=1200, check=True)
-    except subprocess.SubprocessError as exc:
-        raise PhotographyError("VIDEO_RESTORE_FAILED", "视频恢复尺寸失败", 503) from exc
+        output.write_bytes(data)
+    else:
+        try:
+            _transcode_video_with_opencv(
+                source,
+                output,
+                int(record["original_width"]),
+                int(record["original_height"]),
+            )
+        except PhotographyError as exc:
+            raise PhotographyError("VIDEO_RESTORE_FAILED", "视频恢复尺寸失败", 503) from exc
     return output, f"{record['display_name']}.mp4"
 
 

@@ -29,7 +29,12 @@ from vercel_app.similarity_engine import (
     process_image,
 )
 from vercel_app.similarity_store import _connection, _ensure_schema
-from vercel_app.interactive_segmentation import postprocess_mask, preprocess_image
+from vercel_app.interactive_segmentation import (
+    EdgeSamOpenCvRuntime,
+    SegmentationSession,
+    postprocess_mask,
+    preprocess_image,
+)
 
 
 class SimilaritySearchEndToEndTest(unittest.TestCase):
@@ -636,6 +641,53 @@ class SubjectShapeFeatureTest(unittest.TestCase):
 
 
 class InteractiveSegmentationTransformTest(unittest.TestCase):
+    def test_edgesam_uses_existing_opencv_runtime_instead_of_onnxruntime(self) -> None:
+        class FakeNetwork:
+            def __init__(self, outputs: list[np.ndarray]) -> None:
+                self.outputs = outputs
+                self.inputs: dict[str, np.ndarray] = {}
+
+            def setPreferableBackend(self, _backend: int) -> None:
+                pass
+
+            def setPreferableTarget(self, _target: int) -> None:
+                pass
+
+            def getUnconnectedOutLayersNames(self) -> tuple[str, ...]:
+                return tuple(f"output-{index}" for index in range(len(self.outputs)))
+
+            def setInput(self, value: np.ndarray, name: str) -> None:
+                self.inputs[name] = value
+
+            def forward(self, _names: tuple[str, ...]) -> tuple[np.ndarray, ...]:
+                return tuple(self.outputs)
+
+        features = np.zeros((1, 256, 64, 64), dtype=np.float32)
+        masks = np.full((1, 3, 256, 256), -1.0, dtype=np.float32)
+        masks[0, 1] = 1.0
+        scores = np.asarray([[0.1, 0.9, 0.2]], dtype=np.float32)
+        encoder = FakeNetwork([features])
+        # Return masks before scores to verify shape-based output selection.
+        decoder = FakeNetwork([masks, scores])
+        with patch(
+            "vercel_app.interactive_segmentation.cv2.dnn.readNetFromONNX",
+            side_effect=[encoder, decoder],
+        ):
+            runtime = EdgeSamOpenCvRuntime(Path("encoder.onnx"), Path("decoder.onnx"))
+
+        image = np.full((100, 200, 3), 127, dtype=np.uint8)
+        encoded, input_size = runtime.encode(image)
+        session = SegmentationSession("library", encoded, (100, 200), input_size, 0.0, 0.0)
+        mask, score = runtime.decode(session, [{"x": 0.5, "y": 0.5, "label": 1}])
+        self.assertEqual(encoded.shape, features.shape)
+        self.assertEqual(set(decoder.inputs), {"image_embeddings", "point_coords", "point_labels"})
+        self.assertEqual(mask.shape, (100, 200))
+        self.assertEqual(set(np.unique(mask)), {255})
+        self.assertAlmostEqual(score, 0.9, places=5)
+
+        requirements = (Path(__file__).resolve().parent.parent / "requirements.txt").read_text()
+        self.assertNotIn("onnxruntime", requirements)
+
     def test_preprocess_matches_edgesam_1024_square_input(self) -> None:
         image = np.full((100, 200, 3), 127, dtype=np.uint8)
         tensor, input_size = preprocess_image(image)
