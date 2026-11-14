@@ -5,6 +5,7 @@ const state = {
   token: null,
   selectedFiles: [],
   queryFile: null,
+  queryPreviewUrl: null,
   folders: [],
   trash: [],
   objectUrls: new Set(),
@@ -108,6 +109,27 @@ function safeText(value) {
 function clearObjectUrls() {
   for (const url of state.objectUrls) URL.revokeObjectURL(url);
   state.objectUrls.clear();
+  state.queryPreviewUrl = null;
+}
+
+function updateQueryPreview(file) {
+  if (state.queryPreviewUrl) {
+    URL.revokeObjectURL(state.queryPreviewUrl);
+    state.objectUrls.delete(state.queryPreviewUrl);
+    state.queryPreviewUrl = null;
+  }
+  const preview = $("#selected-query-preview");
+  $("#search-intro").hidden = Boolean(file);
+  preview.hidden = !file;
+  if (!file) {
+    $("#selected-query-image").removeAttribute("src");
+    $("#selected-query-name").textContent = "";
+    return;
+  }
+  state.queryPreviewUrl = URL.createObjectURL(file);
+  state.objectUrls.add(state.queryPreviewUrl);
+  $("#selected-query-image").src = state.queryPreviewUrl;
+  $("#selected-query-name").textContent = file.name;
 }
 
 async function protectedObjectUrl(path, signal) {
@@ -578,6 +600,7 @@ $("#query-input").addEventListener("change", event => {
   const file = event.target.files[0];
   const valid = Boolean(file && imageAllowed.test(file.name));
   state.queryFile = valid ? file : null;
+  updateQueryPreview(valid ? file : null);
   $("#query-label").textContent = file ? `${file.name} · ${bytes(file.size)}` : "点击选择或拖入一张图片";
   $("#search-button").disabled = !valid;
   if (!file) {

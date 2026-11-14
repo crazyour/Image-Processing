@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=15">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=16">
 </head>
 <body>
   <header class="topbar">
@@ -76,10 +76,16 @@
 
     <section id="search-panel" class="panel">
       <article class="card search-card">
-        <div class="search-intro">
-          <p class="eyebrow">SHAPE IOU IMAGE SEARCH</p>
-          <h2>上传一张查询图片</h2>
-          <p>系统会自动提取图片主体并计算保留内部镂空的 Mask Shape IoU，返回前 20 名，并单独突出最高匹配；查询图片不会保存。</p>
+        <div class="search-query-visual">
+          <div id="search-intro" class="search-intro">
+            <p class="eyebrow">SHAPE IOU IMAGE SEARCH</p>
+            <h2>上传一张查询图片</h2>
+            <p>系统会自动提取图片主体并计算保留内部镂空的 Mask Shape IoU，返回前 20 名，并单独突出最高匹配；查询图片不会保存。</p>
+          </div>
+          <figure id="selected-query-preview" class="selected-query-preview" hidden>
+            <img id="selected-query-image" alt="已上传的查询图片">
+            <figcaption id="selected-query-name"></figcaption>
+          </figure>
         </div>
         <label class="query-dropzone">
           <input id="query-input" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" data-paste-label="查询图片">
@@ -141,6 +147,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=27" defer></script>
+  <script src="/similarity-search-static/app.js?v=28" defer></script>
 </body>
 </html>
