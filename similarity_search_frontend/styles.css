@@ -60,3 +60,4 @@
 .result-card.geometric-best{position:relative;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,107,87,.10),0 12px 34px rgba(37,65,52,.10)}
 .best-marker{position:absolute;z-index:3;top:11px;left:48px;padding:6px 9px;border-radius:999px;background:var(--lime);color:var(--deep);font-size:10px;font-weight:900}
 @media(max-width:620px){.search-stage{padding:15px}.geometric-best-list{grid-template-columns:1fr}}
+.search-action{grid-column:1/-1}

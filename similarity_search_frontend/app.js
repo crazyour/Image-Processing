@@ -5,19 +5,6 @@ const state = {
   token: null,
   selectedFiles: [],
   queryFile: null,
-  queryImage: null,
-  queryMethod: "original",
-  queryCrop: null,
-  cropPointerId: null,
-  queryMask: null,
-  subjectSelectionMode: null,
-  subjectPreview: false,
-  segmentationSessionId: null,
-  segmentationPoints: [],
-  segmentationPointLabel: 1,
-  segmentationBusy: false,
-  segmentationMeta: null,
-  segmentationGeneration: 0,
   folders: [],
   trash: [],
   objectUrls: new Set(),
@@ -25,6 +12,7 @@ const state = {
 };
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
+const imageAllowed = /\.(png|jpe?g|webp)$/i;
 const uploadChunkBytes = 2_500_000;
 const previewConcurrency = 3;
 let libraryLoadSequence = 0;
@@ -229,471 +217,6 @@ function renderSelection() {
 
 function uploadId() {
   return crypto.randomUUID().replaceAll("-", "");
-}
-
-function subjectCanvasPoint(event) {
-  const canvas = $("#subject-canvas");
-  const bounds = canvas.getBoundingClientRect();
-  return {
-    x: Math.max(0, Math.min(canvas.width, (event.clientX - bounds.left) * canvas.width / bounds.width)),
-    y: Math.max(0, Math.min(canvas.height, (event.clientY - bounds.top) * canvas.height / bounds.height)),
-  };
-}
-
-function normalisedSubjectPoint(event) {
-  const canvas = $("#subject-canvas");
-  const point = subjectCanvasPoint(event);
-  return { x: point.x / canvas.width, y: point.y / canvas.height };
-}
-
-function invalidateSubjectMask() {
-  state.queryMask = null;
-  state.subjectPreview = false;
-}
-
-function disposeSegmentationSession() {
-  state.segmentationGeneration += 1;
-  const sessionId = state.segmentationSessionId;
-  state.segmentationSessionId = null;
-  state.segmentationMeta = null;
-  if (!sessionId) return;
-  api(`/api/material-search/segmentations/${sessionId}`, { method: "DELETE", keepalive: true }).catch(() => {});
-}
-
-function drawAutoPoints(context, width, height) {
-  for (const point of state.segmentationPoints) {
-    const x = point.x * width;
-    const y = point.y * height;
-    const radius = Math.max(5, Math.min(width, height) / 70);
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fillStyle = point.label === 1 ? "#8fbd36" : "#ef5b57";
-    context.fill();
-    context.lineWidth = Math.max(2, radius / 3);
-    context.strokeStyle = "#fff";
-    context.stroke();
-    context.beginPath();
-    context.moveTo(x - radius * .48, y);
-    context.lineTo(x + radius * .48, y);
-    if (point.label === 1) {
-      context.moveTo(x, y - radius * .48);
-      context.lineTo(x, y + radius * .48);
-    }
-    context.lineWidth = Math.max(1.5, radius / 4);
-    context.strokeStyle = "#fff";
-    context.stroke();
-  }
-}
-
-function normalisedCrop(crop = state.queryCrop) {
-  if (!crop) return null;
-  const left = Math.max(0, Math.min(crop.x1, crop.x2));
-  const top = Math.max(0, Math.min(crop.y1, crop.y2));
-  const right = Math.min(1, Math.max(crop.x1, crop.x2));
-  const bottom = Math.min(1, Math.max(crop.y1, crop.y2));
-  if (right - left < .005 || bottom - top < .005) return null;
-  return { left, top, right, bottom };
-}
-
-function drawCropSelection(context, image, width, height) {
-  const crop = normalisedCrop();
-  if (!crop) return;
-  const x = crop.left * width;
-  const y = crop.top * height;
-  const cropWidth = (crop.right - crop.left) * width;
-  const cropHeight = (crop.bottom - crop.top) * height;
-  context.save();
-  context.fillStyle = "rgba(9, 22, 17, .58)";
-  context.fillRect(0, 0, width, height);
-  context.drawImage(
-    image,
-    crop.left * image.naturalWidth,
-    crop.top * image.naturalHeight,
-    (crop.right - crop.left) * image.naturalWidth,
-    (crop.bottom - crop.top) * image.naturalHeight,
-    x, y, cropWidth, cropHeight,
-  );
-  context.strokeStyle = "#d8e7a5";
-  context.lineWidth = Math.max(2, Math.min(width, height) / 180);
-  context.setLineDash([10, 6]);
-  context.strokeRect(x, y, cropWidth, cropHeight);
-  context.restore();
-}
-
-function drawSubjectEditor() {
-  const canvas = $("#subject-canvas");
-  const context = canvas.getContext("2d");
-  const image = state.queryImage;
-  if (!image) return;
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  if (state.subjectPreview && state.queryMask?.displayAlpha) {
-    context.fillStyle = "#fff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    context.globalCompositeOperation = "destination-in";
-    context.drawImage(state.queryMask.displayAlpha, 0, 0, canvas.width, canvas.height);
-    context.globalCompositeOperation = "destination-over";
-    context.fillStyle = "#fff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.globalCompositeOperation = "source-over";
-    drawAutoPoints(context, canvas.width, canvas.height);
-    return;
-  }
-
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  if (state.queryMethod === "crop") drawCropSelection(context, image, canvas.width, canvas.height);
-  if (state.queryMethod === "mask" && state.queryMask?.displayOverlay) {
-    context.drawImage(state.queryMask.displayOverlay, 0, 0);
-  }
-  if (state.queryMethod === "mask" && state.subjectSelectionMode === "auto") {
-    drawAutoPoints(context, canvas.width, canvas.height);
-  }
-}
-
-function updateSubjectStatus() {
-  const editor = $("#query-subject-editor");
-  const method = state.queryMethod;
-  const autoMode = method === "mask" && state.subjectSelectionMode === "auto";
-  const hasMask = Boolean(state.queryMask);
-  const hasCrop = Boolean(normalisedCrop());
-  editor.classList.toggle("has-selection", hasMask);
-  editor.classList.toggle("auto-selecting", autoMode);
-  editor.classList.toggle("crop-selecting", method === "crop");
-  editor.classList.toggle("busy", state.segmentationBusy);
-  $$('[data-query-method]').forEach(button => button.classList.toggle("active", button.dataset.queryMethod === method));
-  $("#auto-point-tools").hidden = method !== "mask" || !autoMode;
-  $("#subject-tools").hidden = method !== "mask";
-  $("#undo-subject").disabled = state.segmentationBusy || state.segmentationPoints.length === 0;
-  $("#reset-subject").disabled = state.segmentationBusy || state.segmentationPoints.length === 0;
-  $("#preview-subject").disabled = state.segmentationBusy || !hasMask;
-  $("#preview-subject").textContent = state.subjectPreview ? "返回选区" : "预览主体";
-  $("#confirm-subject-search").disabled = state.segmentationBusy || (method === "crop" && !hasCrop) || (method === "mask" && !hasMask);
-  $("#confirm-subject-search").textContent = method === "original" ? "使用原图检索" : method === "crop" ? "使用截图检索" : "使用遮罩检索";
-  if (method === "original") {
-    $("#subject-status-title").textContent = "原图检索已就绪";
-    $("#subject-status-copy").textContent = "将直接使用上传的完整图片生成查询特征，不需要选择主体。";
-    return;
-  }
-  if (method === "crop") {
-    $("#subject-status-title").textContent = hasCrop ? "截图区域已选定" : "拖动框选截图区域";
-    $("#subject-status-copy").textContent = hasCrop
-      ? "可重新拖动调整范围，检索时只使用亮色框内的图片。"
-      : "按住鼠标左键在图片上拖动，框住需要用于检索的区域。";
-    return;
-  }
-  if (autoMode || state.segmentationBusy) {
-    const count = state.segmentationPoints.length;
-    $("#subject-status-title").textContent = state.segmentationBusy
-      ? (state.segmentationSessionId ? "正在更新物体边界" : "正在加载轻量分割模型")
-      : hasMask ? "已自动贴合主体" : "请在主体内部点一下";
-    $("#subject-status-copy").textContent = state.segmentationBusy
-      ? (state.segmentationSessionId ? "正在根据提示点计算新 Mask。" : "首次使用会下载约 38 MB 模型，并在 CPU 上分析图片。")
-      : hasMask
-        ? `已使用 ${count} 个提示点生成 ${state.queryMask.width}×${state.queryMask.height} 二值 Mask。绿色点保留主体，红色点排除背景。`
-        : "左键添加主体点；切换“排除背景”或单击右键，可修正误选区域。";
-    return;
-  }
-  $("#subject-status-title").textContent = "遮罩模型尚未启动";
-  $("#subject-status-copy").textContent = "再次点击“遮罩检索”启动模型，然后在物体内部点一下。";
-}
-
-async function setupSubjectEditor(file) {
-  const editor = $("#query-subject-editor");
-  disposeSegmentationSession();
-  state.queryMethod = "original";
-  state.queryCrop = null;
-  state.cropPointerId = null;
-  state.queryMask = null;
-  state.subjectSelectionMode = null;
-  state.subjectPreview = false;
-  state.segmentationPoints = [];
-  state.segmentationPointLabel = 1;
-  state.segmentationBusy = false;
-  state.queryImage = null;
-  if (!file || kindOf(file.name) !== "image") {
-    editor.hidden = true;
-    return;
-  }
-  const image = new Image();
-  const url = URL.createObjectURL(file);
-  state.objectUrls.add(url);
-  await new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = () => reject(new Error("无法读取查询图片"));
-    image.src = url;
-  });
-  if (state.queryFile !== file) return;
-  state.queryImage = image;
-  const scale = Math.min(1, 1000 / image.naturalWidth, 620 / image.naturalHeight);
-  const canvas = $("#subject-canvas");
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-  editor.hidden = false;
-  updateSubjectStatus();
-  drawSubjectEditor();
-}
-
-function resetSubjectSelection() {
-  if (!state.segmentationPoints.length) return;
-  state.segmentationPoints = [];
-  invalidateSubjectMask();
-  updateSubjectStatus();
-  drawSubjectEditor();
-}
-
-async function setQueryMethod(method) {
-  if (!state.queryImage || !["original", "crop", "mask"].includes(method)) return;
-  state.queryMethod = method;
-  state.subjectPreview = false;
-  if (method === "mask") {
-    await startAutoSelection();
-    return;
-  }
-  state.subjectSelectionMode = method === "crop" ? "crop" : null;
-  updateSubjectStatus();
-  drawSubjectEditor();
-  setMessage("#search-message", method === "original" ? "已选择原图检索。" : "请在图片上拖动框选截图区域。", "success");
-}
-
-async function undoSubjectSelection() {
-  if (!state.segmentationPoints.length || state.segmentationBusy) return;
-  state.segmentationPoints.pop();
-  invalidateSubjectMask();
-  if (state.segmentationPoints.length) await requestAutoMask(false);
-  else {
-    updateSubjectStatus();
-    drawSubjectEditor();
-  }
-}
-
-function canvasBlob(canvas, type = "image/png", quality) {
-  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
-}
-
-async function segmentationInputFile() {
-  const image = state.queryImage;
-  const canvas = document.createElement("canvas");
-  const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-  const context = canvas.getContext("2d");
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  const blob = await canvasBlob(canvas, "image/jpeg", .92);
-  if (!blob) throw new Error("智能分割图片准备失败");
-  return new File([blob], "segmentation-query.jpg", { type: "image/jpeg" });
-}
-
-async function setQueryMaskFromBlob(blob) {
-  const image = state.queryImage;
-  const editorCanvas = $("#subject-canvas");
-  const bitmap = await createImageBitmap(blob);
-  const full = document.createElement("canvas");
-  full.width = image.naturalWidth;
-  full.height = image.naturalHeight;
-  const fullContext = full.getContext("2d", { willReadFrequently: true });
-  fullContext.imageSmoothingEnabled = false;
-  fullContext.drawImage(bitmap, 0, 0, full.width, full.height);
-  bitmap.close();
-  const fullPixels = fullContext.getImageData(0, 0, full.width, full.height);
-  for (let offset = 0; offset < fullPixels.data.length; offset += 4) {
-    const value = fullPixels.data[offset] >= 128 ? 255 : 0;
-    fullPixels.data[offset] = value;
-    fullPixels.data[offset + 1] = value;
-    fullPixels.data[offset + 2] = value;
-    fullPixels.data[offset + 3] = 255;
-  }
-  fullContext.putImageData(fullPixels, 0, 0);
-  const binaryBlob = await canvasBlob(full);
-  if (!binaryBlob) throw new Error("二值 Mask 生成失败");
-
-  const displayAlpha = document.createElement("canvas");
-  displayAlpha.width = editorCanvas.width;
-  displayAlpha.height = editorCanvas.height;
-  const alphaContext = displayAlpha.getContext("2d", { willReadFrequently: true });
-  alphaContext.imageSmoothingEnabled = false;
-  alphaContext.drawImage(full, 0, 0, displayAlpha.width, displayAlpha.height);
-  const alphaPixels = alphaContext.getImageData(0, 0, displayAlpha.width, displayAlpha.height);
-  const displayOverlay = document.createElement("canvas");
-  displayOverlay.width = displayAlpha.width;
-  displayOverlay.height = displayAlpha.height;
-  const overlayContext = displayOverlay.getContext("2d");
-  const overlayPixels = overlayContext.createImageData(displayOverlay.width, displayOverlay.height);
-  for (let offset = 0; offset < alphaPixels.data.length; offset += 4) {
-    const selected = alphaPixels.data[offset] >= 128;
-    alphaPixels.data[offset] = 255;
-    alphaPixels.data[offset + 1] = 255;
-    alphaPixels.data[offset + 2] = 255;
-    alphaPixels.data[offset + 3] = selected ? 255 : 0;
-    overlayPixels.data[offset] = 216;
-    overlayPixels.data[offset + 1] = 231;
-    overlayPixels.data[offset + 2] = 165;
-    overlayPixels.data[offset + 3] = selected ? 112 : 0;
-  }
-  alphaContext.putImageData(alphaPixels, 0, 0);
-  overlayContext.putImageData(overlayPixels, 0, 0);
-  state.queryMask = {
-    blob: binaryBlob,
-    width: full.width,
-    height: full.height,
-    canvas: full,
-    displayAlpha,
-    displayOverlay,
-  };
-}
-
-async function startAutoSelection() {
-  if (!state.queryImage || state.segmentationBusy) return;
-  if (state.segmentationSessionId) {
-    state.subjectSelectionMode = "auto";
-    updateSubjectStatus();
-    drawSubjectEditor();
-    return;
-  }
-  state.subjectSelectionMode = "auto";
-  state.subjectPreview = false;
-  state.segmentationPoints = [];
-  invalidateSubjectMask();
-  state.segmentationBusy = true;
-  const image = state.queryImage;
-  const generation = state.segmentationGeneration;
-  updateSubjectStatus();
-  drawSubjectEditor();
-  try {
-    const data = new FormData();
-    data.append("image", await segmentationInputFile());
-    const response = await api("/api/material-search/segmentations", { method: "POST", body: data });
-    const payload = await response.json();
-    if (generation !== state.segmentationGeneration || image !== state.queryImage) {
-      api(`/api/material-search/segmentations/${payload.session_id}`, { method: "DELETE" }).catch(() => {});
-      return;
-    }
-    state.segmentationSessionId = payload.session_id;
-    state.segmentationMeta = payload;
-    setMessage("#search-message", "图片分析完成。请在要查找的物体内部点一下。", "success");
-  } catch (error) {
-    if (generation !== state.segmentationGeneration) return;
-    state.subjectSelectionMode = null;
-    setMessage("#search-message", error.message, "error");
-  } finally {
-    if (generation !== state.segmentationGeneration) return;
-    state.segmentationBusy = false;
-    updateSubjectStatus();
-    drawSubjectEditor();
-  }
-}
-
-async function segmentationMaskResponse() {
-  if (state.segmentationSessionId) {
-    try {
-      return await api(`/api/material-search/segmentations/${state.segmentationSessionId}/mask`, {
-        method: "POST",
-        json: true,
-        body: JSON.stringify({ points: state.segmentationPoints }),
-      });
-    } catch (error) {
-      if (error.status !== 410) throw error;
-      state.segmentationSessionId = null;
-      state.segmentationMeta = null;
-      setMessage("#search-message", "服务器已切换实例，正在自动恢复遮罩分析…");
-    }
-  }
-  const data = new FormData();
-  data.append("image", await segmentationInputFile());
-  data.append("points", JSON.stringify(state.segmentationPoints));
-  const response = await api("/api/material-search/segmentations/mask", { method: "POST", body: data });
-  const replacementSessionId = response.headers.get("X-Segmentation-Session");
-  if (replacementSessionId) state.segmentationSessionId = replacementSessionId;
-  return response;
-}
-
-async function requestAutoMask(rollbackPointOnError = true) {
-  if (!state.segmentationPoints.length || state.segmentationBusy) return;
-  state.segmentationBusy = true;
-  state.subjectPreview = false;
-  updateSubjectStatus();
-  drawSubjectEditor();
-  try {
-    const response = await segmentationMaskResponse();
-    await setQueryMaskFromBlob(await response.blob());
-    const scoreHeader = response.headers.get("X-Segmentation-Score");
-    const score = scoreHeader === null ? Number.NaN : Number(scoreHeader);
-    const scoreCopy = Number.isFinite(score) ? `，模型置信度 ${Math.round(score * 100)}%` : "";
-    setMessage("#search-message", `已自动贴合主体边界${scoreCopy}。可继续添加主体点或背景点修正。`, "success");
-  } catch (error) {
-    invalidateSubjectMask();
-    if (rollbackPointOnError) state.segmentationPoints.pop();
-    setMessage("#search-message", error.message, "error");
-  } finally {
-    state.segmentationBusy = false;
-    updateSubjectStatus();
-    drawSubjectEditor();
-  }
-}
-
-async function subjectAlphaMaskCanvas(mask) {
-  const canvas = document.createElement("canvas");
-  canvas.width = mask.width;
-  canvas.height = mask.height;
-  if (mask.canvas) {
-    canvas.getContext("2d").drawImage(mask.canvas, 0, 0);
-  } else {
-    const bitmap = await createImageBitmap(mask.blob);
-    canvas.getContext("2d").drawImage(bitmap, 0, 0);
-    bitmap.close();
-  }
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  for (let offset = 0; offset < pixels.data.length; offset += 4) {
-    pixels.data[offset + 3] = pixels.data[offset];
-    pixels.data[offset] = 255;
-    pixels.data[offset + 1] = 255;
-    pixels.data[offset + 2] = 255;
-  }
-  context.putImageData(pixels, 0, 0);
-  return canvas;
-}
-
-async function preparedQueryFile() {
-  const file = state.queryFile;
-  const image = state.queryImage;
-  if (!file || !image || kindOf(file.name) !== "image") return file;
-  if (state.queryMethod === "original") return file;
-  const baseName = file.name.replace(/\.[^.]+$/, "") || "query";
-  if (state.queryMethod === "crop") {
-    const crop = normalisedCrop();
-    if (!crop) throw new Error("请先在图片上框选截图区域");
-    const sourceX = Math.round(crop.left * image.naturalWidth);
-    const sourceY = Math.round(crop.top * image.naturalHeight);
-    const sourceWidth = Math.max(1, Math.round((crop.right - crop.left) * image.naturalWidth));
-    const sourceHeight = Math.max(1, Math.round((crop.bottom - crop.top) * image.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = sourceWidth;
-    canvas.height = sourceHeight;
-    canvas.getContext("2d").drawImage(
-      image,
-      sourceX, sourceY, sourceWidth, sourceHeight,
-      0, 0, sourceWidth, sourceHeight,
-    );
-    const blob = await canvasBlob(canvas);
-    if (!blob) throw new Error("截图查询图生成失败，请重新框选");
-    return new File([blob], `${baseName}-crop.png`, { type: "image/png", lastModified: Date.now() });
-  }
-  if (!state.queryMask) throw new Error("请先在遮罩检索中点选图片主体");
-  const mask = state.queryMask;
-  const alphaMask = await subjectAlphaMaskCanvas(mask);
-  const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  const context = canvas.getContext("2d");
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  context.globalCompositeOperation = "destination-in";
-  context.drawImage(alphaMask, 0, 0);
-  context.globalCompositeOperation = "source-over";
-  const blob = await canvasBlob(canvas);
-  if (!blob) throw new Error("主体查询图生成失败，请重新选择主体");
-  return new File([blob], `${baseName}-subject.png`, { type: "image/png", lastModified: Date.now() });
 }
 
 async function uploadFileInChunks(file, chunkPath, completePath, completePayload, onChunk) {
@@ -986,18 +509,11 @@ function activateResultCards(root) {
 async function search() {
   if (!state.queryFile) return;
   const button = $("#search-button");
-  const confirmButton = $("#confirm-subject-search");
   button.disabled = true;
-  confirmButton.disabled = true;
-  const methodCopy = state.queryMethod === "mask"
-    ? "1/3 正在应用二值 Mask并准备查询图…"
-    : state.queryMethod === "crop"
-      ? "1/3 正在裁剪截图区域并准备查询图…"
-      : "1/3 正在准备原图…";
-  setMessage("#search-message", methodCopy);
+  setMessage("#search-message", "1/3 正在准备查询图片…");
   pausePreviewLoading();
   try {
-    const queryFile = await preparedQueryFile();
+    const queryFile = state.queryFile;
     setMessage("#search-message", "2/3 正在上传查询图并匹配本地向量库…");
     const currentUploadId = uploadId();
     const response = await uploadFileInChunks(
@@ -1040,7 +556,6 @@ async function search() {
   } finally {
     resumePreviewLoading();
     button.disabled = false;
-    updateSubjectStatus();
   }
 }
 
@@ -1059,116 +574,17 @@ $("#upload-button").addEventListener("click", uploadFolder);
 $("#refresh-library").addEventListener("click", loadLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
 $$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
-$("#query-input").addEventListener("change", async event => {
+$("#query-input").addEventListener("change", event => {
   const file = event.target.files[0];
-  disposeSegmentationSession();
-  state.queryFile = file || null;
-  state.queryImage = null;
-  state.queryMethod = "original";
-  state.queryCrop = null;
-  state.cropPointerId = null;
-  state.queryMask = null;
-  state.subjectSelectionMode = null;
-  state.subjectPreview = false;
-  state.segmentationPoints = [];
-  state.segmentationPointLabel = 1;
-  state.segmentationBusy = false;
-  $("#query-label").textContent = file ? `${file.name} · ${bytes(file.size)}` : "选择图片、DXF或AI文件";
-  $("#search-button").disabled = !file || !allowed.test(file.name);
+  const valid = Boolean(file && imageAllowed.test(file.name));
+  state.queryFile = valid ? file : null;
+  $("#query-label").textContent = file ? `${file.name} · ${bytes(file.size)}` : "点击选择或拖入一张图片";
+  $("#search-button").disabled = !valid;
   if (!file) {
-    $("#query-subject-editor").hidden = true;
     setMessage("#search-message", "");
     return;
   }
-  try {
-    await setupSubjectEditor(file);
-    if (kindOf(file.name) !== "image") setMessage("#search-message", "查询文件已就绪。", "success");
-  } catch (error) {
-    if (state.queryFile !== file) return;
-    $("#search-button").disabled = true;
-    $("#query-subject-editor").hidden = true;
-    setMessage("#search-message", error.message, "error");
-  }
-});
-$$('[data-query-method]').forEach(button => button.addEventListener("click", () => setQueryMethod(button.dataset.queryMethod)));
-$$('[data-point-label]').forEach(button => button.addEventListener("click", () => {
-  state.segmentationPointLabel = Number(button.dataset.pointLabel);
-  $$('[data-point-label]').forEach(item => item.classList.toggle("active", item === button));
-}));
-$("#subject-canvas").addEventListener("contextmenu", event => {
-  if (state.queryMethod === "mask" && state.subjectSelectionMode === "auto") event.preventDefault();
-});
-$("#subject-canvas").addEventListener("pointerdown", event => {
-  if (!state.queryImage) return;
-  if (state.queryMethod === "crop") {
-    if (event.button !== 0) return;
-    const point = normalisedSubjectPoint(event);
-    state.cropPointerId = event.pointerId;
-    state.queryCrop = { x1: point.x, y1: point.y, x2: point.x, y2: point.y };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    updateSubjectStatus();
-    drawSubjectEditor();
-    event.preventDefault();
-    return;
-  }
-  if (state.queryMethod === "mask" && state.subjectSelectionMode === "auto") {
-    if (!state.segmentationSessionId || state.segmentationBusy) return;
-    if (event.pointerType === "mouse" && ![0, 2].includes(event.button)) return;
-    state.subjectPreview = false;
-    const point = normalisedSubjectPoint(event);
-    state.segmentationPoints.push({
-      x: point.x,
-      y: point.y,
-      label: event.pointerType === "mouse" && event.button === 2 ? 0 : state.segmentationPointLabel,
-    });
-    if (state.segmentationPoints.length > 32) state.segmentationPoints.shift();
-    drawSubjectEditor();
-    requestAutoMask();
-    event.preventDefault();
-  }
-});
-$("#subject-canvas").addEventListener("pointermove", event => {
-  if (state.queryMethod !== "crop" || state.cropPointerId !== event.pointerId || !state.queryCrop) return;
-  const point = normalisedSubjectPoint(event);
-  state.queryCrop.x2 = point.x;
-  state.queryCrop.y2 = point.y;
-  updateSubjectStatus();
-  drawSubjectEditor();
-  event.preventDefault();
-});
-function finishCropSelection(event) {
-  if (state.cropPointerId !== event.pointerId) return;
-  if (!normalisedCrop()) state.queryCrop = null;
-  state.cropPointerId = null;
-  updateSubjectStatus();
-  drawSubjectEditor();
-  setMessage("#search-message", state.queryCrop ? "截图区域已选定，可以检索。" : "截图区域太小，请重新拖动框选。", state.queryCrop ? "success" : "error");
-}
-$("#subject-canvas").addEventListener("pointerup", finishCropSelection);
-$("#subject-canvas").addEventListener("pointercancel", finishCropSelection);
-$("#undo-subject").addEventListener("click", undoSubjectSelection);
-$("#reset-subject").addEventListener("click", resetSubjectSelection);
-$("#preview-subject").addEventListener("click", async () => {
-  if (!state.queryMask) return;
-  try {
-    state.subjectPreview = !state.subjectPreview;
-    updateSubjectStatus();
-    drawSubjectEditor();
-  } catch (error) {
-    setMessage("#search-message", error.message, "error");
-  }
-});
-$("#confirm-subject-search").addEventListener("click", async () => {
-  if (state.queryMethod === "crop" && !normalisedCrop()) return;
-  if (state.queryMethod === "mask" && !state.queryMask) return;
-  try {
-    state.subjectPreview = state.queryMethod === "mask";
-    updateSubjectStatus();
-    drawSubjectEditor();
-    await search();
-  } catch (error) {
-    setMessage("#search-message", error.message, "error");
-  }
+  setMessage("#search-message", valid ? "查询图片已就绪。" : "仅支持 PNG、JPG、JPEG 或 WebP 图片。", valid ? "success" : "error");
 });
 $("#search-button").addEventListener("click", search);
 $("#dialog-close").addEventListener("click", () => $("#folder-dialog").close());
@@ -1176,7 +592,6 @@ $("#dialog-download").addEventListener("click", () => {
   if (state.activeFolder?.zip_url) downloadProtected(state.activeFolder.zip_url, `${state.activeFolder.name}.zip`);
 });
 window.addEventListener("beforeunload", () => {
-  disposeSegmentationSession();
   clearObjectUrls();
 });
 
