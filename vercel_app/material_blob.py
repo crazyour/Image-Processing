@@ -5,6 +5,7 @@ import os
 import shutil
 from pathlib import Path, PurePosixPath
 
+from .material_library_local import local_material_library_root
 from .store import StoreError, _local_data_root
 
 
@@ -16,14 +17,16 @@ class PrivateMaterialBlobStore:
 
     def __init__(self) -> None:
         self.token = os.getenv("MATERIAL_BLOB_READ_WRITE_TOKEN", "").strip()
-        self.local = not bool(self.token)
+        self.bundle_root = local_material_library_root()
+        self.local = self.bundle_root is not None or not bool(self.token)
         self.misconfigured_cloud = bool(os.getenv("VERCEL")) and self.local
 
     def _local_path(self, pathname: str) -> Path:
         relative = PurePosixPath(pathname)
         if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
             raise StoreError("私有素材路径无效")
-        root = (_local_data_root() / "material-private").resolve()
+        data_root = self.bundle_root if self.bundle_root is not None else _local_data_root()
+        root = (data_root / "material-private").resolve()
         destination = root.joinpath(*relative.parts).resolve()
         if destination == root or root not in destination.parents:
             raise StoreError("私有素材路径越界")

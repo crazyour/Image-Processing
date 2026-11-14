@@ -19,7 +19,7 @@
       <div>
         <p class="eyebrow">IMAGE · DXF · ILLUSTRATOR</p>
         <h1>相似素材检索</h1>
-        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。查询时只比较同类文件，返回最相似的五个文件夹。</p>
+        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。图片按 Shape IoU 返回前 20 名并突出最高匹配，其他格式返回前五名。</p>
       </div>
       <div class="hero-flow" aria-label="工作流程">
         <div><b>01</b><span>上传文件夹</span></div><em>→</em>
@@ -83,9 +83,9 @@
     <section id="search-panel" class="panel">
       <article class="card search-card">
         <div class="search-intro">
-          <p class="eyebrow">TWO-STAGE IMAGE SEARCH</p>
+          <p class="eyebrow">SHAPE IOU IMAGE SEARCH</p>
           <h2>上传一个查询文件</h2>
-          <p>系统只比较同格式素材。图片先按主体轮廓和整体形状取前 10 张，再进行几何验证；查询文件不会保存。</p>
+          <p>系统只比较同格式素材。图片只计算保留内部镂空的主体 Mask Shape IoU，返回前 20 名，并单独突出最高匹配；查询文件不会保存。</p>
         </div>
         <label class="query-dropzone">
           <input id="query-input" type="file" accept=".png,.jpg,.jpeg,.webp,.dxf,.ai" data-paste-label="查询图片">
@@ -135,13 +135,13 @@
         </header>
         <section id="second-search" class="search-stage second-search" aria-labelledby="second-search-title" hidden>
           <header class="stage-head">
-            <div><span class="stage-number">02</span><div><h3 id="second-search-title">同款验证</h3><p>对语义与轮廓融合候选进行 SIFT + RANSAC 几何验证。</p></div></div>
+            <div><span class="stage-number">BEST</span><div><h3 id="second-search-title">最高匹配</h3><p>从下方 Shape IoU 前 20 名中，单独展示匹配度最高的第 1 名。</p></div></div>
           </header>
           <div id="geometric-best-list" class="results-list geometric-best-list"></div>
         </section>
         <section class="search-stage" aria-labelledby="first-search-title">
           <header class="stage-head">
-            <div><span class="stage-number">00+01</span><div><h3 id="first-search-title">语义＋轮廓搜索</h3><p id="first-search-copy">分别召回语义和主体轮廓相近的文件，再按比例融合排名。</p></div></div>
+            <div><span class="stage-number">TOP 20</span><div><h3 id="first-search-title">Shape IoU 前 20 名</h3><p id="first-search-copy">只按保留内部镂空的主体 Mask 计算 Shape IoU 并排序。</p></div></div>
           </header>
           <div id="results-list" class="results-list"></div>
         </section>
@@ -179,6 +179,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=23" defer></script>
+  <script src="/similarity-search-static/app.js?v=25" defer></script>
 </body>
 </html>

@@ -27,7 +27,13 @@ const state = {
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
 const uploadChunkBytes = 2_500_000;
+const previewConcurrency = 3;
 let libraryLoadSequence = 0;
+let previewActive = 0;
+let previewPaused = false;
+const previewQueue = [];
+const previewPending = new WeakSet();
+const previewControllers = new Set();
 
 function bytes(value) {
   if (value < 1024) return `${value} B`;
@@ -117,16 +123,85 @@ function clearObjectUrls() {
   state.objectUrls.clear();
 }
 
-async function protectedObjectUrl(path) {
-  const response = await api(path);
+async function protectedObjectUrl(path, signal) {
+  const response = await api(path, { signal });
   const url = URL.createObjectURL(await response.blob());
   state.objectUrls.add(url);
   return url;
 }
 
-async function setProtectedImage(image, path) {
-  try { image.src = await protectedObjectUrl(path); }
-  catch { image.replaceWith(Object.assign(document.createElement("span"), { className: "thumb-placeholder", textContent: "预览失败" })); }
+function pumpPreviewQueue() {
+  if (previewPaused) return;
+  while (previewActive < previewConcurrency && previewQueue.length) {
+    const job = previewQueue.shift();
+    if (!job.image.isConnected || job.image.src) {
+      previewPending.delete(job.image);
+      continue;
+    }
+    previewActive += 1;
+    const controller = new AbortController();
+    previewControllers.add(controller);
+    protectedObjectUrl(job.path, controller.signal)
+      .then(url => {
+        if (job.image.isConnected) job.image.src = url;
+        else URL.revokeObjectURL(url);
+      })
+      .catch(error => {
+        if (error.name === "AbortError") {
+          if (job.image.isConnected) previewQueue.unshift(job);
+          else previewPending.delete(job.image);
+          return;
+        }
+        previewPending.delete(job.image);
+        if (job.image.isConnected) {
+          job.image.replaceWith(Object.assign(document.createElement("span"), {
+            className: "thumb-placeholder",
+            textContent: "预览失败",
+          }));
+        }
+      })
+      .finally(() => {
+        previewControllers.delete(controller);
+        previewActive -= 1;
+        if (job.image.src) previewPending.delete(job.image);
+        pumpPreviewQueue();
+      });
+  }
+}
+
+function enqueueProtectedImage(image, path) {
+  if (!image.isConnected || image.src || previewPending.has(image)) return;
+  previewPending.add(image);
+  previewQueue.push({ image, path });
+  pumpPreviewQueue();
+}
+
+const previewObserver = "IntersectionObserver" in window
+  ? new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        previewObserver.unobserve(entry.target);
+        enqueueProtectedImage(entry.target, entry.target.dataset.protectedSrc);
+      }
+    }, { rootMargin: "240px" })
+  : null;
+
+function setProtectedImage(image, path) {
+  image.loading = "lazy";
+  image.decoding = "async";
+  image.dataset.protectedSrc = path;
+  if (previewObserver) previewObserver.observe(image);
+  else enqueueProtectedImage(image, path);
+}
+
+function pausePreviewLoading() {
+  previewPaused = true;
+  for (const controller of previewControllers) controller.abort();
+}
+
+function resumePreviewLoading() {
+  previewPaused = false;
+  pumpPreviewQueue();
 }
 
 function folderName(files) {
@@ -782,7 +857,7 @@ async function rebuildAllImageIndexes() {
     setMessage("#reindex-message", "素材库中没有需要建立检索特征的图片。", "success");
     return;
   }
-  if (!window.confirm(`将使用当前二阶段搜索算法重新计算 ${plan.total} 张图片的特征，并逐张覆盖旧特征。\n\n原图和预览不会被修改，是否继续？`)) return;
+  if (!window.confirm(`将使用当前 Shape IoU 算法重新计算 ${plan.total} 张图片的保洞 Mask，并逐张覆盖旧索引。\n\n原图和预览不会被修改，是否继续？`)) return;
 
   state.reindexBusy = true;
   button.disabled = true;
@@ -813,7 +888,7 @@ async function rebuildAllImageIndexes() {
       const remaining = failures.length > 3 ? `；另有 ${failures.length - 3} 个失败文件` : "";
       setMessage("#reindex-message", `成功覆盖 ${plan.total - failures.length} 张图片的旧特征，失败 ${failures.length} 张：${preview}${remaining}`, "error");
     } else {
-      setMessage("#reindex-message", `已使用 ${plan.feature_version} 重建并保存 ${plan.total} 张图片的全部二阶段检索特征。`, "success");
+      setMessage("#reindex-message", `已使用 ${plan.feature_version} 重建并保存 ${plan.total} 张图片的 Shape IoU Mask。`, "success");
     }
     await loadLibrary();
   } finally {
@@ -954,17 +1029,9 @@ async function openFolder(folderId, matchedAssetId = null) {
 
 function resultCard(item, options = {}) {
   const stage = options.stage || "feature";
-  const isGeometric = stage === "geometric";
-  const geometryLine = isGeometric && item.match_method === "sift-ransac"
-    ? `<p class="result-verification">SIFT + RANSAC 有效匹配点：${item.inliers}</p>`
-    : "";
-  const fusionLine = stage === "global"
-    ? `<p class="result-verification">语义 ${item.semantic_score}% · 轮廓 ${item.shape_score}%</p>`
-    : "";
-  const scoreLabel = stage === "global"
-    ? "语义45%＋轮廓55%"
-    : isGeometric ? "几何相似度" : "特征余弦相似度";
-  return `<article class="result-card${isGeometric ? " geometric-best" : ""}">${isGeometric ? '<span class="best-marker">第二次搜索第 1 名</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${scoreLabel} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${fusionLine}${geometryLine}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
+  const isBest = stage === "best";
+  const scoreLabel = stage === "shape" || isBest ? "Shape IoU" : "特征余弦相似度";
+  return `<article class="result-card${isBest ? " geometric-best" : ""}">${isBest ? '<span class="best-marker">Shape IoU 第 1 名</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${scoreLabel} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p><div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
 }
 
 function activateResultCards(root) {
@@ -980,13 +1047,15 @@ async function search() {
   button.disabled = true;
   confirmButton.disabled = true;
   const methodCopy = state.queryMethod === "mask"
-    ? "正在应用二值 Mask、排除背景并比较素材库…"
+    ? "1/3 正在应用二值 Mask并准备查询图…"
     : state.queryMethod === "crop"
-      ? "正在裁剪截图区域并比较素材库…"
-      : "正在使用原图生成查询特征…";
+      ? "1/3 正在裁剪截图区域并准备查询图…"
+      : "1/3 正在准备原图…";
   setMessage("#search-message", methodCopy);
+  pausePreviewLoading();
   try {
     const queryFile = await preparedQueryFile();
+    setMessage("#search-message", "2/3 正在上传查询图并匹配本地向量库…");
     const currentUploadId = uploadId();
     const response = await uploadFileInChunks(
       queryFile,
@@ -994,12 +1063,13 @@ async function search() {
       `/api/material-search/search/uploads/${currentUploadId}/complete`,
       { relative_path: queryFile.name },
     );
+    setMessage("#search-message", "3/3 匹配完成，正在整理结果…");
     const result = await response.json();
     $("#search-output").hidden = false;
-    const imagePipeline = result.algorithm === "semantic-shape-fusion-then-sift-ransac";
-    $("#results-title").textContent = `${labels[result.kind]}${imagePipeline ? "三阶段" : ""}检索结果`;
+    const imagePipeline = result.algorithm === "subject-mask-shape-iou-holes";
+    $("#results-title").textContent = `${labels[result.kind]}${imagePipeline ? " Shape IoU" : ""}检索结果`;
     $("#first-search-copy").textContent = imagePipeline
-      ? `语义和主体轮廓各自全库召回，按语义45%＋轮廓55%融合取前 ${result.results.length} 张图片。`
+      ? `只按保留内部镂空的主体 Mask 计算 Shape IoU，展示匹配度最高的前 ${result.results.length} 张图片。`
       : `使用特征余弦相似度取前 ${result.results.length} 个文件。`;
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
     const list = $("#results-list");
@@ -1007,24 +1077,25 @@ async function search() {
       list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
     } else {
       list.innerHTML = result.results.map(item => resultCard(item, {
-        stage: imagePipeline ? "global" : "feature",
+        stage: imagePipeline ? "shape" : "feature",
       })).join("");
     }
     const secondSearch = $("#second-search");
-    secondSearch.hidden = !result.geometric_best;
-    $("#geometric-best-list").innerHTML = result.geometric_best
-      ? resultCard(result.geometric_best, { stage: "geometric" })
+    secondSearch.hidden = !result.best_match;
+    $("#geometric-best-list").innerHTML = result.best_match
+      ? resultCard(result.best_match, { stage: "best" })
       : "";
     activateResultCards($("#search-output"));
     if (result.outdated_images) {
       setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧特征图片。请在“素材库上传”页点击“一键重建全部特征”。`, "error");
     } else {
       const upgraded = result.reindexed_images ? `已自动升级 ${result.reindexed_images} 张旧图片索引。` : "";
-      setMessage("#search-message", imagePipeline ? `${upgraded}检索完成。语义与轮廓并行召回并融合前10名，再进行SIFT + RANSAC同款验证。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
+      setMessage("#search-message", imagePipeline ? `${upgraded}检索完成。下方为 Shape IoU 前20名，上方单独展示最高匹配结果。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
     }
   } catch (error) {
     setMessage("#search-message", error.message, "error");
   } finally {
+    resumePreviewLoading();
     button.disabled = false;
     updateSubjectStatus();
   }

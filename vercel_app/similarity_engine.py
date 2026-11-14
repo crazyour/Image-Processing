@@ -15,13 +15,13 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v6-semantic-shape"
+FEATURE_VERSION = "material-search-v8-shape-iou-mask-only"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
 MAX_LOCAL_FEATURES = 1200
 SUBJECT_MASK_SIZE = 96
 SHAPE_FEATURE_SIZE = 32
-SHAPE_FEATURE_SCHEMA = "subject-mask-contour-bbox-v2"
+SHAPE_FEATURE_SCHEMA = "subject-mask-png-96-v4"
 MAX_SUBJECT_ANALYSIS_DIMENSION = 1600
 SEMANTIC_FEATURE_SCHEMA = "mobilenetv2-imagenet-logits-v1"
 SEMANTIC_MODEL_NAME = "MobileNetV2-12-QDQ"
@@ -85,8 +85,22 @@ def _alpha_subject_mask(image: Image.Image) -> np.ndarray | None:
     return mask if 0.001 <= ratio < 0.999 else None
 
 
+def _largest_subject_mask(mask: np.ndarray) -> np.ndarray:
+    """Keep only the largest connected foreground while preserving its holes."""
+    binary = np.where(mask >= 128, 255, 0).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(
+        binary,
+        connectivity=8,
+        ltype=cv2.CV_32S,
+    )
+    if count <= 1:
+        return np.zeros(binary.shape, dtype=np.uint8)
+    largest_label = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    return np.where(labels == largest_label, 255, 0).astype(np.uint8)
+
+
 def _automatic_subject_mask(image: Image.Image) -> np.ndarray:
-    """Estimate one outer subject silhouette without using colour as a search feature."""
+    """Estimate one subject without painting over background-coloured holes."""
     rgb = np.asarray(_flatten(image), dtype=np.uint8)
     height, width = rgb.shape[:2]
     border = max(1, min(height, width) // 40)
@@ -100,10 +114,15 @@ def _automatic_subject_mask(image: Image.Image) -> np.ndarray:
     distance = np.sqrt(np.mean((rgb.astype(np.float32) - background) ** 2, axis=2))
     distance_u8 = np.clip(distance, 0, 255).astype(np.uint8)
     otsu, _ = cv2.threshold(distance_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    foreground = np.where(distance_u8 > max(8.0, float(otsu)), 255, 0).astype(np.uint8)
+    background_threshold = max(8.0, float(otsu))
+    raw_foreground = np.where(distance_u8 > background_threshold, 255, 0).astype(np.uint8)
     kernel_size = max(3, (min(height, width) // 180) * 2 + 1)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel, iterations=2)
+    # Closing is used only to group broken pieces into one subject. Taking the
+    # final pixels from the unclosed estimate reopens every genuine gap.
+    subject_support = cv2.morphologyEx(raw_foreground, cv2.MORPH_CLOSE, kernel, iterations=2)
+    subject_support = _largest_subject_mask(subject_support)
+    foreground = cv2.bitwise_and(raw_foreground, subject_support)
 
     ratio = float(np.mean(foreground > 0))
     if ratio < 0.001 or ratio > 0.90:
@@ -123,25 +142,19 @@ def _automatic_subject_mask(image: Image.Image) -> np.ndarray:
                 255,
                 0,
             ).astype(np.uint8)
+            # GrabCut can fill an enclosed region merely because the subject
+            # surrounds it. Border-like pixels remain background even inside.
+            foreground[distance_u8 <= background_threshold] = 0
         except cv2.error:
             foreground = np.full((height, width), 255, dtype=np.uint8)
-
-    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return np.full((height, width), 255, dtype=np.uint8)
-    largest_area = max(cv2.contourArea(contour) for contour in contours)
-    minimum_area = max(4.0, largest_area * 0.02)
-    silhouette = np.zeros((height, width), dtype=np.uint8)
-    retained = [contour for contour in contours if cv2.contourArea(contour) >= minimum_area]
-    cv2.drawContours(silhouette, retained or contours, -1, 255, thickness=cv2.FILLED)
-    return silhouette
+    return foreground
 
 
 def _subject_mask(image: Image.Image) -> tuple[np.ndarray, str]:
     alpha_mask = _alpha_subject_mask(image)
     if alpha_mask is not None:
-        return alpha_mask, "alpha"
-    return _automatic_subject_mask(image), "border-background"
+        return _largest_subject_mask(alpha_mask), "alpha"
+    return _automatic_subject_mask(image), "border-background-holes"
 
 
 def _subject_analysis_image(image: Image.Image) -> Image.Image:
@@ -177,7 +190,7 @@ def _normalised_subject_mask(mask: np.ndarray) -> tuple[np.ndarray, tuple[int, i
 
 def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
     analysis_image = _subject_analysis_image(image)
-    mask, source = _subject_mask(analysis_image)
+    mask, _ = _subject_mask(analysis_image)
     normalised_mask, bbox = _normalised_subject_mask(mask)
     contours, _ = cv2.findContours(normalised_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     contour_mask = np.zeros_like(normalised_mask)
@@ -206,11 +219,6 @@ def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
     encoded_ok, encoded_mask = cv2.imencode(".png", normalised_mask)
     metadata = {
         "shape_feature_schema": SHAPE_FEATURE_SCHEMA,
-        "subject_mask_source": source,
-        "subject_bbox": list(bbox),
-        "subject_bbox_aspect": round(float(aspect), 6),
-        "subject_foreground_ratio": round(float(np.mean(mask > 0)), 6),
-        "subject_analysis_size": list(analysis_image.size),
         "normalised_subject_mask": {
             "encoding": "png-base64-v1",
             "size": SUBJECT_MASK_SIZE,
@@ -218,6 +226,37 @@ def _shape_vector(image: Image.Image) -> tuple[list[float], dict[str, Any]]:
         },
     }
     return vector, metadata
+
+
+def _decode_subject_mask(metadata: dict[str, Any]) -> np.ndarray | None:
+    payload = metadata.get("normalised_subject_mask") or {}
+    encoded = payload.get("data")
+    if payload.get("encoding") != "png-base64-v1" or not encoded:
+        return None
+    try:
+        raw = np.frombuffer(base64.b64decode(encoded), dtype=np.uint8)
+        mask = cv2.imdecode(raw, cv2.IMREAD_GRAYSCALE)
+    except (ValueError, TypeError):
+        return None
+    if mask is None:
+        return None
+    if mask.shape != (SUBJECT_MASK_SIZE, SUBJECT_MASK_SIZE):
+        mask = cv2.resize(mask, (SUBJECT_MASK_SIZE, SUBJECT_MASK_SIZE), interpolation=cv2.INTER_NEAREST)
+    return np.where(mask >= 128, 255, 0).astype(np.uint8)
+
+
+def subject_mask_iou(query_metadata: dict[str, Any], candidate_metadata: dict[str, Any]) -> float:
+    """Return the sole image-search score: pixel IoU of two subject masks."""
+    query = _decode_subject_mask(query_metadata)
+    candidate = _decode_subject_mask(candidate_metadata)
+    if query is None or candidate is None:
+        return 0.0
+    query_binary = query > 0
+    candidate_binary = candidate > 0
+    union = int(np.logical_or(query_binary, candidate_binary).sum())
+    if not union:
+        return 0.0
+    return float(np.logical_and(query_binary, candidate_binary).sum() / union)
 
 
 def _semantic_subject_image(image: Image.Image) -> np.ndarray:
@@ -432,20 +471,16 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
         raise SimilarityFileError("图片无法读取或已经损坏") from exc
     if image.width < 2 or image.height < 2:
         raise SimilarityFileError("图片尺寸无效")
-    vector, shape_metadata = _shape_vector(image)
-    semantic_vector = _semantic_vector(image)
+    _, shape_metadata = _shape_vector(image)
     return (
         _preview_png(image),
-        vector,
+        # The storage schema requires vector_json for every file type. Image
+        # ranking no longer reads it, so keep one explicit neutral placeholder
+        # instead of thousands of obsolete semantic/shape numbers. DXF and AI
+        # still receive their runtime vectors from _shape_vector.
+        [0.0],
         {
-            "width": image.width,
-            "height": image.height,
             "feature_version": FEATURE_VERSION,
-            "semantic_feature_schema": SEMANTIC_FEATURE_SCHEMA,
-            "semantic_model": SEMANTIC_MODEL_NAME,
-            "semantic_vector": semantic_vector,
-            "image_fingerprint": _image_fingerprint(image),
-            "local_features": _local_features(image),
             **shape_metadata,
         },
     )

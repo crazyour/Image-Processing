@@ -26,8 +26,8 @@ from vercel_app.similarity_api import _search_materials
 from vercel_app.similarity_engine import (
     FEATURE_VERSION,
     cosine_similarity,
-    image_geometric_similarity,
     process_image,
+    subject_mask_iou,
 )
 from vercel_app.similarity_store import _connection, _ensure_schema
 from vercel_app.interactive_segmentation import (
@@ -148,48 +148,7 @@ EOF
             204,
         )
 
-    def test_sift_ransac_recognizes_a_design_inside_a_scene(self) -> None:
-        reference = Image.new("RGB", (500, 500), "white")
-        draw = ImageDraw.Draw(reference)
-        draw.ellipse((155, 135, 345, 325), outline="black", width=13)
-        draw.ellipse((198, 185, 242, 235), fill="black")
-        draw.ellipse((258, 185, 302, 235), fill="black")
-        draw.polygon([(250, 220), (225, 270), (275, 270)], fill="black")
-        for offset in range(0, 8):
-            y = 80 + offset * 34
-            draw.line((35, 250, 165, y), fill="black", width=8 + offset % 3)
-            draw.line((335, y, 465, 250), fill="black", width=8 + (7 - offset) % 3)
-        for offset in range(7):
-            x = 155 + offset * 31
-            draw.arc((x, 285, x + 70, 425), 20, 165, fill="black", width=7)
-        reference_buffer = io.BytesIO()
-        reference.save(reference_buffer, "PNG")
-
-        source = cv2.cvtColor(np.asarray(reference), cv2.COLOR_RGB2BGR)
-        destination = np.float32([[80, 55], [520, 90], [500, 535], [55, 505]])
-        transform = cv2.getPerspectiveTransform(np.float32([[0, 0], [499, 0], [499, 499], [0, 499]]), destination)
-        scene = cv2.warpPerspective(source, transform, (580, 580), borderValue=(190, 205, 215))
-        scene = cv2.convertScaleAbs(scene, alpha=0.82, beta=18)
-        scene_buffer = io.BytesIO()
-        Image.fromarray(cv2.cvtColor(scene, cv2.COLOR_BGR2RGB)).save(scene_buffer, "JPEG", quality=88)
-
-        distractor = Image.new("RGB", (500, 500), "white")
-        distractor_draw = ImageDraw.Draw(distractor)
-        for radius in range(40, 230, 24):
-            distractor_draw.ellipse((250 - radius, 250 - radius, 250 + radius, 250 + radius), outline="black", width=7)
-        distractor_buffer = io.BytesIO()
-        distractor.save(distractor_buffer, "PNG")
-
-        _, reference_vector, reference_metadata = process_image(reference_buffer.getvalue())
-        _, query_vector, query_metadata = process_image(scene_buffer.getvalue())
-        _, distractor_vector, distractor_metadata = process_image(distractor_buffer.getvalue())
-        matching = image_geometric_similarity(query_metadata, reference_metadata)
-        non_matching = image_geometric_similarity(query_metadata, distractor_metadata)
-        self.assertGreaterEqual(matching["inliers"], 8)
-        self.assertGreater(matching["score"], non_matching["score"] + 0.25)
-        self.assertIn(matching["label"], {"可能同款", "高度可信"})
-
-    def test_image_search_runs_geometry_only_for_fused_top_ten(self) -> None:
+    def test_image_search_returns_shape_iou_top_twenty_and_repeats_best(self) -> None:
         candidates = [
             {
                 "folder_id": f"folder-{index}",
@@ -198,77 +157,32 @@ EOF
                 "original_name": f"image-{index}.png",
                 "preview_url": f"preview-{index}",
                 "vector": [1.0, index / 10.0],
-                "metadata": {
-                    "feature_version": FEATURE_VERSION,
-                    "semantic_vector": [1.0, max(0.0, 1.0 - index / 20.0)],
-                },
+                "metadata": {"feature_version": FEATURE_VERSION},
             }
-            for index in range(12)
+            for index in range(25)
         ]
-
-        def geometric(_query, _candidate):
-            return {
-                "score": 0.8,
-                "label": "可能同款",
-                "inliers": 8,
-                "inlier_ratio": 0.4,
-                "coverage": 0.1,
-                "method": "sift-ransac",
-            }
-
         folder = {"previews": [], "assets": [], "zip_url": None}
         with (
             patch("vercel_app.similarity_api.process_file", return_value=(
-                "image", b"preview", [1.0, 0.0], {"semantic_vector": [1.0, 1.0]},
+                "image", b"preview", [1.0, 0.0], {"feature_version": FEATURE_VERSION},
             )),
             patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
             patch("vercel_app.similarity_api.get_folder", return_value=folder),
-            patch("vercel_app.similarity_api.image_geometric_similarity", side_effect=geometric) as verify,
+            patch(
+                "vercel_app.similarity_api.subject_mask_iou",
+                side_effect=[1.0 - index / 100.0 for index in range(25)],
+            ) as compare,
         ):
             payload = _search_materials("library", "query.png", b"query")
 
-        self.assertEqual(len(payload["results"]), 10)
-        self.assertEqual(verify.call_count, 10)
+        self.assertEqual(len(payload["results"]), 20)
+        self.assertEqual(compare.call_count, 25)
         self.assertEqual(payload["results"][0]["matched_asset_id"], "asset-0")
-        self.assertEqual(payload["geometric_best"]["matched_asset_id"], "asset-0")
-        self.assertEqual(payload["algorithm"], "semantic-shape-fusion-then-sift-ransac")
-        self.assertEqual(payload["fusion"]["semantic_weight"], 0.45)
-        self.assertEqual(payload["fusion"]["shape_weight"], 0.55)
-
-    def test_semantic_and_shape_rank_fusion_can_reject_a_wrong_category(self) -> None:
-        candidates = [
-            {
-                "folder_id": "wrong", "folder_name": "wrong", "asset_id": "wrong-shape",
-                "original_name": "sun.png", "preview_url": "wrong", "vector": [1.0, 0.0],
-                "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [0.0, 1.0]},
-            },
-            {
-                "folder_id": "correct", "folder_name": "correct", "asset_id": "correct-category",
-                "original_name": "chicken.png", "preview_url": "correct", "vector": [0.8, 0.6],
-                "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [1.0, 0.0]},
-            },
-            {
-                "folder_id": "other", "folder_name": "other", "asset_id": "other",
-                "original_name": "other.png", "preview_url": "other", "vector": [0.0, 1.0],
-                "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [0.7, 0.7]},
-            },
-        ]
-        folder = {"previews": [], "assets": [], "zip_url": None}
-        with (
-            patch("vercel_app.similarity_api.process_file", return_value=(
-                "image", b"preview", [1.0, 0.0], {"semantic_vector": [1.0, 0.0]},
-            )),
-            patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
-            patch("vercel_app.similarity_api.get_folder", return_value=folder),
-            patch("vercel_app.similarity_api.image_geometric_similarity", return_value={
-                "score": 0.0, "label": "未验证", "inliers": 0,
-                "inlier_ratio": 0.0, "coverage": 0.0, "method": "sift-ransac",
-            }),
-        ):
-            payload = _search_materials("library", "query.png", b"query")
-
-        self.assertEqual(payload["results"][0]["matched_asset_id"], "correct-category")
-        self.assertGreater(payload["results"][0]["semantic_score"], payload["results"][1]["semantic_score"])
+        self.assertEqual(payload["best_match"], payload["results"][0])
+        self.assertEqual(payload["algorithm"], "subject-mask-shape-iou-holes")
+        self.assertNotIn("fusion", payload)
+        self.assertNotIn("semantic_score", payload["results"][0])
+        self.assertNotIn("shape_score", payload["results"][0])
 
     def test_second_search_is_shown_above_first_with_separate_labels(self) -> None:
         root = Path(__file__).resolve().parent.parent / "similarity_search_frontend"
@@ -276,12 +190,12 @@ EOF
         script = (root / "app.js").read_text(encoding="utf-8")
 
         self.assertLess(page.index('id="second-search"'), page.index('id="first-search-title"'))
-        self.assertIn('stage: imagePipeline ? "global" : "feature"', script)
-        self.assertIn('resultCard(result.geometric_best, { stage: "geometric" })', script)
-        self.assertIn("语义45%＋轮廓55%", script)
-        self.assertIn("几何相似度", script)
-        self.assertNotIn("几何验证最佳", script)
-        self.assertNotIn("第一次搜索排名", script)
+        self.assertIn('stage: imagePipeline ? "shape" : "feature"', script)
+        self.assertIn('resultCard(result.best_match, { stage: "best" })', script)
+        self.assertIn("Shape IoU 第 1 名", script)
+        self.assertIn("Shape IoU 前 20 名", page)
+        self.assertNotIn("语义45%＋轮廓55%", script)
+        self.assertNotIn("SIFT + RANSAC", page)
         self.assertIn('"X-Chunk-SHA256": await sha256Hex(chunk)', script)
         self.assertIn("file_size: file.size", script)
         self.assertIn("failures.push(error)", script)
@@ -476,14 +390,16 @@ EOF
             payload = response.json()
             result = payload["results"][0]
             self.assertEqual(result["folder_id"], folder_id)
-            self.assertGreater(result["score"], 99)
+            self.assertGreater(result["score"], 99, name)
             if name == "preview.png":
-                self.assertEqual(payload["algorithm"], "semantic-shape-fusion-then-sift-ransac")
-                self.assertEqual(result["match_label"], "语义与主体形状融合")
-                self.assertEqual(payload["geometric_best"]["match_label"], "同图")
-                self.assertEqual(payload["geometric_best"]["matched_asset_id"], result["matched_asset_id"])
+                self.assertEqual(payload["algorithm"], "subject-mask-shape-iou-holes")
+                self.assertEqual(result["match_label"], "Shape IoU")
+                self.assertEqual(result["match_method"], "shape-iou")
+                self.assertEqual(payload["best_match"], result)
+                self.assertNotIn("semantic_score", result)
+                self.assertNotIn("shape_score", result)
             else:
-                self.assertIsNone(payload["geometric_best"])
+                self.assertIsNone(payload["best_match"])
 
         different = Image.new("RGB", (240, 160), "white")
         different_draw = ImageDraw.Draw(different)
@@ -497,9 +413,9 @@ EOF
         )
         self.assertEqual(different_search.status_code, 200, different_search.text)
         different_payload = different_search.json()
-        different_result = different_payload["geometric_best"]
-        self.assertLess(different_result["score"], 50)
-        self.assertEqual(different_result["match_label"], "未验证")
+        different_result = different_payload["best_match"]
+        self.assertLess(different_result["score"], 100)
+        self.assertEqual(different_result["match_label"], "Shape IoU")
 
         with _connection() as connection:
             connection.execute(
@@ -527,8 +443,8 @@ EOF
         )
         self.assertEqual(forced_reindex.status_code, 200, forced_reindex.text)
         self.assertEqual(forced_reindex.json()["feature_version"], FEATURE_VERSION)
-        self.assertEqual(forced_reindex.json()["semantic_dimension"], 1000)
-        self.assertGreaterEqual(forced_reindex.json()["local_feature_count"], 0)
+        self.assertEqual(forced_reindex.json()["mask_size"], 96)
+        self.assertEqual(forced_reindex.json()["shape_feature_schema"], "subject-mask-png-96-v4")
 
         batch_reindex = self.client.post(
             "/api/material-search/reindex/batch",
@@ -658,10 +574,20 @@ class SimilaritySearchSubjectSelectionFrontendTest(unittest.TestCase):
         self.assertIn('if (state.queryMethod === "original") return file', self.script)
         self.assertIn('`${baseName}-crop.png`', self.script)
         self.assertIn('context.fillStyle = "#fff"', self.script)
+
+    def test_previews_are_lazy_bounded_and_yield_to_search(self) -> None:
+        self.assertIn("const previewConcurrency = 3", self.script)
+        self.assertIn("new IntersectionObserver", self.script)
+        self.assertIn('image.loading = "lazy"', self.script)
+        self.assertIn("previewActive < previewConcurrency", self.script)
+        self.assertIn("controller.abort()", self.script)
+        self.assertIn("pausePreviewLoading();", self.script)
+        self.assertIn("resumePreviewLoading();", self.script)
+        self.assertIn("2/3 正在上传查询图并匹配本地向量库", self.script)
         self.assertIn('context.globalCompositeOperation = "destination-in"', self.script)
         self.assertIn("context.drawImage(alphaMask, 0, 0)", self.script)
         self.assertIn('`${baseName}-subject.png`', self.script)
-        self.assertIn('"semantic-shape-fusion-then-sift-ransac"', self.script)
+        self.assertIn('"subject-mask-shape-iou-holes"', self.script)
 
     def test_cpu_auto_selection_controls_and_point_prompts_are_present(self) -> None:
         self.assertIn('data-query-method="mask"', self.page)
@@ -709,11 +635,11 @@ class SubjectShapeFeatureTest(unittest.TestCase):
         image.save(output, "PNG")
         return output.getvalue()
 
-    def test_colour_does_not_change_the_subject_shape_vector(self) -> None:
+    def test_colour_does_not_change_the_subject_shape_iou(self) -> None:
         points = [(60, 180), (95, 55), (180, 35), (260, 115), (225, 195), (130, 210)]
-        _, red_vector, _ = process_image(self.polygon_image(points, color="red"))
-        _, black_vector, _ = process_image(self.polygon_image(points, color="black"))
-        self.assertGreater(cosine_similarity(red_vector, black_vector), 0.999)
+        _, _, red_metadata = process_image(self.polygon_image(points, color="red"))
+        _, _, black_metadata = process_image(self.polygon_image(points, color="black"))
+        self.assertGreater(subject_mask_iou(red_metadata, black_metadata), 0.999)
 
     def test_image_feature_source_contains_no_hsv_histogram_or_canny(self) -> None:
         source = (
@@ -723,39 +649,39 @@ class SubjectShapeFeatureTest(unittest.TestCase):
         self.assertNotIn("cv2.Canny", source)
         self.assertNotIn("cv2.COLOR_RGB2HSV", source)
 
-    def test_closed_outline_and_filled_subject_compare_by_outer_shape(self) -> None:
+    def test_closed_outline_keeps_its_internal_gap_for_iou(self) -> None:
         points = [(55, 180), (90, 50), (190, 35), (270, 125), (215, 205), (120, 210)]
-        _, filled_vector, _ = process_image(self.polygon_image(points))
-        _, outline_vector, _ = process_image(self.polygon_image(points, outline_only=True))
-        self.assertGreater(cosine_similarity(filled_vector, outline_vector), 0.96)
+        _, _, filled_metadata = process_image(self.polygon_image(points))
+        _, _, outline_metadata = process_image(self.polygon_image(points, outline_only=True))
+        self.assertLess(subject_mask_iou(filled_metadata, outline_metadata), 0.5)
 
     def test_scale_and_position_are_normalised_but_different_shapes_stay_apart(self) -> None:
         small = [(35, 175), (65, 65), (135, 45), (195, 115), (155, 190), (80, 205)]
         large = [(80, 190), (120, 45), (215, 20), (295, 110), (245, 210), (145, 230)]
         rectangle = [(90, 35), (230, 35), (230, 215), (90, 215)]
-        _, small_vector, _ = process_image(self.polygon_image(small))
-        _, large_vector, _ = process_image(self.polygon_image(large))
-        _, rectangle_vector, _ = process_image(self.polygon_image(rectangle))
-        same_shape = cosine_similarity(small_vector, large_vector)
-        different_shape = cosine_similarity(small_vector, rectangle_vector)
+        _, _, small_metadata = process_image(self.polygon_image(small))
+        _, _, large_metadata = process_image(self.polygon_image(large))
+        _, _, rectangle_metadata = process_image(self.polygon_image(rectangle))
+        same_shape = subject_mask_iou(small_metadata, large_metadata)
+        different_shape = subject_mask_iou(small_metadata, rectangle_metadata)
         self.assertGreater(same_shape, 0.97)
         self.assertGreater(same_shape, different_shape + 0.15)
 
     def test_transparent_query_uses_its_alpha_channel_as_the_subject_mask(self) -> None:
         points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
         _, _, metadata = process_image(self.polygon_image(points, color="blue", mode="RGBA"))
-        self.assertEqual(metadata["subject_mask_source"], "alpha")
-        self.assertEqual(metadata["shape_feature_schema"], "subject-mask-contour-bbox-v2")
-        self.assertGreater(metadata["subject_bbox_aspect"], 1.0)
+        self.assertEqual(metadata["shape_feature_schema"], "subject-mask-png-96-v4")
+        self.assertNotIn("subject_bbox", metadata)
+        self.assertNotIn("subject_mask_source", metadata)
 
-    def test_image_index_stores_a_versioned_cpu_semantic_vector(self) -> None:
+    def test_image_index_stores_only_the_versioned_shape_mask(self) -> None:
         points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
-        _, _, metadata = process_image(self.polygon_image(points, color="orange"))
-        self.assertEqual(metadata["feature_version"], "material-search-v6-semantic-shape")
-        self.assertEqual(metadata["semantic_feature_schema"], "mobilenetv2-imagenet-logits-v1")
-        self.assertEqual(metadata["semantic_model"], "MobileNetV2-12-QDQ")
-        self.assertEqual(len(metadata["semantic_vector"]), 1000)
-        self.assertAlmostEqual(float(np.linalg.norm(metadata["semantic_vector"])), 1.0, places=4)
+        _, vector, metadata = process_image(self.polygon_image(points, color="orange"))
+        self.assertEqual(vector, [0.0])
+        self.assertEqual(metadata["feature_version"], "material-search-v8-shape-iou-mask-only")
+        self.assertIn("normalised_subject_mask", metadata)
+        self.assertNotIn("semantic_vector", metadata)
+        self.assertNotIn("local_features", metadata)
 
 
 class InteractiveSegmentationTransformTest(unittest.TestCase):

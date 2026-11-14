@@ -4,12 +4,14 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sqlite3
 import threading
 import time
 import uuid
 from typing import Any
 
 from .auth import database_url
+from .material_library_local import local_material_database_path
 from .store import _connect_postgres, _connect_sqlite, token_hash
 
 
@@ -29,10 +31,17 @@ def _public_library_token() -> str:
 
 
 def _postgres() -> bool:
-    return bool(database_url())
+    return local_material_database_path() is None and bool(database_url())
 
 
 def _connection():
+    local_database = local_material_database_path()
+    if local_database is not None:
+        local_database.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(local_database, timeout=30)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode=WAL")
+        return connection
     return _connect_postgres() if _postgres() else _connect_sqlite()
 
 
