@@ -22,7 +22,6 @@ const state = {
   trash: [],
   objectUrls: new Set(),
   activeFolder: null,
-  reindexBusy: false,
 };
 const labels = { image: "图片", dxf: "DXF", illustrator: "Illustrator" };
 const allowed = /\.(png|jpe?g|webp|dxf|ai)$/i;
@@ -842,62 +841,6 @@ async function loadLibrary() {
   }
 }
 
-async function rebuildAllImageIndexes() {
-  if (state.reindexBusy) return;
-  const button = $("#rebuild-indexes");
-  let plan;
-  try {
-    const response = await api("/api/material-search/reindex/plan");
-    plan = await response.json();
-  } catch (error) {
-    setMessage("#reindex-message", error.message, "error");
-    return;
-  }
-  if (!plan.total) {
-    setMessage("#reindex-message", "素材库中没有需要建立检索特征的图片。", "success");
-    return;
-  }
-  if (!window.confirm(`将使用当前 Shape IoU 算法重新计算 ${plan.total} 张图片的保洞 Mask，并逐张覆盖旧索引。\n\n原图和预览不会被修改，是否继续？`)) return;
-
-  state.reindexBusy = true;
-  button.disabled = true;
-  $("#refresh-library").disabled = true;
-  $("#reindex-progress").hidden = false;
-  $("#reindex-progress-bar").style.width = "0%";
-  $("#reindex-progress-value").textContent = "0%";
-  setMessage("#reindex-message", `正在重建 0 / ${plan.total} 张图片…`);
-  const failures = [];
-  let completed = 0;
-  try {
-    for (const item of plan.items) {
-      $("#reindex-progress-label").textContent = `正在处理：${item.file_name}`;
-      try {
-        await api(`/api/material-search/reindex/assets/${encodeURIComponent(item.asset_id)}`, { method: "POST" });
-      } catch (error) {
-        failures.push(`${item.folder_name} / ${item.file_name}：${error.message}`);
-      }
-      completed += 1;
-      const percent = Math.round(completed / plan.total * 100);
-      $("#reindex-progress-bar").style.width = `${percent}%`;
-      $("#reindex-progress-value").textContent = `${percent}%`;
-      setMessage("#reindex-message", `已处理 ${completed} / ${plan.total} 张，成功 ${completed - failures.length} 张，失败 ${failures.length} 张。`, failures.length ? "error" : "");
-    }
-    $("#reindex-progress-label").textContent = failures.length ? "重建完成，部分文件失败" : "全部特征重建完成";
-    if (failures.length) {
-      const preview = failures.slice(0, 3).join("；");
-      const remaining = failures.length > 3 ? `；另有 ${failures.length - 3} 个失败文件` : "";
-      setMessage("#reindex-message", `成功覆盖 ${plan.total - failures.length} 张图片的旧特征，失败 ${failures.length} 张：${preview}${remaining}`, "error");
-    } else {
-      setMessage("#reindex-message", `已使用 ${plan.feature_version} 重建并保存 ${plan.total} 张图片的 Shape IoU Mask。`, "success");
-    }
-    await loadLibrary();
-  } finally {
-    state.reindexBusy = false;
-    button.disabled = false;
-    $("#refresh-library").disabled = false;
-  }
-}
-
 function renderCloudFolders() {
   const list = $("#cloud-list");
   const totalFiles = state.folders.reduce((sum, folder) => sum + folder.assets.length, 0);
@@ -1087,7 +1030,7 @@ async function search() {
       : "";
     activateResultCards($("#search-output"));
     if (result.outdated_images) {
-      setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧特征图片。请在“素材库上传”页点击“一键重建全部特征”。`, "error");
+      setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧索引图片，请联系管理员执行受控特征迁移。`, "error");
     } else {
       const upgraded = result.reindexed_images ? `已自动升级 ${result.reindexed_images} 张旧图片索引。` : "";
       setMessage("#search-message", imagePipeline ? `${upgraded}检索完成。下方为 Shape IoU 前20名，上方单独展示最高匹配结果。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
@@ -1113,7 +1056,6 @@ $("#folder-input").addEventListener("change", event => {
 });
 $("#folder-name").addEventListener("input", renderSelection);
 $("#upload-button").addEventListener("click", uploadFolder);
-$("#rebuild-indexes").addEventListener("click", rebuildAllImageIndexes);
 $("#refresh-library").addEventListener("click", loadLibrary);
 $("#refresh-cloud").addEventListener("click", loadLibrary);
 $$('[data-cloud-view]').forEach(button => button.addEventListener("click", () => switchCloudView(button.dataset.cloudView)));
