@@ -751,7 +751,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
     if base_color_index >= 0:
         paths.append(
             f'  <path id="region-0" class="vector-region" d="M0 0H{width}V{height}H0Z" '
-            'fill="transparent"/>'
+            'fill="none"/>'
         )
         path_index = 1
     for count, color_index in sorted(colors, key=lambda entry: entry[1]):
@@ -779,7 +779,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
                 continue
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
-                f'fill="transparent" data-source-color="{fill}" fill-rule="evenodd"/>'
+                f'fill="none" data-source-color="{fill}" fill-rule="evenodd"/>'
             )
             path_index += 1
 
@@ -787,17 +787,17 @@ def _image_svg(image: bytes, size: str) -> bytes:
     image_data = base64.b64encode(embedded_image).decode("ascii")
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" '
         f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
         '  <title>AI generated image with interactive vector paths</title>\n'
         '  <desc>The original raster image is preserved. Move the pointer over it to reveal vector paths.</desc>\n'
         '  <style>\n'
-        '    .vector-region { cursor: crosshair; pointer-events: all; stroke: transparent; '
+        '    .vector-region { cursor: crosshair; pointer-events: all; fill: none; stroke: none; '
         'stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: stroke .12s ease; }\n'
         '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
         '  </style>\n'
         f'  <image id="source-image" width="{width}" height="{height}" preserveAspectRatio="none" '
-        f'href="data:{image_mime};base64,{image_data}"/>\n'
+        f'xlink:href="data:{image_mime};base64,{image_data}"/>\n'
         f'{path_markup}\n'
         '</svg>\n'
     ).encode("utf-8")
@@ -851,6 +851,52 @@ def _image_outer_mask(traced: Image.Image) -> np.ndarray:
     return np.where(np.isin(labels, kept_labels), 255, 0).astype(np.uint8)
 
 
+def _smooth_image_outer_contour(contour: np.ndarray, supersample: int) -> np.ndarray:
+    """Smooth raster stair steps without moving or rounding intentional corners."""
+    points = contour.reshape(-1, 2).astype(np.float64) / supersample
+    if len(points) < 8:
+        return points
+
+    sigma = 1.1
+    radius = 4
+    offsets = np.arange(-radius, radius + 1, dtype=np.float64)
+    weights = np.exp(-(offsets ** 2) / (2.0 * sigma ** 2))
+    weights /= weights.sum()
+    candidate = sum(
+        weight * np.roll(points, int(offset), axis=0)
+        for offset, weight in zip(offsets, weights)
+    )
+
+    corner_span = max(3, round(supersample * 1.5))
+    incoming = np.roll(points, corner_span, axis=0) - points
+    outgoing = np.roll(points, -corner_span, axis=0) - points
+    lengths = np.linalg.norm(incoming, axis=1) * np.linalg.norm(outgoing, axis=1)
+    cosine = np.divide(
+        np.sum(incoming * outgoing, axis=1),
+        lengths,
+        out=np.full(len(points), -1.0),
+        where=lengths > 1e-9,
+    )
+    angles = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
+    smooth_weight = np.clip((angles - 100.0) / 35.0, 0.0, 1.0)
+    displacement = (candidate - points) * smooth_weight[:, None]
+    distance = np.linalg.norm(displacement, axis=1)
+    displacement *= np.minimum(1.0, 0.35 / np.maximum(distance, 1e-9))[:, None]
+    smoothed = points + displacement
+
+    perimeter = cv2.arcLength(smoothed.astype(np.float32).reshape(-1, 1, 2), True)
+    epsilon = max(0.10, perimeter * 0.0001)
+    simplified = cv2.approxPolyDP(
+        smoothed.astype(np.float32).reshape(-1, 1, 2), epsilon, True,
+    ).reshape(-1, 2)
+    while len(simplified) > 4000:
+        epsilon *= 1.35
+        simplified = cv2.approxPolyDP(
+            smoothed.astype(np.float32).reshape(-1, 1, 2), epsilon, True,
+        ).reshape(-1, 2)
+    return simplified.astype(np.float64)
+
+
 def _image_dxf(image: bytes) -> bytes:
     """Trace only meaningful external subject outlines, never internal detail."""
     with Image.open(io.BytesIO(image)) as source:
@@ -869,11 +915,20 @@ def _image_dxf(image: bytes) -> bytes:
         return handle
 
     mask = _image_outer_mask(traced)
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
+    supersample = 4
+    antialiased = cv2.resize(
+        cv2.GaussianBlur(mask, (0, 0), 0.45),
+        None,
+        fx=supersample,
+        fy=supersample,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    traced_mask = np.where(antialiased >= 128, 255, 0).astype(np.uint8)
+    contours, _ = cv2.findContours(traced_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     for contour in sorted(contours, key=cv2.contourArea, reverse=True):
-        if cv2.contourArea(contour) < 1:
+        if cv2.contourArea(contour) / (supersample ** 2) < 1:
             continue
-        points = cv2.approxPolyDP(contour, 0.65, True).reshape(-1, 2)
+        points = _smooth_image_outer_contour(contour, supersample)
         if len(points) >= 3:
             vertices = "".join(
                 f"0\nVERTEX\n5\n{new_handle()}\n8\nOUTLINE\n"

@@ -8,7 +8,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import cv2
 from fastapi.testclient import TestClient
+import numpy as np
 from PIL import Image
 
 import app as app_module
@@ -21,6 +23,16 @@ def sample_png(color: tuple[int, int, int] = (80, 120, 160)) -> bytes:
 
 
 class ImageSvgTracingTests(unittest.TestCase):
+    @staticmethod
+    def dxf_vertices(raw: bytes) -> np.ndarray:
+        dxf = raw.decode("ascii").replace("\r\n", "\n")
+        pairs = re.findall(
+            r"0\nVERTEX\n.*?10\n(-?\d+\.\d+)\n20\n(-?\d+\.\d+)",
+            dxf,
+            flags=re.DOTALL,
+        )
+        return np.asarray([(float(x), float(y)) for x, y in pairs])
+
     def test_generated_svg_preserves_bitmap_under_interactive_paths(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), "white")
@@ -35,8 +47,10 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertIn(b'.vector-region:hover', svg)
         self.assertIn(b'viewBox="0 0 128 128"', svg)
         self.assertIn(b'<image id="source-image"', svg)
-        self.assertIn(b'data:image/png;base64,', svg)
-        self.assertIn(b'fill="transparent"', svg)
+        self.assertIn(b'fill="none"', svg)
+        self.assertNotIn(b'fill="transparent"', svg)
+        self.assertIn(b'xmlns:xlink="http://www.w3.org/1999/xlink"', svg)
+        self.assertIn(b'xlink:href="data:image/png;base64,', svg)
         encoded = re.search(rb'data:image/png;base64,([^"\s]+)', svg)
         self.assertIsNotNone(encoded)
         self.assertEqual(base64.b64decode(encoded.group(1)), output.getvalue())
@@ -99,6 +113,33 @@ class ImageSvgTracingTests(unittest.TestCase):
     def test_generated_dxf_rejects_an_image_without_a_subject(self):
         with self.assertRaisesRegex(app_module.WorkflowError, "没有可导出的最外层轮廓"):
             app_module._image_dxf(sample_png())
+
+    def test_generated_dxf_smooths_curved_outer_outline(self):
+        canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
+        cv2.circle(canvas, (64, 64), 38, (20, 20, 20), -1)
+        ok, encoded = cv2.imencode(".png", canvas)
+        self.assertTrue(ok)
+
+        raw = app_module._image_dxf(encoded.tobytes())
+        points = self.dxf_vertices(raw)
+        center = points.mean(axis=0)
+        radii = np.linalg.norm(points - center, axis=1)
+
+        self.assertGreater(len(points), 32)
+        self.assertLess(len(points), 4000)
+        self.assertLess(float(radii.std()), 0.24)
+
+    def test_generated_dxf_preserves_sharp_outer_tip(self):
+        canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
+        polygon = np.asarray([[64, 10], [112, 108], [16, 108]], dtype=np.int32)
+        cv2.fillPoly(canvas, [polygon], (20, 20, 20))
+        ok, encoded = cv2.imencode(".png", canvas)
+        self.assertTrue(ok)
+
+        points = self.dxf_vertices(app_module._image_dxf(encoded.tobytes()))
+
+        self.assertLess(abs(float(points[:, 0].max()) - 87.5), 0.6)
+        self.assertGreater(float(points[:, 1].max()), 91.5)
 
 
 class TextImageReferenceTests(unittest.TestCase):
@@ -208,8 +249,9 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertIn(b'<path id="region-0" class="vector-region"', svg_response.content)
         self.assertIn(b'.vector-region:hover', svg_response.content)
         self.assertIn(b'<image id="source-image"', svg_response.content)
-        self.assertIn(b'data:image/png;base64,', svg_response.content)
-        self.assertIn(b'fill="transparent"', svg_response.content)
+        self.assertIn(b'xlink:href="data:image/png;base64,', svg_response.content)
+        self.assertIn(b'fill="none"', svg_response.content)
+        self.assertNotIn(b'fill="transparent"', svg_response.content)
         png_download = self.client.get(
             f"/api/text-image/tasks/{task_id}/items/0/download/png", headers=headers,
         )
