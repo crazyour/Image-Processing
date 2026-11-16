@@ -18,6 +18,24 @@ def sample_png(color: tuple[int, int, int] = (80, 120, 160)) -> bytes:
     return output.getvalue()
 
 
+class ImageSvgTracingTests(unittest.TestCase):
+    def test_generated_svg_contains_interactive_paths_instead_of_bitmap(self):
+        output = io.BytesIO()
+        image = Image.new("RGB", (128, 128), "white")
+        for x in range(32, 96):
+            for y in range(32, 96):
+                image.putpixel((x, y), (210, 43, 43))
+        image.save(output, "PNG")
+
+        svg = app_module._image_svg(output.getvalue(), "128x128")
+
+        self.assertIn(b'<path id="region-0" class="vector-region"', svg)
+        self.assertIn(b'.vector-region:hover', svg)
+        self.assertIn(b'viewBox="0 0 128 128"', svg)
+        self.assertNotIn(b'<image', svg)
+        self.assertNotIn(b'data:image/', svg)
+
+
 class TextImageReferenceTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -121,10 +139,11 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(svg_response.status_code, 200)
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
         self.assertIn(b'width="128px" height="128px" viewBox="0 0 128 128"', svg_response.content)
-        self.assertIn(b'width="128" height="128"', svg_response.content)
         self.assertIn(b'version="1.1"', svg_response.content)
-        self.assertIn(b'xmlns:xlink="http://www.w3.org/1999/xlink"', svg_response.content)
-        self.assertIn(b'xlink:href="data:image/png;base64,', svg_response.content)
+        self.assertIn(b'<path id="region-0" class="vector-region"', svg_response.content)
+        self.assertIn(b'.vector-region:hover', svg_response.content)
+        self.assertNotIn(b'<image', svg_response.content)
+        self.assertNotIn(b'data:image/', svg_response.content)
         png_download = self.client.get(
             f"/api/text-image/tasks/{task_id}/items/0/download/png", headers=headers,
         )

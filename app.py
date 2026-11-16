@@ -701,26 +701,96 @@ def _text_image_response(state: dict, *, token: str | None = None) -> dict:
     return result
 
 
+def _svg_path(points: np.ndarray) -> str:
+    coordinates = points.reshape(-1, 2)
+    if len(coordinates) < 3:
+        return ""
+    commands = [f"M{int(coordinates[0][0])} {int(coordinates[0][1])}"]
+    commands.extend(f"L{int(x)} {int(y)}" for x, y in coordinates[1:])
+    commands.append("Z")
+    return "".join(commands)
+
+
 def _image_svg(image: bytes, size: str) -> bytes:
-    """Wrap a generated PNG in an Illustrator-compatible SVG 1.1 document."""
+    """Trace a generated raster image into interactive, editable color paths."""
     try:
         with Image.open(io.BytesIO(image)) as source:
-            width, height = source.size
+            source.load()
+            original_width, original_height = source.size
+            traced = source.convert("RGBA")
     except (OSError, ValueError):
         try:
             width_text, height_text = size.lower().split("x", 1)
-            width, height = int(width_text), int(height_text)
+            original_width, original_height = int(width_text), int(height_text)
         except (AttributeError, TypeError, ValueError):
-            width = height = 1024
-    encoded = base64.b64encode(image).decode("ascii")
+            original_width = original_height = 1024
+        traced = Image.new("RGBA", (original_width, original_height), "white")
+
+    traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+    width, height = traced.size
+    rgb = traced.convert("RGB")
+    quantized = rgb.quantize(
+        colors=32, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE,
+    )
+    palette = quantized.getpalette()
+    color_indexes = np.asarray(quantized, dtype=np.uint8)
+    alpha = np.asarray(traced.getchannel("A"), dtype=np.uint8)
+    paths = []
+    path_index = 0
+    colors = quantized.getcolors() or []
+    base_color_index = max(colors, default=(0, -1))[1] if bool(np.all(alpha >= 254)) else -1
+    if base_color_index >= 0:
+        red, green, blue = palette[base_color_index * 3:base_color_index * 3 + 3]
+        paths.append(
+            f'  <path id="region-0" class="vector-region" d="M0 0H{width}V{height}H0Z" '
+            f'fill="#{red:02x}{green:02x}{blue:02x}"/>'
+        )
+        path_index = 1
+    for count, color_index in sorted(colors, key=lambda entry: entry[1]):
+        if not count:
+            continue
+        if color_index == base_color_index:
+            continue
+        mask = np.where((color_indexes == color_index) & (alpha >= 16), 255, 0).astype(np.uint8)
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
+        if hierarchy is None:
+            continue
+        red, green, blue = palette[color_index * 3:color_index * 3 + 3]
+        fill = f"#{red:02x}{green:02x}{blue:02x}"
+        hierarchy = hierarchy[0]
+        for contour_index, contour in enumerate(contours):
+            if hierarchy[contour_index][3] != -1 or cv2.contourArea(contour) < 1:
+                continue
+            parts = [_svg_path(cv2.approxPolyDP(contour, 0.65, True))]
+            child_index = hierarchy[contour_index][2]
+            while child_index != -1:
+                parts.append(_svg_path(cv2.approxPolyDP(contours[child_index], 0.65, True)))
+                child_index = hierarchy[child_index][0]
+            path_data = "".join(part for part in parts if part)
+            if not path_data:
+                continue
+            visible_alpha = alpha[(color_indexes == color_index) & (alpha >= 16)]
+            opacity = float(visible_alpha.mean()) / 255 if visible_alpha.size else 1
+            opacity_attribute = f' fill-opacity="{opacity:.3f}"' if opacity < 0.999 else ""
+            paths.append(
+                f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
+                f'fill="{fill}"{opacity_attribute} fill-rule="evenodd"/>'
+            )
+            path_index += 1
+
+    path_markup = "\n".join(paths)
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<svg xmlns="http://www.w3.org/2000/svg" '
-        'xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" '
-        f'width="{width}px" height="{height}px" viewBox="0 0 {width} {height}">\n'
-        '  <title>AI generated image (embedded PNG)</title>\n'
-        f'  <image id="embedded-image" x="0" y="0" width="{width}" height="{height}" '
-        f'preserveAspectRatio="none" xlink:href="data:image/png;base64,{encoded}"/>\n'
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
+        f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
+        '  <title>AI generated image with editable color paths</title>\n'
+        '  <desc>Move the pointer over a color region to reveal its vector path.</desc>\n'
+        '  <style>\n'
+        '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; stroke: transparent; '
+        'stroke-width: 1.5; vector-effect: non-scaling-stroke; paint-order: stroke fill; transition: stroke .12s ease; }\n'
+        '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
+        '  </style>\n'
+        f'{path_markup}\n'
         '</svg>\n'
     ).encode("utf-8")
 

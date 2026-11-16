@@ -256,7 +256,7 @@ function applyTaskState(state) {
         const svgDownload = document.createElement("button");
         svgDownload.type = "button";
         svgDownload.textContent = "下载 SVG";
-        svgDownload.title = "SVG 容器会无损嵌入生成的 PNG，不会自动转换为可编辑路径";
+        svgDownload.title = "下载包含可编辑彩色路径的 SVG；在浏览器中悬停可高亮路径";
         svgDownload.addEventListener("click", () => downloadTextImageItem(item, "svg", svgDownload));
         card.querySelector(".card-actions").appendChild(svgDownload);
       }
