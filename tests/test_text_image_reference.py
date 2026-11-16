@@ -35,6 +35,23 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertNotIn(b'<image', svg)
         self.assertNotIn(b'data:image/', svg)
 
+    def test_generated_dxf_contains_layered_closed_paths(self):
+        output = io.BytesIO()
+        image = Image.new("RGB", (128, 128), "white")
+        for x in range(32, 96):
+            for y in range(32, 96):
+                image.putpixel((x, y), (210, 43, 43))
+        image.save(output, "PNG")
+
+        dxf = app_module._image_dxf(output.getvalue()).decode("ascii").replace("\r\n", "\n")
+
+        self.assertIn("$ACADVER\n1\nAC1009", dxf)
+        self.assertIn("0\nPOLYLINE\n", dxf)
+        self.assertIn("0\nVERTEX\n", dxf)
+        self.assertIn("0\nSEQEND\n", dxf)
+        self.assertIn("2\nCOLOR_", dxf)
+        self.assertTrue(dxf.endswith("0\nEOF\n"))
+
 
 class TextImageReferenceTests(unittest.TestCase):
     def setUp(self):
@@ -159,6 +176,13 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(svg_download.content, svg_response.content)
         self.assertEqual(svg_download.headers["content-type"], "image/svg+xml")
         self.assertIn("lingjie-image-1.svg", svg_download.headers["content-disposition"])
+        dxf_download = self.client.get(
+            f"/api/text-image/tasks/{task_id}/items/0/download/dxf", headers=headers,
+        )
+        self.assertEqual(dxf_download.status_code, 200)
+        self.assertEqual(dxf_download.headers["content-type"], "application/dxf")
+        self.assertIn(b"POLYLINE", dxf_download.content)
+        self.assertIn("lingjie-image-1.dxf", dxf_download.headers["content-disposition"])
         text_image.assert_not_called()
         self.assertEqual(edit_image.call_count, 1)
         reference_inputs = edit_image.call_args.args[0]

@@ -795,6 +795,80 @@ def _image_svg(image: bytes, size: str) -> bytes:
     ).encode("utf-8")
 
 
+def _image_dxf(image: bytes) -> bytes:
+    """Trace generated image color regions into layered AutoCAD R12 paths."""
+    with Image.open(io.BytesIO(image)) as source:
+        source.load()
+        traced = source.convert("RGBA")
+    traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+    width, height = traced.size
+    quantized = traced.convert("RGB").quantize(
+        colors=32, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE,
+    )
+    color_indexes = np.asarray(quantized, dtype=np.uint8)
+    alpha = np.asarray(traced.getchannel("A"), dtype=np.uint8)
+    scale = 100.0 / max(width, height)
+    entities: list[str] = []
+    used_layers: set[str] = set()
+    next_handle = 0x100
+
+    def new_handle() -> str:
+        nonlocal next_handle
+        handle = f"{next_handle:X}"
+        next_handle += 1
+        return handle
+
+    for count, color_index in sorted(quantized.getcolors() or [], key=lambda entry: entry[1]):
+        if not count:
+            continue
+        layer = f"COLOR_{color_index:02d}"
+        mask = np.where((color_indexes == color_index) & (alpha >= 16), 255, 0).astype(np.uint8)
+        contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_KCOS)
+        for contour in contours:
+            if abs(cv2.contourArea(contour)) < 1:
+                continue
+            points = cv2.approxPolyDP(contour, 0.65, True).reshape(-1, 2)
+            if len(points) < 3:
+                continue
+            vertices = "".join(
+                f"0\nVERTEX\n5\n{new_handle()}\n8\n{layer}\n"
+                f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n30\n0.0000\n70\n0\n"
+                for x, y in points
+            )
+            entities.append(
+                f"0\nPOLYLINE\n5\n{new_handle()}\n8\n{layer}\n66\n1\n"
+                "10\n0.0000\n20\n0.0000\n30\n0.0000\n70\n1\n"
+                f"{vertices}"
+                f"0\nSEQEND\n5\n{new_handle()}\n8\n{layer}\n"
+            )
+            used_layers.add(layer)
+    if not entities:
+        raise WorkflowError("TEXT_IMAGE_DXF_EMPTY", "当前图片没有可导出的颜色轮廓", 409)
+    layer_records = "".join(
+        f"0\nLAYER\n2\n{layer}\n70\n0\n62\n{(index % 7) + 1}\n6\nCONTINUOUS\n"
+        for index, layer in enumerate(sorted(used_layers))
+    )
+    document = (
+        "0\nSECTION\n2\nHEADER\n"
+        "9\n$ACADVER\n1\nAC1009\n"
+        "9\n$MEASUREMENT\n70\n1\n"
+        f"9\n$HANDSEED\n5\n{next_handle:X}\n"
+        "0\nENDSEC\n"
+        "0\nSECTION\n2\nTABLES\n"
+        "0\nTABLE\n2\nLTYPE\n70\n1\n"
+        "0\nLTYPE\n2\nCONTINUOUS\n70\n64\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n"
+        "0\nENDTAB\n"
+        f"0\nTABLE\n2\nLAYER\n70\n{len(used_layers)}\n"
+        f"{layer_records}"
+        "0\nENDTAB\n0\nENDSEC\n"
+        "0\nSECTION\n2\nBLOCKS\n0\nENDSEC\n"
+        "0\nSECTION\n2\nENTITIES\n"
+        + "".join(entities)
+        + "0\nENDSEC\n0\nEOF\n"
+    )
+    return document.replace("\n", "\r\n").encode("ascii")
+
+
 def _load_text_image_task(task_id: str, token: str | None) -> tuple[dict, int]:
     state, version = load_session(task_id, _require_token(token))
     if state.get("workflow") != "text-to-image" or state.get("status") not in TEXT_IMAGE_STATES:
@@ -1415,7 +1489,7 @@ def read_text_image_task(task_id: str, x_session_token: str | None = Header(defa
 def download_text_image_item(
     task_id: str,
     item_index: int,
-    file_type: Literal["png", "svg"],
+    file_type: Literal["png", "svg", "dxf"],
     x_session_token: str | None = Header(default=None),
 ):
     state, _ = _load_text_image_task(task_id, x_session_token)
@@ -1428,11 +1502,18 @@ def download_text_image_item(
     if not source_url:
         raise WorkflowError("IMAGE_FILE_MISSING", "PNG 文件不存在", 404)
     png = fetch_bytes(source_url, 30_000_000)
-    payload = png if file_type == "png" else _image_svg(
-        png, (state.get("model_settings") or {}).get("size", TEXT_IMAGE_SIZE),
-    )
+    if file_type == "png":
+        payload = png
+    elif file_type == "svg":
+        payload = _image_svg(
+            png, (state.get("model_settings") or {}).get("size", TEXT_IMAGE_SIZE),
+        )
+    else:
+        payload = _image_dxf(png)
     filename = f"lingjie-image-{item_index + 1}.{file_type}"
-    media_type = "image/png" if file_type == "png" else "image/svg+xml"
+    media_type = {
+        "png": "image/png", "svg": "image/svg+xml", "dxf": "application/dxf",
+    }[file_type]
     return Response(
         content=payload,
         media_type=media_type,

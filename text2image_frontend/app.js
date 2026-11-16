@@ -259,6 +259,12 @@ function applyTaskState(state) {
         svgDownload.title = "下载包含可编辑彩色路径的 SVG；在浏览器中悬停可高亮路径";
         svgDownload.addEventListener("click", () => downloadTextImageItem(item, "svg", svgDownload));
         card.querySelector(".card-actions").appendChild(svgDownload);
+        const dxfDownload = document.createElement("button");
+        dxfDownload.type = "button";
+        dxfDownload.textContent = "下载 DXF";
+        dxfDownload.title = "下载按颜色分层的闭合轮廓路径；DXF 不保留图片填充效果";
+        dxfDownload.addEventListener("click", () => downloadTextImageItem(item, "dxf", dxfDownload));
+        card.querySelector(".card-actions").appendChild(dxfDownload);
       }
     } else {
       const placeholder = document.createElement("div");
