@@ -35,6 +35,7 @@ from .similarity_engine import (
     image_geometric_similarity,
     process_file,
     subject_mask_iou,
+    validate_image_features,
 )
 from .similarity_store import (
     create_folder,
@@ -183,6 +184,11 @@ def _process_and_save_asset(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if processed_kind != kind:
         raise HTTPException(status_code=422, detail="文件类型识别不一致")
+    if kind == "image":
+        try:
+            validate_image_features(vector, metadata)
+        except SimilarityFileError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     asset_key = uuid.uuid4().hex
     safe_filename = _clean_name(filename)
     clean_relative = _clean_relative_path(relative_path, filename)
@@ -490,6 +496,8 @@ def reindex_library_images(
             try:
                 raw, _ = store.read(asset["_blob_ref"])
                 kind, _, vector, new_metadata = process_file(asset["original_name"], raw)
+                if kind == "image":
+                    validate_image_features(vector, new_metadata)
                 if kind != "image" or not update_asset_index(
                     library_id,
                     asset["id"],
@@ -555,6 +563,8 @@ def _rebuild_image_index(library_id: str, asset_id: str) -> dict:
     try:
         raw, _ = PrivateMaterialBlobStore().read(asset["_blob_ref"])
         kind, _, vector, metadata = process_file(asset["original_name"], raw)
+        if kind == "image":
+            validate_image_features(vector, metadata)
         if kind != "image" or not update_asset_index(
             library_id,
             asset_id,
@@ -840,9 +850,12 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
     outdated_images = 0
     for candidate in searchable_assets(library_id, kind):
         candidate_metadata = candidate.get("metadata") or {}
-        if kind == "image" and candidate_metadata.get("feature_version") != FEATURE_VERSION:
-            outdated_images += 1
-            continue
+        if kind == "image":
+            try:
+                validate_image_features(candidate["vector"], candidate_metadata)
+            except SimilarityFileError:
+                outdated_images += 1
+                continue
         if kind == "image":
             matches.append({
                 **candidate,

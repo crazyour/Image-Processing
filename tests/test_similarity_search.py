@@ -20,14 +20,17 @@ os.environ["ADMIN_USERNAME"] = "similarity-admin"
 os.environ["ADMIN_PASSWORD"] = "similarity-password"
 os.environ["ADMIN_NAME"] = "素材检索管理员"
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from app import app
-from vercel_app.similarity_api import _search_materials
+from vercel_app.similarity_api import _process_and_save_asset, _search_materials
 from vercel_app.similarity_engine import (
     FEATURE_VERSION,
+    SimilarityFileError,
     cosine_similarity,
     process_image,
     subject_mask_iou,
+    validate_image_features,
 )
 from vercel_app.similarity_store import _connection, _ensure_schema
 from vercel_app.interactive_segmentation import (
@@ -37,6 +40,14 @@ from vercel_app.interactive_segmentation import (
 
 
 class DualAlgorithmSearchUnitTest(unittest.TestCase):
+    def test_image_upload_rejects_incomplete_dual_algorithm_features(self) -> None:
+        with patch("vercel_app.similarity_api.process_file", return_value=(
+            "image", b"preview", [0.0], {"feature_version": FEATURE_VERSION},
+        )):
+            with self.assertRaisesRegex(HTTPException, "双算法特征生成不完整") as raised:
+                _process_and_save_asset("library", "folder", "image.png", "image.png", b"image")
+        self.assertEqual(raised.exception.status_code, 422)
+
     def test_one_search_returns_each_algorithm_top_ten_and_best(self) -> None:
         candidates = [
             {
@@ -59,6 +70,7 @@ class DualAlgorithmSearchUnitTest(unittest.TestCase):
             )),
             patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
             patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch("vercel_app.similarity_api.validate_image_features"),
             patch(
                 "vercel_app.similarity_api.subject_mask_iou",
                 side_effect=[1.0 - index / 100.0 for index in range(25)],
@@ -234,6 +246,7 @@ EOF
             )),
             patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
             patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch("vercel_app.similarity_api.validate_image_features"),
             patch(
                 "vercel_app.similarity_api.subject_mask_iou",
                 side_effect=[1.0 - index / 100.0 for index in range(25)],
@@ -757,12 +770,21 @@ class SubjectShapeFeatureTest(unittest.TestCase):
     def test_image_index_stores_features_for_both_algorithms(self) -> None:
         points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
         _, vector, metadata = process_image(self.polygon_image(points, color="orange"))
-        self.assertGreater(len(vector), 1000)
+        self.assertEqual(len(vector), 2057)
         self.assertEqual(metadata["feature_version"], "material-search-v9-dual-shape-iou-semantic-sift")
-        self.assertIn("normalised_subject_mask", metadata)
-        self.assertIn("semantic_vector", metadata)
-        self.assertIn("local_features", metadata)
-        self.assertIn("image_fingerprint", metadata)
+        self.assertEqual(len(metadata["semantic_vector"]), 1000)
+        self.assertEqual(metadata["normalised_subject_mask"]["size"], 96)
+        self.assertEqual(len(metadata["image_fingerprint"]), 64)
+        self.assertEqual(metadata["local_features"]["encoding"], "npz-base64-v1")
+        validate_image_features(vector, metadata)
+
+    def test_incomplete_dual_algorithm_features_are_rejected(self) -> None:
+        points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
+        _, vector, metadata = process_image(self.polygon_image(points, color="orange"))
+        incomplete = dict(metadata)
+        incomplete.pop("semantic_vector")
+        with self.assertRaisesRegex(SimilarityFileError, "双算法特征生成不完整"):
+            validate_image_features(vector, incomplete)
 
 
 class InteractiveSegmentationTransformTest(unittest.TestCase):

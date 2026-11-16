@@ -13,10 +13,16 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import psycopg
 from dotenv import load_dotenv
 from psycopg.rows import dict_row
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def database_url() -> str:
@@ -127,6 +133,18 @@ class ProductionClient:
                 time.sleep(attempt * 2)
         raise RuntimeError(last_error)
 
+    def download_asset(self, asset_id: str) -> bytes:
+        request = Request(
+            f"{self.deployment.rstrip('/')}/api/material-search/assets/{asset_id}/download",
+            headers={
+                "Cookie": f"lingjie_session={self.cookie}",
+                "X-Material-Library": self.library_id,
+                "X-Material-Token": self.library_token,
+            },
+        )
+        with urlopen(request, timeout=180) as response:
+            return response.read()
+
 
 def version_counts() -> dict[str, int]:
     with psycopg.connect(database_url(), row_factory=dict_row) as connection:
@@ -143,6 +161,58 @@ def version_counts() -> dict[str, int]:
     return {str(row["version"]): int(row["count"]) for row in rows}
 
 
+def rebuild_directly(
+    client: ProductionClient,
+    items: list[dict[str, Any]],
+    report_every: int,
+    workers: int,
+) -> tuple[int, list[dict[str, str]], float]:
+    """Recompute features locally while atomically updating production rows."""
+    from vercel_app.similarity_engine import process_file, validate_image_features
+
+    started = time.monotonic()
+    updated = 0
+    failures: list[dict[str, str]] = []
+
+    def compute(item: dict[str, Any]) -> tuple[list[float], dict[str, Any]]:
+        raw = client.download_asset(item["asset_id"])
+        kind, _, vector, metadata = process_file(str(item["file_name"]), raw)
+        if kind != "image":
+            raise RuntimeError("素材类型不是图片")
+        validate_image_features(vector, metadata)
+        return vector, metadata
+
+    with psycopg.connect(database_url(), row_factory=dict_row) as connection:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            pending = {executor.submit(compute, item): item for item in items}
+            for completed, future in enumerate(as_completed(pending), start=1):
+                item = pending[future]
+                try:
+                    vector, metadata = future.result()
+                    changed = connection.execute(
+                        "UPDATE material_assets SET vector_json = %s, metadata_json = %s WHERE id = %s",
+                        (
+                            json.dumps(vector, separators=(",", ":")),
+                            json.dumps(metadata, separators=(",", ":")),
+                            item["asset_id"],
+                        ),
+                    ).rowcount
+                    if changed != 1:
+                        raise RuntimeError("图片索引记录不存在")
+                    connection.commit()
+                    updated += 1
+                except Exception as exc:
+                    connection.rollback()
+                    failures.append({"asset_id": item["asset_id"], "error": str(exc)})
+                if completed % report_every == 0 or completed == len(items):
+                    print(
+                        f"PROGRESS {completed}/{len(items)} updated={updated} failed={len(failures)} "
+                        f"elapsed_seconds={time.monotonic() - started:.1f}",
+                        flush=True,
+                    )
+    return updated, failures, time.monotonic() - started
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--deployment", default="https://image-processing-tau.vercel.app")
@@ -154,6 +224,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=1, choices=range(1, 9))
     parser.add_argument("--report-every", type=int, default=500)
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--direct", action="store_true")
     args = parser.parse_args()
     if args.report_every < 1:
         parser.error("--report-every must be at least 1")
@@ -177,6 +248,18 @@ def main() -> int:
     }, ensure_ascii=False), flush=True)
     if args.plan_only:
         return 0
+
+    if args.direct:
+        updated, failures, elapsed = rebuild_directly(client, items, args.report_every, args.workers)
+        print(json.dumps({
+            "selected": len(items),
+            "updated": updated,
+            "failed": len(failures),
+            "failures": failures[:50],
+            "after": version_counts(),
+            "elapsed_seconds": round(elapsed, 1),
+        }, ensure_ascii=False), flush=True)
+        return 1 if failures else 0
 
     started = time.monotonic()
     updated = 0

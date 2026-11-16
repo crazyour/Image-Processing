@@ -472,19 +472,43 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
     if image.width < 2 or image.height < 2:
         raise SimilarityFileError("图片尺寸无效")
     shape_vector, shape_metadata = _shape_vector(image)
-    return (
-        _preview_png(image),
-        shape_vector,
-        {
-            "feature_version": FEATURE_VERSION,
-            "semantic_feature_schema": SEMANTIC_FEATURE_SCHEMA,
-            "semantic_model": SEMANTIC_MODEL_NAME,
-            "semantic_vector": _semantic_vector(image),
-            "image_fingerprint": _image_fingerprint(image),
-            "local_features": _local_features(image),
-            **shape_metadata,
-        },
+    metadata = {
+        "feature_version": FEATURE_VERSION,
+        "semantic_feature_schema": SEMANTIC_FEATURE_SCHEMA,
+        "semantic_model": SEMANTIC_MODEL_NAME,
+        "semantic_vector": _semantic_vector(image),
+        "image_fingerprint": _image_fingerprint(image),
+        "local_features": _local_features(image),
+        **shape_metadata,
+    }
+    validate_image_features(shape_vector, metadata)
+    return _preview_png(image), shape_vector, metadata
+
+
+def validate_image_features(vector: list[float], metadata: dict[str, Any]) -> None:
+    """Reject image indexes that cannot serve both production algorithms."""
+    mask = metadata.get("normalised_subject_mask") or {}
+    semantic = metadata.get("semantic_vector") or []
+    local = metadata.get("local_features") or {}
+    fingerprint = metadata.get("image_fingerprint")
+    valid = (
+        metadata.get("feature_version") == FEATURE_VERSION
+        and metadata.get("shape_feature_schema") == SHAPE_FEATURE_SCHEMA
+        and len(vector) == SHAPE_FEATURE_SIZE * SHAPE_FEATURE_SIZE * 2 + 9
+        and metadata.get("semantic_feature_schema") == SEMANTIC_FEATURE_SCHEMA
+        and len(semantic) == 1000
+        and isinstance(fingerprint, str)
+        and len(fingerprint) == 64
+        and mask.get("encoding") == "png-base64-v1"
+        and mask.get("size") == SUBJECT_MASK_SIZE
+        and bool(mask.get("data"))
+        and local.get("encoding") == "npz-base64-v1"
+        and isinstance(local.get("count"), int)
+        and local.get("count", -1) >= 0
+        and (local.get("count") == 0 or bool(local.get("data")))
     )
+    if not valid:
+        raise SimilarityFileError("图片双算法特征生成不完整，请重新上传或重建索引")
 
 
 def _dxf_pairs(raw: bytes) -> list[tuple[int, str]]:
