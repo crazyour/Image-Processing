@@ -728,9 +728,14 @@ def _image_svg(image: bytes, size: str) -> bytes:
 
     traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
     width, height = traced.size
-    rgb = traced.convert("RGB")
+    rgb_array = np.asarray(traced.convert("RGB"), dtype=np.uint8)
+    hsv = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2HSV)
+    hsv[:, :, 1] = np.clip(
+        hsv[:, :, 1].astype(np.float32) * 1.18, 0, 255,
+    ).astype(np.uint8)
+    rgb = Image.fromarray(cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB), "RGB")
     quantized = rgb.quantize(
-        colors=32, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE,
+        colors=64, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE,
     )
     palette = quantized.getpalette()
     color_indexes = np.asarray(quantized, dtype=np.uint8)
@@ -744,7 +749,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
         fill = f"#{red:02x}{green:02x}{blue:02x}"
         paths.append(
             f'  <path id="region-0" class="vector-region" d="M0 0H{width}V{height}H0Z" '
-            f'fill="{fill}" data-source-color="{fill}"/>'
+            f'fill="{fill}" stroke="{fill}" data-source-color="{fill}"/>'
         )
         path_index = 1
     for count, color_index in sorted(colors, reverse=True):
@@ -760,7 +765,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
         fill = f"#{red:02x}{green:02x}{blue:02x}"
         alpha_values = alpha[(color_indexes == color_index) & (alpha >= 16)]
         opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
-        opacity_attribute = f' fill-opacity="{opacity:.3f}"' if opacity < 0.995 else ""
+        opacity_attribute = f' opacity="{opacity:.3f}"' if opacity < 0.995 else ""
         hierarchy = hierarchy[0]
         for contour_index, contour in enumerate(contours):
             if hierarchy[contour_index][3] != -1 or cv2.contourArea(contour) < 1:
@@ -775,7 +780,8 @@ def _image_svg(image: bytes, size: str) -> bytes:
                 continue
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
-                f'fill="{fill}"{opacity_attribute} data-source-color="{fill}" fill-rule="evenodd"/>'
+                f'fill="{fill}" stroke="{fill}"{opacity_attribute} '
+                f'data-source-color="{fill}" fill-rule="evenodd"/>'
             )
             path_index += 1
 
@@ -787,8 +793,9 @@ def _image_svg(image: bytes, size: str) -> bytes:
         '  <title>AI generated image rebuilt as vector color regions</title>\n'
         '  <desc>Solid-color paths form the image without an embedded raster.</desc>\n'
         '  <style>\n'
-        '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; stroke: none; '
-        'stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: stroke .12s ease; }\n'
+        '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
+        'stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; '
+        'vector-effect: non-scaling-stroke; transition: stroke .12s ease; }\n'
         '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
         '  </style>\n'
         f'{path_markup}\n'
