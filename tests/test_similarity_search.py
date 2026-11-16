@@ -102,10 +102,64 @@ class DualAlgorithmSearchUnitTest(unittest.TestCase):
         script = (root / "app.js").read_text(encoding="utf-8")
         for target in ("shape-best-list", "shape-results-list", "multi-best-list", "multi-results-list"):
             self.assertIn(f'id="{target}"', page)
-        self.assertIn("result.algorithms.shape_iou", script)
-        self.assertIn("result.algorithms.multi_feature", script)
+        self.assertIn("result.algorithms?.[algorithm]", script)
         self.assertIn("Shape IoU 前 10 名", page)
         self.assertIn("多重算法前 10 名", page)
+        self.assertIn('id="shape-search-button"', page)
+        self.assertIn('id="multi-search-button"', page)
+        self.assertIn('id="subject-crop-canvas"', page)
+        self.assertIn('search("shape_iou")', script)
+        self.assertIn('search("multi_feature", file)', script)
+        self.assertIn('search_algorithm: algorithm', script)
+        self.assertIn('`${baseName}-subject.png`', script)
+
+    def test_each_button_runs_only_its_selected_algorithm(self) -> None:
+        candidate = {
+            "folder_id": "folder", "folder_name": "folder", "asset_id": "asset",
+            "original_name": "image.png", "preview_url": "preview", "vector": [1.0],
+            "metadata": {"feature_version": FEATURE_VERSION, "semantic_vector": [1.0]},
+        }
+        folder = {"previews": [], "assets": [], "zip_url": None}
+        processed = ("image", b"preview", [1.0], {
+            "feature_version": FEATURE_VERSION, "semantic_vector": [1.0],
+        })
+        with (
+            patch("vercel_app.similarity_api.process_file", return_value=processed),
+            patch("vercel_app.similarity_api.searchable_assets", return_value=[candidate]),
+            patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch("vercel_app.similarity_api.validate_image_features"),
+            patch("vercel_app.similarity_api.subject_mask_iou", return_value=0.9) as iou,
+            patch("vercel_app.similarity_api.cosine_similarity") as cosine,
+            patch("vercel_app.similarity_api.image_geometric_similarity") as geometric,
+        ):
+            shape = _search_materials(
+                "library", "query.png", b"query", search_algorithm="shape_iou",
+            )
+        self.assertEqual(set(shape["algorithms"]), {"shape_iou"})
+        iou.assert_called_once()
+        cosine.assert_not_called()
+        geometric.assert_not_called()
+
+        verification = {
+            "score": 0.8, "label": "高度可信", "inliers": 12,
+            "inlier_ratio": 0.5, "coverage": 0.1, "method": "sift-ransac",
+        }
+        with (
+            patch("vercel_app.similarity_api.process_file", return_value=processed),
+            patch("vercel_app.similarity_api.searchable_assets", return_value=[candidate]),
+            patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch("vercel_app.similarity_api.validate_image_features"),
+            patch("vercel_app.similarity_api.subject_mask_iou") as iou,
+            patch("vercel_app.similarity_api.cosine_similarity", side_effect=[0.9, 0.8]) as cosine,
+            patch("vercel_app.similarity_api.image_geometric_similarity", return_value=verification) as geometric,
+        ):
+            multi = _search_materials(
+                "library", "query.png", b"query", search_algorithm="multi_feature",
+            )
+        self.assertEqual(set(multi["algorithms"]), {"multi_feature"})
+        iou.assert_not_called()
+        self.assertEqual(cosine.call_count, 2)
+        geometric.assert_called_once()
 
 
 class SimilaritySearchEndToEndTest(unittest.TestCase):
@@ -283,8 +337,7 @@ EOF
         self.assertIn('id="shape-results-list"', page)
         self.assertIn('id="multi-best-list"', page)
         self.assertIn('id="multi-results-list"', page)
-        self.assertIn("result.algorithms.shape_iou", script)
-        self.assertIn("result.algorithms.multi_feature", script)
+        self.assertIn("result.algorithms?.[algorithm]", script)
         self.assertIn("Shape IoU 第 1 名", script)
         self.assertIn("Shape IoU 前 10 名", page)
         self.assertIn("多重算法前 10 名", page)

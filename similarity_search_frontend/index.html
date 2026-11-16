@@ -78,9 +78,9 @@
       <article class="card search-card">
         <div class="search-query-visual">
           <div id="search-intro" class="search-intro">
-            <p class="eyebrow">DUAL ALGORITHM IMAGE SEARCH</p>
+            <p class="eyebrow">TWO INDEPENDENT IMAGE SEARCHES</p>
             <h2>上传一张查询图片</h2>
-            <p>点击一次同时运行 Shape IoU 与“语义 + 形状 + SIFT/RANSAC”多重算法；两套算法分别返回前 10 名和最佳匹配，查询图片不会保存。</p>
+            <p>Shape IoU 直接使用整张图片；历史多重算法会先让你截图框选需要匹配的主体。两套算法独立执行，查询图片不会保存。</p>
           </div>
           <figure id="selected-query-preview" class="selected-query-preview" hidden>
             <img id="selected-query-image" alt="已上传的查询图片">
@@ -92,7 +92,10 @@
           <span>＋</span><strong id="query-label">点击选择或拖入一张图片</strong>
           <small>支持 PNG / JPG / WebP，大文件将自动分片上传</small>
         </label>
-        <button id="search-button" class="primary search-action" type="button" disabled>开始查找</button>
+        <div class="search-actions">
+          <button id="shape-search-button" class="primary" type="button" disabled>Shape IoU · 直接匹配</button>
+          <button id="multi-search-button" class="secondary-search" type="button" disabled>历史多重算法 · 截图主体</button>
+        </div>
         <p id="search-message" class="message" role="status"></p>
       </article>
 
@@ -102,7 +105,7 @@
           <div id="query-preview" class="query-preview"></div>
         </header>
         <div id="dual-results" class="dual-results" hidden>
-          <section class="algorithm-result-group" aria-labelledby="shape-algorithm-title">
+          <section id="shape-result-group" class="algorithm-result-group" aria-labelledby="shape-algorithm-title">
             <header class="algorithm-head"><p class="eyebrow">ALGORITHM 01</p><h3 id="shape-algorithm-title">Shape IoU</h3><p>只按保留内部镂空的主体 Mask IoU 独立排序。</p></header>
             <section class="search-stage second-search" aria-labelledby="shape-best-title">
               <header class="stage-head"><div><span class="stage-number">BEST</span><div><h3 id="shape-best-title">Shape IoU 最佳匹配</h3><p>单独展示本算法得分第 1 名。</p></div></div></header>
@@ -113,7 +116,7 @@
               <div id="shape-results-list" class="results-list"></div>
             </section>
           </section>
-          <section class="algorithm-result-group" aria-labelledby="multi-algorithm-title">
+          <section id="multi-result-group" class="algorithm-result-group" aria-labelledby="multi-algorithm-title">
             <header class="algorithm-head"><p class="eyebrow">ALGORITHM 02</p><h3 id="multi-algorithm-title">历史多重算法</h3><p>语义 45% + 形状 55% 独立召回排序，再以 SIFT/RANSAC 复核最佳项。</p></header>
             <section class="search-stage second-search" aria-labelledby="multi-best-title">
               <header class="stage-head"><div><span class="stage-number">BEST</span><div><h3 id="multi-best-title">多重算法最佳匹配</h3><p>从本算法 Top 10 中按 SIFT/RANSAC 几何得分选出。</p></div></div></header>
@@ -151,6 +154,15 @@
     </section>
   </main>
 
+  <dialog id="subject-crop-dialog" class="crop-dialog">
+    <div class="crop-shell">
+      <header><div><span>历史多重算法</span><h2>截图框选需要匹配的主体</h2></div><button id="crop-close" type="button" aria-label="关闭">×</button></header>
+      <p>在图片上拖动矩形框，只保留框内主体进行“语义 + 形状 + SIFT/RANSAC”匹配。</p>
+      <div class="crop-canvas-wrap"><canvas id="subject-crop-canvas"></canvas></div>
+      <footer><button id="crop-reset" class="ghost" type="button">重置选区</button><button id="crop-confirm" class="primary" type="button">使用选中主体匹配</button></footer>
+    </div>
+  </dialog>
+
   <dialog id="folder-dialog">
     <div class="dialog-shell">
       <header><div><span>素材文件夹</span><h2 id="dialog-title"></h2></div><button id="dialog-close" type="button" aria-label="关闭">×</button></header>
@@ -160,6 +172,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=29" defer></script>
+  <script src="/similarity-search-static/app.js?v=30" defer></script>
 </body>
 </html>

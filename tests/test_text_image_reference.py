@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import io
 import os
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -19,7 +21,7 @@ def sample_png(color: tuple[int, int, int] = (80, 120, 160)) -> bytes:
 
 
 class ImageSvgTracingTests(unittest.TestCase):
-    def test_generated_svg_contains_interactive_paths_instead_of_bitmap(self):
+    def test_generated_svg_preserves_bitmap_under_interactive_paths(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), "white")
         for x in range(32, 96):
@@ -32,10 +34,14 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertIn(b'<path id="region-0" class="vector-region"', svg)
         self.assertIn(b'.vector-region:hover', svg)
         self.assertIn(b'viewBox="0 0 128 128"', svg)
-        self.assertNotIn(b'<image', svg)
-        self.assertNotIn(b'data:image/', svg)
+        self.assertIn(b'<image id="source-image"', svg)
+        self.assertIn(b'data:image/png;base64,', svg)
+        self.assertIn(b'fill="transparent"', svg)
+        encoded = re.search(rb'data:image/png;base64,([^"\s]+)', svg)
+        self.assertIsNotNone(encoded)
+        self.assertEqual(base64.b64decode(encoded.group(1)), output.getvalue())
 
-    def test_generated_dxf_contains_layered_closed_paths(self):
+    def test_generated_dxf_contains_only_the_closed_outer_outline(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), "white")
         for x in range(32, 96):
@@ -49,8 +55,28 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertIn("0\nPOLYLINE\n", dxf)
         self.assertIn("0\nVERTEX\n", dxf)
         self.assertIn("0\nSEQEND\n", dxf)
-        self.assertIn("2\nCOLOR_", dxf)
+        self.assertEqual(dxf.count("0\nPOLYLINE\n"), 1)
+        self.assertIn("2\nOUTLINE\n", dxf)
+        self.assertNotIn("COLOR_", dxf)
         self.assertTrue(dxf.endswith("0\nEOF\n"))
+
+    def test_generated_dxf_uses_only_the_largest_disconnected_subject(self):
+        output = io.BytesIO()
+        image = Image.new("RGB", (160, 120), "white")
+        for x in range(20, 100):
+            for y in range(20, 100):
+                image.putpixel((x, y), (20, 20, 20))
+        for x in range(125, 140):
+            for y in range(40, 55):
+                image.putpixel((x, y), (20, 20, 20))
+        image.save(output, "PNG")
+
+        dxf = app_module._image_dxf(output.getvalue()).decode("ascii").replace("\r\n", "\n")
+
+        self.assertEqual(dxf.count("0\nPOLYLINE\n"), 1)
+        x_coordinates = [float(value) for value in re.findall(r"0\nVERTEX\n.*?10\n([0-9.]+)\n", dxf, re.S)]
+        self.assertTrue(x_coordinates)
+        self.assertLess(max(x_coordinates), 70.0)
 
 
 class TextImageReferenceTests(unittest.TestCase):
@@ -159,8 +185,9 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertIn(b'version="1.1"', svg_response.content)
         self.assertIn(b'<path id="region-0" class="vector-region"', svg_response.content)
         self.assertIn(b'.vector-region:hover', svg_response.content)
-        self.assertNotIn(b'<image', svg_response.content)
-        self.assertNotIn(b'data:image/', svg_response.content)
+        self.assertIn(b'<image id="source-image"', svg_response.content)
+        self.assertIn(b'data:image/png;base64,', svg_response.content)
+        self.assertIn(b'fill="transparent"', svg_response.content)
         png_download = self.client.get(
             f"/api/text-image/tasks/{task_id}/items/0/download/png", headers=headers,
         )
@@ -182,6 +209,8 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(dxf_download.status_code, 200)
         self.assertEqual(dxf_download.headers["content-type"], "application/dxf")
         self.assertIn(b"POLYLINE", dxf_download.content)
+        self.assertIn(b"OUTLINE", dxf_download.content)
+        self.assertNotIn(b"COLOR_", dxf_download.content)
         self.assertIn("lingjie-image-1.dxf", dxf_download.headers["content-disposition"])
         text_image.assert_not_called()
         self.assertEqual(edit_image.call_count, 1)

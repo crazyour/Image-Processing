@@ -712,12 +712,17 @@ def _svg_path(points: np.ndarray) -> str:
 
 
 def _image_svg(image: bytes, size: str) -> bytes:
-    """Trace a generated raster image into interactive, editable color paths."""
+    """Keep the generated raster intact and overlay interactive vector paths."""
     try:
         with Image.open(io.BytesIO(image)) as source:
             source.load()
             original_width, original_height = source.size
             traced = source.convert("RGBA")
+            image_format = (source.format or "PNG").upper()
+        image_mime = {
+            "JPEG": "image/jpeg", "JPG": "image/jpeg", "WEBP": "image/webp",
+        }.get(image_format, "image/png")
+        embedded_image = image
     except (OSError, ValueError):
         try:
             width_text, height_text = size.lower().split("x", 1)
@@ -725,6 +730,10 @@ def _image_svg(image: bytes, size: str) -> bytes:
         except (AttributeError, TypeError, ValueError):
             original_width = original_height = 1024
         traced = Image.new("RGBA", (original_width, original_height), "white")
+        fallback = io.BytesIO()
+        traced.save(fallback, "PNG")
+        image_mime = "image/png"
+        embedded_image = fallback.getvalue()
 
     traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
     width, height = traced.size
@@ -740,10 +749,9 @@ def _image_svg(image: bytes, size: str) -> bytes:
     colors = quantized.getcolors() or []
     base_color_index = max(colors, default=(0, -1))[1] if bool(np.all(alpha >= 254)) else -1
     if base_color_index >= 0:
-        red, green, blue = palette[base_color_index * 3:base_color_index * 3 + 3]
         paths.append(
             f'  <path id="region-0" class="vector-region" d="M0 0H{width}V{height}H0Z" '
-            f'fill="#{red:02x}{green:02x}{blue:02x}"/>'
+            'fill="transparent"/>'
         )
         path_index = 1
     for count, color_index in sorted(colors, key=lambda entry: entry[1]):
@@ -769,47 +777,70 @@ def _image_svg(image: bytes, size: str) -> bytes:
             path_data = "".join(part for part in parts if part)
             if not path_data:
                 continue
-            visible_alpha = alpha[(color_indexes == color_index) & (alpha >= 16)]
-            opacity = float(visible_alpha.mean()) / 255 if visible_alpha.size else 1
-            opacity_attribute = f' fill-opacity="{opacity:.3f}"' if opacity < 0.999 else ""
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
-                f'fill="{fill}"{opacity_attribute} fill-rule="evenodd"/>'
+                f'fill="transparent" data-source-color="{fill}" fill-rule="evenodd"/>'
             )
             path_index += 1
 
     path_markup = "\n".join(paths)
+    image_data = base64.b64encode(embedded_image).decode("ascii")
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
         f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
-        '  <title>AI generated image with editable color paths</title>\n'
-        '  <desc>Move the pointer over a color region to reveal its vector path.</desc>\n'
+        '  <title>AI generated image with interactive vector paths</title>\n'
+        '  <desc>The original raster image is preserved. Move the pointer over it to reveal vector paths.</desc>\n'
         '  <style>\n'
-        '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; stroke: transparent; '
-        'stroke-width: 1.5; vector-effect: non-scaling-stroke; paint-order: stroke fill; transition: stroke .12s ease; }\n'
+        '    .vector-region { cursor: crosshair; pointer-events: all; stroke: transparent; '
+        'stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: stroke .12s ease; }\n'
         '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
         '  </style>\n'
+        f'  <image id="source-image" width="{width}" height="{height}" preserveAspectRatio="none" '
+        f'href="data:{image_mime};base64,{image_data}"/>\n'
         f'{path_markup}\n'
         '</svg>\n'
     ).encode("utf-8")
 
 
+def _image_outer_mask(traced: Image.Image) -> np.ndarray:
+    rgba = np.asarray(traced.convert("RGBA"), dtype=np.uint8)
+    alpha = rgba[:, :, 3]
+    alpha_ratio = float(np.mean(alpha >= 16))
+    if alpha_ratio < 0.995:
+        foreground = np.where(alpha >= 16, 255, 0).astype(np.uint8)
+    else:
+        rgb = rgba[:, :, :3]
+        height, width = rgb.shape[:2]
+        border = max(1, min(height, width) // 40)
+        samples = np.concatenate([
+            rgb[:border].reshape(-1, 3), rgb[-border:].reshape(-1, 3),
+            rgb[:, :border].reshape(-1, 3), rgb[:, -border:].reshape(-1, 3),
+        ])
+        background = np.median(samples.astype(np.float32), axis=0)
+        distance = np.sqrt(np.mean((rgb.astype(np.float32) - background) ** 2, axis=2))
+        distance_u8 = np.clip(distance, 0, 255).astype(np.uint8)
+        threshold, _ = cv2.threshold(distance_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        foreground = np.where(distance_u8 > max(8, threshold), 255, 0).astype(np.uint8)
+    kernel_size = max(3, (min(foreground.shape) // 180) * 2 + 1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel, iterations=2)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(foreground, connectivity=8)
+    if count <= 1:
+        return np.full(foreground.shape, 255, dtype=np.uint8)
+    largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    return np.where(labels == largest, 255, 0).astype(np.uint8)
+
+
 def _image_dxf(image: bytes) -> bytes:
-    """Trace generated image color regions into layered AutoCAD R12 paths."""
+    """Trace only the generated image subject's largest external outline."""
     with Image.open(io.BytesIO(image)) as source:
         source.load()
         traced = source.convert("RGBA")
     traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
     width, height = traced.size
-    quantized = traced.convert("RGB").quantize(
-        colors=32, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE,
-    )
-    color_indexes = np.asarray(quantized, dtype=np.uint8)
-    alpha = np.asarray(traced.getchannel("A"), dtype=np.uint8)
     scale = 100.0 / max(width, height)
     entities: list[str] = []
-    used_layers: set[str] = set()
     next_handle = 0x100
 
     def new_handle() -> str:
@@ -818,36 +849,25 @@ def _image_dxf(image: bytes) -> bytes:
         next_handle += 1
         return handle
 
-    for count, color_index in sorted(quantized.getcolors() or [], key=lambda entry: entry[1]):
-        if not count:
-            continue
-        layer = f"COLOR_{color_index:02d}"
-        mask = np.where((color_indexes == color_index) & (alpha >= 16), 255, 0).astype(np.uint8)
-        contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_KCOS)
-        for contour in contours:
-            if abs(cv2.contourArea(contour)) < 1:
-                continue
-            points = cv2.approxPolyDP(contour, 0.65, True).reshape(-1, 2)
-            if len(points) < 3:
-                continue
+    mask = _image_outer_mask(traced)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
+    contour = max(contours, key=cv2.contourArea, default=None)
+    if contour is not None and cv2.contourArea(contour) >= 1:
+        points = cv2.approxPolyDP(contour, 0.65, True).reshape(-1, 2)
+        if len(points) >= 3:
             vertices = "".join(
-                f"0\nVERTEX\n5\n{new_handle()}\n8\n{layer}\n"
+                f"0\nVERTEX\n5\n{new_handle()}\n8\nOUTLINE\n"
                 f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n30\n0.0000\n70\n0\n"
                 for x, y in points
             )
             entities.append(
-                f"0\nPOLYLINE\n5\n{new_handle()}\n8\n{layer}\n66\n1\n"
+                f"0\nPOLYLINE\n5\n{new_handle()}\n8\nOUTLINE\n66\n1\n"
                 "10\n0.0000\n20\n0.0000\n30\n0.0000\n70\n1\n"
                 f"{vertices}"
-                f"0\nSEQEND\n5\n{new_handle()}\n8\n{layer}\n"
+                f"0\nSEQEND\n5\n{new_handle()}\n8\nOUTLINE\n"
             )
-            used_layers.add(layer)
     if not entities:
-        raise WorkflowError("TEXT_IMAGE_DXF_EMPTY", "当前图片没有可导出的颜色轮廓", 409)
-    layer_records = "".join(
-        f"0\nLAYER\n2\n{layer}\n70\n0\n62\n{(index % 7) + 1}\n6\nCONTINUOUS\n"
-        for index, layer in enumerate(sorted(used_layers))
-    )
+        raise WorkflowError("TEXT_IMAGE_DXF_EMPTY", "当前图片没有可导出的最外层轮廓", 409)
     document = (
         "0\nSECTION\n2\nHEADER\n"
         "9\n$ACADVER\n1\nAC1009\n"
@@ -858,8 +878,8 @@ def _image_dxf(image: bytes) -> bytes:
         "0\nTABLE\n2\nLTYPE\n70\n1\n"
         "0\nLTYPE\n2\nCONTINUOUS\n70\n64\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n"
         "0\nENDTAB\n"
-        f"0\nTABLE\n2\nLAYER\n70\n{len(used_layers)}\n"
-        f"{layer_records}"
+        "0\nTABLE\n2\nLAYER\n70\n1\n"
+        "0\nLAYER\n2\nOUTLINE\n70\n0\n62\n7\n6\nCONTINUOUS\n"
         "0\nENDTAB\n0\nENDSEC\n"
         "0\nSECTION\n2\nBLOCKS\n0\nENDSEC\n"
         "0\nSECTION\n2\nENTITIES\n"

@@ -22,6 +22,7 @@ let previewPaused = false;
 const previewQueue = [];
 const previewPending = new WeakSet();
 const previewControllers = new Set();
+const cropState = { image: null, rect: null, start: null, dragging: false };
 
 function bytes(value) {
   if (value < 1024) return `${value} B`;
@@ -538,36 +539,114 @@ function activateResultCards(root) {
   root.querySelectorAll("button[data-zip]").forEach(button => button.addEventListener("click", () => downloadProtected(button.dataset.zip, button.dataset.name)));
 }
 
-async function search() {
-  if (!state.queryFile) return;
-  const button = $("#search-button");
-  button.disabled = true;
+function cropPoint(event) {
+  const canvas = $("#subject-crop-canvas");
+  const bounds = canvas.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(canvas.width, (event.clientX - bounds.left) * canvas.width / bounds.width)),
+    y: Math.max(0, Math.min(canvas.height, (event.clientY - bounds.top) * canvas.height / bounds.height)),
+  };
+}
+
+function drawCropSelection() {
+  const canvas = $("#subject-crop-canvas");
+  const context = canvas.getContext("2d");
+  if (!cropState.image) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(cropState.image, 0, 0, canvas.width, canvas.height);
+  context.fillStyle = "rgba(8, 18, 14, .58)";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  if (cropState.rect) {
+    const { x, y, width, height } = cropState.rect;
+    context.save();
+    context.beginPath();
+    context.rect(x, y, width, height);
+    context.clip();
+    context.drawImage(cropState.image, 0, 0, canvas.width, canvas.height);
+    context.restore();
+    context.strokeStyle = "#d8e7a5";
+    context.lineWidth = Math.max(2, canvas.width / 500);
+    context.setLineDash([10, 6]);
+    context.strokeRect(x, y, width, height);
+  }
+  $("#crop-confirm").disabled = !cropState.rect || cropState.rect.width < 8 || cropState.rect.height < 8;
+}
+
+function openSubjectCrop() {
+  if (!state.queryFile || !state.queryPreviewUrl) return;
+  const image = new Image();
+  image.onload = () => {
+    const canvas = $("#subject-crop-canvas");
+    const scale = Math.min(1, 1400 / image.naturalWidth, 1000 / image.naturalHeight);
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    cropState.image = image;
+    cropState.rect = null;
+    drawCropSelection();
+    $("#subject-crop-dialog").showModal();
+  };
+  image.src = state.queryPreviewUrl;
+}
+
+async function selectedSubjectFile() {
+  const canvas = $("#subject-crop-canvas");
+  const selection = cropState.rect;
+  if (!selection || !state.queryFile) throw new Error("请先拖动矩形框选需要匹配的主体");
+  const bitmap = await createImageBitmap(state.queryFile);
+  const scaleX = bitmap.width / canvas.width;
+  const scaleY = bitmap.height / canvas.height;
+  const sourceX = Math.max(0, Math.round(selection.x * scaleX));
+  const sourceY = Math.max(0, Math.round(selection.y * scaleY));
+  const sourceWidth = Math.min(bitmap.width - sourceX, Math.max(1, Math.round(selection.width * scaleX)));
+  const sourceHeight = Math.min(bitmap.height - sourceY, Math.max(1, Math.round(selection.height * scaleY)));
+  const output = document.createElement("canvas");
+  output.width = sourceWidth;
+  output.height = sourceHeight;
+  output.getContext("2d").drawImage(
+    bitmap, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight,
+  );
+  bitmap.close();
+  const blob = await new Promise((resolve, reject) => output.toBlob(
+    value => value ? resolve(value) : reject(new Error("主体截图生成失败")), "image/png",
+  ));
+  const baseName = state.queryFile.name.replace(/\.[^.]+$/, "") || "query";
+  return new File([blob], `${baseName}-subject.png`, { type: "image/png" });
+}
+
+async function search(algorithm, queryFile = state.queryFile) {
+  if (!queryFile) return;
+  const shapeButton = $("#shape-search-button");
+  const multiButton = $("#multi-search-button");
+  shapeButton.disabled = true;
+  multiButton.disabled = true;
   setMessage("#search-message", "1/3 正在准备查询图片…");
   pausePreviewLoading();
   try {
-    const queryFile = state.queryFile;
     setMessage("#search-message", "2/3 正在上传查询图并匹配本地向量库…");
     const currentUploadId = uploadId();
     const response = await uploadFileInChunks(
       queryFile,
       `/api/material-search/search/uploads/${currentUploadId}/chunks`,
       `/api/material-search/search/uploads/${currentUploadId}/complete`,
-      { relative_path: queryFile.name },
+      { relative_path: queryFile.name, search_algorithm: algorithm },
     );
     setMessage("#search-message", "3/3 匹配完成，正在整理结果…");
     const result = await response.json();
     $("#search-output").hidden = false;
-    const dualAlgorithms = result.kind === "image" && result.algorithms;
-    $("#results-title").textContent = dualAlgorithms ? "图片双算法检索结果" : `${labels[result.kind]}检索结果`;
+    const selectedAlgorithm = result.kind === "image" ? result.algorithms?.[algorithm] : null;
+    $("#results-title").textContent = algorithm === "shape_iou" ? "Shape IoU 检索结果" : "历史多重算法检索结果";
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
-    $("#dual-results").hidden = !dualAlgorithms;
-    $("#legacy-results").hidden = Boolean(dualAlgorithms);
-    if (dualAlgorithms) {
-      const shape = result.algorithms.shape_iou;
-      const multi = result.algorithms.multi_feature;
+    $("#dual-results").hidden = !selectedAlgorithm;
+    $("#legacy-results").hidden = Boolean(selectedAlgorithm);
+    $("#shape-result-group").hidden = algorithm !== "shape_iou";
+    $("#multi-result-group").hidden = algorithm !== "multi_feature";
+    if (algorithm === "shape_iou" && selectedAlgorithm) {
+      const shape = selectedAlgorithm;
       renderAlgorithmResults("#shape-results-list", shape, { scoreLabel: "Shape IoU" });
       $("#shape-best-list").innerHTML = shape.best_match
         ? resultCard(shape.best_match, { best: true, scoreLabel: "Shape IoU", bestLabel: "Shape IoU 第 1 名" }) : "";
+    } else if (algorithm === "multi_feature" && selectedAlgorithm) {
+      const multi = selectedAlgorithm;
       renderAlgorithmResults("#multi-results-list", multi, { scoreLabel: "融合得分" });
       $("#multi-best-list").innerHTML = multi.best_match
         ? resultCard(multi.best_match, { best: true, scoreLabel: "SIFT/RANSAC", bestLabel: "多重算法最佳" }) : "";
@@ -579,13 +658,16 @@ async function search() {
       setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧索引图片，请联系管理员执行受控特征迁移。`, "error");
     } else {
       const upgraded = result.reindexed_images ? `已自动升级 ${result.reindexed_images} 张旧图片索引。` : "";
-      setMessage("#search-message", dualAlgorithms ? `${upgraded}两套算法均已完成：各自展示最佳匹配与前 10 名。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
+      const label = algorithm === "shape_iou" ? "Shape IoU" : "历史多重算法";
+      setMessage("#search-message", `${upgraded}${label}已完成：展示最佳匹配与前 10 名。`, "success");
     }
   } catch (error) {
     setMessage("#search-message", error.message, "error");
   } finally {
     resumePreviewLoading();
-    button.disabled = false;
+    const enabled = Boolean(state.queryFile);
+    shapeButton.disabled = !enabled;
+    multiButton.disabled = !enabled;
   }
 }
 
@@ -610,14 +692,53 @@ $("#query-input").addEventListener("change", event => {
   state.queryFile = valid ? file : null;
   updateQueryPreview(valid ? file : null);
   $("#query-label").textContent = file ? `${file.name} · ${bytes(file.size)}` : "点击选择或拖入一张图片";
-  $("#search-button").disabled = !valid;
+  $("#shape-search-button").disabled = !valid;
+  $("#multi-search-button").disabled = !valid;
   if (!file) {
     setMessage("#search-message", "");
     return;
   }
   setMessage("#search-message", valid ? "查询图片已就绪。" : "仅支持 PNG、JPG、JPEG 或 WebP 图片。", valid ? "success" : "error");
 });
-$("#search-button").addEventListener("click", search);
+$("#shape-search-button").addEventListener("click", () => search("shape_iou"));
+$("#multi-search-button").addEventListener("click", openSubjectCrop);
+$("#crop-close").addEventListener("click", () => $("#subject-crop-dialog").close());
+$("#crop-reset").addEventListener("click", () => { cropState.rect = null; drawCropSelection(); });
+$("#crop-confirm").addEventListener("click", async () => {
+  const button = $("#crop-confirm");
+  button.disabled = true;
+  try {
+    const file = await selectedSubjectFile();
+    $("#subject-crop-dialog").close();
+    await search("multi_feature", file);
+  } catch (error) {
+    setMessage("#search-message", error.message, "error");
+    button.disabled = false;
+  }
+});
+$("#subject-crop-canvas").addEventListener("pointerdown", event => {
+  cropState.dragging = true;
+  cropState.start = cropPoint(event);
+  cropState.rect = { x: cropState.start.x, y: cropState.start.y, width: 0, height: 0 };
+  event.currentTarget.setPointerCapture(event.pointerId);
+  drawCropSelection();
+});
+$("#subject-crop-canvas").addEventListener("pointermove", event => {
+  if (!cropState.dragging) return;
+  const point = cropPoint(event);
+  cropState.rect = {
+    x: Math.min(cropState.start.x, point.x),
+    y: Math.min(cropState.start.y, point.y),
+    width: Math.abs(point.x - cropState.start.x),
+    height: Math.abs(point.y - cropState.start.y),
+  };
+  drawCropSelection();
+});
+$("#subject-crop-canvas").addEventListener("pointerup", event => {
+  cropState.dragging = false;
+  event.currentTarget.releasePointerCapture(event.pointerId);
+  drawCropSelection();
+});
 $("#dialog-close").addEventListener("click", () => $("#folder-dialog").close());
 $("#dialog-download").addEventListener("click", () => {
   if (state.activeFolder?.zip_url) downloadProtected(state.activeFolder.zip_url, `${state.activeFolder.name}.zip`);

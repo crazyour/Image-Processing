@@ -85,6 +85,7 @@ class ChunkCompleteRequest(BaseModel):
     relative_path: str = Field(default="", max_length=1000)
     chunk_count: int = Field(ge=1)
     file_size: int | None = Field(default=None, ge=1)
+    search_algorithm: Literal["shape_iou", "multi_feature", "dual"] = "dual"
 
 
 class SegmentationPoint(BaseModel):
@@ -776,6 +777,7 @@ def discard_interactive_segmentation(
 @router.post("/search")
 async def search(
     file: UploadFile = File(...),
+    search_algorithm: Literal["shape_iou", "multi_feature", "dual"] = Form(default="dual"),
     library_id: str | None = Header(default=None, alias="X-Material-Library"),
     token: str | None = Header(default=None, alias="X-Material-Token"),
 ):
@@ -784,7 +786,7 @@ async def search(
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="查询文件为空")
-    return _search_materials(library_id, filename, raw)
+    return _search_materials(library_id, filename, raw, search_algorithm=search_algorithm)
 
 
 @router.post("/search/uploads/{upload_id}/chunks/{chunk_index}")
@@ -832,7 +834,9 @@ def complete_search_upload(
         if not raw:
             raise HTTPException(status_code=400, detail="查询文件为空")
         _validate_complete_file(raw, request)
-        return _search_materials(library_id, request.filename, raw)
+        return _search_materials(
+            library_id, request.filename, raw, search_algorithm=request.search_algorithm,
+        )
     finally:
         try:
             store.delete(references)
@@ -840,7 +844,13 @@ def complete_search_upload(
             pass
 
 
-def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
+def _search_materials(
+    library_id: str,
+    filename: str,
+    raw: bytes,
+    *,
+    search_algorithm: Literal["shape_iou", "multi_feature", "dual"] = "dual",
+) -> dict:
     try:
         kind, preview, query_vector, metadata = process_file(filename, raw)
     except SimilarityFileError as exc:
@@ -857,15 +867,16 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
                 outdated_images += 1
                 continue
         if kind == "image":
-            matches.append({
-                **candidate,
-                "iou_score": subject_mask_iou(metadata, candidate_metadata),
-                "shape_score": cosine_similarity(query_vector, candidate["vector"]),
-                "semantic_score": cosine_similarity(
+            item = {**candidate}
+            if search_algorithm in {"shape_iou", "dual"}:
+                item["iou_score"] = subject_mask_iou(metadata, candidate_metadata)
+            if search_algorithm in {"multi_feature", "dual"}:
+                item["shape_score"] = cosine_similarity(query_vector, candidate["vector"])
+                item["semantic_score"] = cosine_similarity(
                     metadata.get("semantic_vector") or [],
                     candidate_metadata.get("semantic_vector") or [],
-                ),
-            })
+                )
+            matches.append(item)
         else:
             matches.append({
                 **candidate,
@@ -904,68 +915,70 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
 
     algorithms = None
     if kind == "image":
-        iou_ranked = sorted(matches, key=lambda item: item["iou_score"], reverse=True)[:10]
-        iou_results = [
-            result
-            for rank, item in enumerate(iou_ranked, start=1)
-            if (result := result_item(item, rank, item["iou_score"], "Shape IoU", "shape-iou"))
-        ]
-
-        semantic_ranked = sorted(matches, key=lambda item: item["semantic_score"], reverse=True)
-        shape_ranked = sorted(matches, key=lambda item: item["shape_score"], reverse=True)
-        count = len(matches)
-
-        def percentile(rank: int) -> float:
-            return 1.0 if count <= 1 else 1.0 - rank / (count - 1)
-
-        semantic_ranks = {item["asset_id"]: rank for rank, item in enumerate(semantic_ranked)}
-        shape_ranks = {item["asset_id"]: rank for rank, item in enumerate(shape_ranked)}
-        recalled_ids = {
-            item["asset_id"] for item in semantic_ranked[:SEMANTIC_RECALL_LIMIT]
-        } | {
-            item["asset_id"] for item in shape_ranked[:SHAPE_RECALL_LIMIT]
-        }
-        fused = []
-        for item in matches:
-            if item["asset_id"] not in recalled_ids:
-                continue
-            semantic_rank_score = percentile(semantic_ranks[item["asset_id"]])
-            shape_rank_score = percentile(shape_ranks[item["asset_id"]])
-            fused.append({
-                **item,
-                "fusion_score": (
-                    semantic_rank_score * SEMANTIC_FUSION_WEIGHT
-                    + shape_rank_score * SHAPE_FUSION_WEIGHT
-                ),
-            })
-        multi_ranked = sorted(fused, key=lambda item: item["fusion_score"], reverse=True)[:10]
-        verified = [
-            (item, image_geometric_similarity(metadata, item.get("metadata") or {}))
-            for item in multi_ranked
-        ]
-        multi_results = [
-            result
-            for rank, (item, verification) in enumerate(verified, start=1)
-            if (result := result_item(
-                item, rank, item["fusion_score"], "语义 45% + 形状 55%", "semantic-shape-fusion",
-                verification,
-            ))
-        ]
-        multi_best = None
-        if verified:
-            best_item, best_verification = max(verified, key=lambda value: value[1]["score"])
-            multi_best = result_item(
-                best_item, 1, best_verification["score"], best_verification["label"],
-                best_verification["method"], best_verification,
-            )
-        algorithms = {
-            "shape_iou": {
+        algorithms = {}
+        iou_results = []
+        if search_algorithm in {"shape_iou", "dual"}:
+            iou_ranked = sorted(matches, key=lambda item: item["iou_score"], reverse=True)[:10]
+            iou_results = [
+                result
+                for rank, item in enumerate(iou_ranked, start=1)
+                if (result := result_item(item, rank, item["iou_score"], "Shape IoU", "shape-iou"))
+            ]
+            algorithms["shape_iou"] = {
                 "algorithm": "subject-mask-shape-iou-holes",
                 "label": "Shape IoU",
                 "results": iou_results,
                 "best_match": dict(iou_results[0]) if iou_results else None,
-            },
-            "multi_feature": {
+            }
+
+        multi_best = None
+        multi_results = []
+        if search_algorithm in {"multi_feature", "dual"}:
+            semantic_ranked = sorted(matches, key=lambda item: item["semantic_score"], reverse=True)
+            shape_ranked = sorted(matches, key=lambda item: item["shape_score"], reverse=True)
+            count = len(matches)
+
+            def percentile(rank: int) -> float:
+                return 1.0 if count <= 1 else 1.0 - rank / (count - 1)
+
+            semantic_ranks = {item["asset_id"]: rank for rank, item in enumerate(semantic_ranked)}
+            shape_ranks = {item["asset_id"]: rank for rank, item in enumerate(shape_ranked)}
+            recalled_ids = {
+                item["asset_id"] for item in semantic_ranked[:SEMANTIC_RECALL_LIMIT]
+            } | {
+                item["asset_id"] for item in shape_ranked[:SHAPE_RECALL_LIMIT]
+            }
+            fused = []
+            for item in matches:
+                if item["asset_id"] not in recalled_ids:
+                    continue
+                fused.append({
+                    **item,
+                    "fusion_score": (
+                        percentile(semantic_ranks[item["asset_id"]]) * SEMANTIC_FUSION_WEIGHT
+                        + percentile(shape_ranks[item["asset_id"]]) * SHAPE_FUSION_WEIGHT
+                    ),
+                })
+            multi_ranked = sorted(fused, key=lambda item: item["fusion_score"], reverse=True)[:10]
+            verified = [
+                (item, image_geometric_similarity(metadata, item.get("metadata") or {}))
+                for item in multi_ranked
+            ]
+            multi_results = [
+                result
+                for rank, (item, verification) in enumerate(verified, start=1)
+                if (result := result_item(
+                    item, rank, item["fusion_score"], "语义 45% + 形状 55%",
+                    "semantic-shape-fusion", verification,
+                ))
+            ]
+            if verified:
+                best_item, best_verification = max(verified, key=lambda value: value[1]["score"])
+                multi_best = result_item(
+                    best_item, 1, best_verification["score"], best_verification["label"],
+                    best_verification["method"], best_verification,
+                )
+            algorithms["multi_feature"] = {
                 "algorithm": "semantic-shape-fusion-then-sift-ransac",
                 "label": "语义 + 形状 + SIFT/RANSAC",
                 "fusion": {
@@ -974,11 +987,19 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
                 },
                 "results": multi_results,
                 "best_match": multi_best,
-            },
-        }
-        results = iou_results
-        best_match = algorithms["shape_iou"]["best_match"]
-        algorithm = "dual-image-search"
+            }
+        if search_algorithm == "multi_feature":
+            results = multi_results
+            best_match = multi_best
+            algorithm = "semantic-shape-fusion-then-sift-ransac"
+        elif search_algorithm == "shape_iou":
+            results = iou_results
+            best_match = algorithms["shape_iou"]["best_match"]
+            algorithm = "subject-mask-shape-iou-holes"
+        else:
+            results = iou_results
+            best_match = algorithms["shape_iou"]["best_match"]
+            algorithm = "dual-image-search"
     else:
         ranked = sorted(matches, key=lambda item: item["score"], reverse=True)[:5]
         results = [
