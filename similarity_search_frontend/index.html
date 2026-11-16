@@ -19,7 +19,7 @@
       <div>
         <p class="eyebrow">IMAGE · DXF · ILLUSTRATOR</p>
         <h1>相似素材检索</h1>
-        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。图片一次运行 Shape IoU 与历史多重算法，两套算法各自返回前 10 名和最佳匹配。</p>
+        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。框选查询主体后，可独立运行 Shape IoU 或历史多重算法，并查看前 10 名和最佳匹配。</p>
       </div>
       <div class="hero-flow" aria-label="工作流程">
         <div><b>01</b><span>上传文件夹</span></div><em>→</em>
@@ -80,7 +80,7 @@
           <div id="search-intro" class="search-intro">
             <p class="eyebrow">TWO INDEPENDENT IMAGE SEARCHES</p>
             <h2>上传一张查询图片</h2>
-            <p>Shape IoU 直接使用整张图片；历史多重算法会先让你截图框选需要匹配的主体。两套算法独立执行，查询图片不会保存。</p>
+            <p>选择任一算法后，先截图框选需要匹配的主体。两套算法独立执行，查询图片不会保存。</p>
           </div>
           <figure id="selected-query-preview" class="selected-query-preview" hidden>
             <img id="selected-query-image" alt="已上传的查询图片">
@@ -93,7 +93,7 @@
           <small>支持 PNG / JPG / WebP，大文件将自动分片上传</small>
         </label>
         <div class="search-actions">
-          <button id="shape-search-button" class="primary" type="button" disabled>Shape IoU · 直接匹配</button>
+          <button id="shape-search-button" class="primary" type="button" disabled>Shape IoU · 截图主体</button>
           <button id="multi-search-button" class="secondary-search" type="button" disabled>历史多重算法 · 截图主体</button>
         </div>
         <p id="search-message" class="message" role="status"></p>
@@ -156,8 +156,8 @@
 
   <dialog id="subject-crop-dialog" class="crop-dialog">
     <div class="crop-shell">
-      <header><div><span>历史多重算法</span><h2>截图框选需要匹配的主体</h2></div><button id="crop-close" type="button" aria-label="关闭">×</button></header>
-      <p>在图片上拖动矩形框，只保留框内主体进行“语义 + 形状 + SIFT/RANSAC”匹配。</p>
+      <header><div><span id="crop-algorithm-label">图像搜索</span><h2>截图框选需要匹配的主体</h2></div><button id="crop-close" type="button" aria-label="关闭">×</button></header>
+      <p id="crop-description">在图片上拖动矩形框，只保留框内主体进行匹配。</p>
       <div class="crop-canvas-wrap"><canvas id="subject-crop-canvas"></canvas></div>
       <footer><button id="crop-reset" class="ghost" type="button">重置选区</button><button id="crop-confirm" class="primary" type="button">使用选中主体匹配</button></footer>
     </div>
@@ -172,6 +172,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=30" defer></script>
+  <script src="/similarity-search-static/app.js?v=31" defer></script>
 </body>
 </html>

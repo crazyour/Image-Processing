@@ -22,7 +22,7 @@ let previewPaused = false;
 const previewQueue = [];
 const previewPending = new WeakSet();
 const previewControllers = new Set();
-const cropState = { image: null, rect: null, start: null, dragging: false };
+const cropState = { image: null, rect: null, start: null, dragging: false, algorithm: null };
 
 function bytes(value) {
   if (value < 1024) return `${value} B`;
@@ -572,8 +572,14 @@ function drawCropSelection() {
   $("#crop-confirm").disabled = !cropState.rect || cropState.rect.width < 8 || cropState.rect.height < 8;
 }
 
-function openSubjectCrop() {
+function openSubjectCrop(algorithm) {
   if (!state.queryFile || !state.queryPreviewUrl) return;
+  cropState.algorithm = algorithm;
+  const isShapeIou = algorithm === "shape_iou";
+  $("#crop-algorithm-label").textContent = isShapeIou ? "Shape IoU" : "历史多重算法";
+  $("#crop-description").textContent = isShapeIou
+    ? "在图片上拖动矩形框，只保留框内主体进行 Shape IoU 匹配。"
+    : "在图片上拖动矩形框，只保留框内主体进行“语义 + 形状 + SIFT/RANSAC”匹配。";
   const image = new Image();
   image.onload = () => {
     const canvas = $("#subject-crop-canvas");
@@ -700,8 +706,8 @@ $("#query-input").addEventListener("change", event => {
   }
   setMessage("#search-message", valid ? "查询图片已就绪。" : "仅支持 PNG、JPG、JPEG 或 WebP 图片。", valid ? "success" : "error");
 });
-$("#shape-search-button").addEventListener("click", () => search("shape_iou"));
-$("#multi-search-button").addEventListener("click", openSubjectCrop);
+$("#shape-search-button").addEventListener("click", () => openSubjectCrop("shape_iou"));
+$("#multi-search-button").addEventListener("click", () => openSubjectCrop("multi_feature"));
 $("#crop-close").addEventListener("click", () => $("#subject-crop-dialog").close());
 $("#crop-reset").addEventListener("click", () => { cropState.rect = null; drawCropSelection(); });
 $("#crop-confirm").addEventListener("click", async () => {
@@ -709,8 +715,10 @@ $("#crop-confirm").addEventListener("click", async () => {
   button.disabled = true;
   try {
     const file = await selectedSubjectFile();
+    const algorithm = cropState.algorithm;
+    if (!algorithm) throw new Error("未选择匹配算法，请重新打开主体截图");
     $("#subject-crop-dialog").close();
-    await search("multi_feature", file);
+    await search(algorithm, file);
   } catch (error) {
     setMessage("#search-message", error.message, "error");
     button.disabled = false;

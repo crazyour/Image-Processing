@@ -108,8 +108,9 @@ class DualAlgorithmSearchUnitTest(unittest.TestCase):
         self.assertIn('id="shape-search-button"', page)
         self.assertIn('id="multi-search-button"', page)
         self.assertIn('id="subject-crop-canvas"', page)
-        self.assertIn('search("shape_iou")', script)
-        self.assertIn('search("multi_feature", file)', script)
+        self.assertIn('openSubjectCrop("shape_iou")', script)
+        self.assertIn('openSubjectCrop("multi_feature")', script)
+        self.assertIn("await search(algorithm, file)", script)
         self.assertIn('search_algorithm: algorithm', script)
         self.assertIn('`${baseName}-subject.png`', script)
 
