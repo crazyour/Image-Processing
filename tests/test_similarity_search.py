@@ -36,6 +36,66 @@ from vercel_app.interactive_segmentation import (
 )
 
 
+class DualAlgorithmSearchUnitTest(unittest.TestCase):
+    def test_one_search_returns_each_algorithm_top_ten_and_best(self) -> None:
+        candidates = [
+            {
+                "folder_id": f"folder-{index}", "folder_name": f"folder-{index}",
+                "asset_id": f"asset-{index}", "original_name": f"image-{index}.png",
+                "preview_url": f"preview-{index}", "vector": [1.0, index / 10.0],
+                "metadata": {
+                    "feature_version": FEATURE_VERSION,
+                    "semantic_vector": [1.0, max(0.0, 1.0 - index / 25.0)],
+                },
+            }
+            for index in range(25)
+        ]
+        folder = {"previews": [], "assets": [], "zip_url": None}
+        with (
+            patch("vercel_app.similarity_api.process_file", return_value=(
+                "image", b"preview", [1.0, 0.0], {
+                    "feature_version": FEATURE_VERSION, "semantic_vector": [1.0, 1.0],
+                },
+            )),
+            patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
+            patch("vercel_app.similarity_api.get_folder", return_value=folder),
+            patch(
+                "vercel_app.similarity_api.subject_mask_iou",
+                side_effect=[1.0 - index / 100.0 for index in range(25)],
+            ) as compare,
+            patch("vercel_app.similarity_api.image_geometric_similarity", side_effect=lambda query, candidate: {
+                "score": 0.9 if candidate is candidates[3]["metadata"] else 0.2,
+                "label": "高度可信" if candidate is candidates[3]["metadata"] else "未验证",
+                "inliers": 12, "inlier_ratio": 0.5, "coverage": 0.1,
+                "method": "sift-ransac",
+            }) as verify,
+        ):
+            payload = _search_materials("library", "query.png", b"query")
+
+        shape = payload["algorithms"]["shape_iou"]
+        multi = payload["algorithms"]["multi_feature"]
+        self.assertEqual(payload["algorithm"], "dual-image-search")
+        self.assertEqual(len(shape["results"]), 10)
+        self.assertEqual(len(multi["results"]), 10)
+        self.assertEqual(compare.call_count, 25)
+        self.assertEqual(verify.call_count, 10)
+        self.assertEqual(shape["best_match"], shape["results"][0])
+        self.assertEqual(shape["best_match"]["matched_asset_id"], "asset-0")
+        self.assertEqual(multi["best_match"]["matched_asset_id"], "asset-3")
+        self.assertEqual(multi["fusion"], {"semantic_weight": 0.45, "shape_weight": 0.55})
+
+    def test_frontend_has_four_separate_result_targets(self) -> None:
+        root = Path(__file__).resolve().parent.parent / "similarity_search_frontend"
+        page = (root / "index.html").read_text(encoding="utf-8")
+        script = (root / "app.js").read_text(encoding="utf-8")
+        for target in ("shape-best-list", "shape-results-list", "multi-best-list", "multi-results-list"):
+            self.assertIn(f'id="{target}"', page)
+        self.assertIn("result.algorithms.shape_iou", script)
+        self.assertIn("result.algorithms.multi_feature", script)
+        self.assertIn("Shape IoU 前 10 名", page)
+        self.assertIn("多重算法前 10 名", page)
+
+
 class SimilaritySearchEndToEndTest(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
@@ -148,7 +208,7 @@ EOF
             204,
         )
 
-    def test_image_search_returns_shape_iou_top_twenty_and_repeats_best(self) -> None:
+    def test_image_search_returns_two_independent_top_tens_and_best_matches(self) -> None:
         candidates = [
             {
                 "folder_id": f"folder-{index}",
@@ -157,14 +217,20 @@ EOF
                 "original_name": f"image-{index}.png",
                 "preview_url": f"preview-{index}",
                 "vector": [1.0, index / 10.0],
-                "metadata": {"feature_version": FEATURE_VERSION},
+                "metadata": {
+                    "feature_version": FEATURE_VERSION,
+                    "semantic_vector": [1.0, max(0.0, 1.0 - index / 25.0)],
+                },
             }
             for index in range(25)
         ]
         folder = {"previews": [], "assets": [], "zip_url": None}
         with (
             patch("vercel_app.similarity_api.process_file", return_value=(
-                "image", b"preview", [1.0, 0.0], {"feature_version": FEATURE_VERSION},
+                "image", b"preview", [1.0, 0.0], {
+                    "feature_version": FEATURE_VERSION,
+                    "semantic_vector": [1.0, 1.0],
+                },
             )),
             patch("vercel_app.similarity_api.searchable_assets", return_value=candidates),
             patch("vercel_app.similarity_api.get_folder", return_value=folder),
@@ -172,30 +238,44 @@ EOF
                 "vercel_app.similarity_api.subject_mask_iou",
                 side_effect=[1.0 - index / 100.0 for index in range(25)],
             ) as compare,
+            patch("vercel_app.similarity_api.image_geometric_similarity", side_effect=lambda query, candidate: {
+                "score": 0.9 if candidate is candidates[3]["metadata"] else 0.2,
+                "label": "高度可信" if candidate is candidates[3]["metadata"] else "未验证",
+                "inliers": 12, "inlier_ratio": 0.5, "coverage": 0.1,
+                "method": "sift-ransac",
+            }) as verify,
         ):
             payload = _search_materials("library", "query.png", b"query")
 
-        self.assertEqual(len(payload["results"]), 20)
+        shape = payload["algorithms"]["shape_iou"]
+        multi = payload["algorithms"]["multi_feature"]
+        self.assertEqual(len(shape["results"]), 10)
+        self.assertEqual(len(multi["results"]), 10)
         self.assertEqual(compare.call_count, 25)
-        self.assertEqual(payload["results"][0]["matched_asset_id"], "asset-0")
-        self.assertEqual(payload["best_match"], payload["results"][0])
-        self.assertEqual(payload["algorithm"], "subject-mask-shape-iou-holes")
-        self.assertNotIn("fusion", payload)
-        self.assertNotIn("semantic_score", payload["results"][0])
-        self.assertNotIn("shape_score", payload["results"][0])
+        self.assertEqual(verify.call_count, 10)
+        self.assertEqual(shape["results"][0]["matched_asset_id"], "asset-0")
+        self.assertEqual(shape["best_match"], shape["results"][0])
+        self.assertEqual(multi["best_match"]["matched_asset_id"], "asset-3")
+        self.assertEqual(payload["algorithm"], "dual-image-search")
+        self.assertEqual(shape["algorithm"], "subject-mask-shape-iou-holes")
+        self.assertEqual(multi["algorithm"], "semantic-shape-fusion-then-sift-ransac")
+        self.assertEqual(multi["fusion"], {"semantic_weight": 0.45, "shape_weight": 0.55})
 
-    def test_second_search_is_shown_above_first_with_separate_labels(self) -> None:
+    def test_frontend_shows_each_algorithm_best_and_top_ten(self) -> None:
         root = Path(__file__).resolve().parent.parent / "similarity_search_frontend"
         page = (root / "index.html").read_text(encoding="utf-8")
         script = (root / "app.js").read_text(encoding="utf-8")
 
-        self.assertLess(page.index('id="second-search"'), page.index('id="first-search-title"'))
-        self.assertIn('stage: imagePipeline ? "shape" : "feature"', script)
-        self.assertIn('resultCard(result.best_match, { stage: "best" })', script)
+        self.assertIn('id="shape-best-list"', page)
+        self.assertIn('id="shape-results-list"', page)
+        self.assertIn('id="multi-best-list"', page)
+        self.assertIn('id="multi-results-list"', page)
+        self.assertIn("result.algorithms.shape_iou", script)
+        self.assertIn("result.algorithms.multi_feature", script)
         self.assertIn("Shape IoU 第 1 名", script)
-        self.assertIn("Shape IoU 前 20 名", page)
-        self.assertNotIn("语义45%＋轮廓55%", script)
-        self.assertNotIn("SIFT + RANSAC", page)
+        self.assertIn("Shape IoU 前 10 名", page)
+        self.assertIn("多重算法前 10 名", page)
+        self.assertIn("SIFT/RANSAC", page)
         self.assertIn('"X-Chunk-SHA256": await sha256Hex(chunk)', script)
         self.assertIn("file_size: file.size", script)
         self.assertIn("failures.push(error)", script)
@@ -372,9 +452,9 @@ EOF
         self.assertNotIn("_blob_ref", folder["assets"][0])
         image_asset = next(asset for asset in folder["assets"] if asset["kind"] == "image")
         self.assertEqual(image_asset["metadata"]["feature_version"], FEATURE_VERSION)
-        self.assertNotIn("local_features", image_asset["metadata"])
-        self.assertNotIn("image_fingerprint", image_asset["metadata"])
-        self.assertNotIn("semantic_vector", image_asset["metadata"])
+        self.assertIn("local_features", image_asset["metadata"])
+        self.assertIn("image_fingerprint", image_asset["metadata"])
+        self.assertIn("semantic_vector", image_asset["metadata"])
         self.assertEqual(self.client.get(folder["assets"][0]["preview_url"]).status_code, 401)
 
         for asset in folder["assets"]:
@@ -392,12 +472,12 @@ EOF
             self.assertEqual(result["folder_id"], folder_id)
             self.assertGreater(result["score"], 99, name)
             if name == "preview.png":
-                self.assertEqual(payload["algorithm"], "subject-mask-shape-iou-holes")
+                self.assertEqual(payload["algorithm"], "dual-image-search")
                 self.assertEqual(result["match_label"], "Shape IoU")
                 self.assertEqual(result["match_method"], "shape-iou")
                 self.assertEqual(payload["best_match"], result)
-                self.assertNotIn("semantic_score", result)
-                self.assertNotIn("shape_score", result)
+                self.assertEqual(payload["algorithms"]["shape_iou"]["best_match"], result)
+                self.assertIsNotNone(payload["algorithms"]["multi_feature"]["best_match"])
             else:
                 self.assertIsNone(payload["best_match"])
 
@@ -674,14 +754,15 @@ class SubjectShapeFeatureTest(unittest.TestCase):
         self.assertNotIn("subject_bbox", metadata)
         self.assertNotIn("subject_mask_source", metadata)
 
-    def test_image_index_stores_only_the_versioned_shape_mask(self) -> None:
+    def test_image_index_stores_features_for_both_algorithms(self) -> None:
         points = [(60, 190), (95, 45), (200, 35), (270, 135), (220, 210), (120, 215)]
         _, vector, metadata = process_image(self.polygon_image(points, color="orange"))
-        self.assertEqual(vector, [0.0])
-        self.assertEqual(metadata["feature_version"], "material-search-v8-shape-iou-mask-only")
+        self.assertGreater(len(vector), 1000)
+        self.assertEqual(metadata["feature_version"], "material-search-v9-dual-shape-iou-semantic-sift")
         self.assertIn("normalised_subject_mask", metadata)
-        self.assertNotIn("semantic_vector", metadata)
-        self.assertNotIn("local_features", metadata)
+        self.assertIn("semantic_vector", metadata)
+        self.assertIn("local_features", metadata)
+        self.assertIn("image_fingerprint", metadata)
 
 
 class InteractiveSegmentationTransformTest(unittest.TestCase):

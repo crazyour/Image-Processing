@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#244d3f">
   <title>灵界 · 相似素材检索</title>
-  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=16">
+  <link rel="stylesheet" href="/similarity-search-static/styles.css?v=17">
 </head>
 <body>
   <header class="topbar">
@@ -19,7 +19,7 @@
       <div>
         <p class="eyebrow">IMAGE · DXF · ILLUSTRATOR</p>
         <h1>相似素材检索</h1>
-        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。图片按 Shape IoU 返回前 20 名并突出最高匹配，其他格式返回前五名。</p>
+        <p class="lead">每个素材文件夹同时保存图片、DXF 和 Illustrator 源文件。图片一次运行 Shape IoU 与历史多重算法，两套算法各自返回前 10 名和最佳匹配。</p>
       </div>
       <div class="hero-flow" aria-label="工作流程">
         <div><b>01</b><span>上传文件夹</span></div><em>→</em>
@@ -78,9 +78,9 @@
       <article class="card search-card">
         <div class="search-query-visual">
           <div id="search-intro" class="search-intro">
-            <p class="eyebrow">SHAPE IOU IMAGE SEARCH</p>
+            <p class="eyebrow">DUAL ALGORITHM IMAGE SEARCH</p>
             <h2>上传一张查询图片</h2>
-            <p>系统会自动提取图片主体并计算保留内部镂空的 Mask Shape IoU，返回前 20 名，并单独突出最高匹配；查询图片不会保存。</p>
+            <p>点击一次同时运行 Shape IoU 与“语义 + 形状 + SIFT/RANSAC”多重算法；两套算法分别返回前 10 名和最佳匹配，查询图片不会保存。</p>
           </div>
           <figure id="selected-query-preview" class="selected-query-preview" hidden>
             <img id="selected-query-image" alt="已上传的查询图片">
@@ -101,18 +101,31 @@
           <div><p class="eyebrow">SEARCH RESULT</p><h2 id="results-title">检索结果</h2></div>
           <div id="query-preview" class="query-preview"></div>
         </header>
-        <section id="second-search" class="search-stage second-search" aria-labelledby="second-search-title" hidden>
-          <header class="stage-head">
-            <div><span class="stage-number">BEST</span><div><h3 id="second-search-title">最高匹配</h3><p>从下方 Shape IoU 前 20 名中，单独展示匹配度最高的第 1 名。</p></div></div>
-          </header>
-          <div id="geometric-best-list" class="results-list geometric-best-list"></div>
-        </section>
-        <section class="search-stage" aria-labelledby="first-search-title">
-          <header class="stage-head">
-            <div><span class="stage-number">TOP 20</span><div><h3 id="first-search-title">Shape IoU 前 20 名</h3><p id="first-search-copy">只按保留内部镂空的主体 Mask 计算 Shape IoU 并排序。</p></div></div>
-          </header>
-          <div id="results-list" class="results-list"></div>
-        </section>
+        <div id="dual-results" class="dual-results" hidden>
+          <section class="algorithm-result-group" aria-labelledby="shape-algorithm-title">
+            <header class="algorithm-head"><p class="eyebrow">ALGORITHM 01</p><h3 id="shape-algorithm-title">Shape IoU</h3><p>只按保留内部镂空的主体 Mask IoU 独立排序。</p></header>
+            <section class="search-stage second-search" aria-labelledby="shape-best-title">
+              <header class="stage-head"><div><span class="stage-number">BEST</span><div><h3 id="shape-best-title">Shape IoU 最佳匹配</h3><p>单独展示本算法得分第 1 名。</p></div></div></header>
+              <div id="shape-best-list" class="results-list geometric-best-list"></div>
+            </section>
+            <section class="search-stage" aria-labelledby="shape-top-title">
+              <header class="stage-head"><div><span class="stage-number">TOP 10</span><div><h3 id="shape-top-title">Shape IoU 前 10 名</h3><p>以下分数均为 Shape IoU 得分。</p></div></div></header>
+              <div id="shape-results-list" class="results-list"></div>
+            </section>
+          </section>
+          <section class="algorithm-result-group" aria-labelledby="multi-algorithm-title">
+            <header class="algorithm-head"><p class="eyebrow">ALGORITHM 02</p><h3 id="multi-algorithm-title">历史多重算法</h3><p>语义 45% + 形状 55% 独立召回排序，再以 SIFT/RANSAC 复核最佳项。</p></header>
+            <section class="search-stage second-search" aria-labelledby="multi-best-title">
+              <header class="stage-head"><div><span class="stage-number">BEST</span><div><h3 id="multi-best-title">多重算法最佳匹配</h3><p>从本算法 Top 10 中按 SIFT/RANSAC 几何得分选出。</p></div></div></header>
+              <div id="multi-best-list" class="results-list geometric-best-list"></div>
+            </section>
+            <section class="search-stage" aria-labelledby="multi-top-title">
+              <header class="stage-head"><div><span class="stage-number">TOP 10</span><div><h3 id="multi-top-title">多重算法前 10 名</h3><p>以下分数为语义与形状排名融合得分，每项同时显示几何复核信息。</p></div></div></header>
+              <div id="multi-results-list" class="results-list"></div>
+            </section>
+          </section>
+        </div>
+        <section id="legacy-results" class="search-stage" hidden><div id="results-list" class="results-list"></div></section>
       </section>
     </section>
 
@@ -147,6 +160,6 @@
   </dialog>
 
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/similarity-search-static/app.js?v=28" defer></script>
+  <script src="/similarity-search-static/app.js?v=29" defer></script>
 </body>
 </html>

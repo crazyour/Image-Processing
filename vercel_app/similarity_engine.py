@@ -15,7 +15,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 
-FEATURE_VERSION = "material-search-v8-shape-iou-mask-only"
+FEATURE_VERSION = "material-search-v9-dual-shape-iou-semantic-sift"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | {".dxf", ".ai"}
 MAX_LOCAL_FEATURES = 1200
@@ -471,16 +471,17 @@ def process_image(raw: bytes) -> tuple[bytes, list[float], dict[str, Any]]:
         raise SimilarityFileError("图片无法读取或已经损坏") from exc
     if image.width < 2 or image.height < 2:
         raise SimilarityFileError("图片尺寸无效")
-    _, shape_metadata = _shape_vector(image)
+    shape_vector, shape_metadata = _shape_vector(image)
     return (
         _preview_png(image),
-        # The storage schema requires vector_json for every file type. Image
-        # ranking no longer reads it, so keep one explicit neutral placeholder
-        # instead of thousands of obsolete semantic/shape numbers. DXF and AI
-        # still receive their runtime vectors from _shape_vector.
-        [0.0],
+        shape_vector,
         {
             "feature_version": FEATURE_VERSION,
+            "semantic_feature_schema": SEMANTIC_FEATURE_SCHEMA,
+            "semantic_model": SEMANTIC_MODEL_NAME,
+            "semantic_vector": _semantic_vector(image),
+            "image_fingerprint": _image_fingerprint(image),
+            "local_features": _local_features(image),
             **shape_metadata,
         },
     )

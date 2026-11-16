@@ -32,6 +32,7 @@ from .similarity_engine import (
     SimilarityFileError,
     cosine_similarity,
     file_kind,
+    image_geometric_similarity,
     process_file,
     subject_mask_iou,
 )
@@ -60,6 +61,10 @@ MAX_CHUNK_BYTES = 3_000_000
 TRASH_RETENTION_SECONDS = 30 * 24 * 60 * 60
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+")
 UPLOAD_ID = re.compile(r"^[a-f0-9]{32}$")
+SEMANTIC_RECALL_LIMIT = 200
+SHAPE_RECALL_LIMIT = 200
+SEMANTIC_FUSION_WEIGHT = 0.45
+SHAPE_FUSION_WEIGHT = 0.55
 
 
 class FolderCreateRequest(BaseModel):
@@ -838,35 +843,138 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
         if kind == "image" and candidate_metadata.get("feature_version") != FEATURE_VERSION:
             outdated_images += 1
             continue
-        score = (
-            subject_mask_iou(metadata, candidate_metadata)
-            if kind == "image"
-            else cosine_similarity(query_vector, candidate["vector"])
-        )
-        matches.append({**candidate, "score": score})
+        if kind == "image":
+            matches.append({
+                **candidate,
+                "iou_score": subject_mask_iou(metadata, candidate_metadata),
+                "shape_score": cosine_similarity(query_vector, candidate["vector"]),
+                "semantic_score": cosine_similarity(
+                    metadata.get("semantic_vector") or [],
+                    candidate_metadata.get("semantic_vector") or [],
+                ),
+            })
+        else:
+            matches.append({
+                **candidate,
+                "score": cosine_similarity(query_vector, candidate["vector"]),
+            })
 
-    ranked = sorted(matches, key=lambda item: item["score"], reverse=True)[:20 if kind == "image" else 5]
-    results = []
-    for rank, item in enumerate(ranked, start=1):
+    def result_item(item: dict, rank: int, score: float, label: str, method: str,
+                    verification: dict | None = None) -> dict | None:
         folder = get_folder(library_id, item["folder_id"])
         if not folder:
-            continue
-        results.append({
+            return None
+        result = {
             "rank": rank,
             "folder_id": item["folder_id"],
             "folder_name": item["folder_name"],
-            "score": round(float(item["score"]) * 100, 1),
+            "score": round(float(score) * 100, 1),
             "matched_asset_id": item["asset_id"],
             "matched_file": item["original_name"],
             "matched_preview_url": f"/api/material-search/assets/{item['asset_id']}/preview",
-            "match_label": "Shape IoU" if kind == "image" else "特征相似",
-            "match_method": "shape-iou" if kind == "image" else "cosine",
+            "match_label": label,
+            "match_method": method,
             "previews": folder["previews"],
             "zip_url": f"/api/material-search/folders/{folder['id']}/download" if folder.get("zip_url") else None,
             "asset_count": len(folder["assets"]),
-        })
+        }
+        if verification:
+            result.update({
+                "verification_score": round(float(verification["score"]) * 100, 1),
+                "verification_label": verification["label"],
+                "verification_method": verification["method"],
+                "inliers": verification["inliers"],
+                "inlier_ratio": round(float(verification["inlier_ratio"]), 3),
+                "coverage": round(float(verification["coverage"]), 3),
+            })
+        return result
 
-    best_match = dict(results[0]) if kind == "image" and results else None
+    algorithms = None
+    if kind == "image":
+        iou_ranked = sorted(matches, key=lambda item: item["iou_score"], reverse=True)[:10]
+        iou_results = [
+            result
+            for rank, item in enumerate(iou_ranked, start=1)
+            if (result := result_item(item, rank, item["iou_score"], "Shape IoU", "shape-iou"))
+        ]
+
+        semantic_ranked = sorted(matches, key=lambda item: item["semantic_score"], reverse=True)
+        shape_ranked = sorted(matches, key=lambda item: item["shape_score"], reverse=True)
+        count = len(matches)
+
+        def percentile(rank: int) -> float:
+            return 1.0 if count <= 1 else 1.0 - rank / (count - 1)
+
+        semantic_ranks = {item["asset_id"]: rank for rank, item in enumerate(semantic_ranked)}
+        shape_ranks = {item["asset_id"]: rank for rank, item in enumerate(shape_ranked)}
+        recalled_ids = {
+            item["asset_id"] for item in semantic_ranked[:SEMANTIC_RECALL_LIMIT]
+        } | {
+            item["asset_id"] for item in shape_ranked[:SHAPE_RECALL_LIMIT]
+        }
+        fused = []
+        for item in matches:
+            if item["asset_id"] not in recalled_ids:
+                continue
+            semantic_rank_score = percentile(semantic_ranks[item["asset_id"]])
+            shape_rank_score = percentile(shape_ranks[item["asset_id"]])
+            fused.append({
+                **item,
+                "fusion_score": (
+                    semantic_rank_score * SEMANTIC_FUSION_WEIGHT
+                    + shape_rank_score * SHAPE_FUSION_WEIGHT
+                ),
+            })
+        multi_ranked = sorted(fused, key=lambda item: item["fusion_score"], reverse=True)[:10]
+        verified = [
+            (item, image_geometric_similarity(metadata, item.get("metadata") or {}))
+            for item in multi_ranked
+        ]
+        multi_results = [
+            result
+            for rank, (item, verification) in enumerate(verified, start=1)
+            if (result := result_item(
+                item, rank, item["fusion_score"], "语义 45% + 形状 55%", "semantic-shape-fusion",
+                verification,
+            ))
+        ]
+        multi_best = None
+        if verified:
+            best_item, best_verification = max(verified, key=lambda value: value[1]["score"])
+            multi_best = result_item(
+                best_item, 1, best_verification["score"], best_verification["label"],
+                best_verification["method"], best_verification,
+            )
+        algorithms = {
+            "shape_iou": {
+                "algorithm": "subject-mask-shape-iou-holes",
+                "label": "Shape IoU",
+                "results": iou_results,
+                "best_match": dict(iou_results[0]) if iou_results else None,
+            },
+            "multi_feature": {
+                "algorithm": "semantic-shape-fusion-then-sift-ransac",
+                "label": "语义 + 形状 + SIFT/RANSAC",
+                "fusion": {
+                    "semantic_weight": SEMANTIC_FUSION_WEIGHT,
+                    "shape_weight": SHAPE_FUSION_WEIGHT,
+                },
+                "results": multi_results,
+                "best_match": multi_best,
+            },
+        }
+        results = iou_results
+        best_match = algorithms["shape_iou"]["best_match"]
+        algorithm = "dual-image-search"
+    else:
+        ranked = sorted(matches, key=lambda item: item["score"], reverse=True)[:5]
+        results = [
+            result
+            for rank, item in enumerate(ranked, start=1)
+            if (result := result_item(item, rank, item["score"], "特征相似", "cosine"))
+        ]
+        best_match = None
+        algorithm = "cosine"
 
     return {
         "kind": kind,
@@ -874,9 +982,12 @@ def _search_materials(library_id: str, filename: str, raw: bytes) -> dict:
         "query_metadata": {
             key: value
             for key, value in metadata.items()
-            if key != "normalised_subject_mask"
+            if key not in {
+                "normalised_subject_mask", "semantic_vector", "local_features", "image_fingerprint",
+            }
         },
-        "algorithm": "subject-mask-shape-iou-holes" if kind == "image" else "cosine",
+        "algorithm": algorithm,
+        "algorithms": algorithms,
         "outdated_images": outdated_images,
         "reindexed_images": 0,
         "results": results,

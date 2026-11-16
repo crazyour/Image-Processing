@@ -516,10 +516,20 @@ async function openFolder(folderId, matchedAssetId = null) {
 }
 
 function resultCard(item, options = {}) {
-  const stage = options.stage || "feature";
-  const isBest = stage === "best";
-  const scoreLabel = stage === "shape" || isBest ? "Shape IoU" : "特征余弦相似度";
-  return `<article class="result-card${isBest ? " geometric-best" : ""}">${isBest ? '<span class="best-marker">Shape IoU 第 1 名</span>' : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${scoreLabel} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p><div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
+  const isBest = Boolean(options.best);
+  const scoreLabel = options.scoreLabel || "特征相似度";
+  const bestLabel = options.bestLabel || `${scoreLabel}最佳`;
+  const verification = item.verification_label
+    ? `<p class="result-verification">几何复核：${safeText(item.verification_label)} · ${item.verification_score}%</p>`
+    : "";
+  return `<article class="result-card${isBest ? " geometric-best" : ""}">${isBest ? `<span class="best-marker">${safeText(bestLabel)}</span>` : ""}<div class="result-image"><span class="rank">${item.rank}</span><img data-protected-src="${item.matched_preview_url}" alt=""><span class="score">${safeText(scoreLabel)} · ${item.score}%</span></div><div class="result-body"><h3>${safeText(item.folder_name)}</h3><p>匹配文件：${safeText(item.matched_file)}</p>${verification}<div class="result-actions"><button type="button" data-folder="${item.folder_id}" data-asset="${item.matched_asset_id}">定位查看</button><button type="button" data-zip="${item.zip_url || ""}" data-name="${safeText(item.folder_name)}.zip" ${item.zip_url ? "" : "disabled"}>下载</button></div></div></article>`;
+}
+
+function renderAlgorithmResults(selector, algorithm, options) {
+  const root = $(selector);
+  root.innerHTML = algorithm.results.length
+    ? algorithm.results.map(item => resultCard(item, options)).join("")
+    : '<p class="empty-copy">素材库中还没有可检索的图片。</p>';
 }
 
 function activateResultCards(root) {
@@ -547,31 +557,29 @@ async function search() {
     setMessage("#search-message", "3/3 匹配完成，正在整理结果…");
     const result = await response.json();
     $("#search-output").hidden = false;
-    const imagePipeline = result.algorithm === "subject-mask-shape-iou-holes";
-    $("#results-title").textContent = `${labels[result.kind]}${imagePipeline ? " Shape IoU" : ""}检索结果`;
-    $("#first-search-copy").textContent = imagePipeline
-      ? `只按保留内部镂空的主体 Mask 计算 Shape IoU，展示匹配度最高的前 ${result.results.length} 张图片。`
-      : `使用特征余弦相似度取前 ${result.results.length} 个文件。`;
+    const dualAlgorithms = result.kind === "image" && result.algorithms;
+    $("#results-title").textContent = dualAlgorithms ? "图片双算法检索结果" : `${labels[result.kind]}检索结果`;
     $("#query-preview").innerHTML = `<img src="${result.query_preview_data_url}" alt="查询文件预览">`;
-    const list = $("#results-list");
-    if (!result.results.length) {
-      list.innerHTML = '<p class="empty-copy">素材库中还没有可检索的同类型文件。</p>';
+    $("#dual-results").hidden = !dualAlgorithms;
+    $("#legacy-results").hidden = Boolean(dualAlgorithms);
+    if (dualAlgorithms) {
+      const shape = result.algorithms.shape_iou;
+      const multi = result.algorithms.multi_feature;
+      renderAlgorithmResults("#shape-results-list", shape, { scoreLabel: "Shape IoU" });
+      $("#shape-best-list").innerHTML = shape.best_match
+        ? resultCard(shape.best_match, { best: true, scoreLabel: "Shape IoU", bestLabel: "Shape IoU 第 1 名" }) : "";
+      renderAlgorithmResults("#multi-results-list", multi, { scoreLabel: "融合得分" });
+      $("#multi-best-list").innerHTML = multi.best_match
+        ? resultCard(multi.best_match, { best: true, scoreLabel: "SIFT/RANSAC", bestLabel: "多重算法最佳" }) : "";
     } else {
-      list.innerHTML = result.results.map(item => resultCard(item, {
-        stage: imagePipeline ? "shape" : "feature",
-      })).join("");
+      renderAlgorithmResults("#results-list", result, { scoreLabel: "特征余弦相似度" });
     }
-    const secondSearch = $("#second-search");
-    secondSearch.hidden = !result.best_match;
-    $("#geometric-best-list").innerHTML = result.best_match
-      ? resultCard(result.best_match, { stage: "best" })
-      : "";
     activateResultCards($("#search-output"));
     if (result.outdated_images) {
       setMessage("#search-message", `已跳过 ${result.outdated_images} 张旧索引图片，请联系管理员执行受控特征迁移。`, "error");
     } else {
       const upgraded = result.reindexed_images ? `已自动升级 ${result.reindexed_images} 张旧图片索引。` : "";
-      setMessage("#search-message", imagePipeline ? `${upgraded}检索完成。下方为 Shape IoU 前20名，上方单独展示最高匹配结果。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
+      setMessage("#search-message", dualAlgorithms ? `${upgraded}两套算法均已完成：各自展示最佳匹配与前 10 名。` : "检索完成。相似度用于排序，不代表识别准确率。", "success");
     }
   } catch (error) {
     setMessage("#search-message", error.message, "error");
