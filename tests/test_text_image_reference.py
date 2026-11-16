@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import io
 import os
 import re
@@ -33,7 +32,7 @@ class ImageSvgTracingTests(unittest.TestCase):
         )
         return np.asarray([(float(x), float(y)) for x, y in pairs])
 
-    def test_generated_svg_preserves_bitmap_under_interactive_paths(self):
+    def test_generated_svg_rebuilds_image_from_solid_color_paths(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), "white")
         for x in range(32, 96):
@@ -46,14 +45,12 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertIn(b'<path id="region-0" class="vector-region"', svg)
         self.assertIn(b'.vector-region:hover', svg)
         self.assertIn(b'viewBox="0 0 128 128"', svg)
-        self.assertIn(b'<image id="source-image"', svg)
-        self.assertIn(b'fill="none"', svg)
+        self.assertIn(b'fill="#ffffff"', svg)
+        self.assertIn(b'fill="#d22b2b"', svg)
+        self.assertNotIn(b'<image', svg)
+        self.assertNotIn(b'data:image/', svg)
+        self.assertNotIn(b'fill="none"', svg)
         self.assertNotIn(b'fill="transparent"', svg)
-        self.assertIn(b'xmlns:xlink="http://www.w3.org/1999/xlink"', svg)
-        self.assertIn(b'xlink:href="data:image/png;base64,', svg)
-        encoded = re.search(rb'data:image/png;base64,([^"\s]+)', svg)
-        self.assertIsNotNone(encoded)
-        self.assertEqual(base64.b64decode(encoded.group(1)), output.getvalue())
 
     def test_generated_dxf_contains_only_the_closed_outer_outline(self):
         output = io.BytesIO()
@@ -248,9 +245,10 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertIn(b'version="1.1"', svg_response.content)
         self.assertIn(b'<path id="region-0" class="vector-region"', svg_response.content)
         self.assertIn(b'.vector-region:hover', svg_response.content)
-        self.assertIn(b'<image id="source-image"', svg_response.content)
-        self.assertIn(b'xlink:href="data:image/png;base64,', svg_response.content)
-        self.assertIn(b'fill="none"', svg_response.content)
+        self.assertIn(b'fill="#c8b478"', svg_response.content)
+        self.assertNotIn(b'<image', svg_response.content)
+        self.assertNotIn(b'data:image/', svg_response.content)
+        self.assertNotIn(b'fill="none"', svg_response.content)
         self.assertNotIn(b'fill="transparent"', svg_response.content)
         png_download = self.client.get(
             f"/api/text-image/tasks/{task_id}/items/0/download/png", headers=headers,

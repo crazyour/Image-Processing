@@ -712,17 +712,12 @@ def _svg_path(points: np.ndarray) -> str:
 
 
 def _image_svg(image: bytes, size: str) -> bytes:
-    """Keep the generated raster intact and overlay interactive vector paths."""
+    """Rebuild the generated image as interactive, solid-color vector regions."""
     try:
         with Image.open(io.BytesIO(image)) as source:
             source.load()
             original_width, original_height = source.size
             traced = source.convert("RGBA")
-            image_format = (source.format or "PNG").upper()
-        image_mime = {
-            "JPEG": "image/jpeg", "JPG": "image/jpeg", "WEBP": "image/webp",
-        }.get(image_format, "image/png")
-        embedded_image = image
     except (OSError, ValueError):
         try:
             width_text, height_text = size.lower().split("x", 1)
@@ -730,10 +725,6 @@ def _image_svg(image: bytes, size: str) -> bytes:
         except (AttributeError, TypeError, ValueError):
             original_width = original_height = 1024
         traced = Image.new("RGBA", (original_width, original_height), "white")
-        fallback = io.BytesIO()
-        traced.save(fallback, "PNG")
-        image_mime = "image/png"
-        embedded_image = fallback.getvalue()
 
     traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
     width, height = traced.size
@@ -749,12 +740,14 @@ def _image_svg(image: bytes, size: str) -> bytes:
     colors = quantized.getcolors() or []
     base_color_index = max(colors, default=(0, -1))[1] if bool(np.all(alpha >= 254)) else -1
     if base_color_index >= 0:
+        red, green, blue = palette[base_color_index * 3:base_color_index * 3 + 3]
+        fill = f"#{red:02x}{green:02x}{blue:02x}"
         paths.append(
             f'  <path id="region-0" class="vector-region" d="M0 0H{width}V{height}H0Z" '
-            'fill="none"/>'
+            f'fill="{fill}" data-source-color="{fill}"/>'
         )
         path_index = 1
-    for count, color_index in sorted(colors, key=lambda entry: entry[1]):
+    for count, color_index in sorted(colors, reverse=True):
         if not count:
             continue
         if color_index == base_color_index:
@@ -765,6 +758,9 @@ def _image_svg(image: bytes, size: str) -> bytes:
             continue
         red, green, blue = palette[color_index * 3:color_index * 3 + 3]
         fill = f"#{red:02x}{green:02x}{blue:02x}"
+        alpha_values = alpha[(color_indexes == color_index) & (alpha >= 16)]
+        opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
+        opacity_attribute = f' fill-opacity="{opacity:.3f}"' if opacity < 0.995 else ""
         hierarchy = hierarchy[0]
         for contour_index, contour in enumerate(contours):
             if hierarchy[contour_index][3] != -1 or cv2.contourArea(contour) < 1:
@@ -779,25 +775,22 @@ def _image_svg(image: bytes, size: str) -> bytes:
                 continue
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
-                f'fill="none" data-source-color="{fill}" fill-rule="evenodd"/>'
+                f'fill="{fill}"{opacity_attribute} data-source-color="{fill}" fill-rule="evenodd"/>'
             )
             path_index += 1
 
     path_markup = "\n".join(paths)
-    image_data = base64.b64encode(embedded_image).decode("ascii")
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" '
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
         f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
-        '  <title>AI generated image with interactive vector paths</title>\n'
-        '  <desc>The original raster image is preserved. Move the pointer over it to reveal vector paths.</desc>\n'
+        '  <title>AI generated image rebuilt as vector color regions</title>\n'
+        '  <desc>Solid-color paths form the image without an embedded raster.</desc>\n'
         '  <style>\n'
-        '    .vector-region { cursor: crosshair; pointer-events: all; fill: none; stroke: none; '
+        '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; stroke: none; '
         'stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: stroke .12s ease; }\n'
         '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
         '  </style>\n'
-        f'  <image id="source-image" width="{width}" height="{height}" preserveAspectRatio="none" '
-        f'xlink:href="data:{image_mime};base64,{image_data}"/>\n'
         f'{path_markup}\n'
         '</svg>\n'
     ).encode("utf-8")

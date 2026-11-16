@@ -256,7 +256,7 @@ function applyTaskState(state) {
         const svgDownload = document.createElement("button");
         svgDownload.type = "button";
         svgDownload.textContent = "下载 SVG";
-        svgDownload.title = "下载保留原 PNG 画面的 SVG；在浏览器中悬停可高亮叠加路径";
+        svgDownload.title = "下载由实色矢量路径拼接的 SVG；不嵌入原始 PNG，悬停可高亮各色块";
         svgDownload.addEventListener("click", () => downloadTextImageItem(item, "svg", svgDownload));
         card.querySelector(".card-actions").appendChild(svgDownload);
         const dxfDownload = document.createElement("button");
