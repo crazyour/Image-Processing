@@ -313,7 +313,7 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         self.assertEqual(image_edit.call_args_list[1].args[2], "gpt-image-2.5-sunburst")
         self.assertEqual(image_edit.call_args_list[1].args[3], "high")
 
-    def test_final_result_can_be_downloaded_as_dxf(self):
+    def test_final_result_can_be_downloaded_as_svg_and_dxf(self):
         task_id, headers = self.create_task()
         with patch.object(app_module, "generate_view", return_value=(connected_image(), {})):
             generated = self.client.post(
@@ -322,6 +322,17 @@ class AnimalCutoutFlowTests(unittest.TestCase):
         self.assertEqual(generated.status_code, 200)
         selected = self.select_candidate(task_id, headers)
         self.assertEqual(selected.json()["status"], "SUCCEEDED")
+
+        svg_download = self.client.get(
+            f"/api/animal-cutout/tasks/{task_id}/svg", headers=headers,
+        )
+        self.assertEqual(svg_download.status_code, 200)
+        self.assertEqual(svg_download.headers["content-type"], "image/svg+xml")
+        svg = svg_download.content.decode("utf-8")
+        self.assertIn('fill="#000000"', svg)
+        self.assertIn('stroke="none"', svg)
+        self.assertIn('fill-rule="evenodd"', svg)
+        self.assertNotIn("data:image/", svg)
 
         downloaded = self.client.get(
             f"/api/animal-cutout/tasks/{task_id}/dxf", headers=headers,
@@ -377,6 +388,23 @@ class AnimalCutoutFlowTests(unittest.TestCase):
 
 
 class CutoutDxfTests(unittest.TestCase):
+    def test_svg_fill_and_dxf_lines_share_outer_and_inner_contours(self):
+        canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
+        cv2.rectangle(canvas, (15, 12), (112, 116), (0, 0, 0), -1)
+        cv2.circle(canvas, (45, 48), 11, (255, 255, 255), -1)
+        cv2.ellipse(canvas, (82, 76), (13, 18), 0, 0, 360, (255, 255, 255), -1)
+        ok, encoded = cv2.imencode(".png", canvas)
+        self.assertTrue(ok)
+
+        svg = app_module._cutout_svg(encoded.tobytes()).decode("utf-8")
+        dxf = app_module._cutout_dxf(encoded.tobytes()).decode("ascii").replace("\r\n", "\n")
+
+        path_data = re.search(r'<path id="cutout" d="([^"]+)"', svg)
+        self.assertIsNotNone(path_data)
+        self.assertEqual(path_data.group(1).count("M"), 3)
+        self.assertEqual(dxf.count("0\nPOLYLINE\n"), 3)
+        self.assertIn('fill-rule="evenodd"', svg)
+
     def test_dxf_trace_smooths_pixel_stair_steps(self):
         canvas = np.full((96, 96, 3), 255, dtype=np.uint8)
         cv2.circle(canvas, (48, 48), 31, (0, 0, 0), -1)

@@ -262,7 +262,7 @@ function applyTaskState(state) {
         const dxfDownload = document.createElement("button");
         dxfDownload.type = "button";
         dxfDownload.textContent = "下载 DXF";
-        dxfDownload.title = "下载主体最外层的单条闭合轮廓；DXF 不保留图片填充效果";
+        dxfDownload.title = "下载主体各连通部分的外部闭合轮廓；不包含内部纹理和图片填充";
         dxfDownload.addEventListener("click", () => downloadTextImageItem(item, "dxf", dxfDownload));
         card.querySelector(".card-actions").appendChild(dxfDownload);
       }
@@ -648,6 +648,7 @@ function applyAnimalState(state) {
   $("#manual-repair-animal").classList.toggle("hidden", state.status !== "REVIEW_REQUIRED" || !state.can_manual_repair);
   $("#restore-animal").classList.toggle("hidden", state.status === "GENERATING" || !state.can_restore_original);
   $("#download-animal").classList.add("hidden");
+  $("#download-animal-svg").classList.add("hidden");
   $("#download-animal-dxf").classList.add("hidden");
   const connectivity = state.connectivity;
   renderAnimalProcessDetails(state);
@@ -678,6 +679,7 @@ function applyAnimalState(state) {
     $("#animal-result-frame").replaceChildren(image);
     $("#download-animal").href = state.result.url;
     $("#download-animal").classList.remove("hidden");
+    $("#download-animal-svg").classList.remove("hidden");
     $("#download-animal-dxf").classList.remove("hidden");
   } else if (state.status === "GENERATING") {
     animalPlaceholder(
@@ -926,23 +928,24 @@ $("#animal-form").addEventListener("submit", async (event) => {
 $("#retry-animal").addEventListener("click", generateAnimalCutout);
 $("#manual-repair-animal").addEventListener("click", repairAnimalCutoutManually);
 $("#restore-animal").addEventListener("click", restoreOriginalAnimalCutout);
-$("#download-animal-dxf").addEventListener("click", async (event) => {
+
+async function downloadAnimalVector(event, fileType) {
   event.preventDefault();
   if (!animalTask || animalBusy) return;
   const button = event.currentTarget;
   button.setAttribute("aria-disabled", "true");
   try {
-    const response = await fetch(`/api/animal-cutout/tasks/${animalTask.id}/dxf`, {
+    const response = await fetch(`/api/animal-cutout/tasks/${animalTask.id}/${fileType}`, {
       headers: { "X-Session-Token": animalTask.token },
     });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || error.detail || "DXF 导出失败");
+      throw new Error(error.message || error.detail || `${fileType.toUpperCase()} 导出失败`);
     }
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
     link.href = url;
-    link.download = `cutout-${animalTask.id.slice(0, 8)}.dxf`;
+    link.download = `cutout-${animalTask.id.slice(0, 8)}.${fileType}`;
     link.click();
     URL.revokeObjectURL(url);
   } catch (error) {
@@ -950,7 +953,10 @@ $("#download-animal-dxf").addEventListener("click", async (event) => {
   } finally {
     button.removeAttribute("aria-disabled");
   }
-});
+}
+
+$("#download-animal-svg").addEventListener("click", (event) => downloadAnimalVector(event, "svg"));
+$("#download-animal-dxf").addEventListener("click", (event) => downloadAnimalVector(event, "dxf"));
 $("#dismiss-error").addEventListener("click", () => $("#error-panel").classList.add("hidden"));
 $("#refresh-task").addEventListener("click", () => refreshTask().catch(showError));
 $("#new-task").addEventListener("click", resetTask);

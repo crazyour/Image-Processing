@@ -804,6 +804,14 @@ def _image_svg(image: bytes, size: str) -> bytes:
 
 
 def _image_outer_mask(traced: Image.Image) -> np.ndarray:
+    """Build a subject mask while retaining meaningful detached pieces.
+
+    Text-to-image results often contain a composition whose small leaves, buds,
+    or ornaments do not touch the main subject.  Those are still part of the
+    requested *outer* outline.  Filter connected components by area instead of
+    collapsing the mask to the single largest component; the latter silently
+    dropped valid detached outlines.
+    """
     rgba = np.asarray(traced.convert("RGBA"), dtype=np.uint8)
     alpha = rgba[:, :, 3]
     alpha_ratio = float(np.mean(alpha >= 16))
@@ -827,13 +835,24 @@ def _image_outer_mask(traced: Image.Image) -> np.ndarray:
     foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel, iterations=2)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(foreground, connectivity=8)
     if count <= 1:
-        return np.full(foreground.shape, 255, dtype=np.uint8)
-    largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    return np.where(labels == largest, 255, 0).astype(np.uint8)
+        return np.zeros(foreground.shape, dtype=np.uint8)
+
+    component_areas = stats[1:, cv2.CC_STAT_AREA]
+    largest_area = int(component_areas.max())
+    image_area = int(foreground.shape[0] * foreground.shape[1])
+    # Keep detached parts large enough to be intentional (for example a flower
+    # bud), while rejecting isolated antialiasing pixels and background texture.
+    minimum_area = max(
+        4,
+        int(round(image_area * 0.0002)),
+        int(round(largest_area * 0.0025)),
+    )
+    kept_labels = 1 + np.flatnonzero(component_areas >= minimum_area)
+    return np.where(np.isin(labels, kept_labels), 255, 0).astype(np.uint8)
 
 
 def _image_dxf(image: bytes) -> bytes:
-    """Trace only the generated image subject's largest external outline."""
+    """Trace only meaningful external subject outlines, never internal detail."""
     with Image.open(io.BytesIO(image)) as source:
         source.load()
         traced = source.convert("RGBA")
@@ -851,8 +870,9 @@ def _image_dxf(image: bytes) -> bytes:
 
     mask = _image_outer_mask(traced)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
-    contour = max(contours, key=cv2.contourArea, default=None)
-    if contour is not None and cv2.contourArea(contour) >= 1:
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True):
+        if cv2.contourArea(contour) < 1:
+            continue
         points = cv2.approxPolyDP(contour, 0.65, True).reshape(-1, 2)
         if len(points) >= 3:
             vertices = "".join(
@@ -1734,8 +1754,14 @@ def _smooth_cutout_contour(contour: np.ndarray, supersample: int) -> np.ndarray:
     return simplified.astype(np.float64)
 
 
-def _cutout_dxf(image_bytes: bytes) -> bytes:
-    """Trace black raster regions into AutoCAD R12 closed millimetre paths."""
+def _trace_cutout_contours(image_bytes: bytes) -> tuple[int, int, list[np.ndarray]]:
+    """Return one shared, smoothed contour set for cutout SVG and DXF exports.
+
+    Every boundary is retained: the outside edge of the black material and the
+    edges of white openings inside it.  Exporters must not fall back to
+    ``RETR_EXTERNAL`` here, because doing so fills the openings that make the
+    design a stencil.
+    """
     with Image.open(io.BytesIO(image_bytes)) as source:
         gray = np.asarray(source.convert("L"))
     mask = np.where(gray < 128, 255, 0).astype(np.uint8)
@@ -1750,6 +1776,54 @@ def _cutout_dxf(image_bytes: bytes) -> bytes:
     traced = np.where(antialiased >= 128, 255, 0).astype(np.uint8)
     contours, _ = cv2.findContours(traced, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     height, width = mask.shape
+    smoothed_contours = []
+    for contour in contours:
+        if abs(cv2.contourArea(contour)) / (supersample ** 2) < 4:
+            continue
+        points = _smooth_cutout_contour(contour, supersample)
+        if len(points) >= 3:
+            smoothed_contours.append(points)
+    smoothed_contours.sort(
+        key=lambda points: abs(cv2.contourArea(points.astype(np.float32))),
+        reverse=True,
+    )
+    if not smoothed_contours:
+        raise WorkflowError("CUTOUT_VECTOR_EMPTY", "当前结果没有可导出的黑色轮廓", 409)
+    return width, height, smoothed_contours
+
+
+def _cutout_svg_path(points: np.ndarray) -> str:
+    def number(value: float) -> str:
+        return f"{value:.3f}".rstrip("0").rstrip(".")
+
+    commands = [f"M{number(points[0][0])} {number(points[0][1])}"]
+    commands.extend(f"L{number(x)} {number(y)}" for x, y in points[1:])
+    commands.append("Z")
+    return "".join(commands)
+
+
+def _cutout_svg(image_bytes: bytes) -> bytes:
+    """Export black retained material with transparent, even-odd cut openings."""
+    width, height, contours = _trace_cutout_contours(image_bytes)
+    millimetre_scale = 100.0 / max(width, height)
+    path_data = "".join(_cutout_svg_path(contour) for contour in contours)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
+        f'width="{width * millimetre_scale:.4f}mm" '
+        f'height="{height * millimetre_scale:.4f}mm" '
+        f'viewBox="0 0 {width} {height}">\n'
+        '  <title>Black material cutout with transparent openings</title>\n'
+        '  <desc>Black is retained material. Transparent areas are through-cut openings.</desc>\n'
+        f'  <path id="cutout" d="{path_data}" fill="#000000" stroke="none" '
+        'fill-rule="evenodd" clip-rule="evenodd"/>\n'
+        '</svg>\n'
+    ).encode("utf-8")
+
+
+def _cutout_dxf(image_bytes: bytes) -> bytes:
+    """Export the same outer and inner boundaries as closed AutoCAD R12 paths."""
+    width, height, contours = _trace_cutout_contours(image_bytes)
     scale = 100.0 / max(width, height)
     entities: list[str] = []
     next_handle = 0x100
@@ -1760,12 +1834,7 @@ def _cutout_dxf(image_bytes: bytes) -> bytes:
         next_handle += 1
         return handle
 
-    for contour in contours:
-        if abs(cv2.contourArea(contour)) / (supersample ** 2) < 4:
-            continue
-        points = _smooth_cutout_contour(contour, supersample)
-        if len(points) < 3:
-            continue
+    for points in contours:
         vertices = "".join(
             f"0\nVERTEX\n5\n{new_handle()}\n8\nCUT\n"
             f"10\n{x * scale:.4f}\n20\n{(height - y) * scale:.4f}\n30\n0.0000\n70\n0\n"
@@ -1779,8 +1848,6 @@ def _cutout_dxf(image_bytes: bytes) -> bytes:
             f"{vertices}"
             f"0\nSEQEND\n5\n{seqend_handle}\n8\nCUT\n"
         )
-    if not entities:
-        raise WorkflowError("CUTOUT_DXF_EMPTY", "当前结果没有可导出的黑色轮廓", 409)
     document = (
         "0\nSECTION\n2\nHEADER\n"
         "9\n$ACADVER\n1\nAC1009\n"
@@ -1800,6 +1867,23 @@ def _cutout_dxf(image_bytes: bytes) -> bytes:
         + "0\nENDSEC\n0\nEOF\n"
     )
     return document.replace("\n", "\r\n").encode("ascii")
+
+
+@app.get("/api/animal-cutout/tasks/{task_id}/svg")
+def download_animal_cutout_svg(
+    task_id: str,
+    x_session_token: str | None = Header(default=None),
+):
+    state, _ = _load_animal_cutout_task(task_id, x_session_token)
+    result = state.get("result") or {}
+    if state.get("status") not in {"SUCCEEDED", "REVIEW_REQUIRED"} or not result.get("url"):
+        raise WorkflowError("ANIMAL_CUTOUT_NOT_READY", "还没有可导出的最终结果", 409)
+    svg = _cutout_svg(fetch_bytes(result["url"], 25_000_000))
+    return Response(
+        svg,
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": f'attachment; filename="cutout-{task_id[:8]}.svg"'},
+    )
 
 
 @app.get("/api/animal-cutout/tasks/{task_id}/dxf")

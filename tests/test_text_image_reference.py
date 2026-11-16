@@ -60,7 +60,7 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertNotIn("COLOR_", dxf)
         self.assertTrue(dxf.endswith("0\nEOF\n"))
 
-    def test_generated_dxf_uses_only_the_largest_disconnected_subject(self):
+    def test_generated_dxf_keeps_meaningful_detached_outer_outlines(self):
         output = io.BytesIO()
         image = Image.new("RGB", (160, 120), "white")
         for x in range(20, 100):
@@ -73,10 +73,32 @@ class ImageSvgTracingTests(unittest.TestCase):
 
         dxf = app_module._image_dxf(output.getvalue()).decode("ascii").replace("\r\n", "\n")
 
-        self.assertEqual(dxf.count("0\nPOLYLINE\n"), 1)
+        self.assertEqual(dxf.count("0\nPOLYLINE\n"), 2)
         x_coordinates = [float(value) for value in re.findall(r"0\nVERTEX\n.*?10\n([0-9.]+)\n", dxf, re.S)]
         self.assertTrue(x_coordinates)
-        self.assertLess(max(x_coordinates), 70.0)
+        self.assertGreater(max(x_coordinates), 75.0)
+
+    def test_generated_dxf_ignores_internal_detail_and_tiny_noise(self):
+        output = io.BytesIO()
+        image = Image.new("RGB", (160, 120), "white")
+        for x in range(20, 140):
+            for y in range(15, 105):
+                image.putpixel((x, y), (210, 43, 43))
+        # A contrasting feature inside the subject must not become a DXF path.
+        for x in range(65, 95):
+            for y in range(45, 75):
+                image.putpixel((x, y), (20, 20, 20))
+        # A one-pixel background artifact must not become a detached outline.
+        image.putpixel((5, 5), (20, 20, 20))
+        image.save(output, "PNG")
+
+        dxf = app_module._image_dxf(output.getvalue()).decode("ascii").replace("\r\n", "\n")
+
+        self.assertEqual(dxf.count("0\nPOLYLINE\n"), 1)
+
+    def test_generated_dxf_rejects_an_image_without_a_subject(self):
+        with self.assertRaisesRegex(app_module.WorkflowError, "没有可导出的最外层轮廓"):
+            app_module._image_dxf(sample_png())
 
 
 class TextImageReferenceTests(unittest.TestCase):
