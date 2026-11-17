@@ -28,7 +28,8 @@ class Image3DModeTests(unittest.TestCase):
         javascript = (ROOT / "image3d_frontend" / "app.js").read_text(encoding="utf-8")
 
         self.assertLess(html.index('id="texture-content"'), html.index('id="upload-submit"'))
-        self.assertIn('id="enable-texture-edit"', html)
+        self.assertNotIn('id="enable-texture-edit"', html)
+        self.assertNotIn('id="initial-prompt"', html)
         self.assertIn('id="generate-texture"', html)
         self.assertIn('/texture`', javascript)
         self.assertIn('active_texture_image', javascript)

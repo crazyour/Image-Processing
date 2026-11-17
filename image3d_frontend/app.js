@@ -186,7 +186,7 @@ function renderTextureEditor() {
     : "上传后显示";
   $("#texture-current").innerHTML = current
     ? `<img src="${current.url}" alt="当前纹理版本 ${current.revision || edits.length}">`
-    : original ? `<img src="${original.url}" alt="当前使用的原始图">` : "尚未修改";
+    : "点击生成后显示";
   $("#texture-history-note").textContent = edits.length
     ? `已生成 ${edits.length} 个纹理版本；下一次修改会以当前版本为基础。`
     : "新一次修改会以当前版本为基础。";
@@ -226,7 +226,6 @@ function syncControls() {
   const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
   const canEditTexture = Boolean(state) && !uploaded && status === "REFERENCES_READY";
   $("#texture-content").classList.toggle("hidden", uploaded);
-  $("#enable-texture-edit").disabled = !canEditTexture || actionInFlight;
   $("#generate-texture").disabled = !canEditTexture || actionInFlight;
   $("#texture-prompt").disabled = !canEditTexture || actionInFlight;
   $("#prompt-editor").disabled = !canEditPrompt;
@@ -515,7 +514,7 @@ $("#image-input").addEventListener("change", (event) => {
   if (files[0] && !state) {
     const previewUrl = URL.createObjectURL(files[0]);
     $("#texture-original").innerHTML = `<img src="${previewUrl}" alt="待上传的原始主参考图">`;
-    $("#texture-current").innerHTML = `<img src="${previewUrl}" alt="当前使用的原始图">`;
+    $("#texture-current").textContent = "点击生成后显示";
   }
   $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图";
 });
@@ -526,7 +525,6 @@ function updateViewSource() {
   sourceInputs.forEach((input) => input.closest(".source-option").classList.toggle("selected", input.checked));
   $("#reference-upload").classList.toggle("hidden", uploaded);
   $("#manual-views").classList.toggle("hidden", !uploaded);
-  $("#prompt-requirement").classList.toggle("hidden", uploaded);
   $("#texture-content").classList.toggle("hidden", uploaded);
   $("#image-input").required = !uploaded;
   allViews.forEach((view) => { $(`#${view}-input`).required = uploaded; });
@@ -549,11 +547,6 @@ function updateGenerateType() {
 }
 
 $("#generate-type").addEventListener("change", updateGenerateType);
-
-$("#enable-texture-edit").addEventListener("change", (event) => {
-  $("#texture-editor").classList.toggle("hidden", !event.currentTarget.checked);
-  if (event.currentTarget.checked) $("#texture-prompt").focus();
-});
 
 $("#generate-texture").addEventListener("click", async (event) => {
   const button = event.currentTarget;
@@ -601,7 +594,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
     const file = await compressedFile(source);
     const form = new FormData();
     form.set("image", file);
-    form.set("prompt", $("#initial-prompt").value.trim());
+    form.set("prompt", "");
     form.set("view_source", viewSource);
     const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
     session = { id: result.session_id, token: result.access_token };

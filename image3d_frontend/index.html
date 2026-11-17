@@ -82,22 +82,18 @@
           <label>右视图（可拖入）<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="右视图"></label>
           <label>背视图（可拖入）<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="背视图"></label>
         </div>
-        <label id="prompt-requirement">补充要求（可选）
-          <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
-        </label>
         <div id="texture-content" class="texture-content">
           <div class="texture-heading">
             <div><strong>修改表面纹理（可选）</strong><span>调整颜色、材质或图案，保持形状、比例和视角不变。</span></div>
             <b id="texture-state" class="step-state">等待上传</b>
           </div>
-          <label class="check texture-toggle"><input id="enable-texture-edit" type="checkbox"> <span>启用 AI 纹理修改（每次会产生图片生成费用）</span></label>
           <div class="texture-preview-grid">
             <article><strong>原始主参考图</strong><div id="texture-original" class="texture-image-placeholder">选择图片后显示</div></article>
-            <article><strong>当前纹理版本</strong><div id="texture-current" class="texture-image-placeholder">尚未修改</div></article>
+            <article><strong>修改后的图片</strong><div id="texture-current" class="texture-image-placeholder">点击生成后显示</div></article>
           </div>
-          <div id="texture-editor" class="texture-editor hidden">
+          <div id="texture-editor" class="texture-editor">
             <label for="texture-prompt">纹理修改要求
-              <textarea id="texture-prompt" rows="3" maxlength="2000" placeholder="例如：把表面改成浅蓝色磨砂陶瓷，保留所有形状和比例"></textarea>
+              <textarea id="texture-prompt" rows="3" maxlength="2000" placeholder="例如：全身换成蓝色；改成白色陶瓷材质；表面增加金色星星图案；换成浅色木纹。"></textarea>
             </label>
             <div class="actions">
               <button id="generate-texture" class="secondary" type="button">生成新纹理版本</button>
