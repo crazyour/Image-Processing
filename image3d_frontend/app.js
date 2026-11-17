@@ -224,12 +224,15 @@ function syncControls() {
   const descriptionConfirmed = Boolean(state?.description_confirmed_at);
   const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
   const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
-  const canEditTexture = Boolean(state) && !uploaded && status === "REFERENCES_READY";
+  const hasLocalReference = Boolean($("#image-input").files?.length);
+  const canEditTexture = !uploaded && ((Boolean(state) && status === "REFERENCES_READY") || (!state && hasLocalReference));
   $("#texture-content").classList.toggle("hidden", uploaded);
   const textureButton = $("#generate-texture");
   textureButton.disabled = !canEditTexture || actionInFlight;
   if (!textureButton.dataset.busy) {
-    textureButton.textContent = !state ? "请先上传参考图" : "生成新纹理版本";
+    textureButton.textContent = !state
+      ? (hasLocalReference ? "生成纹理修改图" : "选择参考图后修改纹理")
+      : "生成新纹理版本";
   }
   $("#texture-prompt").disabled = uploaded || actionInFlight;
   $("#prompt-editor").disabled = !canEditPrompt;
@@ -521,6 +524,7 @@ $("#image-input").addEventListener("change", (event) => {
     $("#texture-current").textContent = "点击生成后显示";
   }
   $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图";
+  syncControls();
 });
 
 function updateViewSource() {
@@ -552,6 +556,30 @@ function updateGenerateType() {
 
 $("#generate-type").addEventListener("change", updateGenerateType);
 
+async function uploadSelectedReferences(button) {
+  if (session && state?.status === "REFERENCES_READY") return;
+  const referenceFiles = [...($("#image-input").files || [])];
+  if (!referenceFiles.length) throw new Error("请先选择参考图");
+  if (referenceFiles.length > 6) throw new Error("最多上传 6 张参考图");
+  if (session || state) throw new Error("当前任务状态不能重新上传参考图，请刷新页面后重试");
+
+  button.textContent = "正在准备参考图…";
+  const form = new FormData();
+  form.set("image", await compressedFile(referenceFiles[0]));
+  form.set("prompt", "");
+  form.set("view_source", "generated");
+  const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
+  session = { id: result.session_id, token: result.access_token };
+  sessionStorage.setItem("image3d-session", JSON.stringify(session));
+  render(result);
+  for (let index = 1; index < referenceFiles.length; index += 1) {
+    button.textContent = `正在准备参考图 ${index + 1}/${referenceFiles.length}…`;
+    const body = new FormData();
+    body.set("image", await compressedFile(referenceFiles[index]));
+    render(await api(`/api/sessions/${session.id}/references`, { method: "POST", body, timeout: 90_000 }));
+  }
+}
+
 $("#generate-texture").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   const prompt = $("#texture-prompt").value.trim();
@@ -559,6 +587,7 @@ $("#generate-texture").addEventListener("click", async (event) => {
   try {
     clearError();
     setActionInFlight(true);
+    await uploadSelectedReferences(button);
     setBusy(button, true, "AI 正在修改纹理…");
     render(await api(`/api/sessions/${session.id}/texture`, {
       method: "POST",
@@ -579,7 +608,8 @@ $("#upload-form").addEventListener("submit", async (event) => {
     clearError();
     setActionInFlight(true);
     const viewSource = document.querySelector('input[name="view-source"]:checked').value;
-    if (viewSource === "generated" && session && state?.status === "REFERENCES_READY") {
+    if (viewSource === "generated") {
+      await uploadSelectedReferences(button);
       setBusy(button, true, "AI 正在分析当前图片…");
       render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
       notify(state?.active_texture_image ? "AI 已基于修改后的纹理图生成描述" : "AI 已基于原始图生成描述");
@@ -591,9 +621,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
       throw new Error("请分别选择正视图、左视图、右视图和背视图");
     }
     setBusy(button, true, viewSource === "uploaded" ? "正在上传四视图…" : "正在上传参考图…");
-    const referenceFiles = [...($("#image-input").files || [])];
-    if (viewSource === "generated" && referenceFiles.length > 6) throw new Error("最多上传 6 张参考图");
-    const source = viewSource === "uploaded" ? uploadedViews.front : referenceFiles[0];
+    const source = uploadedViews.front;
     if (!source) throw new Error("请选择图片");
     const file = await compressedFile(source);
     const form = new FormData();
@@ -612,15 +640,6 @@ $("#upload-form").addEventListener("submit", async (event) => {
         render(await api(`/api/sessions/${session.id}/views/${view}/upload`, { method: "POST", body, timeout: 90_000 }));
       }
       notify("正、左、右、背四视图已上传");
-    } else {
-      for (let index = 1; index < referenceFiles.length; index += 1) {
-        button.textContent = `正在上传参考图 ${index + 1}/${referenceFiles.length}…`;
-        const body = new FormData();
-        body.set("image", await compressedFile(referenceFiles[index]));
-        render(await api(`/api/sessions/${session.id}/references`, { method: "POST", body, timeout: 90_000 }));
-      }
-      notify("参考图已上传，请检查左右对比图；可修改纹理或直接分析");
-      $("#texture-content").scrollIntoView({ behavior: "smooth", block: "center" });
     }
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
