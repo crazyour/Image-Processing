@@ -120,9 +120,9 @@
         <label class="generate-type-field" for="generate-type">类型
           <select id="generate-type">
             <option value="Normal">完整彩色模型（Normal）——保留物体的完整形状、颜色和表面纹理，适合普通照片和产品图片</option>
-            <option value="LowPoly">简化彩色模型（Low Poly）</option>
-            <option value="Geometry" selected>无色白模（Geometry）</option>
-            <option value="Sketch">草图彩色模型（Sketch）</option>
+            <option value="LowPoly">简化彩色模型（Low Poly）——简化物体形状和细节，同时保留颜色和纹理，模型更轻量</option>
+            <option value="Geometry" selected>无色白模（Geometry）——只生成物体形状，不生成颜色和纹理，适合检查造型或用于 3D 打印</option>
+            <option value="Sketch">草图彩色模型（Sketch）——适合线稿、草图或手绘图片，根据画面补全形状，并生成颜色和纹理</option>
           </select>
         </label>
         <label class="check" for="enable-pbr"><input id="enable-pbr" type="checkbox" disabled> <span>生成 PBR 材质（额外计费）</span></label>
