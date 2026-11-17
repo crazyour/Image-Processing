@@ -109,8 +109,7 @@ from vercel_app.workflow import (
     model_suffix,
     normalize_image,
     query_hunyuan,
-    submit_tripo,
-    submit_tripo_stl_conversion,
+    submit_hunyuan,
     view_prompt,
 )
 
@@ -159,7 +158,7 @@ TEXT_IMAGE_SIZE = "1024x1024"
 IMAGE3D_VISION_MODEL = "gpt-6-luna"
 IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
 IMAGE3D_VIEW_QUALITY = "medium"
-IMAGE3D_MODEL = "tripo-3d-3.1"
+IMAGE3D_MODEL = "hy-3d-3.1"
 MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
 MAX_PHOTOGRAPHY_UPLOAD_BYTES = 200_000_000
 MAX_PHOTOGRAPHY_CHUNK_BYTES = 3_500_000
@@ -2839,12 +2838,12 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
-            "message": "提交 Tripo 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
+            "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
         }
         _save(state, version)
         raise WorkflowError(
             "PUBLIC_BLOB_REQUIRED",
-            "本地图片无法被 Tripo 访问，请配置 BLOB_READ_WRITE_TOKEN 后重新创建会话",
+            "本地图片无法被腾讯混元访问，请配置 BLOB_READ_WRITE_TOKEN 后重新创建会话",
             409,
         )
     reservation_id = reserve_usage(
@@ -2855,10 +2854,11 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     state["last_error"] = None
     version = _save(state, version)
     try:
-        created, hunyuan_model = submit_tripo(
+        created, hunyuan_model = submit_hunyuan(
             snapshot["views"]["front"]["url"],
             {view: snapshot["views"][view]["url"] for view in GENERATED_VIEWS},
             options,
+            hunyuan_model,
         )
     except (WorkflowError, UsageLimitError) as exc:
         release_usage_reservation(reservation_id)
@@ -2899,9 +2899,7 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     task = state.get("hunyuan_task") or {}
     if not TASK_ID.fullmatch(str(task.get("id", ""))):
         raise WorkflowError("TASK_NOT_CREATED", "3D任务尚未创建", 409)
-    conversion_task = task.get("conversion_task") or {}
-    active_task = conversion_task if conversion_task else task
-    result = query_hunyuan(active_task["id"], active_task["model"])
+    result = query_hunyuan(task["id"], task["model"])
     provider_status = str(result.get("status", "")).lower()
     status_map = {
         "queued": "GENERATING_3D", "pending": "GENERATING_3D",
@@ -2912,28 +2910,35 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
         state["status"] = "FAILED"
         state["last_error"] = {
             "code": "HUNYUAN_INVALID_RESPONSE",
-            "message": f"Tripo 返回未知任务状态：{provider_status or '空'}",
+            "message": f"腾讯混元返回未知任务状态：{provider_status or '空'}",
         }
         _save(state, version)
         raise WorkflowError("HUNYUAN_INVALID_RESPONSE", state["last_error"]["message"], 502)
-    active_task["status"] = provider_status
-    active_task["request_id"] = result.get("request_id", active_task.get("request_id"))
-    active_task["completed_at"] = result.get("completed_at")
-    active_task["credits_consumed"] = result.get("credits_consumed")
-    if provider_status == "completed" and conversion_task:
+    task["status"] = provider_status
+    task["request_id"] = result.get("request_id", task.get("request_id"))
+    task["completed_at"] = result.get("completed_at")
+    task["credit_details"] = result.get("result_credit_details")
+    if provider_status == "completed":
         blobs = PublicBlobStore()
-        source_url = (result.get("output") or {}).get("model_url")
-        if isinstance(source_url, str) and source_url.startswith("https://"):
+        for item in result.get("data") or []:
+            model_type = str(item.get("type", "")).lower()
+            source_url = item.get("url")
+            if model_type != "stl":
+                continue
+            if not isinstance(source_url, str) or not source_url.startswith("https://"):
+                continue
+            if task["models"].get(model_type, {}).get("url"):
+                continue
             raw = fetch_bytes(source_url)
-            suffix = model_suffix(source_url, "stl")
+            suffix = model_suffix(source_url, model_type)
             url = blobs.put(
-                f"image3d/{session_id}/models/stl{suffix}",
+                f"image3d/{session_id}/models/{model_type}{suffix}",
                 raw,
                 "application/octet-stream",
             )
-            task["models"]["stl"] = {
+            task["models"][model_type] = {
                 "url": url,
-                "preview_image_url": task.get("preview_image_url"),
+                "preview_image_url": item.get("preview_image_url"),
                 "size_bytes": len(raw),
             }
         if task["models"].get("stl", {}).get("url"):
@@ -2943,50 +2948,13 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
             state["status"] = "FAILED"
             state["last_error"] = {
                 "code": "HUNYUAN_STL_MISSING",
-                "message": "Tripo STL 转换已完成，但没有返回可下载文件。",
+                "message": "腾讯混元任务已完成，但没有返回可下载的 STL 文件，请重试或核对模型输出格式。",
             }
-    elif provider_status == "completed":
-        output = result.get("output") or {}
-        model_url = output.get("model_url")
-        if not isinstance(model_url, str) or not model_url.startswith("https://"):
-            state["status"] = "FAILED"
-            state["last_error"] = {
-                "code": "TRIPO_MODEL_MISSING",
-                "message": "Tripo 生成完成，但没有返回可转换的模型。",
-            }
-        else:
-            task["preview_image_url"] = output.get("rendered_image_url") or output.get("generated_image_url")
-            raw_model = fetch_bytes(model_url)
-            model_suffix_value = model_suffix(model_url, "glb")
-            saved_model_url = PublicBlobStore().put(
-                f"image3d/{session_id}/models/glb{model_suffix_value}",
-                raw_model,
-                "model/gltf-binary",
-            )
-            task["models"]["glb"] = {
-                "url": saved_model_url,
-                "preview_image_url": task.get("preview_image_url"),
-                "size_bytes": len(raw_model),
-            }
-            created, format_model = submit_tripo_stl_conversion(model_url)
-            conversion_id = str(created.get("id", ""))
-            if not TASK_ID.fullmatch(conversion_id):
-                raise WorkflowError("TRIPO_FORMAT_INVALID_RESPONSE", "Tripo 没有返回 STL 转换任务编号", 502)
-            task["source_model_url"] = model_url
-            task["conversion_task"] = {
-                "id": conversion_id,
-                "model": format_model,
-                "status": str(created.get("status", "queued")),
-                "request_id": created.get("request_id"),
-                "submitted_at": int(time.time()),
-            }
-            state["status"] = "GENERATING_3D"
-            state["last_error"] = None
     elif provider_status == "failed":
         state["status"] = "FAILED"
         state["last_error"] = {
             "code": "HUNYUAN_GENERATION_FAILED",
-            "message": str(result.get("error", result.get("message", "Tripo 生成或转换失败")))[:500],
+            "message": str(result.get("error", result.get("message", "腾讯混元生成失败")))[:500],
         }
     else:
         state["status"] = "GENERATING_3D"

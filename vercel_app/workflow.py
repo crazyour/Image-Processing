@@ -433,6 +433,7 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
 
 def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, model: str) -> tuple[dict, str]:
     config = _hunyuan_config()
+    generate_type = options.get("generate_type", "Normal")
     payload = {
         "model": model,
         "image_url": front_url,
@@ -440,8 +441,8 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
             {"view_type": view, "view_image_url": view_urls[view]}
             for view in GENERATED_VIEWS
         ],
-        "generate_type": options.get("generate_type", "Normal"),
-        "enable_pbr": bool(options.get("enable_pbr", False)),
+        "generate_type": generate_type,
+        "enable_pbr": bool(options.get("enable_pbr", False)) if generate_type == "Normal" else False,
     }
     if options.get("face_count") is not None:
         payload["face_count"] = int(options["face_count"])

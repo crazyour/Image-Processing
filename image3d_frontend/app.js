@@ -318,10 +318,8 @@ function renderTask() {
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(state?.status);
   $("#task-progress").classList.toggle("hidden", !running);
   $("#task-stage").textContent = state?.status === "SUBMITTING_3D"
-    ? "正在提交 Tripo…"
-    : task?.conversion_task
-      ? "正在转换 STL…"
-      : task?.status === "queued" ? "任务已进入队列" : "Tripo 正在生成平滑模型…";
+    ? "正在提交腾讯混元…"
+    : task?.status === "queued" ? "任务已进入队列" : "腾讯混元正在生成模型…";
   $("#task-id").textContent = task?.id ? `任务编号：${task.id}` : "正在等待任务编号";
   updateElapsed();
   const models = task?.models || {};
@@ -675,8 +673,8 @@ function updateViewSource() {
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
 
 const generateTypeDescriptions = {
-  Normal: "保留原图颜色和表面纹理，同时使用 Smart Low Poly 生成更干净、平滑的拓扑。",
-  Geometry: "关闭纹理、PBR 和 UV，优先生成平滑的无色白模，适合 3D 打印。",
+  Normal: "使用 HY 3.1 生成带颜色和表面纹理的完整模型。",
+  Geometry: "使用 HY 3.1 只生成无纹理白模，速度更快，适合 3D 打印。",
 };
 
 function updateGenerateType() {

@@ -131,7 +131,7 @@
     </section>
 
     <section id="generate-step" class="panel">
-      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p>确认四视图后，即可提交 Tripo 生成平滑模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p>确认四视图后，即可提交腾讯混元 HY 3.1 生成模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <div class="options">
         <label class="generate-type-field" for="generate-type">类型
           <select id="generate-type">
@@ -143,7 +143,7 @@
       </div>
       <p id="generate-type-description" class="input-help"></p>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
-      <p class="cost-note">此操作会调用 Tripo 并产生费用。两种模式均开启 Smart Low Poly 平滑拓扑；STL 只保存物体形状，不包含彩色纹理。</p>
+      <p class="cost-note">此操作会调用腾讯混元 HY 3.1 并产生费用。HY 3.1 不支持 LowPoly 智能拓扑；STL 只保存物体形状，不包含普通彩色纹理。</p>
       <div id="task-progress" class="progress hidden">
         <div class="spinner"></div>
         <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
@@ -153,7 +153,7 @@
         <div><strong>STL 已生成</strong><span id="model-meta"></span><span>拖动模型可旋转，滚轮可缩放。</span></div>
         <div class="preview-surface">
           <canvas id="stl-canvas" class="hidden" aria-label="STL 模型交互预览"></canvas>
-          <img id="model-preview-image" class="hidden" alt="Tripo 生成的模型预览图">
+          <img id="model-preview-image" class="hidden" alt="腾讯混元生成的模型预览图">
         </div>
       </div>
       <div id="model-results" class="model-results"></div>
@@ -194,7 +194,7 @@
           <button id="download-resized-stl" class="primary" type="button">下载调整后的 STL</button>
         </div>
       </div>
-      <p class="cost-note">尺寸调整完全在浏览器内完成，不会上传本地 STL，也不会产生 AI 或 Tripo 费用。</p>
+      <p class="cost-note">尺寸调整完全在浏览器内完成，不会上传本地 STL，也不会产生 AI 或腾讯混元费用。</p>
     </section>
   </main>
 
@@ -209,7 +209,7 @@
         <strong>四视图有两种来源</strong>
         <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图，约 1 元/张，四视图约 4 元/次。</p>
         <p><b>自行上传：</b>先使用豆包等网页 AI 生成四视图，再上传到本站；本站不收图片生成费。</p>
-        <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 会调用 Tripo 并产生相应费用。</small>
+        <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 会调用腾讯混元并产生相应费用。</small>
       </section>
 
       <details open>
@@ -277,7 +277,7 @@
         <ol>
           <li>点击“提交 STL 任务”。</li>
           <li>页面会依次显示提交、排队、生成和保存状态。</li>
-          <li>页面会显示已等待时间和 Tripo 任务编号。</li>
+          <li>页面会显示已等待时间和腾讯混元任务编号。</li>
           <li>生成过程中可以返回工作台；只要当前标签页没有关闭，页面会继续查询任务状态。</li>
         </ol>
         <p>生成时间受图片复杂度、供应商队列和网络状态影响。按钮处于“正在生成 STL”时，不要重复提交。</p>
@@ -315,16 +315,16 @@
         </ul>
         <h3>多张参考图应该怎么选？</h3>
         <p>第一张放信息最完整的主参考，其余图补充侧面、背面、底部和局部结构。不要混入不同版本或不同物体，否则 AI 会在风险提示中标记冲突。</p>
-        <h3>为什么 Tripo 提交失败？</h3>
+        <h3>为什么腾讯混元提交失败？</h3>
         <p>常见原因包括：</p>
         <ul>
           <li>后台生成服务暂时不可用或额度不足。</li>
-          <li>Vercel Blob 未配置，Tripo 无法访问本地图片。</li>
+          <li>Vercel Blob 未配置，腾讯混元无法访问本地图片。</li>
           <li>网络连接暂时中断。</li>
         </ul>
         <p>页面会保留错误编号和 Request ID。排查问题时请同时提供这两个信息。</p>
         <h3>为什么任务完成后没有下载按钮？</h3>
-        <p>系统只有在成功取得 Tripo GLB 并转换、保存 STL 后才显示完成。如果任一阶段没有返回文件，页面会将任务标记为失败。</p>
+        <p>系统只有在成功取得并保存腾讯混元返回的 STL 后才显示完成。如果没有返回文件，页面会将任务标记为失败。</p>
         <h3>刷新页面后任务还在吗？</h3>
         <p>当前任务保存在当前标签页的会话中：</p>
         <ul>
@@ -349,7 +349,7 @@
         </ol>
       </details>
 
-      <p class="guide-footnote">站内 AI 生成图片和 Tripo 生成 STL 都可能产生费用，请避免重复提交。</p>
+      <p class="guide-footnote">站内 AI 生成图片和腾讯混元生成 STL 都可能产生费用，请避免重复提交。</p>
     </div>
   </aside>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
