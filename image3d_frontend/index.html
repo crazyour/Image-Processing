@@ -85,35 +85,32 @@
         <label id="prompt-requirement">补充要求（可选）
           <textarea id="initial-prompt" rows="3" placeholder="例如：浅色橡木餐椅，保持木纹和椅腿比例"></textarea>
         </label>
-        <button id="upload-submit" class="primary" type="submit">上传参考图</button>
+        <div id="texture-content" class="texture-content">
+          <div class="texture-heading">
+            <div><strong>修改表面纹理（可选）</strong><span>调整颜色、材质或图案，保持形状、比例和视角不变。</span></div>
+            <b id="texture-state" class="step-state">等待上传</b>
+          </div>
+          <label class="check texture-toggle"><input id="enable-texture-edit" type="checkbox"> <span>启用 AI 纹理修改（每次会产生图片生成费用）</span></label>
+          <div class="texture-preview-grid">
+            <article><strong>原始主参考图</strong><div id="texture-original" class="texture-image-placeholder">选择图片后显示</div></article>
+            <article><strong>当前纹理版本</strong><div id="texture-current" class="texture-image-placeholder">尚未修改</div></article>
+          </div>
+          <div id="texture-editor" class="texture-editor hidden">
+            <label for="texture-prompt">纹理修改要求
+              <textarea id="texture-prompt" rows="3" maxlength="2000" placeholder="例如：把表面改成浅蓝色磨砂陶瓷，保留所有形状和比例"></textarea>
+            </label>
+            <div class="actions">
+              <button id="generate-texture" class="secondary" type="button">生成新纹理版本</button>
+              <small id="texture-history-note">新一次修改会以当前版本为基础。</small>
+            </div>
+          </div>
+        </div>
+        <button id="upload-submit" class="primary" type="submit">上传并分析参考图</button>
       </form>
     </section>
 
-    <section id="texture-step" class="panel">
-      <div class="step-title"><span>02</span><div><h2>修改表面纹理（可选）</h2><p>只修改颜色、材质或图案，保持主体形状和视角不变；可以连续修改多次。</p></div><b id="texture-state" class="step-state">等待上传</b></div>
-      <div id="texture-content" class="texture-content">
-        <label class="check texture-toggle"><input id="enable-texture-edit" type="checkbox"> <span>启用 AI 纹理修改（每次会产生图片生成费用）</span></label>
-        <div id="texture-editor" class="texture-editor hidden">
-          <div class="texture-preview-grid">
-            <article><strong>原始主参考图</strong><div id="texture-original" class="texture-image-placeholder">上传后显示</div></article>
-            <article><strong>当前纹理版本</strong><div id="texture-current" class="texture-image-placeholder">尚未修改</div></article>
-          </div>
-          <label for="texture-prompt">纹理修改要求
-            <textarea id="texture-prompt" rows="3" maxlength="2000" placeholder="例如：把表面改成浅蓝色磨砂陶瓷，保留所有形状和比例"></textarea>
-          </label>
-          <div class="actions">
-            <button id="generate-texture" class="primary" type="button">生成新纹理版本</button>
-            <small id="texture-history-note">新一次修改会以当前版本为基础。</small>
-          </div>
-        </div>
-        <div class="actions texture-continue-actions">
-          <button id="continue-analysis" class="secondary" type="button">使用当前图片并继续分析</button>
-        </div>
-      </div>
-    </section>
-
     <section id="prompt-step" class="panel">
-      <div class="step-title"><span>03</span><div><h2>确认 AI 对图片的描述</h2><p>先确认 AI 是否正确理解主体、结构、材质和遮挡部分。</p></div><b id="description-state" class="step-state">等待分析</b></div>
+      <div class="step-title"><span>02</span><div><h2>确认 AI 对图片的描述</h2><p>先确认 AI 是否正确理解主体、结构、材质和遮挡部分。</p></div><b id="description-state" class="step-state">等待分析</b></div>
       <div class="prompt-content plain">
         <div id="server-reference-previews" class="reference-previews reviewed"></div>
         <p id="analysis-empty" class="empty-copy">上传参考图后，显示 AI 对主体、结构、材质和颜色的描述。用户上传四视图模式不会进行 AI 分析。</p>
@@ -128,7 +125,7 @@
     </section>
 
     <section id="views-step" class="panel">
-      <div class="step-title"><span>04</span><div><h2>生成并确认四视图</h2><p>描述确认后再生成，并检查正、左、右、背四张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
+      <div class="step-title"><span>03</span><div><h2>生成并确认四视图</h2><p>描述确认后再生成，并检查正、左、右、背四张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
       <div id="views-grid" class="views-grid"></div>
       <div class="actions">
         <button id="generate-views" class="primary" type="button">生成四视图</button>
@@ -138,7 +135,7 @@
     </section>
 
     <section id="generate-step" class="panel">
-      <div class="step-title"><span>05</span><div><h2>生成 STL</h2><p>确认四视图后，即可提交 Tripo 生成平滑模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p>确认四视图后，即可提交 Tripo 生成平滑模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <div class="options">
         <label class="generate-type-field" for="generate-type">类型
           <select id="generate-type">

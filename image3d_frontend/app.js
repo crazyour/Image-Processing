@@ -225,11 +225,10 @@ function syncControls() {
   const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
   const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
   const canEditTexture = Boolean(state) && !uploaded && status === "REFERENCES_READY";
-  $("#texture-step").classList.toggle("hidden", uploaded);
+  $("#texture-content").classList.toggle("hidden", uploaded);
   $("#enable-texture-edit").disabled = !canEditTexture || actionInFlight;
   $("#generate-texture").disabled = !canEditTexture || actionInFlight;
   $("#texture-prompt").disabled = !canEditTexture || actionInFlight;
-  $("#continue-analysis").disabled = !canEditTexture || actionInFlight;
   $("#prompt-editor").disabled = !canEditPrompt;
   $("#confirm-description").disabled = !canEditPrompt || actionInFlight;
   $("#confirm-description").classList.toggle("hidden", uploaded);
@@ -248,6 +247,14 @@ function syncControls() {
   generateButton.classList.toggle("pending", running);
   if (!generateButton.dataset.busy) {
     generateButton.textContent = running ? "正在生成 STL…" : status === "FAILED" ? "重新生成 STL" : "提交 STL 任务";
+  }
+  const uploadButton = $("#upload-submit");
+  uploadButton.disabled = actionInFlight || (Boolean(state) && status !== "REFERENCES_READY");
+  if (state && !uploaded) $("#image-input").required = false;
+  if (!uploadButton.dataset.busy) {
+    uploadButton.textContent = uploaded
+      ? "上传正、左、右、背四视图"
+      : status === "REFERENCES_READY" ? "确认当前图片并分析参考图" : "上传并分析参考图";
   }
 
   setStepState("#upload-state", !state ? "等待上传" : uploaded ? "四视图已上传" : `${state.reference_images?.length || 1} 张已上传`, Boolean(state), false, Boolean(state));
@@ -505,6 +512,11 @@ $("#image-input").addEventListener("change", (event) => {
   $("#upload-previews").innerHTML = files.map((file, index) =>
     `<article><img src="${URL.createObjectURL(file)}" alt="待上传参考图 ${index + 1}"><span>${index === 0 ? "主参考" : `补充 ${index}`}</span></article>`
   ).join("");
+  if (files[0] && !state) {
+    const previewUrl = URL.createObjectURL(files[0]);
+    $("#texture-original").innerHTML = `<img src="${previewUrl}" alt="待上传的原始主参考图">`;
+    $("#texture-current").innerHTML = `<img src="${previewUrl}" alt="当前使用的原始图">`;
+  }
   $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图";
 });
 
@@ -515,6 +527,7 @@ function updateViewSource() {
   $("#reference-upload").classList.toggle("hidden", uploaded);
   $("#manual-views").classList.toggle("hidden", !uploaded);
   $("#prompt-requirement").classList.toggle("hidden", uploaded);
+  $("#texture-content").classList.toggle("hidden", uploaded);
   $("#image-input").required = !uploaded;
   allViews.forEach((view) => { $(`#${view}-input`).required = uploaded; });
   $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "上传并分析参考图";
@@ -562,19 +575,6 @@ $("#generate-texture").addEventListener("click", async (event) => {
   finally { setBusy(button, false); setActionInFlight(false); }
 });
 
-$("#continue-analysis").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
-  try {
-    clearError();
-    setActionInFlight(true);
-    setBusy(button, true, "AI 正在分析当前图片…");
-    render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
-    notify(state?.active_texture_image ? "AI 已基于修改后的纹理图生成描述" : "AI 已基于原始图生成描述");
-    $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (error) { showError(error); await refresh(); }
-  finally { setBusy(button, false); setActionInFlight(false); }
-});
-
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.submitter;
@@ -582,6 +582,13 @@ $("#upload-form").addEventListener("submit", async (event) => {
     clearError();
     setActionInFlight(true);
     const viewSource = document.querySelector('input[name="view-source"]:checked').value;
+    if (viewSource === "generated" && session && state?.status === "REFERENCES_READY") {
+      setBusy(button, true, "AI 正在分析当前图片…");
+      render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
+      notify(state?.active_texture_image ? "AI 已基于修改后的纹理图生成描述" : "AI 已基于原始图生成描述");
+      $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     const uploadedViews = Object.fromEntries(allViews.map((view) => [view, $(`#${view}-input`).files?.[0]]));
     if (viewSource === "uploaded" && Object.values(uploadedViews).some((file) => !file)) {
       throw new Error("请分别选择正视图、左视图、右视图和背视图");
@@ -615,8 +622,8 @@ $("#upload-form").addEventListener("submit", async (event) => {
         body.set("image", await compressedFile(referenceFiles[index]));
         render(await api(`/api/sessions/${session.id}/references`, { method: "POST", body, timeout: 90_000 }));
       }
-      notify("参考图已上传，可选择修改纹理或直接继续");
-      $("#texture-step").scrollIntoView({ behavior: "smooth", block: "start" });
+      notify("参考图已上传，请检查左右对比图；可修改纹理或直接分析");
+      $("#texture-content").scrollIntoView({ behavior: "smooth", block: "center" });
     }
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }

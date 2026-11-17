@@ -23,14 +23,13 @@ class Image3DModeTests(unittest.TestCase):
         self.assertIn('generateType === "Geometry"', javascript)
         self.assertIn("Smart Low Poly", javascript)
 
-    def test_optional_iterative_texture_step_is_wired_before_views(self):
+    def test_optional_iterative_texture_editor_is_inside_upload_step(self):
         html = (ROOT / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
         javascript = (ROOT / "image3d_frontend" / "app.js").read_text(encoding="utf-8")
 
-        self.assertLess(html.index('id="texture-step"'), html.index('id="views-step"'))
+        self.assertLess(html.index('id="texture-content"'), html.index('id="upload-submit"'))
         self.assertIn('id="enable-texture-edit"', html)
         self.assertIn('id="generate-texture"', html)
-        self.assertIn('id="continue-analysis"', html)
         self.assertIn('/texture`', javascript)
         self.assertIn('active_texture_image', javascript)
 
