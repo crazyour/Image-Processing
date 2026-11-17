@@ -493,10 +493,10 @@ function updateViewSource() {
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
 
 const generateTypeDescriptions = {
-  Normal: "普通模式：生成完整几何结构和纹理，适合常规彩色 3D 模型。",
-  LowPoly: "低面数模式：用较少多边形生成带纹理模型，适合轻量预览、实时展示和风格化效果。",
-  Geometry: "几何模式：只生成无纹理白模，适合检查形体、轮廓和结构，不支持 PBR。",
-  Sketch: "草图模式：针对线稿或草图参考重建几何，并生成带纹理的彩色模型。",
+  Normal: "保留物体的完整形状、颜色和表面纹理，适合普通照片和产品图片。",
+  LowPoly: "简化物体形状和细节，同时保留颜色和纹理，模型更轻量。",
+  Geometry: "只生成物体形状，不生成颜色和纹理，适合检查造型或用于 3D 打印。",
+  Sketch: "适合线稿、草图或手绘图片，根据画面补全形状，并生成颜色和纹理。",
 };
 
 function updateGenerateType() {
