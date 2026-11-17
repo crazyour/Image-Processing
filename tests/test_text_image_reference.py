@@ -57,6 +57,22 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertNotIn(b'fill="none"', svg)
         self.assertNotIn(b'fill="transparent"', svg)
 
+    def test_generated_svg_adjacent_colors_share_exact_pixel_boundary(self):
+        output = io.BytesIO()
+        image = Image.new("RGB", (128, 128), (210, 43, 43))
+        for x in range(64, 128):
+            for y in range(128):
+                image.putpixel((x, y), (43, 80, 210))
+        image.save(output, "PNG")
+
+        svg = app_module._image_svg(output.getvalue(), "128x128")
+
+        self.assertGreaterEqual(svg.count(b'<path '), 2)
+        self.assertGreaterEqual(svg.count(b'L64 0'), 1)
+        self.assertGreaterEqual(svg.count(b'L64 128'), 1)
+        self.assertNotIn(b'vector-effect: non-scaling-stroke', svg)
+        self.assertIn(b'shape-rendering: geometricPrecision', svg)
+
     def test_generated_dxf_contains_only_the_closed_outer_outline(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), "white")

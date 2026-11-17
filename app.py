@@ -711,6 +711,74 @@ def _svg_path(points: np.ndarray) -> str:
     return "".join(commands)
 
 
+def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
+    """Trace exact pixel-cell outlines so adjacent masks share every boundary."""
+    foreground = np.asarray(mask, dtype=bool)
+    padded = np.pad(foreground, 1, constant_values=False)
+    boundaries = (
+        foreground & ~padded[:-2, 1:-1],
+        foreground & ~padded[1:-1, 2:],
+        foreground & ~padded[2:, 1:-1],
+        foreground & ~padded[1:-1, :-2],
+    )
+    outgoing: dict[tuple[int, int], list[tuple[tuple[int, int], int]]] = {}
+    for direction, boundary in enumerate(boundaries):
+        rows, columns = np.nonzero(boundary)
+        for row, column in zip(rows.tolist(), columns.tolist()):
+            starts = (
+                (column, row),
+                (column + 1, row),
+                (column + 1, row + 1),
+                (column, row + 1),
+            )
+            ends = (
+                (column + 1, row),
+                (column + 1, row + 1),
+                (column, row + 1),
+                (column, row),
+            )
+            outgoing.setdefault(starts[direction], []).append((ends[direction], direction))
+
+    paths = []
+    turn_priority = {1: 0, 0: 1, 3: 2, 2: 3}
+    while outgoing:
+        start = next(iter(outgoing))
+        end, direction = outgoing[start].pop()
+        if not outgoing[start]:
+            del outgoing[start]
+        points = [start, end]
+        while end != start:
+            options = outgoing.get(end)
+            if not options:
+                raise ValueError("pixel-cell contour is not closed")
+            option_index = min(
+                range(len(options)),
+                key=lambda index: turn_priority[(options[index][1] - direction) % 4],
+            )
+            following, direction = options.pop(option_index)
+            if not options:
+                del outgoing[end]
+            end = following
+            points.append(end)
+
+        corners = []
+        ring = points[:-1]
+        for index, point in enumerate(ring):
+            previous = ring[index - 1]
+            following = ring[(index + 1) % len(ring)]
+            if ((point[0] - previous[0]) * (following[1] - point[1])
+                    == (point[1] - previous[1]) * (following[0] - point[0])):
+                continue
+            corners.append(point)
+        if len(corners) >= 3:
+            paths.append(
+                f"M{corners[0][0]} {corners[0][1]}"
+                + "".join(f"L{x} {y}" for x, y in corners[1:])
+                + "Z"
+            )
+    return paths
+
+
 def _image_svg(image: bytes, size: str) -> bytes:
     """Rebuild the generated image as interactive, solid-color vector regions."""
     try:
@@ -757,27 +825,13 @@ def _image_svg(image: bytes, size: str) -> bytes:
             continue
         if color_index == base_color_index:
             continue
-        mask = np.where((color_indexes == color_index) & (alpha >= 16), 255, 0).astype(np.uint8)
-        contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
-        if hierarchy is None:
-            continue
+        mask = (color_indexes == color_index) & (alpha >= 16)
         red, green, blue = palette[color_index * 3:color_index * 3 + 3]
         fill = f"#{red:02x}{green:02x}{blue:02x}"
         alpha_values = alpha[(color_indexes == color_index) & (alpha >= 16)]
         opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
         opacity_attribute = f' opacity="{opacity:.3f}"' if opacity < 0.995 else ""
-        hierarchy = hierarchy[0]
-        for contour_index, contour in enumerate(contours):
-            if hierarchy[contour_index][3] != -1 or cv2.contourArea(contour) < 1:
-                continue
-            parts = [_svg_path(cv2.approxPolyDP(contour, 0.65, True))]
-            child_index = hierarchy[contour_index][2]
-            while child_index != -1:
-                parts.append(_svg_path(cv2.approxPolyDP(contours[child_index], 0.65, True)))
-                child_index = hierarchy[child_index][0]
-            path_data = "".join(part for part in parts if part)
-            if not path_data:
-                continue
+        for path_data in _pixel_cell_paths(mask):
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
                 f'fill="{fill}" stroke="{fill}"{opacity_attribute} '
@@ -795,8 +849,8 @@ def _image_svg(image: bytes, size: str) -> bytes:
         '  <style>\n'
         '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
         'stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; '
-        'vector-effect: non-scaling-stroke; transition: stroke .12s ease; }\n'
-        '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
+        'shape-rendering: geometricPrecision; transition: filter .12s ease; }\n'
+        '    .vector-region:hover { filter: brightness(1.12); }\n'
         '  </style>\n'
         f'{path_markup}\n'
         '</svg>\n'
