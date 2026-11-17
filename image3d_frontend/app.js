@@ -226,8 +226,12 @@ function syncControls() {
   const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
   const canEditTexture = Boolean(state) && !uploaded && status === "REFERENCES_READY";
   $("#texture-content").classList.toggle("hidden", uploaded);
-  $("#generate-texture").disabled = !canEditTexture || actionInFlight;
-  $("#texture-prompt").disabled = !canEditTexture || actionInFlight;
+  const textureButton = $("#generate-texture");
+  textureButton.disabled = !canEditTexture || actionInFlight;
+  if (!textureButton.dataset.busy) {
+    textureButton.textContent = !state ? "请先上传参考图" : "生成新纹理版本";
+  }
+  $("#texture-prompt").disabled = uploaded || actionInFlight;
   $("#prompt-editor").disabled = !canEditPrompt;
   $("#confirm-description").disabled = !canEditPrompt || actionInFlight;
   $("#confirm-description").classList.toggle("hidden", uploaded);
