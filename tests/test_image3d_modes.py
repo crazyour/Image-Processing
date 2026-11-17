@@ -1,27 +1,15 @@
 from pathlib import Path
 import unittest
 
-from vercel_app.workflow import GENERATE_TYPES, hunyuan_model_for_generate_type
+from vercel_app.workflow import GENERATE_TYPES
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Image3DModeTests(unittest.TestCase):
-    def test_hunyuan_31_unsupported_modes_fall_back_to_30(self):
-        self.assertEqual(hunyuan_model_for_generate_type("hy-3d-3.1", "LowPoly"), "hy-3d-3.0")
-        self.assertEqual(hunyuan_model_for_generate_type("hy-3d-3.1", "Sketch"), "hy-3d-3.0")
-        self.assertEqual(hunyuan_model_for_generate_type("hy-3d-3.1", "Normal"), "hy-3d-3.1")
-        self.assertEqual(hunyuan_model_for_generate_type("hy-3d-3.1", "Geometry"), "hy-3d-3.1")
-
-    def test_non_31_model_is_not_overridden(self):
-        self.assertEqual(hunyuan_model_for_generate_type("hy-3d-3.0", "LowPoly"), "hy-3d-3.0")
-
-    def test_backend_accepts_all_hunyuan_generation_modes(self):
-        self.assertEqual(
-            GENERATE_TYPES,
-            {"Normal", "LowPoly", "Geometry", "Sketch"},
-        )
+    def test_backend_accepts_colored_and_geometry_modes(self):
+        self.assertEqual(GENERATE_TYPES, {"Normal", "Geometry"})
 
     def test_frontend_lists_and_describes_all_generation_modes(self):
         html = (ROOT / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
@@ -30,8 +18,21 @@ class Image3DModeTests(unittest.TestCase):
         for generate_type in GENERATE_TYPES:
             self.assertIn(f'value="{generate_type}"', html)
             self.assertIn(f"{generate_type}:", javascript)
+        self.assertNotIn('value="LowPoly"', html)
+        self.assertNotIn('value="Sketch"', html)
         self.assertIn('generateType === "Geometry"', javascript)
-        self.assertIn("不生成颜色和纹理", javascript)
+        self.assertIn("Smart Low Poly", javascript)
+
+    def test_optional_iterative_texture_step_is_wired_before_views(self):
+        html = (ROOT / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
+        javascript = (ROOT / "image3d_frontend" / "app.js").read_text(encoding="utf-8")
+
+        self.assertLess(html.index('id="texture-step"'), html.index('id="views-step"'))
+        self.assertIn('id="enable-texture-edit"', html)
+        self.assertIn('id="generate-texture"', html)
+        self.assertIn('id="continue-analysis"', html)
+        self.assertIn('/texture`', javascript)
+        self.assertIn('active_texture_image', javascript)
 
 
 if __name__ == "__main__":

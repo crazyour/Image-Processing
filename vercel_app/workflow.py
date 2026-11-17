@@ -18,8 +18,9 @@ VIEW_TYPES = ("front", "left", "right", "back")
 GENERATED_VIEWS = ("left", "right", "back")
 AI_GENERATED_VIEWS = VIEW_TYPES
 VIEW_NAMES = {"front": "正视图", "left": "左视图", "right": "右视图", "back": "背视图"}
-GENERATE_TYPES = {"Normal", "LowPoly", "Geometry", "Sketch"}
-HUNYUAN_31_UNSUPPORTED_TYPES = {"LowPoly", "Sketch"}
+GENERATE_TYPES = {"Normal", "Geometry"}
+TRIPO_MODEL = "tripo-3d-3.1"
+TRIPO_FORMAT_MODEL = "tripo-3d-format"
 MAX_UPLOAD_BYTES = 4_000_000
 MAX_PIXELS = 20_000_000
 MAX_MODEL_BYTES = 250_000_000
@@ -61,13 +62,6 @@ class WorkflowError(RuntimeError):
         self.message = message
         self.status = status
         super().__init__(message)
-
-
-def hunyuan_model_for_generate_type(model: str, generate_type: str) -> str:
-    """Route modes missing from HY-3D 3.1 to the compatible 3.0 model."""
-    if model == "hy-3d-3.1" and generate_type in HUNYUAN_31_UNSUPPORTED_TYPES:
-        return "hy-3d-3.0"
-    return model
 
 
 def _openai_config():
@@ -450,6 +444,65 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
     if not isinstance(body, dict) or not body.get("id"):
         raise _provider_payload_error("腾讯混元", body if isinstance(body, dict) else {})
     return body, model
+
+
+def submit_tripo(front_url: str, view_urls: dict[str, str], options: dict) -> tuple[dict, str]:
+    """Submit a smooth-topology Tripo multiview model through TokenHub."""
+    config = _hunyuan_config()
+    colored = options.get("generate_type", "Geometry") == "Normal"
+    payload = {
+        "model": TRIPO_MODEL,
+        "inputs": {"front": front_url, **{view: view_urls[view] for view in GENERATED_VIEWS}},
+        "texture": colored,
+        "pbr": bool(options.get("enable_pbr", False)) if colored else False,
+        "export_uv": colored,
+        "texture_alignment": "geometry",
+        "enable_image_autofix": True,
+        "smart_low_poly": True,
+        "face_limit": 15000,
+        "geometry_quality": "standard",
+        "negative_prompt": (
+            "broken mesh, holes, spikes, rough surface, floating parts, "
+            "non-manifold geometry, disconnected parts"
+        ),
+    }
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=120) as client:
+            response = client.post("/api/3d/submit", headers={
+                "Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json",
+            }, json=payload)
+    except httpx.RequestError as exc:
+        raise WorkflowError("TRIPO_UNAVAILABLE", f"Tripo 连接失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("Tripo", response)
+    try:
+        body = response.json()
+    except ValueError:
+        raise WorkflowError("TRIPO_INVALID_RESPONSE", "Tripo 返回内容无法解析", 502)
+    if not isinstance(body, dict) or not body.get("id"):
+        raise _provider_payload_error("Tripo", body if isinstance(body, dict) else {})
+    return body, TRIPO_MODEL
+
+
+def submit_tripo_stl_conversion(model_url: str) -> tuple[dict, str]:
+    config = _hunyuan_config()
+    payload = {"model": TRIPO_FORMAT_MODEL, "input": model_url, "format": "STL"}
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=120) as client:
+            response = client.post("/api/3d/submit", headers={
+                "Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json",
+            }, json=payload)
+    except httpx.RequestError as exc:
+        raise WorkflowError("TRIPO_FORMAT_UNAVAILABLE", f"Tripo STL 转换连接失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("Tripo STL 转换", response)
+    try:
+        body = response.json()
+    except ValueError:
+        raise WorkflowError("TRIPO_FORMAT_INVALID_RESPONSE", "Tripo STL 转换返回内容无法解析", 502)
+    if not isinstance(body, dict) or not body.get("id"):
+        raise _provider_payload_error("Tripo STL 转换", body if isinstance(body, dict) else {})
+    return body, TRIPO_FORMAT_MODEL
 
 
 def query_hunyuan(task_id: str, model: str) -> dict:

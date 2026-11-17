@@ -177,6 +177,21 @@ function renderReferences(references = []) {
   ).join("");
 }
 
+function renderTextureEditor() {
+  const original = state?.reference_images?.[0];
+  const current = state?.active_texture_image;
+  const edits = state?.texture_edits || [];
+  $("#texture-original").innerHTML = original
+    ? `<img src="${original.url}" alt="原始主参考图">`
+    : "上传后显示";
+  $("#texture-current").innerHTML = current
+    ? `<img src="${current.url}" alt="当前纹理版本 ${current.revision || edits.length}">`
+    : original ? `<img src="${original.url}" alt="当前使用的原始图">` : "尚未修改";
+  $("#texture-history-note").textContent = edits.length
+    ? `已生成 ${edits.length} 个纹理版本；下一次修改会以当前版本为基础。`
+    : "新一次修改会以当前版本为基础。";
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 }
@@ -209,6 +224,12 @@ function syncControls() {
   const descriptionConfirmed = Boolean(state?.description_confirmed_at);
   const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
   const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
+  const canEditTexture = Boolean(state) && !uploaded && status === "REFERENCES_READY";
+  $("#texture-step").classList.toggle("hidden", uploaded);
+  $("#enable-texture-edit").disabled = !canEditTexture || actionInFlight;
+  $("#generate-texture").disabled = !canEditTexture || actionInFlight;
+  $("#texture-prompt").disabled = !canEditTexture || actionInFlight;
+  $("#continue-analysis").disabled = !canEditTexture || actionInFlight;
   $("#prompt-editor").disabled = !canEditPrompt;
   $("#confirm-description").disabled = !canEditPrompt || actionInFlight;
   $("#confirm-description").classList.toggle("hidden", uploaded);
@@ -230,6 +251,10 @@ function syncControls() {
   }
 
   setStepState("#upload-state", !state ? "等待上传" : uploaded ? "四视图已上传" : `${state.reference_images?.length || 1} 张已上传`, Boolean(state), false, Boolean(state));
+  if (!state) setStepState("#texture-state", "等待上传", false, false);
+  else if (uploaded) setStepState("#texture-state", "无需修改", false, false, true);
+  else if (status === "REFERENCES_READY") setStepState("#texture-state", state.active_texture_image ? `已修改 ${state.texture_edits?.length || 1} 次` : "可选", true, false, Boolean(state.active_texture_image));
+  else setStepState("#texture-state", state.active_texture_image ? "已应用" : "已跳过", false, false, true);
   if (!state) setStepState("#description-state", "等待分析", false, false);
   else if (uploaded) setStepState("#description-state", "无需分析", false, false, true);
   else if (status === "ANALYZING_REFERENCES") setStepState("#description-state", "正在分析", true, false);
@@ -262,6 +287,7 @@ function render(next) {
   state = next;
   renderAnalysis(state?.analysis || {});
   renderReferences(state?.reference_images || []);
+  renderTextureEditor();
   $("#prompt-editor").value = state?.user_prompt || "";
   renderViews(state?.views || {});
   syncControls();
@@ -273,12 +299,16 @@ function renderTask() {
   const task = state?.hunyuan_task;
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(state?.status);
   $("#task-progress").classList.toggle("hidden", !running);
-  $("#task-stage").textContent = state?.status === "SUBMITTING_3D" ? "正在提交腾讯混元…" : task?.status === "queued" ? "任务已进入队列" : "腾讯混元正在生成 STL…";
+  $("#task-stage").textContent = state?.status === "SUBMITTING_3D"
+    ? "正在提交 Tripo…"
+    : task?.conversion_task
+      ? "正在转换 STL…"
+      : task?.status === "queued" ? "任务已进入队列" : "Tripo 正在生成平滑模型…";
   $("#task-id").textContent = task?.id ? `任务编号：${task.id}` : "正在等待任务编号";
   updateElapsed();
   const models = task?.models || {};
-  $("#model-results").innerHTML = Object.entries(models).filter(([type]) => type.toLowerCase() === "stl").map(([type, model]) =>
-    `<a class="model-link" href="${model.url}" download="model-${state.session_id.slice(0, 8)}.stl"><span>${type.toUpperCase()} 模型</span><span>下载文件 ↓</span></a>`
+  $("#model-results").innerHTML = Object.entries(models).filter(([type]) => ["glb", "stl"].includes(type.toLowerCase())).map(([type, model]) =>
+    `<a class="model-link" href="${model.url}" download="model-${state.session_id.slice(0, 8)}.${type.toLowerCase()}"><span>${type.toUpperCase()} 模型</span><span>下载文件 ↓</span></a>`
   ).join("");
   const stl = models.stl || models.STL;
   $("#model-preview").classList.toggle("hidden", !stl);
@@ -493,10 +523,8 @@ function updateViewSource() {
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
 
 const generateTypeDescriptions = {
-  Normal: "保留物体的完整形状、颜色和表面纹理，适合普通照片和产品图片。",
-  LowPoly: "简化物体形状和细节，同时保留颜色和纹理，模型更轻量。",
-  Geometry: "只生成物体形状，不生成颜色和纹理，适合检查造型或用于 3D 打印。",
-  Sketch: "适合线稿、草图或手绘图片，根据画面补全形状，并生成颜色和纹理。",
+  Normal: "保留原图颜色和表面纹理，同时使用 Smart Low Poly 生成更干净、平滑的拓扑。",
+  Geometry: "关闭纹理、PBR 和 UV，优先生成平滑的无色白模，适合 3D 打印。",
 };
 
 function updateGenerateType() {
@@ -508,6 +536,44 @@ function updateGenerateType() {
 }
 
 $("#generate-type").addEventListener("change", updateGenerateType);
+
+$("#enable-texture-edit").addEventListener("change", (event) => {
+  $("#texture-editor").classList.toggle("hidden", !event.currentTarget.checked);
+  if (event.currentTarget.checked) $("#texture-prompt").focus();
+});
+
+$("#generate-texture").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  const prompt = $("#texture-prompt").value.trim();
+  if (!prompt) return notify("请输入纹理修改要求", true);
+  try {
+    clearError();
+    setActionInFlight(true);
+    setBusy(button, true, "AI 正在修改纹理…");
+    render(await api(`/api/sessions/${session.id}/texture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+      timeout: 295_000,
+    }));
+    $("#texture-prompt").value = "";
+    notify("新纹理版本已生成，可继续修改或进入下一步");
+  } catch (error) { showError(error); await refresh(); }
+  finally { setBusy(button, false); setActionInFlight(false); }
+});
+
+$("#continue-analysis").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    clearError();
+    setActionInFlight(true);
+    setBusy(button, true, "AI 正在分析当前图片…");
+    render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
+    notify(state?.active_texture_image ? "AI 已基于修改后的纹理图生成描述" : "AI 已基于原始图生成描述");
+    $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { showError(error); await refresh(); }
+  finally { setBusy(button, false); setActionInFlight(false); }
+});
 
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -549,10 +615,8 @@ $("#upload-form").addEventListener("submit", async (event) => {
         body.set("image", await compressedFile(referenceFiles[index]));
         render(await api(`/api/sessions/${session.id}/references`, { method: "POST", body, timeout: 90_000 }));
       }
-      button.textContent = `AI 正在综合分析 ${referenceFiles.length} 张图…`;
-      render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
-      notify("AI 描述已生成，请检查并确认");
-      $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
+      notify("参考图已上传，可选择修改纹理或直接继续");
+      $("#texture-step").scrollIntoView({ behavior: "smooth", block: "start" });
     }
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
