@@ -480,7 +480,6 @@ def submit_tripo(front_url: str, view_urls: dict[str, str], options: dict) -> tu
         "pbr": bool(options.get("enable_pbr", False)) if colored else False,
         "export_uv": colored,
         "texture_alignment": "geometry",
-        "enable_image_autofix": True,
         "smart_low_poly": True,
         "face_limit": 15000,
         "geometry_quality": "standard",

@@ -61,6 +61,7 @@ class Image3DModeTests(unittest.TestCase):
             {"back": "https://example.com/back.png"},
         ])
         self.assertTrue(all(len(item) == 1 for item in payload["inputs"]))
+        self.assertNotIn("enable_image_autofix", payload)
 
 
 if __name__ == "__main__":
