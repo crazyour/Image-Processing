@@ -125,7 +125,8 @@ def _provider_error(provider: str, response: httpx.Response) -> WorkflowError:
         response_body = body.get("Response") if isinstance(body.get("Response"), dict) else {}
         error = (
             body.get("error") or body.get("Error") or response_body.get("Error")
-            or body.get("message") or body.get("Message") or ""
+            or body.get("detail") or body.get("message") or body.get("Message")
+            or body.get("msg") or body.get("error_message") or body.get("status_msg") or ""
         )
         if isinstance(error, dict):
             detail = error.get("message") or error.get("Message") or error.get("code") or error.get("Code") or ""
@@ -133,8 +134,13 @@ def _provider_error(provider: str, response: httpx.Response) -> WorkflowError:
             error_type = str(error.get("type") or error.get("Type") or "")
         else:
             detail = error
+        error_code = error_code or str(
+            body.get("error_code") or body.get("code") or body.get("status_code") or ""
+        )
+        data_body = body.get("data") if isinstance(body.get("data"), dict) else {}
         request_id = str(
-            body.get("request_id") or body.get("RequestId") or response_body.get("RequestId") or ""
+            body.get("request_id") or body.get("RequestId") or response_body.get("RequestId")
+            or data_body.get("request_id") or ""
         )
     except (ValueError, AttributeError, httpx.ResponseNotRead):
         # Some gateway errors are returned as plain text instead of JSON.
@@ -465,7 +471,9 @@ def submit_tripo(front_url: str, view_urls: dict[str, str], options: dict) -> tu
     colored = options.get("generate_type", "Geometry") == "Normal"
     payload = {
         "model": TRIPO_MODEL,
-        "inputs": {"front": front_url, **{view: view_urls[view] for view in GENERATED_VIEWS}},
+        # TokenHub defines multi-view inputs as an array whose elements use
+        # the front/left/right/back input structure.
+        "inputs": [{"front": front_url, **{view: view_urls[view] for view in GENERATED_VIEWS}}],
         "texture": colored,
         "pbr": bool(options.get("enable_pbr", False)) if colored else False,
         "export_uv": colored,

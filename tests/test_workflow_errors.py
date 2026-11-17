@@ -57,6 +57,19 @@ class ProviderErrorTests(unittest.TestCase):
         self.assertIn("InvalidParameter", error.message)
         self.assertIn("req-test", error.message)
 
+    def test_tokenhub_detail_and_top_level_code_are_visible(self):
+        response = httpx.Response(400, json={
+            "code": "InvalidParameter",
+            "detail": "inputs must be an array",
+            "request_id": "req-detail",
+        })
+
+        error = _provider_error("Tripo", response)
+
+        self.assertIn("inputs must be an array", error.message)
+        self.assertIn("InvalidParameter", error.message)
+        self.assertIn("req-detail", error.message)
+
 
 if __name__ == "__main__":
     unittest.main()
