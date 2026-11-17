@@ -492,10 +492,19 @@ function updateViewSource() {
 
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
 
+const generateTypeDescriptions = {
+  Normal: "普通模式：生成完整几何结构和纹理，适合常规彩色 3D 模型。",
+  LowPoly: "低面数模式：用较少多边形生成带纹理模型，适合轻量预览、实时展示和风格化效果。",
+  Geometry: "几何模式：只生成无纹理白模，适合检查形体、轮廓和结构，不支持 PBR。",
+  Sketch: "草图模式：针对线稿或草图参考重建几何，并生成带纹理的彩色模型。",
+};
+
 function updateGenerateType() {
-  const geometryOnly = $("#generate-type").value === "Geometry";
+  const generateType = $("#generate-type").value;
+  const geometryOnly = generateType === "Geometry";
   $("#enable-pbr").disabled = geometryOnly;
   if (geometryOnly) $("#enable-pbr").checked = false;
+  $("#generate-type-description").textContent = generateTypeDescriptions[generateType] || "";
 }
 
 $("#generate-type").addEventListener("change", updateGenerateType);

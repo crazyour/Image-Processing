@@ -2760,7 +2760,11 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
         raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
     if data.generate_type not in GENERATE_TYPES:
-        raise WorkflowError("INVALID_OPTION", "生成类型只能是 Normal 或 Geometry", 422)
+        raise WorkflowError(
+            "INVALID_OPTION",
+            "生成类型只能是 Normal、LowPoly、Geometry 或 Sketch",
+            422,
+        )
     options = data.model_dump()
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
