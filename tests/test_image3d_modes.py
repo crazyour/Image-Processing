@@ -1,7 +1,8 @@
 from pathlib import Path
 import unittest
+from unittest.mock import Mock, patch
 
-from vercel_app.workflow import GENERATE_TYPES
+from vercel_app.workflow import GENERATE_TYPES, submit_tripo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,33 @@ class Image3DModeTests(unittest.TestCase):
         self.assertIn('id="generate-texture"', html)
         self.assertIn('/texture`', javascript)
         self.assertIn('active_texture_image', javascript)
+
+    @patch("vercel_app.workflow._hunyuan_config")
+    @patch("vercel_app.workflow.httpx.Client")
+    def test_tripo_sends_each_view_as_a_separate_input(self, client_class, config):
+        config.return_value = Mock(base_url="https://example.invalid", api_key="test-key")
+        response = Mock(status_code=200)
+        response.json.return_value = {"id": "123", "status": "queued"}
+        client_class.return_value.__enter__.return_value.post.return_value = response
+
+        submit_tripo(
+            "https://example.com/front.png",
+            {
+                "left": "https://example.com/left.png",
+                "right": "https://example.com/right.png",
+                "back": "https://example.com/back.png",
+            },
+            {"generate_type": "Geometry", "enable_pbr": False},
+        )
+
+        payload = client_class.return_value.__enter__.return_value.post.call_args.kwargs["json"]
+        self.assertEqual(payload["inputs"], [
+            {"front": "https://example.com/front.png"},
+            {"left": "https://example.com/left.png"},
+            {"right": "https://example.com/right.png"},
+            {"back": "https://example.com/back.png"},
+        ])
+        self.assertTrue(all(len(item) == 1 for item in payload["inputs"]))
 
 
 if __name__ == "__main__":

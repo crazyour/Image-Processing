@@ -158,6 +158,44 @@
       </div>
       <div id="model-results" class="model-results"></div>
     </section>
+
+    <section id="resize-step" class="panel">
+      <div class="step-title"><span>05</span><div><h2>调整 STL 尺寸</h2><p>载入本次生成的 STL，或选择本地 STL，调整整体大小后导出新文件。</p></div><b id="resize-state" class="step-state">等待文件</b></div>
+      <div class="stl-resize-source">
+        <button id="use-generated-stl" class="secondary" type="button" disabled>使用本次生成的 STL</button>
+        <label class="stl-file-button" for="resize-stl-input">选择本地 STL
+          <input id="resize-stl-input" type="file" accept=".stl,model/stl,application/sla">
+        </label>
+        <span id="resize-source-status">尚未载入 STL</span>
+      </div>
+      <div id="stl-resize-editor" class="stl-resize-editor hidden">
+        <div class="dimension-summary">
+          <strong>原始尺寸</strong>
+          <span id="original-dimensions">X — · Y — · Z —</span>
+          <small>STL 不记录单位，以下数值按毫米（mm）解释。</small>
+        </div>
+        <div class="resize-controls">
+          <label for="scale-percent">整体比例（%）
+            <input id="scale-percent" type="number" min="0.01" max="100000" step="0.01" value="100" inputmode="decimal">
+          </label>
+          <label for="target-x">目标 X（mm）
+            <input id="target-x" data-dimension="0" type="number" min="0.0001" step="0.01" inputmode="decimal">
+          </label>
+          <label for="target-y">目标 Y（mm）
+            <input id="target-y" data-dimension="1" type="number" min="0.0001" step="0.01" inputmode="decimal">
+          </label>
+          <label for="target-z">目标 Z（mm）
+            <input id="target-z" data-dimension="2" type="number" min="0.0001" step="0.01" inputmode="decimal">
+          </label>
+        </div>
+        <label class="resize-lock" for="lock-proportions"><input id="lock-proportions" type="checkbox" checked> <span>锁定比例，修改任一尺寸时同步缩放其他方向</span></label>
+        <div class="resize-output">
+          <span id="resize-result-summary">输出尺寸：—</span>
+          <button id="download-resized-stl" class="primary" type="button">下载调整后的 STL</button>
+        </div>
+      </div>
+      <p class="cost-note">尺寸调整完全在浏览器内完成，不会上传本地 STL，也不会产生 AI 或 Tripo 费用。</p>
+    </section>
   </main>
 
   <aside id="usage-guide" class="guide-drawer" aria-hidden="true" aria-labelledby="guide-title" inert>

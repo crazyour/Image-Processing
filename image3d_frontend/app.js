@@ -20,6 +20,11 @@ let transientError = null;
 let dismissedErrorKey = null;
 let loadedPreviewUrl = null;
 let stlPreview = null;
+let generatedStlUrl = null;
+let loadedResizeUrl = null;
+let resizeMesh = null;
+let resizeSourceKind = null;
+let resizeFileName = "model-resized.stl";
 
 function initializeUsageGuide() {
   const toggle = $("#guide-toggle");
@@ -324,6 +329,8 @@ function renderTask() {
     `<a class="model-link" href="${model.url}" download="model-${state.session_id.slice(0, 8)}.${type.toLowerCase()}"><span>${type.toUpperCase()} 模型</span><span>下载文件 ↓</span></a>`
   ).join("");
   const stl = models.stl || models.STL;
+  generatedStlUrl = stl?.url || null;
+  $("#use-generated-stl").disabled = !generatedStlUrl;
   $("#model-preview").classList.toggle("hidden", !stl);
   if (!stl && running) {
     loadedPreviewUrl = null;
@@ -358,8 +365,13 @@ async function loadStlPreview(url, fallbackImage) {
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error("STL 预览下载失败");
-    const triangles = parseStl(await response.arrayBuffer());
+    const buffer = await response.arrayBuffer();
+    const triangles = parseStl(buffer);
     if (!triangles.length) throw new Error("STL 预览格式无效");
+    if (resizeSourceKind !== "local" && loadedResizeUrl !== url) {
+      loadedResizeUrl = url;
+      setResizeMesh(buffer, "本次生成的 STL", "generated-model.stl", "generated");
+    }
     stlPreview = { triangles, rotationX: -0.35, rotationY: 0.65, zoom: 0.9 };
     canvas.classList.remove("hidden");
     $("#model-preview-image").classList.add("hidden");
@@ -409,6 +421,127 @@ function normalizeTriangles(triangles) {
   const center = mins.map((value, axis) => (value + maxs[axis]) / 2);
   const span = Math.max(...maxs.map((value, axis) => value - mins[axis])) || 1;
   return triangles.map((triangle) => triangle.map((point) => point.map((value, axis) => (value - center[axis]) / span)));
+}
+
+function parseResizeStl(buffer) {
+  if (buffer.byteLength < 15) throw new Error("STL 文件内容为空或格式无效");
+  if (buffer.byteLength > 100 * 1024 * 1024) throw new Error("STL 文件不能超过 100 MB");
+  const view = new DataView(buffer);
+  let vertices;
+  if (buffer.byteLength >= 84) {
+    const count = view.getUint32(80, true);
+    if (count > 0 && 84 + count * 50 <= buffer.byteLength) {
+      vertices = new Float32Array(count * 9);
+      for (let face = 0; face < count; face += 1) {
+        const source = 84 + face * 50 + 12;
+        for (let value = 0; value < 9; value += 1) vertices[face * 9 + value] = view.getFloat32(source + value * 4, true);
+      }
+    }
+  }
+  if (!vertices) {
+    const text = new TextDecoder().decode(buffer);
+    const values = [];
+    const pattern = /vertex\s+([+-]?[\d.eE]+)\s+([+-]?[\d.eE]+)\s+([+-]?[\d.eE]+)/g;
+    for (const match of text.matchAll(pattern)) values.push(Number(match[1]), Number(match[2]), Number(match[3]));
+    if (values.length < 9 || values.length % 9) throw new Error("无法识别该 STL，请使用二进制或标准 ASCII STL");
+    vertices = Float32Array.from(values);
+  }
+  const mins = [Infinity, Infinity, Infinity];
+  const maxs = [-Infinity, -Infinity, -Infinity];
+  for (let index = 0; index < vertices.length; index += 3) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      const value = vertices[index + axis];
+      if (!Number.isFinite(value)) throw new Error("STL 包含无效坐标");
+      mins[axis] = Math.min(mins[axis], value);
+      maxs[axis] = Math.max(maxs[axis], value);
+    }
+  }
+  const dimensions = mins.map((value, axis) => maxs[axis] - value);
+  if (dimensions.every((value) => value <= 0)) throw new Error("STL 模型没有可调整的尺寸");
+  return { vertices, dimensions };
+}
+
+function dimensionText(value) {
+  if (!Number.isFinite(value)) return "—";
+  return Number(value.toFixed(value >= 100 ? 2 : value >= 1 ? 3 : 5)).toString();
+}
+
+function setResizeMesh(buffer, sourceLabel, fileName, sourceKind) {
+  resizeMesh = parseResizeStl(buffer);
+  resizeSourceKind = sourceKind;
+  resizeFileName = `${(fileName || "model").replace(/\.stl$/i, "")}-resized.stl`;
+  $("#resize-source-status").textContent = `${sourceLabel} · ${resizeMesh.vertices.length / 9} 个三角面`;
+  $("#original-dimensions").textContent = resizeMesh.dimensions.map((value, axis) => `${"XYZ"[axis]} ${dimensionText(value)} mm`).join(" · ");
+  $("#scale-percent").value = "100";
+  resizeMesh.dimensions.forEach((value, axis) => { $(`[data-dimension="${axis}"]`).value = dimensionText(value); });
+  $("#stl-resize-editor").classList.remove("hidden");
+  setStepState("#resize-state", "可以调整", true, false, true);
+  updateResizeSummary();
+}
+
+async function loadResizeStlFromUrl(url, force = false) {
+  if (!url || (!force && (resizeSourceKind === "local" || loadedResizeUrl === url))) return;
+  try {
+    $("#resize-source-status").textContent = "正在载入本次生成的 STL…";
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("本次生成的 STL 下载失败");
+    const buffer = await response.arrayBuffer();
+    loadedResizeUrl = url;
+    setResizeMesh(buffer, "本次生成的 STL", "generated-model.stl", "generated");
+  } catch (error) {
+    setStepState("#resize-state", "载入失败", false, true);
+    notify(error.message || "STL 载入失败", true);
+  }
+}
+
+function targetDimensions() {
+  return [0, 1, 2].map((axis) => Number($(`[data-dimension="${axis}"]`).value));
+}
+
+function updateResizeSummary() {
+  if (!resizeMesh) return;
+  const targets = targetDimensions();
+  const valid = targets.every((value) => Number.isFinite(value) && value > 0);
+  $("#download-resized-stl").disabled = !valid;
+  $("#resize-result-summary").textContent = valid
+    ? `输出尺寸：${targets.map((value, axis) => `${"XYZ"[axis]} ${dimensionText(value)} mm`).join(" · ")}`
+    : "请输入大于 0 的目标尺寸";
+}
+
+function applyUniformScale(percent) {
+  if (!resizeMesh || !Number.isFinite(percent) || percent <= 0) return;
+  const scale = percent / 100;
+  resizeMesh.dimensions.forEach((value, axis) => { $(`[data-dimension="${axis}"]`).value = dimensionText(value * scale); });
+  updateResizeSummary();
+}
+
+function exportResizedStl() {
+  const targets = targetDimensions();
+  if (!resizeMesh || !targets.every((value) => Number.isFinite(value) && value > 0)) throw new Error("请输入有效的目标尺寸");
+  const scales = targets.map((value, axis) => resizeMesh.dimensions[axis] > 0 ? value / resizeMesh.dimensions[axis] : 1);
+  const faceCount = resizeMesh.vertices.length / 9;
+  const output = new ArrayBuffer(84 + faceCount * 50);
+  const view = new DataView(output);
+  new Uint8Array(output, 0, 80).set(new TextEncoder().encode("Resized in browser"));
+  view.setUint32(80, faceCount, true);
+  for (let face = 0; face < faceCount; face += 1) {
+    const source = face * 9;
+    const points = [0, 1, 2].map((vertex) => [0, 1, 2].map((axis) => resizeMesh.vertices[source + vertex * 3 + axis] * scales[axis]));
+    const a = points[1].map((value, axis) => value - points[0][axis]);
+    const b = points[2].map((value, axis) => value - points[0][axis]);
+    const normal = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const length = Math.hypot(...normal) || 1;
+    const offset = 84 + face * 50;
+    normal.forEach((value, axis) => view.setFloat32(offset + axis * 4, value / length, true));
+    points.flat().forEach((value, index) => view.setFloat32(offset + 12 + index * 4, value, true));
+    view.setUint16(offset + 48, 0, true);
+  }
+  const url = URL.createObjectURL(new Blob([output], { type: "model/stl" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = resizeFileName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function drawStlPreview() {
@@ -758,6 +891,61 @@ $("#refresh-task").addEventListener("click", async (event) => {
   setBusy(button, true, "刷新中…");
   try { clearError(); await refreshTask(); }
   finally { setBusy(button, false); }
+});
+
+$("#use-generated-stl").addEventListener("click", () => loadResizeStlFromUrl(generatedStlUrl, true));
+
+$("#resize-stl-input").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    $("#resize-source-status").textContent = "正在读取本地 STL…";
+    setResizeMesh(await file.arrayBuffer(), `本地文件：${file.name}`, file.name, "local");
+  } catch (error) {
+    resizeMesh = null;
+    $("#stl-resize-editor").classList.add("hidden");
+    setStepState("#resize-state", "文件无效", false, true);
+    notify(error.message || "无法读取 STL 文件", true);
+  }
+});
+
+$("#scale-percent").addEventListener("input", (event) => applyUniformScale(Number(event.target.value)));
+
+document.querySelectorAll("[data-dimension]").forEach((input) => input.addEventListener("input", () => {
+  if (!resizeMesh) return;
+  const axis = Number(input.dataset.dimension);
+  const target = Number(input.value);
+  if ($("#lock-proportions").checked && Number.isFinite(target) && target > 0 && resizeMesh.dimensions[axis] > 0) {
+    const scale = target / resizeMesh.dimensions[axis];
+    resizeMesh.dimensions.forEach((value, index) => {
+      if (index !== axis) $(`[data-dimension="${index}"]`).value = dimensionText(value * scale);
+    });
+    $("#scale-percent").value = dimensionText(scale * 100);
+  } else if (!$("#lock-proportions").checked) {
+    $("#scale-percent").value = "";
+  }
+  updateResizeSummary();
+}));
+
+$("#lock-proportions").addEventListener("change", (event) => {
+  if (!event.target.checked || !resizeMesh) return;
+  const firstAxis = resizeMesh.dimensions.findIndex((value) => value > 0);
+  if (firstAxis < 0) return;
+  const current = Number($(`[data-dimension="${firstAxis}"]`).value);
+  if (Number.isFinite(current) && current > 0) {
+    const scale = current / resizeMesh.dimensions[firstAxis];
+    $("#scale-percent").value = dimensionText(scale * 100);
+    applyUniformScale(scale * 100);
+  }
+});
+
+$("#download-resized-stl").addEventListener("click", () => {
+  try {
+    exportResizedStl();
+    notify("调整后的 STL 已开始下载");
+  } catch (error) {
+    notify(error.message || "STL 导出失败", true);
+  }
 });
 
 function initializeStlPreview() {

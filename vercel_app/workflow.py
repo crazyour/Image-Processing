@@ -471,9 +471,11 @@ def submit_tripo(front_url: str, view_urls: dict[str, str], options: dict) -> tu
     colored = options.get("generate_type", "Geometry") == "Normal"
     payload = {
         "model": TRIPO_MODEL,
-        # TokenHub defines multi-view inputs as an array whose elements use
-        # the front/left/right/back input structure.
-        "inputs": [{"front": front_url, **{view: view_urls[view] for view in GENERATED_VIEWS}}],
+        # TokenHub requires one and only one view field in each array item.
+        "inputs": [
+            {"front": front_url},
+            *[{view: view_urls[view]} for view in GENERATED_VIEWS],
+        ],
         "texture": colored,
         "pbr": bool(options.get("enable_pbr", False)) if colored else False,
         "export_uv": colored,
