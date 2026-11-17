@@ -72,6 +72,7 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertGreaterEqual(svg.count(b'L64 128'), 1)
         self.assertNotIn(b'vector-effect: non-scaling-stroke', svg)
         self.assertIn(b'shape-rendering: geometricPrecision', svg)
+        self.assertIn(b'.vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }', svg)
 
     def test_generated_dxf_contains_only_the_closed_outer_outline(self):
         output = io.BytesIO()
