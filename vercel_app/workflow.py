@@ -119,17 +119,26 @@ def _provider_error(provider: str, response: httpx.Response) -> WorkflowError:
     detail = ""
     error_code = ""
     error_type = ""
+    request_id = ""
     try:
         body = response.json()
-        error = body.get("error", body.get("message", ""))
+        response_body = body.get("Response") if isinstance(body.get("Response"), dict) else {}
+        error = (
+            body.get("error") or body.get("Error") or response_body.get("Error")
+            or body.get("message") or body.get("Message") or ""
+        )
         if isinstance(error, dict):
-            detail = error.get("message", error.get("code", ""))
-            error_code = str(error.get("code") or "")
-            error_type = str(error.get("type") or "")
+            detail = error.get("message") or error.get("Message") or error.get("code") or error.get("Code") or ""
+            error_code = str(error.get("code") or error.get("Code") or "")
+            error_type = str(error.get("type") or error.get("Type") or "")
         else:
             detail = error
+        request_id = str(
+            body.get("request_id") or body.get("RequestId") or response_body.get("RequestId") or ""
+        )
     except (ValueError, AttributeError, httpx.ResponseNotRead):
-        pass
+        # Some gateway errors are returned as plain text instead of JSON.
+        detail = response.text.strip()[:300]
     combined = f"{error_code} {error_type} {detail}".lower()
     credit_markers = (
         "no credits remaining", "insufficient_quota", "billing_hard_limit",
@@ -154,6 +163,10 @@ def _provider_error(provider: str, response: httpx.Response) -> WorkflowError:
     message = f"{provider} {labels.get(response.status_code, '请求失败')}"
     if detail:
         message += f"：{str(detail)[:300]}"
+    if error_code and error_code.lower() not in str(detail).lower():
+        message += f"（{error_code}）"
+    if request_id:
+        message += f"；Request ID：{request_id[:128]}"
     return WorkflowError(f"{provider.upper()}_ERROR", message, 502)
 
 

@@ -39,6 +39,24 @@ class ProviderErrorTests(unittest.TestCase):
         self.assertEqual(error.status, 429)
         self.assertIn("请求过于频繁", error.message)
 
+    def test_tencent_nested_error_keeps_detail_and_request_id(self):
+        response = httpx.Response(400, json={
+            "Response": {
+                "Error": {
+                    "Code": "InvalidParameter",
+                    "Message": "inputs invalid",
+                },
+                "RequestId": "req-test",
+            },
+        })
+
+        error = _provider_error("Tripo", response)
+
+        self.assertEqual(error.code, "TRIPO_ERROR")
+        self.assertIn("inputs invalid", error.message)
+        self.assertIn("InvalidParameter", error.message)
+        self.assertIn("req-test", error.message)
+
 
 if __name__ == "__main__":
     unittest.main()
