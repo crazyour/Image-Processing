@@ -19,6 +19,7 @@ GENERATED_VIEWS = ("left", "right", "back")
 AI_GENERATED_VIEWS = VIEW_TYPES
 VIEW_NAMES = {"front": "正视图", "left": "左视图", "right": "右视图", "back": "背视图"}
 GENERATE_TYPES = {"Normal", "LowPoly", "Geometry", "Sketch"}
+HUNYUAN_31_UNSUPPORTED_TYPES = {"LowPoly", "Sketch"}
 MAX_UPLOAD_BYTES = 4_000_000
 MAX_PIXELS = 20_000_000
 MAX_MODEL_BYTES = 250_000_000
@@ -60,6 +61,13 @@ class WorkflowError(RuntimeError):
         self.message = message
         self.status = status
         super().__init__(message)
+
+
+def hunyuan_model_for_generate_type(model: str, generate_type: str) -> str:
+    """Route modes missing from HY-3D 3.1 to the compatible 3.0 model."""
+    if model == "hy-3d-3.1" and generate_type in HUNYUAN_31_UNSUPPORTED_TYPES:
+        return "hy-3d-3.0"
+    return model
 
 
 def _openai_config():

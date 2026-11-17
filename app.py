@@ -111,6 +111,7 @@ from vercel_app.workflow import (
     normalize_image,
     query_hunyuan,
     submit_hunyuan,
+    hunyuan_model_for_generate_type,
     view_prompt,
 )
 
@@ -2766,6 +2767,9 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
             422,
         )
     options = data.model_dump()
+    hunyuan_model = hunyuan_model_for_generate_type(
+        models["hunyuan_model"], data.generate_type,
+    )
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
         state["last_error"] = {
@@ -2779,7 +2783,7 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
             409,
         )
     reservation_id = reserve_usage(
-        _account_user(request), "image_to_3d", models["hunyuan_model"], "生成 STL",
+        _account_user(request), "image_to_3d", hunyuan_model, "生成 STL",
     )
     state["status"] = "SUBMITTING_3D"
     state["hunyuan_task"] = None
@@ -2790,7 +2794,7 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
             snapshot["views"]["front"]["url"],
             {view: snapshot["views"][view]["url"] for view in GENERATED_VIEWS},
             options,
-            models["hunyuan_model"],
+            hunyuan_model,
         )
     except (WorkflowError, UsageLimitError) as exc:
         release_usage_reservation(reservation_id)
