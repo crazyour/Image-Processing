@@ -306,7 +306,8 @@ COLOR_ANALYSIS_SCHEMA = {
 }
 
 
-def analyze_coloring(images: list[bytes], model: str) -> tuple[dict, dict]:
+def analyze_coloring(images: list[bytes], model: str,
+                     previous_scheme: dict | None = None) -> tuple[dict, dict]:
     """Identify a product and propose one concrete, reusable multiview color scheme."""
     if not images:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少提供一张四视图", 422)
@@ -318,6 +319,16 @@ def analyze_coloring(images: list[bytes], model: str) -> tuple[dict, dict]:
         "coloring_prompt 必须明确每个可见部件的颜色、材质和表面处理，同时要求严格保持几何、轮廓、部件数量、构图和纯净背景。"
         "scheme_name 用 2–8 个中文字概括配色，不要包含‘方案’、序号、标点或引号。"
     )
+    if previous_scheme:
+        previous_name = str(previous_scheme.get("name") or "")[:40]
+        previous_palette = previous_scheme.get("palette") or []
+        instruction += (
+            "\n这是用户明确不满意的上一套配色，只用来排除，不得延用、微调或换名："
+            f"\n旧名称：{previous_name or '未命名'}"
+            f"\n旧色板：{json.dumps(previous_palette, ensure_ascii=False)[:800]}"
+            "\n必须重新选择一套明显不同的颜色配置：改变主色系、辅色系和部件之间的颜色分配，"
+            "并返回与新配色匹配的新 scheme_name、palette 和 coloring_prompt。"
+        )
     payload = {
         "model": model,
         "reasoning": {"effort": "none"},

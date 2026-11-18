@@ -302,6 +302,11 @@ class ColorDraftSaveRequest(BaseModel):
     name: str | None = Field(default=None, max_length=40)
 
 
+class ColorFrontRequest(BaseModel):
+    previous_name: str | None = Field(default=None, max_length=40)
+    previous_palette: list[str] = Field(default_factory=list, max_length=20)
+
+
 class Generate3DRequest(BaseModel):
     generate_type: str = "Normal"
     enable_pbr: bool = False
@@ -2669,7 +2674,7 @@ def _color_draft_response(draft: dict) -> dict:
 
 
 @app.post("/api/view-library/folders/{folder_id}/color-drafts/front")
-def generate_color_front(folder_id: str, request: Request):
+def generate_color_front(folder_id: str, request: Request, data: ColorFrontRequest | None = None):
     folder = get_view_folder(folder_id)
     if not folder:
         raise HTTPException(status_code=404, detail="四视图文件夹不存在")
@@ -2680,7 +2685,10 @@ def generate_color_front(folder_id: str, request: Request):
     account = _account_user(request)
     analysis, _ = _metered_provider_call(
         account, "image_to_3d", models["vision_model"], "AI分析四视图配色",
-        lambda: analyze_coloring(source_images, models["vision_model"]),
+        lambda: analyze_coloring(source_images, models["vision_model"], {
+            "name": data.previous_name,
+            "palette": data.previous_palette,
+        } if data and (data.previous_name or data.previous_palette) else None),
     )
     front_prompt = (
         "图片1是必须保持的原始正视图，其余图片只用于理解同一物体的部件与材质。"

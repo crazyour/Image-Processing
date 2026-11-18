@@ -73,6 +73,15 @@ class ColorWorkflowTests(unittest.TestCase):
         self.assertEqual(draft["status"], "FRONT_READY")
         self.assertEqual(set(draft["views"]), {"front"})
 
+        rerolled = self.client.post(
+            f"/api/view-library/folders/{self.folder['id']}/color-drafts/front",
+            json={"previous_name": draft["name"], "previous_palette": draft["analysis"]["palette"]},
+        )
+        self.assertEqual(rerolled.status_code, 200, rerolled.text)
+        draft = rerolled.json()
+        self.assertEqual(analyze.call_count, 2)
+        self.assertEqual(analyze.call_args.args[2]["name"], "海蓝木趣")
+
         completed = self.client.post(f"/api/view-library/color-drafts/{draft['id']}/complete")
         self.assertEqual(completed.status_code, 200, completed.text)
         self.assertEqual(set(completed.json()["views"]), {"front", "left", "right", "back"})
@@ -86,7 +95,7 @@ class ColorWorkflowTests(unittest.TestCase):
         folders = self.client.get("/api/view-library/folders").json()["folders"]
         parent = next(item for item in folders if item["id"] == self.folder["id"])
         self.assertEqual(parent["color_schemes"][0]["name"], "海蓝木趣")
-        self.assertEqual(generate.call_count, 4)
+        self.assertEqual(generate.call_count, 5)
 
     def test_frontend_exposes_staged_coloring_actions(self):
         html = (app_module.ROOT / "image3d_frontend" / "index.html").read_text()

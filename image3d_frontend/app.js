@@ -1082,14 +1082,20 @@ function bindZoomImages(root) {
 
 async function generateColoredFront(button) {
   if (!selectedColorFolderId) return notify("请先选择一套四视图", true);
-  setBusy(button, true, "AI 正在分析并上色…");
-  $("#color-workflow-state").textContent = "AI 分析中";
+  const previousScheme = colorDraft ? {
+    previous_name: colorDraft.name || "",
+    previous_palette: colorDraft.analysis?.palette || [],
+  } : {};
+  const replacing = Boolean(colorDraft);
+  setBusy(button, true, replacing ? "AI 正在重选配色…" : "AI 正在分析并上色…");
+  $("#color-workflow-state").textContent = replacing ? "重新选择配色" : "AI 分析中";
   try {
     colorDraft = await api(`/api/view-library/folders/${selectedColorFolderId}/color-drafts/front`, {
-      method: "POST", timeout: 360_000,
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(previousScheme), timeout: 360_000,
     });
     renderColorDraft();
-    notify("正视图配色已生成，请确认是否满意");
+    notify(replacing ? "已重新选择不同配色并生成正视图" : "正视图配色已生成，请确认是否满意");
   } catch (error) { showError(error); }
   finally { setBusy(button, false); }
 }
