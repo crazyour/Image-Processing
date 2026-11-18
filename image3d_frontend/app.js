@@ -28,6 +28,59 @@ let resizeFileName = "model-resized.stl";
 let viewFolders = [];
 let selectedColorFolderId = null;
 
+const workspaceContent = {
+  "3d": {
+    eyebrow: "灵界 · GPT MULTIVIEW · HY-3D",
+    title: "图生 3D",
+    copy: "上传多张同一个对象的参考图，先确认 AI 对主体的理解，再确认四视图并生成 STL 模型。",
+  },
+  library: {
+    eyebrow: "灵界 · MULTIVIEW LIBRARY",
+    title: "四视图数据库",
+    copy: "统一管理已保存的正、左、右、背四视图，可查看全图或删除整套视图。",
+  },
+  color: {
+    eyebrow: "灵界 · MULTIVIEW COLOR",
+    title: "四视图上色",
+    copy: "从四视图数据库选择一套视图，作为后续颜色推荐与上色的独立工作区。",
+  },
+};
+
+function setWorkspace(name, updateUrl = true) {
+  const workspace = workspaceContent[name] ? name : "3d";
+  document.querySelectorAll("[data-workspace]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.workspace === workspace));
+  });
+  document.querySelectorAll("[data-workspace-view]").forEach((section) => {
+    const visible = section.dataset.workspaceView === workspace;
+    section.classList.toggle("hidden", !visible);
+    section.setAttribute("aria-hidden", String(!visible));
+  });
+  const content = workspaceContent[workspace];
+  $("#workspace-eyebrow").textContent = content.eyebrow;
+  $("#workspace-title").textContent = content.title;
+  $("#workspace-copy").textContent = content.copy;
+  document.title = `灵界 · ${content.title}`;
+  $("#view-source-intro").classList.toggle("hidden", workspace !== "3d");
+  $("#paid-feature-banner").classList.toggle("hidden", workspace !== "3d");
+  $("#library-toggle").classList.toggle("hidden", workspace !== "3d");
+  if (workspace !== "3d") {
+    $("#library-panel").classList.add("hidden");
+    $("#library-toggle").setAttribute("aria-expanded", "false");
+  }
+  if (workspace === "library" || workspace === "color") loadViewLibrary();
+  if (updateUrl) {
+    const url = new URL(location.href);
+    if (workspace === "3d") url.searchParams.delete("workspace");
+    else url.searchParams.set("workspace", workspace);
+    history.replaceState(null, "", url);
+  }
+}
+
+document.querySelectorAll("[data-workspace]").forEach((button) => {
+  button.addEventListener("click", () => setWorkspace(button.dataset.workspace));
+});
+
 function initializeUsageGuide() {
   const toggle = $("#guide-toggle");
   const drawer = $("#usage-guide");
@@ -1024,6 +1077,7 @@ $("#refresh-view-library").addEventListener("click", loadViewLibrary);
 
 initializeStlPreview();
 initializeUsageGuide();
+setWorkspace(new URLSearchParams(location.search).get("workspace") || "3d", false);
 updateViewSource();
 updateGenerateType();
 render(null);
