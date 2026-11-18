@@ -25,6 +25,8 @@ let loadedResizeUrl = null;
 let resizeMesh = null;
 let resizeSourceKind = null;
 let resizeFileName = "model-resized.stl";
+let viewFolders = [];
+let selectedColorFolderId = null;
 
 function initializeUsageGuide() {
   const toggle = $("#guide-toggle");
@@ -182,21 +184,6 @@ function renderReferences(references = []) {
   ).join("");
 }
 
-function renderTextureEditor() {
-  const original = state?.reference_images?.[0];
-  const current = state?.active_texture_image;
-  const edits = state?.texture_edits || [];
-  $("#texture-original").innerHTML = original
-    ? `<img src="${original.url}" alt="原始主参考图">`
-    : "上传后显示";
-  $("#texture-current").innerHTML = current
-    ? `<img src="${current.url}" alt="当前纹理版本 ${current.revision || edits.length}">`
-    : "点击生成后显示";
-  $("#texture-history-note").textContent = edits.length
-    ? `已生成 ${edits.length} 个纹理版本；下一次修改会以当前版本为基础。`
-    : "新一次修改会以当前版本为基础。";
-}
-
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 }
@@ -229,17 +216,6 @@ function syncControls() {
   const descriptionConfirmed = Boolean(state?.description_confirmed_at);
   const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
   const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
-  const hasLocalReference = Boolean($("#image-input").files?.length);
-  const canEditTexture = !uploaded && ((Boolean(state) && status === "REFERENCES_READY") || (!state && hasLocalReference));
-  $("#texture-content").classList.toggle("hidden", uploaded);
-  const textureButton = $("#generate-texture");
-  textureButton.disabled = !canEditTexture || actionInFlight;
-  if (!textureButton.dataset.busy) {
-    textureButton.textContent = !state
-      ? (hasLocalReference ? "生成纹理修改图" : "选择参考图后修改纹理")
-      : "生成新纹理版本";
-  }
-  $("#texture-prompt").disabled = uploaded || actionInFlight;
   $("#prompt-editor").disabled = !canEditPrompt;
   $("#confirm-description").disabled = !canEditPrompt || actionInFlight;
   $("#confirm-description").classList.toggle("hidden", uploaded);
@@ -248,6 +224,7 @@ function syncControls() {
   $("#generate-views").disabled = !canGenerateViews || actionInFlight;
   $("#regenerate-views").disabled = !canGenerateViews || !viewsReady || actionInFlight;
   $("#confirm-views").disabled = !state || state.views_stale || status !== "VIEWS_REVIEW" || actionInFlight;
+  $("#save-view-folder").disabled = !viewsReady || actionInFlight;
   if (!$("#confirm-views").dataset.busy) {
     $("#confirm-views").textContent = state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
   }
@@ -269,10 +246,6 @@ function syncControls() {
   }
 
   setStepState("#upload-state", !state ? "等待上传" : uploaded ? "四视图已上传" : `${state.reference_images?.length || 1} 张已上传`, Boolean(state), false, Boolean(state));
-  if (!state) setStepState("#texture-state", "等待上传", false, false);
-  else if (uploaded) setStepState("#texture-state", "无需修改", false, false, true);
-  else if (status === "REFERENCES_READY") setStepState("#texture-state", state.active_texture_image ? `已修改 ${state.texture_edits?.length || 1} 次` : "可选", true, false, Boolean(state.active_texture_image));
-  else setStepState("#texture-state", state.active_texture_image ? "已应用" : "已跳过", false, false, true);
   if (!state) setStepState("#description-state", "等待分析", false, false);
   else if (uploaded) setStepState("#description-state", "无需分析", false, false, true);
   else if (status === "ANALYZING_REFERENCES") setStepState("#description-state", "正在分析", true, false);
@@ -305,7 +278,6 @@ function render(next) {
   state = next;
   renderAnalysis(state?.analysis || {});
   renderReferences(state?.reference_images || []);
-  renderTextureEditor();
   $("#prompt-editor").value = state?.user_prompt || "";
   renderViews(state?.views || {});
   syncControls();
@@ -649,11 +621,6 @@ $("#image-input").addEventListener("change", (event) => {
   $("#upload-previews").innerHTML = files.map((file, index) =>
     `<article><img src="${URL.createObjectURL(file)}" alt="待上传参考图 ${index + 1}"><span>${index === 0 ? "主参考" : `补充 ${index}`}</span></article>`
   ).join("");
-  if (files[0] && !state) {
-    const previewUrl = URL.createObjectURL(files[0]);
-    $("#texture-original").innerHTML = `<img src="${previewUrl}" alt="待上传的原始主参考图">`;
-    $("#texture-current").textContent = "点击生成后显示";
-  }
   $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图";
   syncControls();
 });
@@ -664,7 +631,6 @@ function updateViewSource() {
   sourceInputs.forEach((input) => input.closest(".source-option").classList.toggle("selected", input.checked));
   $("#reference-upload").classList.toggle("hidden", uploaded);
   $("#manual-views").classList.toggle("hidden", !uploaded);
-  $("#texture-content").classList.toggle("hidden", uploaded);
   $("#image-input").required = !uploaded;
   allViews.forEach((view) => { $(`#${view}-input`).required = uploaded; });
   $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "上传并分析参考图";
@@ -711,27 +677,6 @@ async function uploadSelectedReferences(button) {
   }
 }
 
-$("#generate-texture").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
-  const prompt = $("#texture-prompt").value.trim();
-  if (!prompt) return notify("请输入纹理修改要求", true);
-  try {
-    clearError();
-    setActionInFlight(true);
-    await uploadSelectedReferences(button);
-    setBusy(button, true, "AI 正在修改纹理…");
-    render(await api(`/api/sessions/${session.id}/texture`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
-      timeout: 295_000,
-    }));
-    $("#texture-prompt").value = "";
-    notify("新纹理版本已生成，可继续修改或进入下一步");
-  } catch (error) { showError(error); await refresh(); }
-  finally { setBusy(button, false); setActionInFlight(false); }
-});
-
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.submitter;
@@ -743,7 +688,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
       await uploadSelectedReferences(button);
       setBusy(button, true, "AI 正在分析当前图片…");
       render(await api(`/api/sessions/${session.id}/analyze`, { method: "POST", timeout: 140_000 }));
-      notify(state?.active_texture_image ? "AI 已基于修改后的纹理图生成描述" : "AI 已基于原始图生成描述");
+      notify("AI 已基于原始参考图生成描述");
       $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -976,9 +921,111 @@ function initializeStlPreview() {
   if ("ResizeObserver" in window) new ResizeObserver(drawStlPreview).observe(canvas);
 }
 
+function viewCards(views = {}) {
+  return allViews.map((view) => {
+    const item = views[view];
+    return `<article class="view-card"><h3>${labels[view]}</h3>${item?.url
+      ? `<img data-zoom src="${item.url}" alt="${labels[view]}">`
+      : "<p>图片不可用</p>"}</article>`;
+  }).join("");
+}
+
+function renderViewFolderCards(target, selectable = false) {
+  target.innerHTML = viewFolders.map((folder) => `
+    <article class="view-folder-card">
+      <button class="view-folder-cover" type="button" data-open-view-folder="${folder.id}">
+        <img src="${folder.views.front.url}" alt="${escapeHtml(folder.name)}的正视图">
+      </button>
+      <div><strong>${escapeHtml(folder.name)}</strong><small>${new Date(folder.created_at * 1000).toLocaleString("zh-CN")}</small></div>
+      <div class="view-folder-actions">
+        <button class="secondary" type="button" data-open-view-folder="${folder.id}">查看全图</button>
+        ${selectable ? `<button class="primary" type="button" data-select-view-folder="${folder.id}">选择</button>` : `<button class="danger" type="button" data-delete-view-folder="${folder.id}">删除</button>`}
+      </div>
+    </article>`).join("");
+}
+
+function bindViewFolderActions(root) {
+  root.querySelectorAll("[data-open-view-folder]").forEach((button) => button.addEventListener("click", () => {
+    const folder = viewFolders.find((item) => item.id === button.dataset.openViewFolder);
+    if (!folder) return;
+    $("#view-folder-dialog-title").textContent = folder.name;
+    $("#view-folder-dialog-grid").innerHTML = viewCards(folder.views);
+    $("#view-folder-dialog").showModal();
+  }));
+  root.querySelectorAll("[data-delete-view-folder]").forEach((button) => button.addEventListener("click", async () => {
+    const folder = viewFolders.find((item) => item.id === button.dataset.deleteViewFolder);
+    if (!folder || !confirm(`确定删除“四视图库 / ${folder.name}”吗？`)) return;
+    try {
+      await api(`/api/view-library/folders/${folder.id}`, { method: "DELETE" });
+      if (selectedColorFolderId === folder.id) {
+        selectedColorFolderId = null;
+        $("#color-view-title").textContent = "尚未选择四视图";
+        $("#color-view-preview").classList.add("hidden");
+      }
+      await loadViewLibrary();
+      notify("四视图文件夹已删除");
+    } catch (error) { showError(error); }
+  }));
+  root.querySelectorAll("[data-select-view-folder]").forEach((button) => button.addEventListener("click", () => {
+    const folder = viewFolders.find((item) => item.id === button.dataset.selectViewFolder);
+    if (!folder) return;
+    selectedColorFolderId = folder.id;
+    $("#color-view-title").textContent = `已选择：${folder.name}`;
+    $("#color-view-preview").innerHTML = viewCards(folder.views);
+    $("#color-view-preview").classList.remove("hidden");
+    $("#choose-view-dialog").close();
+  }));
+}
+
+async function loadViewLibrary() {
+  try {
+    const result = await api("/api/view-library/folders");
+    viewFolders = result.folders || [];
+    $("#view-library-empty").classList.toggle("hidden", viewFolders.length > 0);
+    renderViewFolderCards($("#view-library-grid"));
+    renderViewFolderCards($("#choose-view-grid"), true);
+    bindViewFolderActions($("#view-library-grid"));
+    bindViewFolderActions($("#choose-view-grid"));
+  } catch (error) { showError(error); }
+}
+
+$("#save-view-folder").addEventListener("click", () => {
+  if (!session || !allViews.every((view) => state?.views?.[view]?.url)) return notify("请先完成四视图", true);
+  $("#save-view-form").reset();
+  $("#save-view-dialog").showModal();
+  $("#view-folder-name").focus();
+});
+$("#save-view-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = $("#view-folder-name").value.trim();
+  if (!name) return;
+  const button = event.submitter;
+  setBusy(button, true, "正在保存…");
+  try {
+    await api("/api/view-library/folders", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, session_id: session.id }),
+    });
+    $("#save-view-dialog").close();
+    await loadViewLibrary();
+    notify("四视图已加入数据库");
+  } catch (error) { showError(error); }
+  finally { setBusy(button, false); }
+});
+$("#cancel-save-view").addEventListener("click", () => $("#save-view-dialog").close());
+$("#close-view-folder").addEventListener("click", () => $("#view-folder-dialog").close());
+$("#choose-color-views").addEventListener("click", () => {
+  renderViewFolderCards($("#choose-view-grid"), true);
+  bindViewFolderActions($("#choose-view-grid"));
+  $("#choose-view-dialog").showModal();
+});
+$("#close-choose-view").addEventListener("click", () => $("#choose-view-dialog").close());
+$("#refresh-view-library").addEventListener("click", loadViewLibrary);
+
 initializeStlPreview();
 initializeUsageGuide();
 updateViewSource();
 updateGenerateType();
 render(null);
 refresh();
+loadViewLibrary();

@@ -82,25 +82,6 @@
           <label>右视图（可拖入）<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="右视图"></label>
           <label>背视图（可拖入）<input id="back-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="背视图"></label>
         </div>
-        <div id="texture-content" class="texture-content">
-          <div class="texture-heading">
-            <div><strong>修改表面纹理（可选）</strong><span>调整颜色、材质或图案，保持形状、比例和视角不变。</span></div>
-            <b id="texture-state" class="step-state">等待上传</b>
-          </div>
-          <div class="texture-preview-grid">
-            <article><strong>原始主参考图</strong><div id="texture-original" class="texture-image-placeholder">选择图片后显示</div></article>
-            <article><strong>修改后的图片</strong><div id="texture-current" class="texture-image-placeholder">点击生成后显示</div></article>
-          </div>
-          <div id="texture-editor" class="texture-editor">
-            <label for="texture-prompt">纹理修改要求
-              <textarea id="texture-prompt" rows="3" maxlength="2000" placeholder="例如：全身换成蓝色；改成白色陶瓷材质；表面增加金色星星图案；换成浅色木纹。"></textarea>
-            </label>
-            <div class="actions">
-              <button id="generate-texture" class="texture-cta" type="button">选择参考图后修改纹理</button>
-              <small id="texture-history-note">新一次修改会以当前版本为基础。</small>
-            </div>
-          </div>
-        </div>
         <button id="upload-submit" class="primary" type="submit">上传并分析参考图</button>
       </form>
     </section>
@@ -127,7 +108,24 @@
         <button id="generate-views" class="primary" type="button">生成四视图</button>
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
         <button id="confirm-views" class="primary" type="button">确认四个视角</button>
+        <button id="save-view-folder" class="secondary" type="button">将四视图加入数据库</button>
       </div>
+    </section>
+
+    <section id="view-library-step" class="panel standalone-module">
+      <div class="step-title"><span>库</span><div><h2>四视图数据库</h2><p>每套正、左、右、背视图以一个文件夹统一保存，可查看全图或删除。</p></div><button id="refresh-view-library" class="secondary" type="button">刷新</button></div>
+      <p id="view-library-empty" class="empty-copy">还没有保存四视图文件夹。</p>
+      <div id="view-library-grid" class="view-folder-grid"></div>
+    </section>
+
+    <section id="view-color-step" class="panel standalone-module">
+      <div class="step-title"><span>色</span><div><h2>四视图上色</h2><p>独立于 3D 生成。先从四视图数据库选择一套视图，后续再补充颜色推荐和上色功能。</p></div><b class="step-state active">独立功能</b></div>
+      <div id="color-view-selection" class="color-view-selection">
+        <p><strong id="color-view-title">尚未选择四视图</strong><span>选择与删除数据库内容不会影响已经生成的 3D 模型。</span></p>
+        <button id="choose-color-views" class="primary" type="button">选择四视图</button>
+      </div>
+      <div id="color-view-preview" class="views-grid hidden"></div>
+      <p class="module-placeholder">本次仅建立四视图选择流程，具体上色与颜色推荐功能将在后续补充。</p>
     </section>
 
     <section id="generate-step" class="panel">
@@ -352,6 +350,24 @@
       <p class="guide-footnote">站内 AI 生成图片和腾讯混元生成 STL 都可能产生费用，请避免重复提交。</p>
     </div>
   </aside>
+  <dialog id="save-view-dialog" class="view-dialog">
+    <form id="save-view-form" method="dialog">
+      <h2>保存四视图</h2>
+      <p>四张视图会以同一个文件夹保存。</p>
+      <label>文件夹名称<input id="view-folder-name" type="text" maxlength="80" required autocomplete="off" placeholder="例如：白色小熊摆件 v1"></label>
+      <div class="actions"><button id="cancel-save-view" class="secondary" type="button">取消</button><button class="primary" type="submit">保存到数据库</button></div>
+    </form>
+  </dialog>
+  <dialog id="view-folder-dialog" class="view-dialog wide-dialog">
+    <div class="dialog-heading"><div><h2 id="view-folder-dialog-title">四视图</h2><p>正、左、右、背四张全图</p></div><button id="close-view-folder" class="secondary" type="button">关闭</button></div>
+    <div id="view-folder-dialog-grid" class="views-grid"></div>
+  </dialog>
+  <dialog id="choose-view-dialog" class="view-dialog wide-dialog">
+    <div class="dialog-heading"><div><h2>选择用于上色的四视图</h2><p>从已保存的文件夹中选择。</p></div><button id="close-choose-view" class="secondary" type="button">关闭</button></div>
+    <div id="choose-view-grid" class="view-folder-grid"></div>
+  </dialog>
+
+  <script src="/assets/reset-on-refresh.js?v=20261118-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
   <script src="/static/app.js?v=20261017-1" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>

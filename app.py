@@ -38,8 +38,10 @@ from vercel_app.store import (
     SessionNotFound,
     StoreError,
     create_session,
+    delete_view_folder,
     list_deliverables as list_deliverable_records,
     list_local_sessions,
+    list_view_folders,
     load_local_preferences,
     load_session,
     local_blob_path,
@@ -48,6 +50,7 @@ from vercel_app.store import (
     save_deliverable,
     save_local_preferences,
     save_session,
+    save_view_folder,
     storage_status,
     update_local_session_library,
 )
@@ -213,7 +216,7 @@ def _required_feature(path: str) -> str | None:
         return "text_to_image"
     if path.startswith("/api/animal-cutout"):
         return "animal_cutout"
-    if path.startswith("/api/sessions") or path == "/image-to-3d":
+    if path.startswith("/api/sessions") or path.startswith("/api/view-library") or path == "/image-to-3d":
         return "image_to_3d"
     if path == "/text-to-image":
         return "text_or_cutout"
@@ -282,6 +285,11 @@ class ViewRefinementRequest(BaseModel):
 
 class TextureEditRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
+
+
+class ViewFolderCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    session_id: str = Field(min_length=1, max_length=128)
 
 
 class Generate3DRequest(BaseModel):
@@ -642,9 +650,6 @@ def _response(state: dict, *, token: str | None = None) -> dict:
 
 def _effective_image3d_references(state: dict) -> list[dict]:
     references = list(state.get("reference_images") or [])
-    active = state.get("active_texture_image")
-    if active:
-        return [active, *references[1:MAX_REFERENCE_IMAGES]]
     if references:
         return references[:MAX_REFERENCE_IMAGES]
     return [state["reference_image"]] if state.get("reference_image") else []
@@ -2605,6 +2610,41 @@ def upload_view(session_id: str, view: str, image: UploadFile = File(...),
 def get_session(session_id: str, x_session_token: str | None = Header(default=None)):
     state, _ = _load(session_id, x_session_token)
     return _response(state)
+
+
+@app.get("/api/view-library/folders")
+def get_view_library_folders():
+    return {"folders": list_view_folders()}
+
+
+@app.post("/api/view-library/folders")
+def create_view_library_folder(
+    data: ViewFolderCreateRequest,
+    x_session_token: str | None = Header(default=None),
+):
+    state, _ = _load(data.session_id, x_session_token)
+    name = data.name.strip()
+    if not name:
+        raise WorkflowError("INVALID_FOLDER_NAME", "请输入四视图文件夹名称", 422)
+    views = state.get("views") or {}
+    if any(view not in views or not views[view].get("url") for view in AI_GENERATED_VIEWS):
+        raise WorkflowError("VIEWS_NOT_READY", "正、左、右、背四视图齐全后才能加入四视图库", 409)
+    snapshot = {
+        view: {
+            "url": views[view]["url"],
+            "sha256": views[view].get("sha256", ""),
+            "revision": views[view].get("revision", 1),
+        }
+        for view in AI_GENERATED_VIEWS
+    }
+    return save_view_folder(name, snapshot)
+
+
+@app.delete("/api/view-library/folders/{folder_id}")
+def remove_view_library_folder(folder_id: str):
+    if not re.fullmatch(r"[a-f0-9]{32}", folder_id) or not delete_view_folder(folder_id):
+        raise HTTPException(status_code=404, detail="四视图文件夹不存在")
+    return {"deleted": True}
 
 
 @app.patch("/api/sessions/{session_id}/prompt")

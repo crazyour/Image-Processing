@@ -143,6 +143,16 @@ def _ensure_postgres_schema(connection) -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS image3d_view_folders (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                views JSONB NOT NULL,
+                created_at DOUBLE PRECISION NOT NULL
+            )
+            """
+        )
         connection.commit()
         _schema_ready.add(key)
 
@@ -206,12 +216,68 @@ def _ensure_sqlite_schema(connection: sqlite3.Connection, database_path: Path) -
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS image3d_view_folders (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                views TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )
+            """
+        )
         connection.commit()
         _schema_ready.add(key)
 
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def save_view_folder(name: str, views: dict[str, Any]) -> dict[str, Any]:
+    folder_id = hashlib.sha256(f"{time.time_ns()}:{name}".encode()).hexdigest()[:32]
+    created_at = time.time()
+    serialized = json.dumps(views, ensure_ascii=False, separators=(",", ":"))
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        if database_url():
+            connection.execute(
+                "INSERT INTO image3d_view_folders (id, name, views, created_at) VALUES (%s, %s, %s::jsonb, %s)",
+                (folder_id, name, serialized, created_at),
+            )
+        else:
+            connection.execute(
+                "INSERT INTO image3d_view_folders (id, name, views, created_at) VALUES (?, ?, ?, ?)",
+                (folder_id, name, serialized, created_at),
+            )
+        connection.commit()
+    return {"id": folder_id, "name": name, "views": views, "created_at": created_at}
+
+
+def list_view_folders() -> list[dict[str, Any]]:
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        rows = connection.execute(
+            "SELECT id, name, views, created_at FROM image3d_view_folders ORDER BY created_at DESC"
+        ).fetchall()
+    result = []
+    for row in rows:
+        views = row["views"]
+        if isinstance(views, str):
+            views = json.loads(views)
+        result.append({
+            "id": row["id"], "name": row["name"], "views": views,
+            "created_at": float(row["created_at"]),
+        })
+    return result
+
+
+def delete_view_folder(folder_id: str) -> bool:
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        placeholder = "%s" if database_url() else "?"
+        cursor = connection.execute(
+            f"DELETE FROM image3d_view_folders WHERE id = {placeholder}", (folder_id,),
+        )
+        connection.commit()
+    return cursor.rowcount > 0
 
 
 def create_session(session_id: str, token: str, state: dict[str, Any]) -> int:
