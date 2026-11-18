@@ -39,6 +39,8 @@ from vercel_app.store import (
     StoreError,
     create_session,
     delete_view_folder,
+    get_view_folder,
+    load_color_draft,
     list_deliverables as list_deliverable_records,
     list_local_sessions,
     list_view_folders,
@@ -50,9 +52,12 @@ from vercel_app.store import (
     save_deliverable,
     save_local_preferences,
     save_session,
+    save_color_draft,
+    save_color_scheme,
     save_view_folder,
     storage_status,
     update_local_session_library,
+    update_color_draft,
 )
 from vercel_app.auth import (
     FEATURES,
@@ -105,6 +110,7 @@ from vercel_app.workflow import (
     VIEW_NAMES,
     WorkflowError,
     analyze_images,
+    analyze_coloring,
     effective_prompt,
     fetch_bytes,
     generate_image,
@@ -290,6 +296,10 @@ class TextureEditRequest(BaseModel):
 class ViewFolderCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     session_id: str = Field(min_length=1, max_length=128)
+
+
+class ColorDraftSaveRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=40)
 
 
 class Generate3DRequest(BaseModel):
@@ -2645,6 +2655,127 @@ def remove_view_library_folder(folder_id: str):
     if not re.fullmatch(r"[a-f0-9]{32}", folder_id) or not delete_view_folder(folder_id):
         raise HTTPException(status_code=404, detail="四视图文件夹不存在")
     return {"deleted": True}
+
+
+def _color_draft_response(draft: dict) -> dict:
+    return {
+        "id": draft["id"],
+        "folder_id": draft["folder_id"],
+        "status": draft.get("status", "FRONT_READY"),
+        "name": draft.get("name", "AI配色"),
+        "analysis": draft.get("analysis", {}),
+        "views": draft.get("views", {}),
+    }
+
+
+@app.post("/api/view-library/folders/{folder_id}/color-drafts/front")
+def generate_color_front(folder_id: str, request: Request):
+    folder = get_view_folder(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="四视图文件夹不存在")
+    models = _model_settings(
+        IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
+    )
+    source_images = [fetch_bytes(folder["views"][view]["url"], 20_000_000) for view in AI_GENERATED_VIEWS]
+    account = _account_user(request)
+    analysis, _ = _metered_provider_call(
+        account, "image_to_3d", models["vision_model"], "AI分析四视图配色",
+        lambda: analyze_coloring(source_images, models["vision_model"]),
+    )
+    front_prompt = (
+        "图片1是必须保持的原始正视图，其余图片只用于理解同一物体的部件与材质。"
+        "只对图片1中物体进行上色和材质表现；严格保持原始几何、轮廓、尺寸比例、部件数量、摄像机视角、构图和背景。"
+        "不得重新设计、增删部件、改变姿态、添加文字或水印。\n\n"
+        f"配色要求：\n{analysis['coloring_prompt']}"
+    )
+    generated, usage = _metered_provider_call(
+        account, "image_to_3d", models["image_model"], "生成配色正视图",
+        lambda: generate_view(source_images, front_prompt, models["image_model"], models["image_quality"]),
+    )
+    draft_seed = uuid.uuid4().hex
+    front_url = PublicBlobStore().put(
+        f"image3d/color-drafts/{draft_seed}/front.png", generated, "image/png",
+    )
+    draft = save_color_draft(folder_id, {
+        "status": "FRONT_READY",
+        "name": analysis["scheme_name"],
+        "analysis": analysis,
+        "views": {"front": {"url": front_url, "sha256": hashlib.sha256(generated).hexdigest(), "usage": usage}},
+    })
+    return _color_draft_response(draft)
+
+
+@app.post("/api/view-library/color-drafts/{draft_id}/complete")
+def complete_color_draft(draft_id: str, request: Request):
+    draft = load_color_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="配色草稿不存在")
+    if draft.get("status") == "COMPLETE":
+        return _color_draft_response(draft)
+    folder = get_view_folder(draft["folder_id"])
+    if not folder or not draft.get("views", {}).get("front", {}).get("url"):
+        raise WorkflowError("COLOR_DRAFT_INCOMPLETE", "配色草稿缺少原始四视图或正视图", 409)
+    models = _model_settings(
+        IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
+    )
+    colored_front = fetch_bytes(draft["views"]["front"]["url"], 20_000_000)
+    account = _account_user(request)
+    generated_views: dict[str, tuple[bytes, dict]] = {}
+    failures: list[tuple[str, Exception]] = []
+
+    def generate_matching_view(view: str):
+        original_target = fetch_bytes(folder["views"][view]["url"], 20_000_000)
+        prompt = (
+            f"生成与图片1完全同一套配色的{VIEW_NAMES[view]}。"
+            f"图片1是已确认的彩色正视图，是颜色、材质、光泽和部件对应的最高优先级参考；"
+            f"图片2是必须严格保持几何、轮廓、部件数量、摄像机视角和构图的原始{VIEW_NAMES[view]}。"
+            "将图片1的同一配色按真实部件连续关系准确迁移到图片2，包括转到侧面或背面的区域。"
+            "不得创造新配色、改变主色比例、重新设计、增删部件、添加文字或水印。\n\n"
+            f"已确认配色说明：\n{draft['analysis'].get('coloring_prompt', '')}"
+        )
+        return _metered_provider_call(
+            account, "image_to_3d", models["image_model"], f"生成配色{VIEW_NAMES[view]}",
+            lambda: generate_view([colored_front, original_target], prompt, models["image_model"], models["image_quality"]),
+        )
+
+    missing_views = [view for view in GENERATED_VIEWS if view not in draft.get("views", {})]
+    with ThreadPoolExecutor(max_workers=max(1, len(missing_views))) as executor:
+        futures = {executor.submit(generate_matching_view, view): view for view in missing_views}
+        for future in as_completed(futures):
+            view = futures[future]
+            try:
+                generated_views[view] = future.result()
+            except Exception as exc:
+                failures.append((view, exc))
+    views = dict(draft["views"])
+    blobs = PublicBlobStore()
+    for view, (generated, usage) in generated_views.items():
+        url = blobs.put(f"image3d/color-drafts/{draft_id}/{view}.png", generated, "image/png")
+        views[view] = {"url": url, "sha256": hashlib.sha256(generated).hexdigest(), "usage": usage}
+    status = "COMPLETE" if all(view in views for view in AI_GENERATED_VIEWS) else "PARTIAL"
+    draft = update_color_draft(draft_id, {"status": status, "views": views})
+    if failures:
+        failed_names = "、".join(VIEW_NAMES[view] for view, _ in failures)
+        first_error = failures[0][1]
+        raise WorkflowError(
+            getattr(first_error, "code", "COLOR_VIEW_GENERATION_FAILED"),
+            f"{failed_names}生成失败；已完成的配色视图已保留，可再次点击继续生成。{str(first_error)[:240]}",
+            first_error.status if isinstance(first_error, (WorkflowError, UsageLimitError)) else 502,
+        )
+    return _color_draft_response(draft)
+
+
+@app.post("/api/view-library/color-drafts/{draft_id}/save")
+def save_completed_color_draft(draft_id: str, data: ColorDraftSaveRequest):
+    draft = load_color_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="配色草稿不存在")
+    if draft.get("status") != "COMPLETE" or any(view not in draft.get("views", {}) for view in AI_GENERATED_VIEWS):
+        raise WorkflowError("COLOR_DRAFT_INCOMPLETE", "请先生成完整配色四视图", 409)
+    name = (data.name or draft.get("name") or "AI配色").strip()[:40]
+    scheme = save_color_scheme(draft["folder_id"], name, draft["views"], draft.get("analysis", {}))
+    update_color_draft(draft_id, {"status": "SAVED"})
+    return scheme
 
 
 @app.patch("/api/sessions/{session_id}/prompt")

@@ -125,13 +125,29 @@
     </section>
 
     <section id="view-color-step" class="panel standalone-module hidden" data-workspace-view="color">
-      <div class="step-title"><span>色</span><div><h2>四视图上色</h2><p>独立于 3D 生成。先从四视图数据库选择一套视图，后续再补充颜色推荐和上色功能。</p></div><b class="step-state active">独立功能</b></div>
+      <div class="step-title"><span>色</span><div><h2>AI 四视图上色</h2><p>先只生成正视图配色；确认后，再以彩色正视图为参考生成其余三个视角。</p></div><b id="color-workflow-state" class="step-state active">等待选择</b></div>
       <div id="color-view-selection" class="color-view-selection">
         <p><strong id="color-view-title">尚未选择四视图</strong><span>选择与删除数据库内容不会影响已经生成的 3D 模型。</span></p>
         <button id="choose-color-views" class="primary" type="button">选择四视图</button>
       </div>
       <div id="color-view-preview" class="views-grid hidden"></div>
-      <p class="module-placeholder">本次仅建立四视图选择流程，具体上色与颜色推荐功能将在后续补充。</p>
+      <div class="color-actions">
+        <button id="generate-color-front" class="primary" type="button" disabled>AI 分析并生成正视图配色</button>
+        <span>每次重新上色都会生成一个新候选，不会覆盖原四视图。</span>
+      </div>
+      <section id="color-draft" class="color-draft hidden" aria-live="polite">
+        <div class="color-analysis">
+          <div><small>AI 配色名</small><strong id="color-scheme-name">—</strong></div>
+          <div><small>识别结果</small><p id="color-analysis-summary"></p></div>
+          <div><small>建议色板</small><div id="color-palette" class="color-palette"></div></div>
+        </div>
+        <div id="color-result-grid" class="views-grid"></div>
+        <div class="actions color-draft-actions">
+          <button id="retry-color-front" class="secondary" type="button">不满意，再次上色</button>
+          <button id="complete-color-views" class="primary" type="button">满意，生成其余三张</button>
+          <button id="save-color-scheme" class="primary hidden" type="button">保存到四视图数据库</button>
+        </div>
+      </section>
     </section>
 
     <section id="generate-step" class="panel" data-workspace-view="3d">

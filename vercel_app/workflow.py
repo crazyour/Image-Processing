@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -286,6 +287,62 @@ def analyze_images(images: list[bytes], user_prompt: str, model: str) -> tuple[d
 def analyze_image(image: bytes, user_prompt: str, model: str) -> tuple[dict, dict]:
     """保留单图调用兼容性。"""
     return analyze_images([image], user_prompt, model)
+
+
+COLOR_ANALYSIS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "object": {"type": "string"},
+        "parts": {"type": "array", "items": {"type": "string"}},
+        "materials": {"type": "array", "items": {"type": "string"}},
+        "style": {"type": "string"},
+        "palette": {"type": "array", "items": {"type": "string"}},
+        "coloring_prompt": {"type": "string"},
+        "scheme_name": {"type": "string"},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["object", "parts", "materials", "style", "palette", "coloring_prompt", "scheme_name", "warnings"],
+}
+
+
+def analyze_coloring(images: list[bytes], model: str) -> tuple[dict, dict]:
+    """Identify a product and propose one concrete, reusable multiview color scheme."""
+    if not images:
+        raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少提供一张四视图", 422)
+    config = _openai_config()
+    instruction = (
+        "你是产品配色设计师。输入依次是同一物体的正、左、右、背视图。"
+        "只根据可见证据识别物体、部件、风格和材质；无法确定的内容写入 warnings，不要伪造。"
+        "提出一套适合该物体且跨视角一致的具体配色，palette 中写颜色名、色值和对应部件。"
+        "coloring_prompt 必须明确每个可见部件的颜色、材质和表面处理，同时要求严格保持几何、轮廓、部件数量、构图和纯净背景。"
+        "scheme_name 用 2–8 个中文字概括配色，不要包含‘方案’、序号、标点或引号。"
+    )
+    payload = {
+        "model": model,
+        "reasoning": {"effort": "none"},
+        "input": [{"role": "user", "content": [
+            {"type": "input_text", "text": instruction},
+            *[{"type": "input_image", "image_url": data_uri(image), "detail": "high"} for image in images[:4]],
+        ]}],
+        "text": {"format": {"type": "json_schema", "name": "multiview_coloring", "strict": True,
+                            "schema": COLOR_ANALYSIS_SCHEMA}},
+        "max_output_tokens": 1400,
+    }
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=90) as client:
+            response = client.post("/responses", headers={"Authorization": f"Bearer {config.api_key}"}, json=payload)
+    except httpx.RequestError as exc:
+        raise WorkflowError("OPENAI_UNAVAILABLE", f"OpenAI 连接失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("OpenAI", response)
+    try:
+        body = response.json()
+        result = json.loads(_extract_output_text(body))
+        result["scheme_name"] = re.sub(r"[\s\\/:*?\"<>|]+", "", result["scheme_name"])[:12] or "AI配色"
+        return result, usage_payload(body)
+    except (ValueError, TypeError, KeyError):
+        raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 配色分析结果格式无效", 502)
 
 
 def effective_prompt(user_prompt: str) -> str:

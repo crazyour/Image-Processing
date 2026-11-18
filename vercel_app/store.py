@@ -153,6 +153,29 @@ def _ensure_postgres_schema(connection) -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS image3d_color_drafts (
+                id TEXT PRIMARY KEY,
+                folder_id TEXT NOT NULL,
+                data JSONB NOT NULL,
+                created_at DOUBLE PRECISION NOT NULL,
+                updated_at DOUBLE PRECISION NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS image3d_color_schemes (
+                id TEXT PRIMARY KEY,
+                folder_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                views JSONB NOT NULL,
+                analysis JSONB NOT NULL,
+                created_at DOUBLE PRECISION NOT NULL
+            )
+            """
+        )
         connection.commit()
         _schema_ready.add(key)
 
@@ -226,6 +249,29 @@ def _ensure_sqlite_schema(connection: sqlite3.Connection, database_path: Path) -
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS image3d_color_drafts (
+                id TEXT PRIMARY KEY,
+                folder_id TEXT NOT NULL,
+                data TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS image3d_color_schemes (
+                id TEXT PRIMARY KEY,
+                folder_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                views TEXT NOT NULL,
+                analysis TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )
+            """
+        )
         connection.commit()
         _schema_ready.add(key)
 
@@ -258,6 +304,9 @@ def list_view_folders() -> list[dict[str, Any]]:
         rows = connection.execute(
             "SELECT id, name, views, created_at FROM image3d_view_folders ORDER BY created_at DESC"
         ).fetchall()
+    schemes_by_folder: dict[str, list[dict[str, Any]]] = {}
+    for scheme in list_color_schemes():
+        schemes_by_folder.setdefault(scheme["folder_id"], []).append(scheme)
     result = []
     for row in rows:
         views = row["views"]
@@ -266,6 +315,7 @@ def list_view_folders() -> list[dict[str, Any]]:
         result.append({
             "id": row["id"], "name": row["name"], "views": views,
             "created_at": float(row["created_at"]),
+            "color_schemes": schemes_by_folder.get(row["id"], []),
         })
     return result
 
@@ -273,11 +323,104 @@ def list_view_folders() -> list[dict[str, Any]]:
 def delete_view_folder(folder_id: str) -> bool:
     with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
         placeholder = "%s" if database_url() else "?"
+        connection.execute(f"DELETE FROM image3d_color_drafts WHERE folder_id = {placeholder}", (folder_id,))
+        connection.execute(f"DELETE FROM image3d_color_schemes WHERE folder_id = {placeholder}", (folder_id,))
         cursor = connection.execute(
             f"DELETE FROM image3d_view_folders WHERE id = {placeholder}", (folder_id,),
         )
         connection.commit()
     return cursor.rowcount > 0
+
+
+def get_view_folder(folder_id: str) -> dict[str, Any] | None:
+    return next((folder for folder in list_view_folders() if folder["id"] == folder_id), None)
+
+
+def save_color_draft(folder_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    draft_id = hashlib.sha256(f"draft:{time.time_ns()}:{folder_id}".encode()).hexdigest()[:32]
+    now = time.time()
+    serialized = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        if database_url():
+            connection.execute(
+                "INSERT INTO image3d_color_drafts (id, folder_id, data, created_at, updated_at) VALUES (%s, %s, %s::jsonb, %s, %s)",
+                (draft_id, folder_id, serialized, now, now),
+            )
+        else:
+            connection.execute(
+                "INSERT INTO image3d_color_drafts (id, folder_id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (draft_id, folder_id, serialized, now, now),
+            )
+        connection.commit()
+    return {"id": draft_id, "folder_id": folder_id, **data, "created_at": now, "updated_at": now}
+
+
+def load_color_draft(draft_id: str) -> dict[str, Any] | None:
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        placeholder = "%s" if database_url() else "?"
+        row = connection.execute(
+            f"SELECT id, folder_id, data, created_at, updated_at FROM image3d_color_drafts WHERE id = {placeholder}",
+            (draft_id,),
+        ).fetchone()
+    if not row:
+        return None
+    data = row["data"] if not isinstance(row["data"], str) else json.loads(row["data"])
+    return {"id": row["id"], "folder_id": row["folder_id"], **data,
+            "created_at": float(row["created_at"]), "updated_at": float(row["updated_at"])}
+
+
+def update_color_draft(draft_id: str, data: dict[str, Any]) -> dict[str, Any] | None:
+    current = load_color_draft(draft_id)
+    if not current:
+        return None
+    payload = {key: value for key, value in current.items() if key not in {"id", "folder_id", "created_at", "updated_at"}}
+    payload.update(data)
+    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    now = time.time()
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        placeholder = "%s" if database_url() else "?"
+        cast = "::jsonb" if database_url() else ""
+        connection.execute(
+            f"UPDATE image3d_color_drafts SET data = {placeholder}{cast}, updated_at = {placeholder} WHERE id = {placeholder}",
+            (serialized, now, draft_id),
+        )
+        connection.commit()
+    return load_color_draft(draft_id)
+
+
+def save_color_scheme(folder_id: str, name: str, views: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+    scheme_id = hashlib.sha256(f"scheme:{time.time_ns()}:{folder_id}".encode()).hexdigest()[:32]
+    now = time.time()
+    views_json = json.dumps(views, ensure_ascii=False, separators=(",", ":"))
+    analysis_json = json.dumps(analysis, ensure_ascii=False, separators=(",", ":"))
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        if database_url():
+            connection.execute(
+                "INSERT INTO image3d_color_schemes (id, folder_id, name, views, analysis, created_at) VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s)",
+                (scheme_id, folder_id, name, views_json, analysis_json, now),
+            )
+        else:
+            connection.execute(
+                "INSERT INTO image3d_color_schemes (id, folder_id, name, views, analysis, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (scheme_id, folder_id, name, views_json, analysis_json, now),
+            )
+        connection.commit()
+    return {"id": scheme_id, "folder_id": folder_id, "name": name, "views": views,
+            "analysis": analysis, "created_at": now}
+
+
+def list_color_schemes() -> list[dict[str, Any]]:
+    with (_connect_postgres() if database_url() else _connect_sqlite()) as connection:
+        rows = connection.execute(
+            "SELECT id, folder_id, name, views, analysis, created_at FROM image3d_color_schemes ORDER BY created_at DESC"
+        ).fetchall()
+    result = []
+    for row in rows:
+        views = row["views"] if not isinstance(row["views"], str) else json.loads(row["views"])
+        analysis = row["analysis"] if not isinstance(row["analysis"], str) else json.loads(row["analysis"])
+        result.append({"id": row["id"], "folder_id": row["folder_id"], "name": row["name"],
+                       "views": views, "analysis": analysis, "created_at": float(row["created_at"])})
+    return result
 
 
 def create_session(session_id: str, token: str, state: dict[str, Any]) -> int:

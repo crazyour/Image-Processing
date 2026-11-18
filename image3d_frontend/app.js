@@ -27,6 +27,7 @@ let resizeSourceKind = null;
 let resizeFileName = "model-resized.stl";
 let viewFolders = [];
 let selectedColorFolderId = null;
+let colorDraft = null;
 
 const workspaceContent = {
   "3d": {
@@ -62,7 +63,10 @@ function setWorkspace(name, updateUrl = true) {
   $("#workspace-copy").textContent = content.copy;
   document.title = `灵界 · ${content.title}`;
   $("#view-source-intro").classList.toggle("hidden", workspace !== "3d");
-  $("#paid-feature-banner").classList.toggle("hidden", workspace !== "3d");
+  $("#paid-feature-banner").classList.toggle("hidden", workspace === "library");
+  $("#paid-feature-banner span").textContent = workspace === "color"
+    ? "AI 图像识别和每张上色图都会按实际调用产生费用。请先确认正视图，满意后再生成其余三张，可避免无效费用。"
+    : "AI 主体分析、四视图生成和 3D 模型生成会按实际调用产生费用。自行上传四视图可免除站内图片生成费，但生成 3D 模型仍可能产生费用。";
   $("#library-toggle").classList.toggle("hidden", workspace !== "3d");
   if (workspace !== "3d") {
     $("#library-panel").classList.add("hidden");
@@ -994,10 +998,22 @@ function renderViewFolderCards(target, selectable = false) {
         <button class="secondary" type="button" data-open-view-folder="${folder.id}">查看全图</button>
         ${selectable ? `<button class="primary" type="button" data-select-view-folder="${folder.id}">选择</button>` : `<button class="danger" type="button" data-delete-view-folder="${folder.id}">删除</button>`}
       </div>
+      ${!selectable && folder.color_schemes?.length ? `<div class="view-folder-schemes"><small>配色方案 · ${folder.color_schemes.length}</small>${folder.color_schemes.map((scheme) => `
+        <button class="scheme-row" type="button" data-open-color-scheme="${scheme.id}" data-folder-id="${folder.id}">
+          <img src="${scheme.views.front.url}" alt=""><span>${escapeHtml(scheme.name)}</span>
+        </button>`).join("")}</div>` : ""}
     </article>`).join("");
 }
 
 function bindViewFolderActions(root) {
+  root.querySelectorAll("[data-open-color-scheme]").forEach((button) => button.addEventListener("click", () => {
+    const folder = viewFolders.find((item) => item.id === button.dataset.folderId);
+    const scheme = folder?.color_schemes?.find((item) => item.id === button.dataset.openColorScheme);
+    if (!scheme) return;
+    $("#view-folder-dialog-title").textContent = `${folder.name} / ${scheme.name}`;
+    $("#view-folder-dialog-grid").innerHTML = viewCards(scheme.views);
+    $("#view-folder-dialog").showModal();
+  }));
   root.querySelectorAll("[data-open-view-folder]").forEach((button) => button.addEventListener("click", () => {
     const folder = viewFolders.find((item) => item.id === button.dataset.openViewFolder);
     if (!folder) return;
@@ -1012,8 +1028,11 @@ function bindViewFolderActions(root) {
       await api(`/api/view-library/folders/${folder.id}`, { method: "DELETE" });
       if (selectedColorFolderId === folder.id) {
         selectedColorFolderId = null;
+        colorDraft = null;
         $("#color-view-title").textContent = "尚未选择四视图";
         $("#color-view-preview").classList.add("hidden");
+        $("#color-draft").classList.add("hidden");
+        $("#generate-color-front").disabled = true;
       }
       await loadViewLibrary();
       notify("四视图文件夹已删除");
@@ -1023,12 +1042,91 @@ function bindViewFolderActions(root) {
     const folder = viewFolders.find((item) => item.id === button.dataset.selectViewFolder);
     if (!folder) return;
     selectedColorFolderId = folder.id;
+    colorDraft = null;
     $("#color-view-title").textContent = `已选择：${folder.name}`;
     $("#color-view-preview").innerHTML = viewCards(folder.views);
     $("#color-view-preview").classList.remove("hidden");
+    $("#generate-color-front").disabled = false;
+    $("#color-draft").classList.add("hidden");
+    $("#color-workflow-state").textContent = "可以开始";
     $("#choose-view-dialog").close();
   }));
 }
+
+function renderColorDraft() {
+  if (!colorDraft) return;
+  const analysis = colorDraft.analysis || {};
+  $("#color-draft").classList.remove("hidden");
+  $("#color-scheme-name").textContent = colorDraft.name || "AI配色";
+  $("#color-analysis-summary").textContent = [
+    analysis.object,
+    analysis.parts?.length ? `部件：${analysis.parts.join("、")}` : "",
+    analysis.materials?.length ? `材质：${analysis.materials.join("、")}` : "",
+    analysis.style ? `风格：${analysis.style}` : "",
+  ].filter(Boolean).join("；") || "AI 未能稳定识别，已按可见外形生成配色。";
+  $("#color-palette").innerHTML = (analysis.palette || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("") || "<span>未识别具体色板</span>";
+  $("#color-result-grid").innerHTML = ["COMPLETE", "SAVED"].includes(colorDraft.status)
+    ? viewCards(colorDraft.views)
+    : `<article class="view-card"><h3>正视图配色候选</h3><img data-zoom src="${colorDraft.views.front.url}" alt="AI 生成的正视图配色候选"></article>`;
+  bindZoomImages($("#color-result-grid"));
+  const complete = ["COMPLETE", "SAVED"].includes(colorDraft.status);
+  $("#complete-color-views").classList.toggle("hidden", complete);
+  $("#retry-color-front").classList.toggle("hidden", complete);
+  $("#save-color-scheme").classList.toggle("hidden", !complete || colorDraft.status === "SAVED");
+  $("#color-workflow-state").textContent = colorDraft.status === "SAVED" ? "已保存" : complete ? "四视图已完成" : "等待确认正视图";
+}
+
+function bindZoomImages(root) {
+  root.querySelectorAll("[data-zoom]").forEach((image) => image.addEventListener("click", () => window.open(image.src, "_blank", "noopener")));
+}
+
+async function generateColoredFront(button) {
+  if (!selectedColorFolderId) return notify("请先选择一套四视图", true);
+  setBusy(button, true, "AI 正在分析并上色…");
+  $("#color-workflow-state").textContent = "AI 分析中";
+  try {
+    colorDraft = await api(`/api/view-library/folders/${selectedColorFolderId}/color-drafts/front`, {
+      method: "POST", timeout: 360_000,
+    });
+    renderColorDraft();
+    notify("正视图配色已生成，请确认是否满意");
+  } catch (error) { showError(error); }
+  finally { setBusy(button, false); }
+}
+
+$("#generate-color-front").addEventListener("click", (event) => generateColoredFront(event.currentTarget));
+$("#retry-color-front").addEventListener("click", (event) => generateColoredFront(event.currentTarget));
+$("#complete-color-views").addEventListener("click", async (event) => {
+  if (!colorDraft) return;
+  const button = event.currentTarget;
+  setBusy(button, true, "正在统一其余三个视角…");
+  $("#color-workflow-state").textContent = "生成其余三张";
+  try {
+    colorDraft = await api(`/api/view-library/color-drafts/${colorDraft.id}/complete`, {
+      method: "POST", timeout: 360_000,
+    });
+    renderColorDraft();
+    notify("配色四视图已全部生成");
+  } catch (error) { showError(error); }
+  finally { setBusy(button, false); }
+});
+$("#save-color-scheme").addEventListener("click", async (event) => {
+  if (!colorDraft) return;
+  const button = event.currentTarget;
+  setBusy(button, true, "正在保存…");
+  try {
+    const saved = await api(`/api/view-library/color-drafts/${colorDraft.id}/save`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: colorDraft.name }),
+    });
+    colorDraft.status = "SAVED";
+    colorDraft.name = saved.name;
+    renderColorDraft();
+    await loadViewLibrary();
+    notify(`配色方案“${saved.name}”已保存到原四视图文件夹`);
+  } catch (error) { showError(error); }
+  finally { setBusy(button, false); }
+});
 
 async function loadViewLibrary() {
   try {
