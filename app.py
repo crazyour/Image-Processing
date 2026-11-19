@@ -842,39 +842,67 @@ def _merge_small_color_regions(
     palette_rgb = np.asarray(palette, dtype=np.int16).reshape(-1, 3)
     kernel = np.ones((3, 3), dtype=np.uint8)
 
-    for _ in range(3):
-        snapshot = merged.copy()
-        changed = False
-        for color_index in np.unique(snapshot[visible]).tolist():
-            source = ((snapshot == color_index) & visible).astype(np.uint8)
+    for _ in range(8):
+        region_ids = np.full(merged.shape, -1, dtype=np.int32)
+        region_colors: list[int] = []
+        region_areas: list[int] = []
+        region_boxes: list[tuple[int, int, int, int]] = []
+        for color_index in np.unique(merged[visible]).tolist():
+            source = ((merged == color_index) & visible).astype(np.uint8)
             component_count, labels, stats, _ = cv2.connectedComponentsWithStats(
                 source, connectivity=8,
             )
             for component_index in range(1, component_count):
-                area = int(stats[component_index, cv2.CC_STAT_AREA])
-                if area >= min_region_area:
-                    continue
-                component = labels == component_index
-                border = cv2.dilate(component.astype(np.uint8), kernel).astype(bool)
-                border &= visible & ~component
-                neighbours = merged[border]
-                neighbours = neighbours[neighbours != color_index]
-                if not neighbours.size:
-                    continue
-                candidates, contact = np.unique(neighbours, return_counts=True)
-                source_rgb = palette_rgb[color_index]
-                differences = palette_rgb[candidates].astype(np.int32) - source_rgb.astype(np.int32)
-                distances = np.sum(
-                    differences ** 2, axis=1,
-                    dtype=np.int64,
-                )
-                # Colour similarity decides first; shared boundary length
-                # breaks ties so merged shapes remain locally coherent.
-                order = np.lexsort((-contact, distances))
-                merged[component] = candidates[int(order[0])]
-                changed = True
-        if not changed:
+                region_id = len(region_colors)
+                region_ids[labels == component_index] = region_id
+                x, y, width, height, area = stats[component_index].tolist()
+                region_colors.append(color_index)
+                region_areas.append(int(area))
+                region_boxes.append((x, y, width, height))
+
+        colors_array = np.asarray(region_colors, dtype=np.uint8)
+        areas_array = np.asarray(region_areas, dtype=np.int64)
+        targets = np.arange(len(region_colors), dtype=np.int32)
+        height, width = merged.shape
+        for region_id in np.argsort(areas_array).tolist():
+            area = int(areas_array[region_id])
+            if area >= min_region_area:
+                continue
+            x, y, box_width, box_height = region_boxes[region_id]
+            left, top = max(0, x - 1), max(0, y - 1)
+            right = min(width, x + box_width + 1)
+            bottom = min(height, y + box_height + 1)
+            crop = region_ids[top:bottom, left:right]
+            component = crop == region_id
+            border = cv2.dilate(component.astype(np.uint8), kernel).astype(bool)
+            neighbour_ids = crop[border & ~component & (crop >= 0)]
+            if not neighbour_ids.size:
+                continue
+            candidates, contact = np.unique(neighbour_ids, return_counts=True)
+            eligible = (
+                (areas_array[candidates] > area)
+                | ((areas_array[candidates] == area) & (candidates < region_id))
+            )
+            candidates, contact = candidates[eligible], contact[eligible]
+            if not candidates.size:
+                continue
+            source_rgb = palette_rgb[colors_array[region_id]].astype(np.int32)
+            differences = palette_rgb[colors_array[candidates]].astype(np.int32) - source_rgb
+            distances = np.sum(differences ** 2, axis=1, dtype=np.int64)
+            # A long shared edge keeps the merged outline locally coherent;
+            # colour distance and target area settle closer choices.
+            order = np.lexsort((-areas_array[candidates], distances, -contact))
+            targets[region_id] = candidates[int(order[0])]
+
+        changed_regions = np.flatnonzero(targets != np.arange(len(targets)))
+        if not changed_regions.size:
             break
+        for region_id in changed_regions.tolist():
+            target = int(targets[region_id])
+            while targets[target] != target:
+                target = int(targets[target])
+            targets[region_id] = target
+        merged[visible] = colors_array[targets[region_ids[visible]]]
     return merged
 
 
