@@ -862,8 +862,9 @@ def _organic_pixel_cell_paths(mask: np.ndarray) -> list[str]:
     return paths
 
 
-COLOR_SVG_TRACE_VERSION = "organic-blobs-v5"
+COLOR_SVG_TRACE_VERSION = "organic-blobs-v6"
 COLOR_SVG_MAX_COLORS = 96
+COLOR_SVG_SEAM_STROKE_WIDTH = 2.2
 
 
 def _merge_small_color_regions(
@@ -1001,7 +1002,11 @@ def _image_svg(image: bytes, size: str) -> bytes:
     rgb_array = np.asarray(traced.convert("RGB"), dtype=np.uint8)
     hsv = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2HSV)
     hsv[:, :, 1] = np.clip(
-        hsv[:, :, 1].astype(np.float32) * 1.18, 0, 255,
+        hsv[:, :, 1].astype(np.float32) * 1.32, 0, 255,
+    ).astype(np.uint8)
+    hsv[:, :, 2] = np.clip(
+        (hsv[:, :, 2].astype(np.float32) - 128.0) * 1.06 + 130.0,
+        0, 255,
     ).astype(np.uint8)
     rgb = Image.fromarray(cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB), "RGB")
     quantized = rgb.quantize(
@@ -1067,9 +1072,9 @@ def _image_svg(image: bytes, size: str) -> bytes:
         '  <desc>Continuous closed organic color blobs form the image without an embedded raster.</desc>\n'
         '  <style>\n'
         '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
-        'stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; '
+        f'stroke-width: {COLOR_SVG_SEAM_STROKE_WIDTH:g}; stroke-linejoin: round; stroke-linecap: round; '
         'shape-rendering: geometricPrecision; transition: stroke .12s ease, stroke-width .12s ease; }\n'
-        '    .vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }\n'
+        '    .vector-region:hover { stroke: #00d9ff; stroke-width: 3; }\n'
         '  </style>\n'
         f'{path_markup}\n'
         '</svg>\n'

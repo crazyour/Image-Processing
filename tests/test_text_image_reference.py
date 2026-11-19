@@ -51,7 +51,9 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertTrue(any(max(color) - min(color) > 180 for color in saturated))
         self.assertEqual(svg.count(b' stroke="#'), svg.count(b'<path '))
         self.assertIn(b'paint-order: stroke fill', svg)
-        self.assertIn(b'stroke-width: 1.2', svg)
+        self.assertIn(
+            f'stroke-width: {app_module.COLOR_SVG_SEAM_STROKE_WIDTH:g}'.encode(), svg,
+        )
         self.assertNotIn(b'<image', svg)
         self.assertNotIn(b'data:image/', svg)
         self.assertNotIn(b'fill="none"', svg)
@@ -74,7 +76,7 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertTrue(any(b"Q" in path for path in region_paths))
         self.assertNotIn(b'vector-effect: non-scaling-stroke', svg)
         self.assertIn(b'shape-rendering: geometricPrecision', svg)
-        self.assertIn(b'.vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }', svg)
+        self.assertIn(b'.vector-region:hover { stroke: #00d9ff; stroke-width: 3; }', svg)
 
     def test_generated_svg_keeps_detached_same_color_blobs_as_separate_vectors(self):
         canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
