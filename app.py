@@ -1685,15 +1685,25 @@ def download_text_image_item(
     source_url = item.get("url")
     if not source_url:
         raise WorkflowError("IMAGE_FILE_MISSING", "PNG 文件不存在", 404)
-    png = fetch_bytes(source_url, 30_000_000)
     if file_type == "png":
-        payload = png
+        payload = fetch_bytes(source_url, 30_000_000)
     elif file_type == "svg":
-        payload = _image_svg(
-            png, (state.get("model_settings") or {}).get("size", TEXT_IMAGE_SIZE),
+        # SVG conversion already runs once when an item succeeds. Reuse that
+        # persisted result here so a download does not repeat the expensive
+        # vectorisation work (which can make the browser connection drop).
+        # Older saved tasks may not have ``svg_url``, so keep reconstruction as
+        # a compatibility fallback.
+        svg_url = item.get("svg_url")
+        payload = (
+            fetch_bytes(svg_url, 30_000_000)
+            if svg_url
+            else _image_svg(
+                fetch_bytes(source_url, 30_000_000),
+                (state.get("model_settings") or {}).get("size", TEXT_IMAGE_SIZE),
+            )
         )
     else:
-        payload = _image_dxf(png)
+        payload = _image_dxf(fetch_bytes(source_url, 30_000_000))
     filename = f"lingjie-image-{item_index + 1}.{file_type}"
     media_type = {
         "png": "image/png", "svg": "image/svg+xml", "dxf": "application/dxf",
