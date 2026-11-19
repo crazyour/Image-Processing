@@ -5,6 +5,7 @@ import os
 import re
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 import cv2
@@ -22,6 +23,11 @@ def sample_png(color: tuple[int, int, int] = (80, 120, 160)) -> bytes:
 
 
 class ImageSvgTracingTests(unittest.TestCase):
+    @staticmethod
+    def svg_paths(svg: bytes) -> list[ET.Element]:
+        root = ET.fromstring(svg)
+        return list(root.iter("{http://www.w3.org/2000/svg}path"))
+
     @staticmethod
     def dxf_vertices(raw: bytes) -> np.ndarray:
         dxf = raw.decode("ascii").replace("\r\n", "\n")
@@ -42,18 +48,22 @@ class ImageSvgTracingTests(unittest.TestCase):
 
         svg = app_module._image_svg(output.getvalue(), "128x128")
 
-        self.assertIn(b'<path id="region-0" class="vector-region"', svg)
+        paths = self.svg_paths(svg)
+        self.assertGreaterEqual(len(paths), 2)
+        self.assertEqual(paths[0].get("id"), "region-0")
+        self.assertTrue(all(path.get("class") == "vector-region" for path in paths))
         self.assertIn(b'.vector-region:hover', svg)
         self.assertIn(b'viewBox="0 0 128 128"', svg)
-        self.assertIn(b'fill="#ffffff"', svg)
-        fills = re.findall(rb'fill="#([0-9a-f]{6})"', svg)
+        self.assertIn(b'fill="#FFFFFF"', svg)
+        fills = re.findall(rb'fill="#([0-9A-Fa-f]{6})"', svg)
         saturated = [tuple(bytes.fromhex(value.decode("ascii"))) for value in fills]
-        self.assertTrue(any(max(color) - min(color) > 180 for color in saturated))
-        self.assertEqual(svg.count(b' stroke="#'), svg.count(b'<path '))
-        self.assertIn(b'paint-order: stroke fill', svg)
-        self.assertIn(
-            f'stroke-width: {app_module.COLOR_SVG_SEAM_STROKE_WIDTH:g}'.encode(), svg,
+        self.assertTrue(any(max(color) - min(color) > 150 for color in saturated))
+        self.assertTrue(all(path.get("stroke") is None for path in paths))
+        self.assertTrue(
+            all(any(command in (path.get("d") or "") for command in "Cc") for path in paths)
         )
+        self.assertNotIn(b'paint-order: stroke fill', svg)
+        self.assertNotIn(b'stroke-width:2.2', svg)
         self.assertNotIn(b'<image', svg)
         self.assertNotIn(b'data:image/', svg)
         self.assertNotIn(b'fill="none"', svg)
@@ -69,14 +79,12 @@ class ImageSvgTracingTests(unittest.TestCase):
 
         svg = app_module._image_svg(output.getvalue(), "128x128")
 
-        self.assertGreaterEqual(svg.count(b'<path '), 2)
-        region_paths = re.findall(rb'class="vector-region" d="([^"]+)"', svg)
-        self.assertTrue(region_paths)
-        self.assertTrue(all(path.endswith(b"Z") for path in region_paths))
-        self.assertTrue(any(b"Q" in path for path in region_paths))
-        self.assertNotIn(b'vector-effect: non-scaling-stroke', svg)
-        self.assertIn(b'shape-rendering: geometricPrecision', svg)
-        self.assertIn(b'.vector-region:hover { stroke: #00d9ff; stroke-width: 3; }', svg)
+        region_paths = self.svg_paths(svg)
+        self.assertGreaterEqual(len(region_paths), 2)
+        self.assertTrue(all((path.get("d") or "").endswith("Z") for path in region_paths))
+        self.assertTrue(any("C" in (path.get("d") or "") for path in region_paths))
+        self.assertIn(b'shape-rendering:geometricPrecision', svg)
+        self.assertIn(b'.vector-region:hover{stroke:#00d9ff;stroke-width:1;', svg)
 
     def test_generated_svg_keeps_detached_same_color_blobs_as_separate_vectors(self):
         canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
@@ -86,13 +94,21 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertTrue(ok)
 
         svg = app_module._image_svg(encoded.tobytes(), "128x128")
-        connected_paths = re.findall(
-            rb'<path [^>]*d="([^"]+)"[^>]*data-connected="true"[^>]*/>', svg,
-        )
+        colored_paths = [
+            path for path in self.svg_paths(svg)
+            if path.get("fill", "").upper() == "#2B2BD2"
+        ]
 
-        self.assertEqual(len(connected_paths), 2)
-        self.assertTrue(all(path.count(b"M") == 1 for path in connected_paths))
-        self.assertTrue(all(path.endswith(b"Z") for path in connected_paths))
+        self.assertEqual(len(colored_paths), 2)
+        self.assertTrue(all((path.get("d") or "").count("M") == 1 for path in colored_paths))
+        self.assertTrue(all((path.get("d") or "").endswith("Z") for path in colored_paths))
+
+    def test_generated_svg_preserves_source_colour_without_artificial_boost(self):
+        svg = app_module._image_svg(sample_png((80, 120, 160)), "128x128")
+
+        fills = {path.get("fill") for path in self.svg_paths(svg)}
+
+        self.assertEqual(fills, {"#5078A0"})
 
     def test_generated_svg_merges_only_small_irregular_color_fragments(self):
         indexes = np.zeros((24, 24), dtype=np.uint8)
@@ -308,9 +324,13 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
         self.assertIn(b'width="128px" height="128px" viewBox="0 0 128 128"', svg_response.content)
         self.assertIn(b'version="1.1"', svg_response.content)
-        self.assertIn(b'<path id="region-0" class="vector-region"', svg_response.content)
+        svg_paths = ImageSvgTracingTests.svg_paths(svg_response.content)
+        self.assertTrue(svg_paths)
+        self.assertEqual(svg_paths[0].get("id"), "region-0")
+        self.assertEqual(svg_paths[0].get("class"), "vector-region")
         self.assertIn(b'.vector-region:hover', svg_response.content)
-        self.assertRegex(svg_response.content, rb'fill="#[0-9a-f]{6}" stroke="#[0-9a-f]{6}"')
+        self.assertRegex(svg_response.content, rb'fill="#[0-9A-Fa-f]{6}"')
+        self.assertTrue(all(path.get("stroke") is None for path in svg_paths))
         self.assertNotIn(b'<image', svg_response.content)
         self.assertNotIn(b'data:image/', svg_response.content)
         self.assertNotIn(b'fill="none"', svg_response.content)

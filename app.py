@@ -15,6 +15,7 @@ import time
 import uuid
 import io
 import zipfile
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
@@ -28,6 +29,7 @@ from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import cv2
 import numpy as np
+import vtracer
 from PIL import Image, ImageOps, UnidentifiedImageError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -862,7 +864,7 @@ def _organic_pixel_cell_paths(mask: np.ndarray) -> list[str]:
     return paths
 
 
-COLOR_SVG_TRACE_VERSION = "organic-blobs-v7"
+COLOR_SVG_TRACE_VERSION = "high-fidelity-v8"
 COLOR_SVG_MAX_COLORS = 256
 COLOR_SVG_SEAM_STROKE_WIDTH = 2.2
 
@@ -983,7 +985,7 @@ def _merge_small_color_regions(
 
 
 def _image_svg(image: bytes, size: str) -> bytes:
-    """Rebuild the generated image as interactive, solid-color vector regions."""
+    """Trace the original pixels into high-fidelity, editable spline regions."""
     try:
         with Image.open(io.BytesIO(image)) as source:
             source.load()
@@ -997,88 +999,68 @@ def _image_svg(image: bytes, size: str) -> bytes:
             original_width = original_height = 1024
         traced = Image.new("RGBA", (original_width, original_height), "white")
 
-    traced.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+    traced.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
     width, height = traced.size
-    rgb_array = np.asarray(traced.convert("RGB"), dtype=np.uint8)
-    hsv = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2HSV)
-    hsv[:, :, 1] = np.clip(
-        hsv[:, :, 1].astype(np.float32) * 1.32, 0, 255,
-    ).astype(np.uint8)
-    hsv[:, :, 2] = np.clip(
-        (hsv[:, :, 2].astype(np.float32) - 128.0) * 1.06 + 130.0,
-        0, 255,
-    ).astype(np.uint8)
-    rgb = Image.fromarray(cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB), "RGB")
-    quantized = rgb.quantize(
-        colors=COLOR_SVG_MAX_COLORS,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.NONE,
+    encoded = io.BytesIO()
+    traced.save(encoded, "PNG")
+    config = vtracer.Config(
+        clustering="watershed",
+        hierarchical="cutout",
+        mode="spline",
+        filter_speckle=1,
+        color_precision=8,
+        layer_difference=8,
+        corner_threshold=90,
+        length_threshold=2.0,
+        max_iterations=10,
+        splice_threshold=45,
+        path_precision=2,
+        optimize=1,
+        watershed_detail=255,
     )
-    palette = quantized.getpalette()
-    alpha = np.asarray(traced.getchannel("A"), dtype=np.uint8)
-    color_indexes = _merge_small_color_regions(
-        np.asarray(quantized, dtype=np.uint8), palette, alpha,
-    )
-    paths = []
-    path_index = 0
-    visible_indexes = color_indexes[alpha >= 16]
-    unique_indexes, unique_counts = np.unique(visible_indexes, return_counts=True)
-    colors = list(zip(unique_counts.tolist(), unique_indexes.tolist()))
-    base_color_index = max(colors, default=(0, -1))[1] if bool(np.all(alpha >= 254)) else -1
-    if base_color_index >= 0:
-        red, green, blue = palette[base_color_index * 3:base_color_index * 3 + 3]
-        fill = f"#{red:02x}{green:02x}{blue:02x}"
-        paths.append(
-            f'  <path id="region-0" class="vector-region" d="M0 0H{width}V{height}H0Z" '
-            f'fill="{fill}" stroke="{fill}" data-source-color="{fill}"/>'
-        )
-        path_index = 1
-    for count, color_index in sorted(colors, reverse=True):
-        if not count:
-            continue
-        if color_index == base_color_index:
-            continue
-        mask = (color_indexes == color_index) & (alpha >= 16)
-        red, green, blue = palette[color_index * 3:color_index * 3 + 3]
-        fill = f"#{red:02x}{green:02x}{blue:02x}"
-        component_count, component_labels, _, _ = cv2.connectedComponentsWithStats(
-            mask.astype(np.uint8), connectivity=4,
-        )
-        for component_index in range(1, component_count):
-            component = component_labels == component_index
-            alpha_values = alpha[component]
-            opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
-            opacity_attribute = f' opacity="{opacity:.3f}"' if opacity < 0.995 else ""
-            component_paths = _organic_pixel_cell_paths(component)
-            if not component_paths:
-                continue
-            # A vector object owns exactly one edge-connected filled region.
-            # Extra loops here can only be closed holes inside that same blob;
-            # detached islands always become separate path objects.
-            path_data = "".join(component_paths)
-            paths.append(
-                f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
-                f'fill="{fill}" stroke="{fill}"{opacity_attribute} '
-                f'data-source-color="{fill}" data-connected="true" fill-rule="evenodd"/>'
-            )
-            path_index += 1
+    try:
+        raw_svg = config.convert_bytes(encoded.getvalue())
+        root = ET.fromstring(raw_svg)
+    except Exception as exc:
+        raise WorkflowError(
+            "TEXT_IMAGE_SVG_TRACE_FAILED",
+            "SVG 高保真矢量追踪失败，请重新生成或下载 PNG 原图",
+            502,
+        ) from exc
 
-    path_markup = "\n".join(paths)
-    return (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
-        f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
-        '  <title>AI generated image rebuilt as vector color regions</title>\n'
-        '  <desc>Continuous closed organic color blobs form the image without an embedded raster.</desc>\n'
-        '  <style>\n'
-        '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
-        f'stroke-width: {COLOR_SVG_SEAM_STROKE_WIDTH:g}; stroke-linejoin: round; stroke-linecap: round; '
-        'shape-rendering: geometricPrecision; transition: stroke .12s ease, stroke-width .12s ease; }\n'
-        '    .vector-region:hover { stroke: #00d9ff; stroke-width: 3; }\n'
-        '  </style>\n'
-        f'{path_markup}\n'
-        '</svg>\n'
-    ).encode("utf-8")
+    namespace = "http://www.w3.org/2000/svg"
+    root.set("version", "1.1")
+    root.set("width", f"{original_width}px")
+    root.set("height", f"{original_height}px")
+    root.set("viewBox", f"0 0 {width} {height}")
+    root.set("preserveAspectRatio", "xMidYMid meet")
+    paths = list(root.iter(f"{{{namespace}}}path"))
+    for path_index, path in enumerate(paths):
+        fill = path.get("fill", "#000000")
+        path.set("id", f"region-{path_index}")
+        path.set("class", "vector-region")
+        path.set("data-source-color", fill.lower())
+        path.attrib.pop("stroke", None)
+        path.attrib.pop("stroke-width", None)
+
+    title = ET.Element(f"{{{namespace}}}title")
+    title.text = "High-fidelity vector trace of the generated image"
+    description = ET.Element(f"{{{namespace}}}desc")
+    description.text = (
+        "Original colours and edge-aware spline regions are preserved without an embedded raster."
+    )
+    style = ET.Element(f"{{{namespace}}}style")
+    style.text = (
+        ".vector-region{cursor:crosshair;pointer-events:visiblePainted;"
+        "shape-rendering:geometricPrecision}"
+        ".vector-region:hover{stroke:#00d9ff;stroke-width:1;"
+        "vector-effect:non-scaling-stroke}"
+    )
+    root.insert(0, style)
+    root.insert(0, description)
+    root.insert(0, title)
+    ET.register_namespace("", namespace)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
 def _image_outer_mask(traced: Image.Image) -> np.ndarray:
