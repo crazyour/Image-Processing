@@ -864,7 +864,7 @@ def _organic_pixel_cell_paths(mask: np.ndarray) -> list[str]:
     return paths
 
 
-COLOR_SVG_TRACE_VERSION = "high-fidelity-v8"
+COLOR_SVG_TRACE_VERSION = "high-fidelity-half-regions-v9"
 COLOR_SVG_MAX_COLORS = 256
 COLOR_SVG_SEAM_STROKE_WIDTH = 2.2
 
@@ -1004,19 +1004,18 @@ def _image_svg(image: bytes, size: str) -> bytes:
     encoded = io.BytesIO()
     traced.save(encoded, "PNG")
     config = vtracer.Config(
-        clustering="watershed",
+        clustering="color-cluster",
         hierarchical="cutout",
         mode="spline",
         filter_speckle=1,
         color_precision=8,
-        layer_difference=8,
+        layer_difference=5,
         corner_threshold=90,
         length_threshold=2.0,
         max_iterations=10,
         splice_threshold=45,
         path_precision=2,
         optimize=1,
-        watershed_detail=255,
     )
     try:
         raw_svg = config.convert_bytes(encoded.getvalue())
