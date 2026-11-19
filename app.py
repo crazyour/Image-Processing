@@ -814,7 +814,7 @@ def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
     return paths
 
 
-COLOR_SVG_TRACE_VERSION = "organic-regions-v2"
+COLOR_SVG_TRACE_VERSION = "organic-regions-v3"
 COLOR_SVG_MAX_COLORS = 24
 
 
@@ -835,10 +835,11 @@ def _merge_small_color_regions(
     if not np.any(visible):
         return merged
     if min_region_area is None:
-        # This is an area threshold only: 64 pixels may form a long feather,
+        # This is an area threshold only: 24 pixels may form a long feather,
         # curved petal edge, or any other irregular footprint. It is never
-        # snapped to an 8x8 grid.
-        min_region_area = 64
+        # snapped to a fixed grid. Lowering it keeps finer detail instead of
+        # dissolving small shapes into their neighbour.
+        min_region_area = 24
     palette_rgb = np.asarray(palette, dtype=np.int16).reshape(-1, 3)
     kernel = np.ones((3, 3), dtype=np.uint8)
 
@@ -982,7 +983,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
         f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
         '  <title>AI generated image rebuilt as vector color regions</title>\n'
-        '  <desc>Larger organic solid-color regions form the image without an embedded raster.</desc>\n'
+        '  <desc>Organic solid-color regions form the image without an embedded raster.</desc>\n'
         '  <style>\n'
         '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
         'stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; '

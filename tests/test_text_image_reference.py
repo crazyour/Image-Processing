@@ -282,7 +282,7 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["items"][0]["status"], "SUCCEEDED")
         svg_url = response.json()["items"][0]["svg_url"]
-        self.assertTrue(svg_url.endswith("/1-organic-regions-v2.svg"))
+        self.assertTrue(svg_url.endswith("/1-organic-regions-v3.svg"))
         svg_response = self.client.get(svg_url)
         self.assertEqual(svg_response.status_code, 200)
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
@@ -364,7 +364,7 @@ class TextImageReferenceTests(unittest.TestCase):
         updated, _ = app_module.load_session(task_id, token)
         item = updated["items"][0]
         self.assertEqual(item["svg_trace_version"], app_module.COLOR_SVG_TRACE_VERSION)
-        self.assertTrue(item["svg_url"].endswith("/1-organic-regions-v2.svg"))
+        self.assertTrue(item["svg_url"].endswith("/1-organic-regions-v3.svg"))
 
     def test_multiple_references_are_saved_and_used_together(self):
         task_id, headers = self.create_task()
