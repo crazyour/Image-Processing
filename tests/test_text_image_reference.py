@@ -57,7 +57,7 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertNotIn(b'fill="none"', svg)
         self.assertNotIn(b'fill="transparent"', svg)
 
-    def test_generated_svg_adjacent_colors_share_exact_pixel_boundary(self):
+    def test_generated_svg_uses_closed_rounded_region_paths(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), (210, 43, 43))
         for x in range(64, 128):
@@ -68,11 +68,29 @@ class ImageSvgTracingTests(unittest.TestCase):
         svg = app_module._image_svg(output.getvalue(), "128x128")
 
         self.assertGreaterEqual(svg.count(b'<path '), 2)
-        self.assertGreaterEqual(svg.count(b'L64 0'), 1)
-        self.assertGreaterEqual(svg.count(b'L64 128'), 1)
+        region_paths = re.findall(rb'class="vector-region" d="([^"]+)"', svg)
+        self.assertTrue(region_paths)
+        self.assertTrue(all(path.endswith(b"Z") for path in region_paths))
+        self.assertTrue(any(b"Q" in path for path in region_paths))
         self.assertNotIn(b'vector-effect: non-scaling-stroke', svg)
         self.assertIn(b'shape-rendering: geometricPrecision', svg)
         self.assertIn(b'.vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }', svg)
+
+    def test_generated_svg_keeps_detached_same_color_blobs_as_separate_vectors(self):
+        canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
+        cv2.circle(canvas, (36, 64), 18, (210, 43, 43), -1)
+        cv2.circle(canvas, (92, 64), 18, (210, 43, 43), -1)
+        ok, encoded = cv2.imencode(".png", canvas)
+        self.assertTrue(ok)
+
+        svg = app_module._image_svg(encoded.tobytes(), "128x128")
+        connected_paths = re.findall(
+            rb'<path [^>]*d="([^"]+)"[^>]*data-connected="true"[^>]*/>', svg,
+        )
+
+        self.assertEqual(len(connected_paths), 2)
+        self.assertTrue(all(path.count(b"M") == 1 for path in connected_paths))
+        self.assertTrue(all(path.endswith(b"Z") for path in connected_paths))
 
     def test_generated_svg_merges_only_small_irregular_color_fragments(self):
         indexes = np.zeros((24, 24), dtype=np.uint8)
@@ -282,7 +300,7 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["items"][0]["status"], "SUCCEEDED")
         svg_url = response.json()["items"][0]["svg_url"]
-        self.assertTrue(svg_url.endswith("/1-organic-regions-v3.svg"))
+        self.assertTrue(svg_url.endswith(f"/1-{app_module.COLOR_SVG_TRACE_VERSION}.svg"))
         svg_response = self.client.get(svg_url)
         self.assertEqual(svg_response.status_code, 200)
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
@@ -364,7 +382,9 @@ class TextImageReferenceTests(unittest.TestCase):
         updated, _ = app_module.load_session(task_id, token)
         item = updated["items"][0]
         self.assertEqual(item["svg_trace_version"], app_module.COLOR_SVG_TRACE_VERSION)
-        self.assertTrue(item["svg_url"].endswith("/1-organic-regions-v3.svg"))
+        self.assertTrue(
+            item["svg_url"].endswith(f"/1-{app_module.COLOR_SVG_TRACE_VERSION}.svg")
+        )
 
     def test_multiple_references_are_saved_and_used_together(self):
         task_id, headers = self.create_task()

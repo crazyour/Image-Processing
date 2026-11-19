@@ -746,8 +746,8 @@ def _svg_path(points: np.ndarray) -> str:
     return "".join(commands)
 
 
-def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
-    """Trace exact pixel-cell outlines so adjacent masks share every boundary."""
+def _pixel_cell_contours(mask: np.ndarray) -> list[list[tuple[int, int]]]:
+    """Trace closed pixel-cell contours without joining detached islands."""
     foreground = np.asarray(mask, dtype=bool)
     padded = np.pad(foreground, 1, constant_values=False)
     boundaries = (
@@ -774,7 +774,7 @@ def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
             )
             outgoing.setdefault(starts[direction], []).append((ends[direction], direction))
 
-    paths = []
+    contours = []
     turn_priority = {1: 0, 0: 1, 3: 2, 2: 3}
     while outgoing:
         start = next(iter(outgoing))
@@ -806,15 +806,63 @@ def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
                 continue
             corners.append(point)
         if len(corners) >= 3:
-            paths.append(
-                f"M{corners[0][0]} {corners[0][1]}"
-                + "".join(f"L{x} {y}" for x, y in corners[1:])
-                + "Z"
+            contours.append(corners)
+    return contours
+
+
+def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
+    """Trace exact pixel-cell outlines so adjacent masks share every boundary."""
+    return [
+        f"M{corners[0][0]} {corners[0][1]}"
+        + "".join(f"L{x} {y}" for x, y in corners[1:])
+        + "Z"
+        for corners in _pixel_cell_contours(mask)
+    ]
+
+
+def _organic_pixel_cell_paths(mask: np.ndarray) -> list[str]:
+    """Turn closed cell contours into softly rounded irregular loops."""
+    paths = []
+    for corners in _pixel_cell_contours(mask):
+        polygon = np.asarray(corners, dtype=np.float32).reshape(-1, 1, 2)
+        perimeter = float(cv2.arcLength(polygon, True))
+        simplified = cv2.approxPolyDP(
+            polygon, max(0.9, min(2.2, perimeter * 0.0025)), True,
+        ).reshape(-1, 2)
+        if len(simplified) < 3:
+            continue
+        def coordinate(value: float) -> str:
+            rounded = round(float(value), 2)
+            return str(int(rounded)) if rounded.is_integer() else f"{rounded:g}"
+
+        previous = np.roll(simplified, 1, axis=0)
+        following = np.roll(simplified, -1, axis=0)
+        incoming = previous - simplified
+        outgoing = following - simplified
+        incoming_lengths = np.linalg.norm(incoming, axis=1)
+        outgoing_lengths = np.linalg.norm(outgoing, axis=1)
+        radii = np.minimum(
+            2.5, np.minimum(incoming_lengths * 0.35, outgoing_lengths * 0.35),
+        )
+        entries = simplified + incoming * (radii / incoming_lengths)[:, None]
+        exits = simplified + outgoing * (radii / outgoing_lengths)[:, None]
+        commands = [f"M{coordinate(entries[0, 0])} {coordinate(entries[0, 1])}"]
+        for index, control in enumerate(simplified):
+            commands.append(
+                f"Q{coordinate(control[0])} {coordinate(control[1])} "
+                f"{coordinate(exits[index, 0])} {coordinate(exits[index, 1])}"
             )
+            next_index = (index + 1) % len(simplified)
+            commands.append(
+                f"L{coordinate(entries[next_index, 0])} "
+                f"{coordinate(entries[next_index, 1])}"
+            )
+        commands.append("Z")
+        paths.append("".join(commands))
     return paths
 
 
-COLOR_SVG_TRACE_VERSION = "organic-regions-v3"
+COLOR_SVG_TRACE_VERSION = "organic-blobs-v4"
 COLOR_SVG_MAX_COLORS = 24
 
 
@@ -835,13 +883,14 @@ def _merge_small_color_regions(
     if not np.any(visible):
         return merged
     if min_region_area is None:
-        # This is an area threshold only: 24 pixels may form a long feather,
-        # curved petal edge, or any other irregular footprint. It is never
-        # snapped to a fixed grid. Lowering it keeps finer detail instead of
-        # dissolving small shapes into their neighbour.
-        min_region_area = 24
+        # Keep the apparent blob size stable across output resolutions. This
+        # remains an area threshold, never a square grid: every merged region
+        # follows its organic boundary and may be strongly irregular.
+        min_region_area = max(96, int(np.count_nonzero(visible) / 1600))
     palette_rgb = np.asarray(palette, dtype=np.int16).reshape(-1, 3)
-    kernel = np.ones((3, 3), dtype=np.uint8)
+    # Edge contact (rather than diagonal point contact) guarantees that every
+    # merge produces one genuinely continuous filled region.
+    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
 
     for _ in range(8):
         region_ids = np.full(merged.shape, -1, dtype=np.int32)
@@ -851,7 +900,7 @@ def _merge_small_color_regions(
         for color_index in np.unique(merged[visible]).tolist():
             source = ((merged == color_index) & visible).astype(np.uint8)
             component_count, labels, stats, _ = cv2.connectedComponentsWithStats(
-                source, connectivity=8,
+                source, connectivity=4,
             )
             for component_index in range(1, component_count):
                 region_id = len(region_colors)
@@ -890,10 +939,33 @@ def _merge_small_color_regions(
             source_rgb = palette_rgb[colors_array[region_id]].astype(np.int32)
             differences = palette_rgb[colors_array[candidates]].astype(np.int32) - source_rgb
             distances = np.sum(differences ** 2, axis=1, dtype=np.int64)
-            # A long shared edge keeps the merged outline locally coherent;
-            # colour distance and target area settle closer choices.
-            order = np.lexsort((-areas_array[candidates], distances, -contact))
-            targets[region_id] = candidates[int(order[0])]
+            candidate_boxes = np.asarray(
+                [region_boxes[int(candidate)] for candidate in candidates],
+                dtype=np.float64,
+            )
+            union_left = np.minimum(float(x), candidate_boxes[:, 0])
+            union_top = np.minimum(float(y), candidate_boxes[:, 1])
+            union_right = np.maximum(
+                float(x + box_width), candidate_boxes[:, 0] + candidate_boxes[:, 2],
+            )
+            union_bottom = np.maximum(
+                float(y + box_height), candidate_boxes[:, 1] + candidate_boxes[:, 3],
+            )
+            union_width = np.maximum(1.0, union_right - union_left)
+            union_height = np.maximum(1.0, union_bottom - union_top)
+            aspect = np.maximum(
+                union_width / union_height, union_height / union_width,
+            )
+            combined_area = area + areas_array[candidates].astype(np.float64)
+            empty_ratio = 1.0 - np.minimum(
+                1.0, combined_area / (union_width * union_height),
+            )
+            colour_penalty = distances.astype(np.float64) / (3.0 * 255.0 ** 2)
+            contact_bonus = contact.astype(np.float64) / max(1.0, np.sqrt(area))
+            # Prefer a compact union first, then a long shared edge and a close
+            # colour. This prevents small fragments from forming thin ribbons.
+            score = aspect + empty_ratio + colour_penalty * 0.45 - contact_bonus * 0.18
+            targets[region_id] = candidates[int(np.argmin(score))]
 
         changed_regions = np.flatnonzero(targets != np.arange(len(targets)))
         if not changed_regions.size:
@@ -962,18 +1034,25 @@ def _image_svg(image: bytes, size: str) -> bytes:
         mask = (color_indexes == color_index) & (alpha >= 16)
         red, green, blue = palette[color_index * 3:color_index * 3 + 3]
         fill = f"#{red:02x}{green:02x}{blue:02x}"
-        alpha_values = alpha[(color_indexes == color_index) & (alpha >= 16)]
-        opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
-        opacity_attribute = f' opacity="{opacity:.3f}"' if opacity < 0.995 else ""
-        color_paths = _pixel_cell_paths(mask)
-        if color_paths:
-            # Disconnected pieces of one fill remain irregular subpaths, but
-            # share one compound vector object instead of thousands of objects.
-            path_data = "".join(color_paths)
+        component_count, component_labels, _, _ = cv2.connectedComponentsWithStats(
+            mask.astype(np.uint8), connectivity=4,
+        )
+        for component_index in range(1, component_count):
+            component = component_labels == component_index
+            alpha_values = alpha[component]
+            opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
+            opacity_attribute = f' opacity="{opacity:.3f}"' if opacity < 0.995 else ""
+            component_paths = _organic_pixel_cell_paths(component)
+            if not component_paths:
+                continue
+            # A vector object owns exactly one edge-connected filled region.
+            # Extra loops here can only be closed holes inside that same blob;
+            # detached islands always become separate path objects.
+            path_data = "".join(component_paths)
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
                 f'fill="{fill}" stroke="{fill}"{opacity_attribute} '
-                f'data-source-color="{fill}" fill-rule="evenodd"/>'
+                f'data-source-color="{fill}" data-connected="true" fill-rule="evenodd"/>'
             )
             path_index += 1
 
@@ -983,7 +1062,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
         f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
         '  <title>AI generated image rebuilt as vector color regions</title>\n'
-        '  <desc>Organic solid-color regions form the image without an embedded raster.</desc>\n'
+        '  <desc>Continuous closed organic color blobs form the image without an embedded raster.</desc>\n'
         '  <style>\n'
         '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
         'stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; '
