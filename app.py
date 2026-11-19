@@ -862,8 +862,8 @@ def _organic_pixel_cell_paths(mask: np.ndarray) -> list[str]:
     return paths
 
 
-COLOR_SVG_TRACE_VERSION = "organic-blobs-v6"
-COLOR_SVG_MAX_COLORS = 96
+COLOR_SVG_TRACE_VERSION = "organic-blobs-v7"
+COLOR_SVG_MAX_COLORS = 256
 COLOR_SVG_SEAM_STROKE_WIDTH = 2.2
 
 
@@ -887,9 +887,9 @@ def _merge_small_color_regions(
         # Keep the apparent blob size stable across output resolutions. This
         # remains an area threshold, never a square grid: every merged region
         # follows its organic boundary and may be strongly irregular.
-        # v5 uses one third of the previous merge scale. Together with the
-        # denser palette this shrinks both typical and largest natural regions.
-        min_region_area = max(32, int(np.count_nonzero(visible) / 4800))
+        # v7 reduces the v6 merge scale by another factor of three. The full
+        # 256-colour palette keeps the smaller closed blobs visually distinct.
+        min_region_area = max(11, int(np.count_nonzero(visible) / 14400))
     palette_rgb = np.asarray(palette, dtype=np.int16).reshape(-1, 3)
     # Edge contact (rather than diagonal point contact) guarantees that every
     # merge produces one genuinely continuous filled region.
