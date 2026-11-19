@@ -1676,7 +1676,27 @@ def download_text_image_item(
     file_type: Literal["png", "svg", "dxf"],
     x_session_token: str | None = Header(default=None),
 ):
-    state, _ = _load_text_image_task(task_id, x_session_token)
+    return _download_text_image_item(task_id, item_index, file_type, x_session_token)
+
+
+@app.post("/api/text-image/tasks/{task_id}/items/{item_index}/download/{file_type}")
+def download_text_image_item_native(
+    task_id: str,
+    item_index: int,
+    file_type: Literal["png", "svg", "dxf"],
+    session_token: str = Form(...),
+):
+    """Serve a browser-native download without exposing the task token in the URL."""
+    return _download_text_image_item(task_id, item_index, file_type, session_token)
+
+
+def _download_text_image_item(
+    task_id: str,
+    item_index: int,
+    file_type: Literal["png", "svg", "dxf"],
+    session_token: str | None,
+):
+    state, _ = _load_text_image_task(task_id, session_token)
     if not 0 <= item_index < len(state["items"]):
         raise WorkflowError("IMAGE_ITEM_NOT_FOUND", "图片任务不存在", 404)
     item = state["items"][item_index]

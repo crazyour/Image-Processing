@@ -287,6 +287,13 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(svg_download.content, svg_response.content)
         self.assertEqual(svg_download.headers["content-type"], "image/svg+xml")
         self.assertIn("lingjie-image-1.svg", svg_download.headers["content-disposition"])
+        native_svg_download = self.client.post(
+            f"/api/text-image/tasks/{task_id}/items/0/download/svg",
+            data={"session_token": headers["X-Session-Token"]},
+        )
+        self.assertEqual(native_svg_download.status_code, 200)
+        self.assertEqual(native_svg_download.content, svg_response.content)
+        self.assertIn("attachment", native_svg_download.headers["content-disposition"])
         dxf_download = self.client.get(
             f"/api/text-image/tasks/{task_id}/items/0/download/dxf", headers=headers,
         )

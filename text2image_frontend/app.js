@@ -86,37 +86,36 @@ function notify(message) {
   setTimeout(() => $("#notice").classList.add("hidden"), 4200);
 }
 
-async function downloadTextImageItem(item, fileType, button) {
+function downloadTextImageItem(item, fileType, button) {
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = "正在下载…";
-  try {
-    const response = await fetch(
-      `/api/text-image/tasks/${task.id}/items/${item.index}/download/${fileType}`,
-      { headers: { "X-Session-Token": task.token } },
-    );
-    if (!response.ok) {
-      let message = `下载失败（${response.status}）`;
-      try {
-        const body = await response.json();
-        message = body.message || body.detail || message;
-      } catch {}
-      throw new Error(message);
-    }
-    const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `lingjie-image-${item.index + 1}.${fileType}`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (error) {
-    showError(error);
-  } finally {
+  const frameName = "text-image-download-frame";
+  let frame = document.querySelector(`iframe[name="${frameName}"]`);
+  if (!frame) {
+    frame = document.createElement("iframe");
+    frame.name = frameName;
+    frame.hidden = true;
+    frame.title = "文件下载";
+    document.body.appendChild(frame);
+  }
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = `/api/text-image/tasks/${task.id}/items/${item.index}/download/${fileType}`;
+  form.target = frameName;
+  form.hidden = true;
+  const token = document.createElement("input");
+  token.type = "hidden";
+  token.name = "session_token";
+  token.value = task.token;
+  form.appendChild(token);
+  document.body.appendChild(form);
+  form.requestSubmit();
+  form.remove();
+  setTimeout(() => {
     button.disabled = false;
     button.textContent = originalText;
-  }
+  }, 1000);
 }
 
 function promptValues() {
