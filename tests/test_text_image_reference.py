@@ -74,6 +74,29 @@ class ImageSvgTracingTests(unittest.TestCase):
         self.assertIn(b'shape-rendering: geometricPrecision', svg)
         self.assertIn(b'.vector-region:hover { stroke: #00d9ff; stroke-width: 2.5; }', svg)
 
+    def test_generated_svg_merges_only_small_irregular_color_fragments(self):
+        indexes = np.zeros((24, 24), dtype=np.uint8)
+        indexes[2:22, 2:22] = 1
+        # Tiny, non-rectangular fragment inside the large region.
+        indexes[8, 8:11] = 2
+        indexes[9, 8:10] = 2
+        # A larger irregular feature must remain independent.
+        indexes[14:18, 14:18] = 3
+        indexes[13, 15:17] = 3
+        palette = [0] * (256 * 3)
+        palette[3:6] = [40, 100, 180]
+        palette[6:9] = [45, 105, 185]
+        palette[9:12] = [230, 190, 40]
+
+        merged = app_module._merge_small_color_regions(
+            indexes, palette, np.full(indexes.shape, 255, dtype=np.uint8),
+            min_region_area=8,
+        )
+
+        self.assertNotIn(2, np.unique(merged))
+        self.assertEqual(int(np.count_nonzero(merged == 3)), 18)
+        self.assertFalse(np.array_equal(merged == 1, np.zeros_like(merged, dtype=bool)))
+
     def test_generated_dxf_contains_only_the_closed_outer_outline(self):
         output = io.BytesIO()
         image = Image.new("RGB", (128, 128), "white")
@@ -259,7 +282,7 @@ class TextImageReferenceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["items"][0]["status"], "SUCCEEDED")
         svg_url = response.json()["items"][0]["svg_url"]
-        self.assertTrue(svg_url.endswith("/1.svg"))
+        self.assertTrue(svg_url.endswith("/1-organic-regions-v2.svg"))
         svg_response = self.client.get(svg_url)
         self.assertEqual(svg_response.status_code, 200)
         self.assertEqual(svg_response.headers["content-type"], "image/svg+xml")
@@ -313,6 +336,35 @@ class TextImageReferenceTests(unittest.TestCase):
         edit_prompt = edit_image.call_args.args[1]
         self.assertIn("前 1 张是产品图片", edit_prompt)
         self.assertIn("把主体改成柔和的粘土风格", edit_prompt)
+
+    def test_legacy_color_svg_is_upgraded_on_its_next_download(self):
+        task_id, headers = self.create_task()
+        generated = sample_png((90, 140, 210))
+        with patch.object(app_module, "generate_image", return_value=(generated, {})):
+            response = self.client.post(
+                f"/api/text-image/tasks/{task_id}/items/0/generate", headers=headers,
+            )
+        self.assertEqual(response.status_code, 200)
+
+        token = headers["X-Session-Token"]
+        state, version = app_module.load_session(task_id, token)
+        state["items"][0].pop("svg_trace_version", None)
+        app_module.save_session(task_id, state, version)
+
+        with patch.object(
+            app_module, "_image_svg", wraps=app_module._image_svg,
+        ) as rebuild:
+            upgraded = self.client.post(
+                f"/api/text-image/tasks/{task_id}/items/0/download/svg",
+                data={"session_token": token},
+            )
+
+        self.assertEqual(upgraded.status_code, 200)
+        self.assertEqual(rebuild.call_count, 1)
+        updated, _ = app_module.load_session(task_id, token)
+        item = updated["items"][0]
+        self.assertEqual(item["svg_trace_version"], app_module.COLOR_SVG_TRACE_VERSION)
+        self.assertTrue(item["svg_url"].endswith("/1-organic-regions-v2.svg"))
 
     def test_multiple_references_are_saved_and_used_together(self):
         task_id, headers = self.create_task()

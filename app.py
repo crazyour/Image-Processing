@@ -814,6 +814,70 @@ def _pixel_cell_paths(mask: np.ndarray) -> list[str]:
     return paths
 
 
+COLOR_SVG_TRACE_VERSION = "organic-regions-v2"
+COLOR_SVG_MAX_COLORS = 24
+
+
+def _merge_small_color_regions(
+    color_indexes: np.ndarray,
+    palette: list[int],
+    alpha: np.ndarray,
+    *,
+    min_region_area: int | None = None,
+) -> np.ndarray:
+    """Merge tiny connected fragments into similar adjacent organic regions.
+
+    The threshold is an area, not a fixed cell size. Boundaries therefore keep
+    following the subject instead of becoming a square pixel grid.
+    """
+    merged = np.asarray(color_indexes, dtype=np.uint8).copy()
+    visible = np.asarray(alpha, dtype=np.uint8) >= 16
+    if not np.any(visible):
+        return merged
+    if min_region_area is None:
+        # This is an area threshold only: 64 pixels may form a long feather,
+        # curved petal edge, or any other irregular footprint. It is never
+        # snapped to an 8x8 grid.
+        min_region_area = 64
+    palette_rgb = np.asarray(palette, dtype=np.int16).reshape(-1, 3)
+    kernel = np.ones((3, 3), dtype=np.uint8)
+
+    for _ in range(3):
+        snapshot = merged.copy()
+        changed = False
+        for color_index in np.unique(snapshot[visible]).tolist():
+            source = ((snapshot == color_index) & visible).astype(np.uint8)
+            component_count, labels, stats, _ = cv2.connectedComponentsWithStats(
+                source, connectivity=8,
+            )
+            for component_index in range(1, component_count):
+                area = int(stats[component_index, cv2.CC_STAT_AREA])
+                if area >= min_region_area:
+                    continue
+                component = labels == component_index
+                border = cv2.dilate(component.astype(np.uint8), kernel).astype(bool)
+                border &= visible & ~component
+                neighbours = merged[border]
+                neighbours = neighbours[neighbours != color_index]
+                if not neighbours.size:
+                    continue
+                candidates, contact = np.unique(neighbours, return_counts=True)
+                source_rgb = palette_rgb[color_index]
+                differences = palette_rgb[candidates].astype(np.int32) - source_rgb.astype(np.int32)
+                distances = np.sum(
+                    differences ** 2, axis=1,
+                    dtype=np.int64,
+                )
+                # Colour similarity decides first; shared boundary length
+                # breaks ties so merged shapes remain locally coherent.
+                order = np.lexsort((-contact, distances))
+                merged[component] = candidates[int(order[0])]
+                changed = True
+        if not changed:
+            break
+    return merged
+
+
 def _image_svg(image: bytes, size: str) -> bytes:
     """Rebuild the generated image as interactive, solid-color vector regions."""
     try:
@@ -838,14 +902,20 @@ def _image_svg(image: bytes, size: str) -> bytes:
     ).astype(np.uint8)
     rgb = Image.fromarray(cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB), "RGB")
     quantized = rgb.quantize(
-        colors=64, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE,
+        colors=COLOR_SVG_MAX_COLORS,
+        method=Image.Quantize.MEDIANCUT,
+        dither=Image.Dither.NONE,
     )
     palette = quantized.getpalette()
-    color_indexes = np.asarray(quantized, dtype=np.uint8)
     alpha = np.asarray(traced.getchannel("A"), dtype=np.uint8)
+    color_indexes = _merge_small_color_regions(
+        np.asarray(quantized, dtype=np.uint8), palette, alpha,
+    )
     paths = []
     path_index = 0
-    colors = quantized.getcolors() or []
+    visible_indexes = color_indexes[alpha >= 16]
+    unique_indexes, unique_counts = np.unique(visible_indexes, return_counts=True)
+    colors = list(zip(unique_counts.tolist(), unique_indexes.tolist()))
     base_color_index = max(colors, default=(0, -1))[1] if bool(np.all(alpha >= 254)) else -1
     if base_color_index >= 0:
         red, green, blue = palette[base_color_index * 3:base_color_index * 3 + 3]
@@ -866,7 +936,11 @@ def _image_svg(image: bytes, size: str) -> bytes:
         alpha_values = alpha[(color_indexes == color_index) & (alpha >= 16)]
         opacity = float(np.median(alpha_values)) / 255.0 if alpha_values.size else 1.0
         opacity_attribute = f' opacity="{opacity:.3f}"' if opacity < 0.995 else ""
-        for path_data in _pixel_cell_paths(mask):
+        color_paths = _pixel_cell_paths(mask)
+        if color_paths:
+            # Disconnected pieces of one fill remain irregular subpaths, but
+            # share one compound vector object instead of thousands of objects.
+            path_data = "".join(color_paths)
             paths.append(
                 f'  <path id="region-{path_index}" class="vector-region" d="{path_data}" '
                 f'fill="{fill}" stroke="{fill}"{opacity_attribute} '
@@ -880,7 +954,7 @@ def _image_svg(image: bytes, size: str) -> bytes:
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" '
         f'width="{original_width}px" height="{original_height}px" viewBox="0 0 {width} {height}">\n'
         '  <title>AI generated image rebuilt as vector color regions</title>\n'
-        '  <desc>Solid-color paths form the image without an embedded raster.</desc>\n'
+        '  <desc>Larger organic solid-color regions form the image without an embedded raster.</desc>\n'
         '  <style>\n'
         '    .vector-region { cursor: crosshair; pointer-events: visiblePainted; paint-order: stroke fill; '
         'stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; '
@@ -1696,7 +1770,7 @@ def _download_text_image_item(
     file_type: Literal["png", "svg", "dxf"],
     session_token: str | None,
 ):
-    state, _ = _load_text_image_task(task_id, session_token)
+    state, version = _load_text_image_task(task_id, session_token)
     if not 0 <= item_index < len(state["items"]):
         raise WorkflowError("IMAGE_ITEM_NOT_FOUND", "图片任务不存在", 404)
     item = state["items"][item_index]
@@ -1708,20 +1782,25 @@ def _download_text_image_item(
     if file_type == "png":
         payload = fetch_bytes(source_url, 30_000_000)
     elif file_type == "svg":
-        # SVG conversion already runs once when an item succeeds. Reuse that
-        # persisted result here so a download does not repeat the expensive
-        # vectorisation work (which can make the browser connection drop).
-        # Older saved tasks may not have ``svg_url``, so keep reconstruction as
-        # a compatibility fallback.
         svg_url = item.get("svg_url")
-        payload = (
-            fetch_bytes(svg_url, 30_000_000)
-            if svg_url
-            else _image_svg(
+        if svg_url and item.get("svg_trace_version") == COLOR_SVG_TRACE_VERSION:
+            payload = fetch_bytes(svg_url, 30_000_000)
+        else:
+            # Upgrade every legacy colour SVG on its first subsequent download.
+            # The browser uses a native attachment response, so this one-time
+            # rebuild does not pass a large SVG through a JavaScript Blob.
+            payload = _image_svg(
                 fetch_bytes(source_url, 30_000_000),
                 (state.get("model_settings") or {}).get("size", TEXT_IMAGE_SIZE),
             )
-        )
+            svg_url = PublicBlobStore().put(
+                f"text-image/{task_id}/{item_index + 1}-{COLOR_SVG_TRACE_VERSION}.svg",
+                payload,
+                "image/svg+xml",
+            )
+            item["svg_url"] = svg_url
+            item["svg_trace_version"] = COLOR_SVG_TRACE_VERSION
+            _save(state, version)
     else:
         payload = _image_dxf(fetch_bytes(source_url, 30_000_000))
     filename = f"lingjie-image-{item_index + 1}.{file_type}"
@@ -1795,7 +1874,7 @@ def generate_text_image_item(task_id: str, item_index: int, request: Request,
         )
         svg = _image_svg(generated, settings["size"])
         svg_url = PublicBlobStore().put(
-            f"text-image/{task_id}/{item_index + 1}.svg",
+            f"text-image/{task_id}/{item_index + 1}-{COLOR_SVG_TRACE_VERSION}.svg",
             svg,
             "image/svg+xml",
         )
@@ -1805,6 +1884,7 @@ def generate_text_image_item(task_id: str, item_index: int, request: Request,
             "status": "SUCCEEDED",
             "url": url,
             "svg_url": svg_url,
+            "svg_trace_version": COLOR_SVG_TRACE_VERSION,
             "sha256": hashlib.sha256(generated).hexdigest(),
             "size_bytes": len(generated),
             "usage": usage,
