@@ -14,7 +14,9 @@ if (visualMode) {
   $("#workflow-tabs").classList.add("hidden");
   $("#feature-lock-message").classList.add("hidden");
   $("#input-section-title").textContent = "设置展示场景";
-  $("#input-section-description").textContent = "添加产品图，可选添加场景参考，再描述空间、构图、光线和氛围。";
+  $("#input-section-description").textContent = "添加产品图，再分别描述最多 5 个场景。每个场景生成一张独立图片，不会拼接。";
+  $("#add-prompt").classList.remove("hidden");
+  $(".generation-count-control").classList.add("hidden");
   $("#add-example-reference").textContent = "＋ 添加场景参考";
   $("#example-reference-title").textContent = "场景参考图片";
   $("#generation-cost-note").textContent = "制作效果图会调用 API 并计入当前账号用量。每张独立保存，刷新页面不会重复生成。";
@@ -122,11 +124,18 @@ function promptValues() {
 }
 
 function updatePromptControls() {
-  const row = $(".prompt-row");
-  if (row) {
-    row.querySelector(".prompt-number").textContent = "01";
-    row.querySelector("label").setAttribute("for", "prompt-0");
-    row.querySelector("textarea").id = "prompt-0";
+  const rows = [...document.querySelectorAll(".prompt-row")];
+  rows.forEach((row, index) => {
+    row.querySelector(".prompt-number").textContent = String(index + 1).padStart(2, "0");
+    row.querySelector("label").setAttribute("for", `prompt-${index}`);
+    row.querySelector("textarea").id = `prompt-${index}`;
+    const remove = row.querySelector(".remove-prompt");
+    if (remove) remove.disabled = busy || rows.length === 1;
+  });
+  if (visualMode) {
+    $("#prompt-count").textContent = `${rows.length} 个场景 · ${rows.length} 张独立图片`;
+    $("#add-prompt").disabled = busy || rows.length >= 5;
+    return;
   }
   const count = Number($("#generation-count").value || 1);
   $("#prompt-count").textContent = `同一要求生成 ${count} 张`;
@@ -134,16 +143,21 @@ function updatePromptControls() {
 }
 
 function addPrompt(value = "") {
-  if (document.querySelector(".prompt-row")) return;
+  if ((!visualMode && document.querySelector(".prompt-row")) || document.querySelectorAll(".prompt-row").length >= 5) return;
   const row = document.createElement("div");
   row.className = "prompt-row";
   row.innerHTML = `
     <span class="prompt-number"></span>
-    <label><span class="hidden">这一组图片的统一要求</span><textarea class="prompt-input" maxlength="2000" required></textarea></label>`;
+    <label><span class="hidden">${visualMode ? "单个场景要求" : "这一组图片的统一要求"}</span><textarea class="prompt-input" maxlength="2000" required></textarea></label>
+    ${visualMode ? '<button class="remove-prompt" type="button" aria-label="删除这个场景">×</button>' : ""}`;
   row.querySelector("textarea").placeholder = visualMode
     ? "例如：将产品自然放置在现代客厅的窗边，柔和侧光，保持产品结构、材质和颜色不变"
     : "例如：现代客厅中的浅色橡木餐椅，柔和自然光，正面产品展示";
   row.querySelector("textarea").value = value;
+  row.querySelector(".remove-prompt")?.addEventListener("click", () => {
+    row.remove();
+    updatePromptControls();
+  });
   $("#prompt-list").appendChild(row);
   updatePromptControls();
 }
@@ -816,10 +830,11 @@ $("#task-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (busy) return;
   $("#error-panel").classList.add("hidden");
-  const prompt = promptValues()[0] || "";
-  if (!prompt) return showError({ message: "请填写这一组图片的统一要求", code: "PROMPT_REQUIRED" });
+  const values = promptValues();
+  const prompt = values[0] || "";
+  if (!prompt || values.some((value) => !value)) return showError({ message: visualMode ? "请填写每一个场景的要求" : "请填写这一组图片的统一要求", code: "PROMPT_REQUIRED" });
   const count = Number($("#generation-count").value || 1);
-  const prompts = Array.from({ length: count }, () => prompt);
+  const prompts = visualMode ? values : Array.from({ length: count }, () => prompt);
   setBusy(true);
   try {
     const state = await api("/api/text-image/tasks", {
@@ -854,6 +869,7 @@ $("#task-form").addEventListener("submit", async (event) => {
 });
 
 $("#generation-count").addEventListener("change", updatePromptControls);
+$("#add-prompt").addEventListener("click", () => addPrompt());
 $("#add-product-reference").addEventListener("click", () => $("#product-reference-images").click());
 $("#add-example-reference").addEventListener("click", () => $("#example-reference-images").click());
 [["product", "#product-reference-images"], ["example", "#example-reference-images"]].forEach(([kind, selector]) => {

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 文生图</title>
-  <link rel="stylesheet" href="/text-image-static/styles.css?v=20261013-1">
+  <link rel="stylesheet" href="/text-image-static/styles.css?v=20261119-1">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -58,6 +58,7 @@
         <div id="prompt-list" class="prompt-list"></div>
         <div class="prompt-actions">
           <div class="prompt-action-buttons">
+            <button id="add-prompt" class="secondary hidden" type="button">＋ 添加一个场景</button>
             <button id="add-product-reference" class="secondary" type="button" data-paste-for="product-reference-images">＋ 添加或拖入产品图片</button>
             <input id="product-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-paste-label="产品参考图" data-paste-anchor="#add-product-reference">
             <button id="add-example-reference" class="secondary" type="button" data-paste-for="example-reference-images">＋ 添加或拖入生成样例</button>
@@ -195,9 +196,9 @@
       </div>
     </section>
   </main>
-  <script src="/assets/reset-on-refresh.js?v=20261118-1"></script>
+  <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1"></script>
-  <script src="/text-image-static/app.js?v=20261116-1"></script>
+  <script src="/text-image-static/app.js?v=20261119-1"></script>
   <script src="/assets/local-library.js?v=20261022-1"></script>
 </body>
 </html>

@@ -1,13 +1,8 @@
 (() => {
-  const navigation = performance.getEntriesByType?.("navigation")?.[0];
-  const isReload = navigation?.type === "reload"
-    || performance.navigation?.type === performance.navigation?.TYPE_RELOAD;
-
-  if (!isReload) return;
-
-  // These values only identify the work currently displayed in a tool. Keep
-  // account/preferences and saved library records intact, but never revive a
-  // transient task after the user refreshes the page.
+  // These values only identify the work currently displayed in a tool. Clear
+  // them on every document entry (reload, direct navigation, or returning to a
+  // tool) so a page always starts from its original state. Account sessions,
+  // user preferences, and saved library records remain intact.
   [
     "image3d-session",
     "text-image-task",
@@ -24,4 +19,10 @@
       input.value = "";
     });
   }, { once: true });
+
+  // A page restored from the back/forward cache keeps its JavaScript memory
+  // and DOM. Reload it once so application state is rebuilt from defaults.
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) location.reload();
+  });
 })();

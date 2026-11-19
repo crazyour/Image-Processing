@@ -1731,6 +1731,11 @@ def generate_text_image_item(task_id: str, item_index: int, request: Request,
         generation_prompt = _apply_personal_preferences(
             item["prompt"], state.get("preference_prompt", ""),
         )
+        if state.get("purpose") == "visual_studio":
+            generation_prompt += (
+                "\n输出约束：只生成当前这一个场景的一张完整独立图片；"
+                "不得拼接、分屏、网格排版或在同一张图中展示多个场景。"
+            )
         product_references, example_references = _text_image_reference_groups(state)
         references = product_references + example_references
         if references:
