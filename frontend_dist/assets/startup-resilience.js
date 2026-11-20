@@ -12,11 +12,11 @@
       {
         key: "budget",
         fallback: {
-          quota_source: "暂时不可用",
+          quota_source: "PROVIDER_ACCOUNT",
           limit_micros: null,
-          held_micros: 0,
-          spent_micros: 0,
-          available_micros: 0,
+          held_micros: null,
+          spent_micros: null,
+          available_micros: null,
           pools: [],
         },
       },

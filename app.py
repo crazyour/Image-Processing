@@ -1673,7 +1673,7 @@ def legacy_cloud_workspace(request: Request):
         "free_services": {},
         "provider": "server-managed",
         "mode": "SERVER_MANAGED",
-        "budget_scope": "LOCAL",
+        "budget_scope": "PROVIDER_ACCOUNT",
         "live_enabled": image_api_ready,
         "styles": [],
         "compatibility_mode": True,
@@ -1691,11 +1691,11 @@ def legacy_empty_collections():
 @app.get("/api/budget", include_in_schema=False)
 def legacy_budget():
     return {
-        "quota_source": "CLOUD_COMPATIBILITY",
-        "limit_micros": 0,
-        "held_micros": 0,
-        "spent_micros": 0,
-        "available_micros": 0,
+        "quota_source": "PROVIDER_ACCOUNT",
+        "limit_micros": None,
+        "held_micros": None,
+        "spent_micros": None,
+        "available_micros": None,
         "pools": [],
     }
 

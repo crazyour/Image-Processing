@@ -158,6 +158,35 @@ class AuthenticationTests(unittest.TestCase):
         finally:
             member.close()
 
+    def test_cloud_workspace_reports_provider_managed_quota(self):
+        self.create_member([])
+        member = self.login_member()
+        try:
+            workspace = member.get("/api/me")
+            self.assertEqual(workspace.status_code, 200)
+            self.assertEqual(workspace.json()["budget_scope"], "PROVIDER_ACCOUNT")
+
+            budget = member.get("/api/budget")
+            self.assertEqual(budget.status_code, 200)
+            self.assertEqual(budget.json(), {
+                "quota_source": "PROVIDER_ACCOUNT",
+                "limit_micros": None,
+                "held_micros": None,
+                "spent_micros": None,
+                "available_micros": None,
+                "pools": [],
+            })
+        finally:
+            member.close()
+
+        resilience = (
+            Path(__file__).resolve().parent.parent
+            / "frontend_dist" / "assets" / "startup-resilience.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn('quota_source: "PROVIDER_ACCOUNT"', resilience)
+        self.assertIn("available_micros: null", resilience)
+        self.assertNotIn("available_micros: 0", resilience)
+
     def test_dxf_page_marks_and_explains_the_paid_ai_step(self):
         root = Path(__file__).resolve().parent.parent / "frontend_dist"
         script = (root / "assets" / "tool-entry.js").read_text(encoding="utf-8")
