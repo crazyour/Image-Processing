@@ -43,7 +43,8 @@ class PhotographyCenterTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         created = self.admin.post("/api/admin/users", json={
             "username": "photographer", "name": "摄影员",
-            "password": "photographer-password", "role": "member", "features": [],
+            "password": "photographer-password", "role": "member",
+            "features": ["photography_center"],
         })
         self.member_record = created.json()["user"]
         self.member = TestClient(app_module.app)

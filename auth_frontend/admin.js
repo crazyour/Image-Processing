@@ -19,6 +19,22 @@ let users = [];
 let editingUser = null;
 let deletingUser = null;
 let quotaUser = null;
+const featureGroups = [
+  {
+    title: "核心生产功能",
+    description: "生成、检索与成果管理",
+    keys: ["text_to_image", "animal_cutout", "image_to_3d", "similarity_search", "asset_library"],
+  },
+  {
+    title: "工艺设计与交付",
+    description: "工作台中的独立业务入口",
+    keys: [
+      "creative_studio", "photo_craft", "photography_center", "product_center",
+      "color_finish", "visual_studio", "svg_studio", "dxf_studio",
+      "file_center", "delivery_center",
+    ],
+  },
+];
 let usageReport = {
   accounts: [], feature_totals: [], grand_total_usd: 0, grand_total_calls: 0,
   grand_input_tokens: 0, grand_output_tokens: 0, grand_total_tokens: 0,
@@ -279,13 +295,70 @@ function escapeHtml(value) {
 }
 
 function featureInputs(selected = [], prefix = "feature") {
-  return Object.entries(catalog).map(([key, label]) => `
-    <label class="check">
-      <input type="checkbox" name="${escapeHtml(prefix)}" value="${escapeHtml(key)}" ${selected.includes(key) ? "checked" : ""}>
-      ${escapeHtml(label)}
-    </label>
-  `).join("");
+  const selectedSet = new Set(selected);
+  const knownKeys = new Set(featureGroups.flatMap(group => group.keys));
+  const groups = featureGroups.map(group => ({
+    ...group,
+    entries: group.keys.filter(key => Object.hasOwn(catalog, key)).map(key => [key, catalog[key]]),
+  }));
+  const extraEntries = Object.entries(catalog).filter(([key]) => !knownKeys.has(key));
+  if (extraEntries.length) {
+    groups.push({title: "其他功能", description: "新增的可分配功能", entries: extraEntries});
+  }
+  const total = Object.keys(catalog).length;
+  const selectedCount = Object.keys(catalog).filter(key => selectedSet.has(key)).length;
+  return `
+    <div class="permission-picker" data-permission-prefix="${escapeHtml(prefix)}">
+      <div class="permission-toolbar">
+        <div>
+          <strong>权限范围</strong>
+          <span class="permission-count" aria-live="polite">已选 ${selectedCount} / ${total} 项</span>
+        </div>
+        <div class="permission-bulk-actions">
+          <button class="secondary" type="button" data-permission-action="all">全选</button>
+          <button class="secondary" type="button" data-permission-action="none">清空</button>
+        </div>
+      </div>
+      <div class="permission-groups">
+        ${groups.filter(group => group.entries.length).map(group => `
+          <section class="permission-group" aria-label="${escapeHtml(group.title)}">
+            <header><strong>${escapeHtml(group.title)}</strong><span>${escapeHtml(group.description)}</span></header>
+            <div class="permission-options">
+              ${group.entries.map(([key, label]) => `
+                <label class="check">
+                  <input type="checkbox" name="${escapeHtml(prefix)}" value="${escapeHtml(key)}" ${selectedSet.has(key) ? "checked" : ""}>
+                  <span>${escapeHtml(label)}</span>
+                </label>
+              `).join("")}
+            </div>
+          </section>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
+
+function updatePermissionCount(picker) {
+  const boxes = [...picker.querySelectorAll('input[type="checkbox"]')];
+  const selected = boxes.filter(input => input.checked).length;
+  const counter = picker.querySelector(".permission-count");
+  if (counter) counter.textContent = `已选 ${selected} / ${boxes.length} 项`;
+}
+
+document.addEventListener("click", event => {
+  const action = event.target.closest("[data-permission-action]");
+  if (!action) return;
+  const picker = action.closest(".permission-picker");
+  if (!picker) return;
+  const checked = action.dataset.permissionAction === "all";
+  picker.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = checked; });
+  updatePermissionCount(picker);
+});
+
+document.addEventListener("change", event => {
+  const picker = event.target.closest(".permission-picker");
+  if (picker && event.target.matches('input[type="checkbox"]')) updatePermissionCount(picker);
+});
 
 function selectedFeatures(form, name) {
   return [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value);

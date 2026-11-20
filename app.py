@@ -136,6 +136,18 @@ WORKBENCH_TOOLS = {
     "creative", "photo-craft", "products", "color-finish", "visual",
     "svg", "dxf", "files", "delivery",
 }
+WORKBENCH_TOOL_FEATURES = {
+    "creative": "creative_studio",
+    "photo-craft": "photo_craft",
+    "products": "product_center",
+    "color-finish": "color_finish",
+    "visual": "visual_studio",
+    "svg": "svg_studio",
+    "dxf": "dxf_studio",
+    "files": "file_center",
+    "delivery": "delivery_center",
+}
+WORKBENCH_FEATURES = frozenset(WORKBENCH_TOOL_FEATURES.values())
 TASK_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
@@ -221,7 +233,7 @@ def _metered_provider_call(user: dict | None, feature: str, model: str,
 
 def _required_feature(path: str) -> str | None:
     if path.startswith("/api/text-image"):
-        return "text_to_image"
+        return "text_or_visual"
     if path.startswith("/api/animal-cutout"):
         return "animal_cutout"
     if path.startswith("/api/sessions") or path.startswith("/api/view-library") or path == "/image-to-3d":
@@ -229,18 +241,24 @@ def _required_feature(path: str) -> str | None:
     if path == "/text-to-image":
         return "text_or_cutout"
     if path == "/tools/visual":
-        return "text_to_image"
+        return "visual_studio"
     if path.startswith("/api/material-search") or path == "/similarity-search":
         return "similarity_search"
     if path.startswith("/api/deliverables") or path == "/file-upload":
         return "asset_library"
+    if path.startswith("/api/photography") or path == "/photography-center":
+        return "photography_center"
+    if path.startswith("/api/local-library"):
+        return "generation_library"
+    if path.startswith("/tools/"):
+        return WORKBENCH_TOOL_FEATURES.get(path.removeprefix("/tools/"))
     workspace_prefixes = (
         "/api/assets", "/api/jobs", "/api/masters", "/api/reviews", "/api/budget",
         "/api/learning", "/api/schedules", "/api/recipes", "/api/connections",
         "/api/ai-connections",
     )
-    if path.startswith("/tools/") or path.startswith(workspace_prefixes):
-        return "workspace"
+    if path == "/api/me" or path.startswith(workspace_prefixes):
+        return "workbench_any"
     return None
 
 
@@ -267,6 +285,14 @@ async def account_access(request: Request, call_next):
     allowed = feature is None
     if feature == "text_or_cutout":
         allowed = has_feature(user, "text_to_image") or has_feature(user, "animal_cutout")
+    elif feature == "text_or_visual":
+        allowed = has_feature(user, "text_to_image") or has_feature(user, "visual_studio")
+    elif feature == "generation_library":
+        allowed = any(has_feature(user, item) for item in (
+            "text_to_image", "animal_cutout", "image_to_3d", "visual_studio",
+        ))
+    elif feature == "workbench_any":
+        allowed = any(has_feature(user, item) for item in WORKBENCH_FEATURES)
     elif feature:
         allowed = has_feature(user, feature)
     if not allowed:

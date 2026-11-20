@@ -29,9 +29,25 @@ FEATURES = {
     "image_to_3d": "图生 3D",
     "similarity_search": "相似素材检索",
     "asset_library": "成果素材库",
+    "creative_studio": "创意工作室",
+    "photo_craft": "照片定制工艺品",
+    "photography_center": "摄影中心站",
+    "product_center": "产品中心",
+    "color_finish": "配色与工艺",
+    "visual_studio": "视觉工作室",
+    "svg_studio": "SVG 工作室",
+    "dxf_studio": "图片转 DXF",
+    "file_center": "文件中心",
+    "delivery_center": "交付中心",
 }
-ALWAYS_AVAILABLE_FEATURES = frozenset({"workspace"})
+ALWAYS_AVAILABLE_FEATURES = frozenset()
 DEFAULT_FEATURES = tuple(FEATURES)
+LEGACY_AUTO_GRANTED_FEATURES = (
+    "creative_studio", "photo_craft", "photography_center", "product_center",
+    "color_finish", "visual_studio", "svg_studio", "dxf_studio",
+    "file_center", "delivery_center",
+)
+ASSIGNABLE_FEATURES_MIGRATION = "assignable-features-v1"
 SESSION_COOKIE = "lingjie_session"
 SESSION_TTL_SECONDS = 12 * 60 * 60
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,50}$")
@@ -176,6 +192,14 @@ def _ensure_schema(connection: Any) -> None:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth_migrations (
+                    migration_id TEXT PRIMARY KEY,
+                    applied_at DOUBLE PRECISION NOT NULL
+                )
+                """
+            )
         else:
             connection.execute(
                 """
@@ -201,6 +225,41 @@ def _ensure_schema(connection: Any) -> None:
                     created_at REAL NOT NULL
                 )
                 """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth_migrations (
+                    migration_id TEXT PRIMARY KEY,
+                    applied_at REAL NOT NULL
+                )
+                """
+            )
+        migration = _execute(
+            connection,
+            "SELECT migration_id FROM auth_migrations WHERE migration_id = ?",
+            (ASSIGNABLE_FEATURES_MIGRATION,),
+        ).fetchone()
+        if migration is None:
+            rows = _execute(
+                connection, "SELECT id, features FROM auth_users WHERE role = ?", ("member",),
+            ).fetchall()
+            for row in rows:
+                stored = row["features"]
+                if isinstance(stored, str):
+                    stored = json.loads(stored)
+                migrated = list(dict.fromkeys([
+                    *list(stored or []), *LEGACY_AUTO_GRANTED_FEATURES,
+                ]))
+                _execute(
+                    connection,
+                    "UPDATE auth_users SET features = ?, updated_at = ? WHERE id = ?",
+                    (_features_json(migrated), time.time(), row["id"]),
+                )
+            _execute(
+                connection,
+                """INSERT INTO auth_migrations (migration_id, applied_at)
+                   VALUES (?, ?) ON CONFLICT(migration_id) DO NOTHING""",
+                (ASSIGNABLE_FEATURES_MIGRATION, time.time()),
             )
         connection.commit()
 

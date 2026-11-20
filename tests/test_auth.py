@@ -135,7 +135,8 @@ class AuthenticationTests(unittest.TestCase):
             self.assertEqual(home.status_code, 200)
             self.assertIn("/assets/home.js", home.text)
             self.assertIn('data-features="image_to_3d"', home.text)
-            self.assertIn('data-features="workspace"', home.text)
+            self.assertIn('data-features="creative_studio"', home.text)
+            self.assertIn('data-features="photography_center"', home.text)
         finally:
             member.close()
 
@@ -147,19 +148,36 @@ class AuthenticationTests(unittest.TestCase):
         self.assertIn("lock-icon", script)
         self.assertIn("/api/auth/me", script)
 
-    def test_workspace_is_open_to_every_account(self):
+    def test_admin_permission_dialog_groups_and_bulk_edits_all_features(self):
+        root = Path(__file__).resolve().parent.parent / "auth_frontend"
+        page = (root / "admin.html").read_text(encoding="utf-8")
+        script = (root / "admin.js").read_text(encoding="utf-8")
+        styles = (root / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="account-dialog permission-dialog"', page)
+        self.assertIn('class="wide permission-fieldset"', page)
+        self.assertIn('title: "核心生产功能"', script)
+        self.assertIn('title: "工艺设计与交付"', script)
+        self.assertIn('data-permission-action="all"', script)
+        self.assertIn('data-permission-action="none"', script)
+        self.assertIn(".permission-options", styles)
+        self.assertIn("button:focus-visible", styles)
+
+    def test_workbench_requires_an_individually_assigned_feature(self):
         self.create_member([])
         member = self.login_member()
         try:
-            self.assertEqual(member.get("/tools/creative").status_code, 200)
-            self.assertEqual(member.get("/api/jobs").status_code, 200)
+            self.assertEqual(
+                member.get("/tools/creative", follow_redirects=False).status_code, 303,
+            )
+            self.assertEqual(member.get("/api/jobs").status_code, 403)
             catalog = self.admin.get("/api/admin/users").json()["feature_catalog"]
-            self.assertNotIn("workspace", catalog)
+            self.assertIn("creative_studio", catalog)
         finally:
             member.close()
 
     def test_cloud_workspace_reports_provider_managed_quota(self):
-        self.create_member([])
+        self.create_member(["creative_studio"])
         member = self.login_member()
         try:
             workspace = member.get("/api/me")
@@ -225,7 +243,7 @@ class AuthenticationTests(unittest.TestCase):
 
             granted = self.admin.patch(
                 f"/api/admin/users/{user['id']}",
-                json={"features": ["text_to_image"]},
+                json={"features": ["visual_studio"]},
             )
             self.assertEqual(granted.status_code, 200)
             page = member.get("/tools/visual")
@@ -250,19 +268,87 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(response.json()["code"], "AUTH_STORAGE_UNAVAILABLE")
         self.assertIn("DATABASE_URL", response.json()["message"])
 
-    def test_workspace_cannot_be_assigned_or_revoked(self):
+    def test_legacy_workspace_permission_is_rejected(self):
         user = self.create_member(["text_to_image"])
         response = self.admin.patch(
             f"/api/admin/users/{user['id']}",
             json={"features": ["workspace", "text_to_image"]},
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["user"]["features"], ["text_to_image"])
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["code"], "INVALID_FEATURE")
         member = self.login_member()
         try:
-            self.assertEqual(member.get("/tools/creative").status_code, 200)
+            self.assertEqual(
+                member.get("/tools/creative", follow_redirects=False).status_code, 303,
+            )
         finally:
             member.close()
+
+    def test_catalog_and_routes_cover_every_home_function(self):
+        expected = {
+            "text_to_image", "animal_cutout", "image_to_3d", "similarity_search",
+            "asset_library", "creative_studio", "photo_craft", "photography_center",
+            "product_center", "color_finish", "visual_studio", "svg_studio",
+            "dxf_studio", "file_center", "delivery_center",
+        }
+        catalog = self.admin.get("/api/admin/users").json()["feature_catalog"]
+        self.assertEqual(set(catalog), expected)
+
+        user = self.create_member([])
+        member = self.login_member()
+        route_features = {
+            "/tools/creative": "creative_studio",
+            "/tools/photo-craft": "photo_craft",
+            "/photography-center": "photography_center",
+            "/tools/products": "product_center",
+            "/tools/color-finish": "color_finish",
+            "/tools/visual": "visual_studio",
+            "/tools/svg": "svg_studio",
+            "/tools/dxf": "dxf_studio",
+            "/tools/files": "file_center",
+            "/tools/delivery": "delivery_center",
+        }
+        try:
+            routes = list(route_features)
+            for index, (route, feature) in enumerate(route_features.items()):
+                updated = self.admin.patch(
+                    f"/api/admin/users/{user['id']}", json={"features": [feature]},
+                )
+                self.assertEqual(updated.status_code, 200)
+                self.assertEqual(member.get(route).status_code, 200)
+                unrelated = routes[(index + 1) % len(routes)]
+                self.assertEqual(
+                    member.get(unrelated, follow_redirects=False).status_code, 303,
+                )
+        finally:
+            member.close()
+
+    def test_existing_members_keep_previously_open_tools_after_upgrade(self):
+        user = self.create_member(["text_to_image"])
+        database = Path(self.tempdir.name) / "image3d.sqlite3"
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "DELETE FROM auth_migrations WHERE migration_id = ?",
+                ("assignable-features-v1",),
+            )
+            connection.execute(
+                "UPDATE auth_users SET features = ? WHERE id = ?",
+                ('["text_to_image"]', user["id"]),
+            )
+
+        migrated = next(
+            item for item in self.admin.get("/api/admin/users").json()["users"]
+            if item["id"] == user["id"]
+        )
+        self.assertIn("text_to_image", migrated["features"])
+        self.assertIn("creative_studio", migrated["features"])
+        self.assertIn("photography_center", migrated["features"])
+
+        updated = self.admin.patch(
+            f"/api/admin/users/{user['id']}", json={"features": ["creative_studio"]},
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["user"]["features"], ["creative_studio"])
 
     def test_text_image_page_locks_the_module_without_permission(self):
         self.create_member(["text_to_image"])

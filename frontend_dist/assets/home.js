@@ -1,6 +1,4 @@
 const LOCK_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
-const ALWAYS_AVAILABLE = ["workspace"];
-
 const accountName = document.querySelector("#account-name");
 const adminEntry = document.querySelector("#admin-entry");
 const logoutButton = document.querySelector("#logout");
@@ -55,7 +53,6 @@ function lockElement(element, catalog) {
 
 function applyPermissions(user, catalog) {
   const granted = new Set([
-    ...ALWAYS_AVAILABLE,
     ...(user.role === "admin" ? Object.keys(catalog) : (user.features || [])),
   ]);
   document.querySelectorAll("[data-features]").forEach(element => {

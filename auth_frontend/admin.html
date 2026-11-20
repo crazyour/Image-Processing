@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>账号管理 · 灵界</title>
-  <link rel="stylesheet" href="/auth-static/styles.css?v=20261022-2">
+  <link rel="stylesheet" href="/auth-static/styles.css?v=20261120-1">
 </head>
 <body>
   <main class="app-shell">
@@ -191,8 +191,9 @@
             <option value="admin">管理员</option>
           </select>
         </label>
-        <fieldset class="wide">
-          <legend>可用功能</legend>
+        <fieldset class="wide permission-fieldset">
+          <legend>功能权限</legend>
+          <p class="permission-help">按实际工作需要分配；管理员角色始终可使用全部功能。</p>
           <div id="create-features" class="checkboxes"></div>
         </fieldset>
         <div class="dialog-actions wide">
@@ -203,7 +204,7 @@
     </div>
   </dialog>
 
-  <dialog id="user-dialog" class="account-dialog" aria-labelledby="dialog-title">
+  <dialog id="user-dialog" class="account-dialog permission-dialog" aria-labelledby="dialog-title">
     <div class="dialog-card">
       <header class="dialog-head">
         <div>
@@ -234,8 +235,9 @@
         <label>确认密码
           <input name="password_confirm" type="password" maxlength="150" autocomplete="new-password" placeholder="再次输入新密码">
         </label>
-        <fieldset class="wide">
-          <legend>可用功能</legend>
+        <fieldset class="wide permission-fieldset">
+          <legend>功能权限</legend>
+          <p class="permission-help">勾选后该员工即可访问对应入口；取消勾选后会立即拦截页面与接口访问。</p>
           <div id="edit-features" class="checkboxes"></div>
         </fieldset>
         <div class="dialog-actions wide">
@@ -247,6 +249,6 @@
   </dialog>
 
   <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
-  <script type="module" src="/auth-static/admin.js?v=20261022-3"></script>
+  <script type="module" src="/auth-static/admin.js?v=20261120-1"></script>
 </body>
 </html>
