@@ -20,7 +20,7 @@ VIEW_TYPES = ("front", "left", "right", "back")
 GENERATED_VIEWS = ("left", "right", "back")
 AI_GENERATED_VIEWS = VIEW_TYPES
 VIEW_NAMES = {"front": "正视图", "left": "左视图", "right": "右视图", "back": "背视图"}
-GENERATE_TYPES = {"Normal", "Geometry"}
+QUALITY_LEVELS = {"normal", "good"}
 TRIPO_MODEL = "tripo-3d-3.1"
 TRIPO_FORMAT_MODEL = "tripo-3d-format"
 MAX_UPLOAD_BYTES = 4_000_000
@@ -511,7 +511,9 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
 
 def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, model: str) -> tuple[dict, str]:
     config = _hunyuan_config()
-    generate_type = options.get("generate_type", "Normal")
+    quality = str(options.get("quality", "normal"))
+    if quality not in QUALITY_LEVELS:
+        raise WorkflowError("INVALID_OPTION", "生成效果只能选择普通效果或好效果", 422)
     payload = {
         "model": model,
         "image_url": front_url,
@@ -519,11 +521,11 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
             {"view_type": view, "view_image_url": view_urls[view]}
             for view in GENERATED_VIEWS
         ],
-        "generate_type": generate_type,
-        "enable_pbr": bool(options.get("enable_pbr", False)) if generate_type == "Normal" else False,
+        "generate_type": "Geometry",
+        "enable_pbr": False,
     }
-    if options.get("face_count") is not None:
-        payload["face_count"] = int(options["face_count"])
+    if quality == "good":
+        payload["face_count"] = 1_000_000
     if options.get("result_format"):
         payload["result_format"] = options["result_format"]
     try:
@@ -548,19 +550,22 @@ def submit_meshy(front_url: str, view_urls: dict[str, str], options: dict,
                  model: str = "meshy-7.1") -> tuple[dict, str]:
     """Submit the confirmed four views to Meshy's native multi-image endpoint."""
     config = _meshy_config()
-    textured = options.get("generate_type", "Geometry") == "Normal"
+    quality = str(options.get("quality", "normal"))
+    if quality not in QUALITY_LEVELS:
+        raise WorkflowError("INVALID_OPTION", "生成效果只能选择普通效果或好效果", 422)
+    good_quality = quality == "good"
     payload: dict = {
         "image_urls": [front_url, *[view_urls[view] for view in GENERATED_VIEWS]],
         "ai_model": model,
-        "geometry_resolution": "standard",
-        "should_texture": textured,
-        "enable_pbr": bool(options.get("enable_pbr", False)) if textured else False,
+        "geometry_resolution": "2k" if good_quality else "standard",
+        "should_texture": False,
+        "enable_pbr": False,
+        "should_remesh": not good_quality,
         "target_formats": ["stl"],
     }
-    if options.get("face_count") is not None:
-        payload["should_remesh"] = True
+    if not good_quality:
         payload["topology"] = "triangle"
-        payload["target_polycount"] = min(300_000, max(100, int(options["face_count"])))
+        payload["target_polycount"] = 200_000
     try:
         with httpx.Client(base_url=config.base_url, timeout=120) as client:
             response = client.post("/openapi/v1/multi-image-to-3d", headers={

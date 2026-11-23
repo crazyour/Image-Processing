@@ -173,17 +173,16 @@
         <p id="meshy-balance" class="meshy-balance" role="status" aria-atomic="true">Meshy 剩余积分：正在查询…</p>
       </fieldset>
       <div class="options">
-        <label class="generate-type-field" for="generate-type">类型
-          <select id="generate-type">
-            <option value="Normal">原图彩色模型——保留颜色和表面纹理，开启平滑智能拓扑</option>
-            <option value="Geometry" selected>无色白模——只生成平滑物体形状，适合 3D 打印</option>
+        <label class="quality-field" for="generation-quality">生成效果
+          <select id="generation-quality">
+            <option value="normal" selected>普通效果（默认）</option>
+            <option value="good">好效果（细节更多）</option>
           </select>
         </label>
-        <label class="check" for="enable-pbr"><input id="enable-pbr" type="checkbox" disabled> <span>生成 PBR 材质（额外计费）</span></label>
       </div>
-      <p id="generate-type-description" class="input-help"></p>
+      <p id="quality-description" class="input-help"></p>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
-      <p id="model-provider-note" class="cost-note">此操作会将确认后的四视图发送至 Meshy，并按 Meshy 7.1 的账户规则产生费用。STL 只保存物体形状，不包含普通彩色纹理。</p>
+      <p id="model-provider-note" class="cost-note">确认后会把四张图片发送给 Meshy，并按所选效果收费。</p>
       <div id="task-progress" class="progress hidden">
         <div class="spinner"></div>
         <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
@@ -307,13 +306,12 @@
 
       <details>
         <summary>五、生成 STL</summary>
-        <h3>1. 选择生成类型</h3>
+        <h3>1. 选择生成效果</h3>
         <ul>
-          <li><b>仅几何白模：</b>默认选项，适合只需要几何结构和 STL 文件的情况。</li>
-          <li><b>完整模型与纹理：</b>用于需要完整外观的任务，但最终页面仍只保存和提供 STL。</li>
-          <li><b>生成 PBR 材质：</b>只在完整模型模式下可选，会产生额外费用；STL 本身不会保存纹理材质。</li>
+          <li><b>普通效果：</b>生成更快、花费较少，适合大多数模型。</li>
+          <li><b>好效果：</b>细节更多，适合对外形要求较高的模型。</li>
         </ul>
-        <p>如果最终只需要 3D 打印或几何白模，保持默认的“仅几何白模”即可。</p>
+        <p>不确定怎么选时，保持默认的“普通效果”即可。</p>
         <h3>2. 提交任务</h3>
         <ol>
           <li>点击“提交 STL 任务”。</li>
@@ -384,7 +382,7 @@
           <li>检查并确认 AI 对图片的描述。</li>
           <li>点击“生成四视图”。</li>
           <li>检查正、左、右、背视图并点击“确认四个视角”。</li>
-          <li>保持“仅几何白模”。</li>
+          <li>保持“普通效果”。</li>
           <li>点击“提交 STL 任务”。</li>
           <li>等待完成后预览并下载 STL。</li>
         </ol>

@@ -342,9 +342,7 @@ class ColorFrontRequest(BaseModel):
 
 class Generate3DRequest(BaseModel):
     model_provider: Literal["hunyuan", "meshy"] = "meshy"
-    generate_type: str = "Normal"
-    enable_pbr: bool = False
-    face_count: int | None = Field(default=None, ge=3000, le=1500000)
+    quality: Literal["normal", "good"] = "normal"
     result_format: Literal["STL"] = "STL"
 
 
@@ -3253,12 +3251,6 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     state, version = _load(session_id, x_session_token)
     if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
         raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
-    if data.generate_type not in {"Normal", "Geometry"}:
-        raise WorkflowError(
-            "INVALID_OPTION",
-            "生成类型只能是 Normal 或 Geometry",
-            422,
-        )
     options = data.model_dump(exclude={"model_provider"})
     provider = data.model_provider
     provider_label = "国内模型（腾讯混元）" if provider == "hunyuan" else "国外模型（Meshy 7.1）"

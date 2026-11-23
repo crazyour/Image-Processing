@@ -721,11 +721,11 @@ document.querySelectorAll('input[name="view-source"]').forEach((input) => input.
 const modelProviderDetails = {
   hunyuan: {
     name: "腾讯混元 HY 3.1",
-    note: "此操作会将确认后的四视图发送至腾讯混元，并按对应账户规则产生费用。HY 3.1 不支持 LowPoly 智能拓扑；STL 只保存物体形状，不包含普通彩色纹理。",
+    note: "确认后会把四张图片发送给腾讯混元，并按所选效果收费。",
   },
   meshy: {
     name: "Meshy 7.1",
-    note: "此操作会将确认后的四视图发送至 Meshy，并按 Meshy 7.1 的账户规则产生费用。STL 只保存物体形状，不包含普通彩色纹理。",
+    note: "确认后会把四张图片发送给 Meshy，并按所选效果收费。",
   },
 };
 
@@ -760,21 +760,17 @@ function updateModelProvider() {
   $("#model-provider-note").textContent = details.note;
   $("#meshy-balance").classList.toggle("hidden", provider !== "meshy");
   if (provider === "meshy") loadMeshyBalance();
-  updateGenerateType();
+  updateGenerationQuality();
 }
 
-function updateGenerateType() {
-  const generateType = $("#generate-type").value;
-  const geometryOnly = generateType === "Geometry";
-  const details = modelProviderDetails[selectedModelProvider()];
-  $("#enable-pbr").disabled = geometryOnly;
-  if (geometryOnly) $("#enable-pbr").checked = false;
-  $("#generate-type-description").textContent = geometryOnly
-    ? `使用${details.name}生成无纹理白模，适合 3D 打印。`
-    : `使用${details.name}执行带颜色和表面纹理的生成流程；最终 STL 文件仍只保存几何形状。`;
+function updateGenerationQuality() {
+  const goodQuality = $("#generation-quality").value === "good";
+  $("#quality-description").textContent = goodQuality
+    ? "细节更多，适合对外形要求较高的模型；生成会更慢、花费更多。"
+    : "生成更快、花费较少，适合大多数模型。";
 }
 
-$("#generate-type").addEventListener("change", updateGenerateType);
+$("#generation-quality").addEventListener("change", updateGenerationQuality);
 document.querySelectorAll('input[name="model-provider"]').forEach((input) => input.addEventListener("change", updateModelProvider));
 
 async function uploadSelectedReferences(button) {
@@ -945,7 +941,7 @@ $("#generate-3d").addEventListener("click", async (event) => {
     setBusy(button, true, "正在提交…");
     render(await api(`/api/sessions/${session.id}/generate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model_provider: selectedModelProvider(), generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked, result_format: "STL" }),
+      body: JSON.stringify({ model_provider: selectedModelProvider(), quality: $("#generation-quality").value, result_format: "STL" }),
       timeout: 140_000,
     }));
   } catch (error) { showError(error); await refresh(); }
