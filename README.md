@@ -24,7 +24,7 @@
 仓库根目录包含一个可部署到 Vercel 的集成应用：
 
 - `app.py`：Vercel 自动识别的 FastAPI 入口；
-- `vercel_app/`：OpenAI、腾讯混元、PostgreSQL 和 Vercel Blob 工作流；
+- `vercel_app/`：OpenAI、腾讯混元、Meshy、PostgreSQL 和 Vercel Blob 工作流；
 - `frontend_dist/`：轻量功能选择首页及其公共静态资源；
 - `image3d_frontend/`：图生 3D 工作流，由原灵界侧边栏入口在站内弹层中打开；
 - `text2image_frontend/`：云端文生图工作流，支持一组统一提示词生成 1–5 张候选图；
@@ -93,7 +93,7 @@ ADMIN_NAME=系统管理员
 
 花费优先使用接口响应里返回的价格：`usage` 块里或响应顶层的 `cost`、`total_cost`、`price`、`amount` 等字段都支持，嵌套写法（如 `usage.cost.total`）也能识别。抓到的是哪个字段会一并记在 `cost_field` 里，并在明细弹窗的“计价方式”中显示（例如“接口返回（usage.cost）”），便于核对。
 
-接口没有返回价格时，按“token × 单价”计算，token 数与花费一一对应，单价表见 `vercel_app/pricing.py`，默认取 OpenAI 官方价目（https://platform.openai.com/docs/pricing）：GPT Image 家族按“文本输入 $5/1M、图像输入 $8/1M、缓存输入 $2/1M、输出 $30/1M”计算，参考图按图像输入价计费；视觉/文本模型按各自的每百万 token 单价计算。`USAGE_PRICE_IMAGE_TEXT_INPUT_PER_MILLION`、`USAGE_PRICE_IMAGE_INPUT_PER_MILLION`、`USAGE_PRICE_IMAGE_OUTPUT_PER_MILLION`、`USAGE_PRICE_CACHED_INPUT_PER_MILLION`、`USAGE_PRICE_VISION_INPUT_PER_MILLION`、`USAGE_PRICE_VISION_OUTPUT_PER_MILLION` 可覆盖这些单价，留空即使用官方价。只有完全没有 token 的调用才退回固定单价：腾讯混元 3D 按 `USAGE_PRICE_3D_PER_TASK` 计费，图片按 `USAGE_PRICE_IMAGE_PER_IMAGE` 兜底。
+接口没有返回价格时，按“token × 单价”计算，token 数与花费一一对应，单价表见 `vercel_app/pricing.py`，默认取 OpenAI 官方价目（https://platform.openai.com/docs/pricing）：GPT Image 家族按“文本输入 $5/1M、图像输入 $8/1M、缓存输入 $2/1M、输出 $30/1M”计算，参考图按图像输入价计费；视觉/文本模型按各自的每百万 token 单价计算。`USAGE_PRICE_IMAGE_TEXT_INPUT_PER_MILLION`、`USAGE_PRICE_IMAGE_INPUT_PER_MILLION`、`USAGE_PRICE_IMAGE_OUTPUT_PER_MILLION`、`USAGE_PRICE_CACHED_INPUT_PER_MILLION`、`USAGE_PRICE_VISION_INPUT_PER_MILLION`、`USAGE_PRICE_VISION_OUTPUT_PER_MILLION` 可覆盖这些单价，留空即使用官方价。只有完全没有 token 的调用才退回固定单价：腾讯混元与 Meshy 3D 按 `USAGE_PRICE_3D_PER_TASK` 计费，图片按 `USAGE_PRICE_IMAGE_PER_IMAGE` 兜底。
 
 管理员页同时显示输入、输出和总 Token，即使单价未配置也能看到用量。每条记录还会保存接口返回的原始 `usage` 内容（`raw` 列），方便事后核对。升级到按 token 计费后，系统会自动用同一套单价重算历史记录里“token 与花费对不上”的行（接口自带价格的记录保持不变），因此管理员页上的花费会与 token 对得上。没有 token 消耗的本地功能（相似素材检索、主工作台里的本地工具）不计入统计。
 
@@ -136,7 +136,7 @@ Vercel 应用支持 AI 生成或用户上传正、左、右、背四视图，并
 2. GPT 综合所有参考图输出可编辑的主体、结构、材质、遮挡与风险描述；用户必须先确认描述，才能生成四视图；
 3. GPT Image 使用全部参考图生成正、左、右、背四个统一视角；用户可单独微调任一视图；
 4. 选择手动模式时，用户直接上传四张图，跳过 GPT 分析和四视图生成；
-5. 用户确认四视图后，将四视图的 Vercel Blob 公网地址提交给腾讯 TokenHub `hy-3d-3.1`；
+5. 用户确认四视图后，可选择国内模型腾讯混元 `hy-3d-3.1`，或默认的国外模型 Meshy `meshy-7.1`；
 6. 固定请求 STL，查询异步任务，成功后把 STL 转存到 Vercel Blob，并提供旋转、缩放预览和下载。
 
 复制 `.env.example` 为 `.env` 并配置：
@@ -148,6 +148,9 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 HUNYUAN_API_KEY=你的TokenHub密钥
 HUNYUAN_BASE_URL=https://tokenhub.tencentmaas.com/v1
 
+MESHY_API_KEY=你的Meshy密钥
+MESHY_BASE_URL=https://api.meshy.ai
+
 BLOB_READ_WRITE_TOKEN=Vercel自动提供
 MATERIAL_BLOB_READ_WRITE_TOKEN=素材专用Private Blob令牌
 MATERIAL_LIBRARY_TOKEN=公共素材库令牌（可选，建议在Vercel中设置为长随机值）
@@ -157,7 +160,7 @@ LOCAL_DATA_DIR=可选的本地数据目录（默认为项目下的 var）
 
 本地开发时可以留空 `BLOB_READ_WRITE_TOKEN` 和 `DATABASE_URL`。应用会自动改用
 `var/image3d.sqlite3` 保存会话，并将图片与模型文件保存到 `var/blobs/`。这些文件已被
-`.gitignore` 排除。本地图片可用于界面预览和 GPT 多视图流程，但腾讯混元 3D 需要公网可访问的图片 URL，
+`.gitignore` 排除。本地图片可用于界面预览和 GPT 多视图流程，但腾讯混元与 Meshy 3D 都需要公网可访问的图片 URL，
 因此提交 3D 任务前仍需配置 Public Vercel Blob。
 
 本机存储模式提供“作品记录”入口，会从 SQLite 中列出文生图、照片转镂空剪影和图生 3D
@@ -247,6 +250,6 @@ POST  /api/material-search/search/uploads/{upload_id}/complete
 
 文生图参考输入分为“产品图片”和“生成样例图片”，每组最多 6 张。产品图片用于锁定产品主体、结构、材质和细节；生成样例只用于约束摆放位置、构图、视角和场景效果。浏览器会逐张上传，生成时后端按产品图在前、样例图在后的顺序提交，并在提示词中明确两组用途。
 
-网页默认使用 `gpt-6-luna` 做图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成正、左、右、背四视图，并使用 `hy-3d-3.1` 生成 3D。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可在网页把多视图生成模型改为 `gpt-image-2.5-sunburst`。
+网页默认使用 `gpt-6-luna` 做图片结构分析，使用 `gpt-image-2.5-flare` 以 `medium` 质量生成正、左、右、背四视图，并默认使用国外模型 `meshy-7.1` 生成 3D；用户也可以切换到国内模型 `hy-3d-3.1`。GPT Image 2.5 按输入/输出 token 计费，编辑请求还会计算参考图片输入，因此单张没有固定价格；实际费用以接口返回的 `usage` 为准。需要更强的跨视角编辑精度时，可在网页把多视图生成模型改为 `gpt-image-2.5-sunburst`。
 
-描述确认、四视图确认和 STL 提交是独立门禁。修改上游内容会自动使后续确认失效。混元任务固定请求 STL，应用也只保存和展示 STL 输出。部分视图生成失败时会保留已成功结果；分析、图片生成或 3D 提交超时后会自动解除页面锁定并显示明确错误。
+描述确认、四视图确认和 STL 提交是独立门禁。修改上游内容会自动使后续确认失效。腾讯混元和 Meshy 任务都固定请求 STL，应用也只保存和展示 STL 输出。部分视图生成失败时会保留已成功结果；分析、图片生成或 3D 提交超时后会自动解除页面锁定并显示明确错误。

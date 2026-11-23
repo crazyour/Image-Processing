@@ -31,7 +31,7 @@ let colorDraft = null;
 
 const workspaceContent = {
   "3d": {
-    eyebrow: "灵界 · GPT MULTIVIEW · HY-3D",
+    eyebrow: "灵界 · GPT MULTIVIEW · IMAGE TO 3D",
     title: "图生 3D",
     copy: "上传多张同一个对象的参考图，先确认 AI 对主体的理解，再确认四视图并生成 STL 模型。",
   },
@@ -289,6 +289,9 @@ function syncControls() {
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(status);
   const canSubmit3d = ["VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status) && Boolean(state?.confirmed_at);
   generateButton.disabled = !canSubmit3d || actionInFlight;
+  document.querySelectorAll('input[name="model-provider"]').forEach((input) => {
+    input.disabled = running || actionInFlight;
+  });
   generateButton.classList.toggle("pending", running);
   if (!generateButton.dataset.busy) {
     generateButton.textContent = running ? "正在生成 STL…" : status === "FAILED" ? "重新生成 STL" : "提交 STL 任务";
@@ -333,6 +336,10 @@ function setStepState(selector, text, active = false, error = false, success = f
 
 function render(next) {
   state = next;
+  const savedProvider = (state?.model_task || state?.hunyuan_task)?.provider;
+  const savedProviderInput = savedProvider && document.querySelector(`input[name="model-provider"][value="${savedProvider}"]`);
+  if (savedProviderInput) savedProviderInput.checked = true;
+  updateModelProvider();
   renderAnalysis(state?.analysis || {});
   renderReferences(state?.reference_images || []);
   $("#prompt-editor").value = state?.user_prompt || "";
@@ -343,12 +350,14 @@ function render(next) {
 }
 
 function renderTask() {
-  const task = state?.hunyuan_task;
+  const task = state?.model_task || state?.hunyuan_task;
+  const providerName = task?.provider === "hunyuan" ? "腾讯混元" : "Meshy 7.1";
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(state?.status);
   $("#task-progress").classList.toggle("hidden", !running);
   $("#task-stage").textContent = state?.status === "SUBMITTING_3D"
-    ? "正在提交腾讯混元…"
-    : task?.status === "queued" ? "任务已进入队列" : "腾讯混元正在生成模型…";
+    ? `正在提交${providerName}…`
+    : ["queued", "pending"].includes(task?.status) ? `${providerName}任务已进入队列`
+      : `${providerName}正在生成模型${Number.isFinite(Number(task?.progress)) ? ` · ${task.progress}%` : ""}…`;
   $("#task-id").textContent = task?.id ? `任务编号：${task.id}` : "正在等待任务编号";
   updateElapsed();
   const models = task?.models || {};
@@ -614,7 +623,7 @@ function drawStlPreview() {
 }
 
 function updateElapsed() {
-  const start = Number(state?.hunyuan_task?.submitted_at || state?.updated_at || 0) * 1000;
+  const start = Number((state?.model_task || state?.hunyuan_task)?.submitted_at || state?.updated_at || 0) * 1000;
   if (!start || !["SUBMITTING_3D", "GENERATING_3D"].includes(state?.status)) {
     $("#task-elapsed").textContent = "";
     return;
@@ -695,20 +704,42 @@ function updateViewSource() {
 
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
 
-const generateTypeDescriptions = {
-  Normal: "使用 HY 3.1 生成带颜色和表面纹理的完整模型。",
-  Geometry: "使用 HY 3.1 只生成无纹理白模，速度更快，适合 3D 打印。",
+const modelProviderDetails = {
+  hunyuan: {
+    name: "腾讯混元 HY 3.1",
+    note: "此操作会将确认后的四视图发送至腾讯混元，并按对应账户规则产生费用。HY 3.1 不支持 LowPoly 智能拓扑；STL 只保存物体形状，不包含普通彩色纹理。",
+  },
+  meshy: {
+    name: "Meshy 7.1",
+    note: "此操作会将确认后的四视图发送至 Meshy，并按 Meshy 7.1 的账户规则产生费用。STL 只保存物体形状，不包含普通彩色纹理。",
+  },
 };
+
+function selectedModelProvider() {
+  return document.querySelector('input[name="model-provider"]:checked')?.value || "meshy";
+}
+
+function updateModelProvider() {
+  const provider = selectedModelProvider();
+  const details = modelProviderDetails[provider];
+  $("#model-provider-heading").textContent = `确认四视图后，即可提交${details.name}生成模型。`;
+  $("#model-provider-note").textContent = details.note;
+  updateGenerateType();
+}
 
 function updateGenerateType() {
   const generateType = $("#generate-type").value;
   const geometryOnly = generateType === "Geometry";
+  const details = modelProviderDetails[selectedModelProvider()];
   $("#enable-pbr").disabled = geometryOnly;
   if (geometryOnly) $("#enable-pbr").checked = false;
-  $("#generate-type-description").textContent = generateTypeDescriptions[generateType] || "";
+  $("#generate-type-description").textContent = geometryOnly
+    ? `使用${details.name}生成无纹理白模，适合 3D 打印。`
+    : `使用${details.name}执行带颜色和表面纹理的生成流程；最终 STL 文件仍只保存几何形状。`;
 }
 
 $("#generate-type").addEventListener("change", updateGenerateType);
+document.querySelectorAll('input[name="model-provider"]').forEach((input) => input.addEventListener("change", updateModelProvider));
 
 async function uploadSelectedReferences(button) {
   if (session && state?.status === "REFERENCES_READY") return;
@@ -878,7 +909,7 @@ $("#generate-3d").addEventListener("click", async (event) => {
     setBusy(button, true, "正在提交…");
     render(await api(`/api/sessions/${session.id}/generate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked, result_format: "STL" }),
+      body: JSON.stringify({ model_provider: selectedModelProvider(), generate_type: $("#generate-type").value, enable_pbr: $("#enable-pbr").checked, result_format: "STL" }),
       timeout: 140_000,
     }));
   } catch (error) { showError(error); await refresh(); }
@@ -1183,7 +1214,7 @@ initializeStlPreview();
 initializeUsageGuide();
 setWorkspace(new URLSearchParams(location.search).get("workspace") || "3d", false);
 updateViewSource();
-updateGenerateType();
+updateModelProvider();
 render(null);
 refresh();
 loadViewLibrary();

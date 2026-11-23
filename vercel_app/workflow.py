@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from vercel_app.settings import SettingsError, hunyuan_settings, openai_settings
+from vercel_app.settings import SettingsError, hunyuan_settings, meshy_settings, openai_settings
 
 
 VIEW_TYPES = ("front", "left", "right", "back")
@@ -75,6 +75,13 @@ def _openai_config():
 def _hunyuan_config():
     try:
         return hunyuan_settings()
+    except SettingsError as exc:
+        raise WorkflowError("NOT_CONFIGURED", str(exc), 503) from exc
+
+
+def _meshy_config():
+    try:
+        return meshy_settings()
     except SettingsError as exc:
         raise WorkflowError("NOT_CONFIGURED", str(exc), 503) from exc
 
@@ -534,6 +541,42 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
     return body, model
 
 
+def submit_meshy(front_url: str, view_urls: dict[str, str], options: dict,
+                 model: str = "meshy-7.1") -> tuple[dict, str]:
+    """Submit the confirmed four views to Meshy's native multi-image endpoint."""
+    config = _meshy_config()
+    textured = options.get("generate_type", "Geometry") == "Normal"
+    payload: dict = {
+        "image_urls": [front_url, *[view_urls[view] for view in GENERATED_VIEWS]],
+        "ai_model": model,
+        "geometry_resolution": "standard",
+        "should_texture": textured,
+        "enable_pbr": bool(options.get("enable_pbr", False)) if textured else False,
+        "target_formats": ["stl"],
+    }
+    if options.get("face_count") is not None:
+        payload["should_remesh"] = True
+        payload["topology"] = "triangle"
+        payload["target_polycount"] = min(300_000, max(100, int(options["face_count"])))
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=120) as client:
+            response = client.post("/openapi/v1/multi-image-to-3d", headers={
+                "Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json",
+            }, json=payload)
+    except httpx.RequestError as exc:
+        raise WorkflowError("MESHY_UNAVAILABLE", f"Meshy 连接失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("Meshy", response)
+    try:
+        body = response.json()
+    except ValueError:
+        raise WorkflowError("MESHY_INVALID_RESPONSE", "Meshy 返回内容无法解析", 502)
+    task_id = body.get("result") if isinstance(body, dict) else None
+    if not task_id:
+        raise _provider_payload_error("Meshy", body if isinstance(body, dict) else {})
+    return {"id": task_id, "status": "queued", "raw": body}, model
+
+
 def submit_tripo(front_url: str, view_urls: dict[str, str], options: dict) -> tuple[dict, str]:
     """Submit a smooth-topology Tripo multiview model through TokenHub."""
     config = _hunyuan_config()
@@ -614,6 +657,54 @@ def query_hunyuan(task_id: str, model: str) -> dict:
     if not isinstance(body, dict) or (not body.get("status") and (body.get("error") or body.get("Error") or body.get("Response"))):
         raise _provider_payload_error("腾讯混元", body if isinstance(body, dict) else {})
     return body
+
+
+def query_meshy(task_id: str, model: str = "meshy-7.1") -> dict:
+    """Fetch a Meshy task and normalize it to the app's provider-neutral shape."""
+    config = _meshy_config()
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=120) as client:
+            response = client.get(
+                f"/openapi/v1/multi-image-to-3d/{task_id}",
+                headers={"Authorization": f"Bearer {config.api_key}"},
+            )
+    except httpx.RequestError as exc:
+        raise WorkflowError("MESHY_UNAVAILABLE", f"Meshy 连接失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("Meshy", response)
+    try:
+        body = response.json()
+    except ValueError:
+        raise WorkflowError("MESHY_INVALID_RESPONSE", "Meshy 返回内容无法解析", 502)
+    if not isinstance(body, dict) or not body.get("status"):
+        raise _provider_payload_error("Meshy", body if isinstance(body, dict) else {})
+    provider_status = str(body.get("status", "")).upper()
+    status = {
+        "PENDING": "pending",
+        "IN_PROGRESS": "in_progress",
+        "SUCCEEDED": "completed",
+        "FAILED": "failed",
+        "CANCELED": "failed",
+    }.get(provider_status, provider_status.lower())
+    model_urls = body.get("model_urls") if isinstance(body.get("model_urls"), dict) else {}
+    data = [
+        {"type": file_type, "url": url, "preview_image_url": body.get("thumbnail_url")}
+        for file_type, url in model_urls.items()
+        if isinstance(url, str)
+    ]
+    task_error = body.get("task_error")
+    if isinstance(task_error, dict):
+        error = task_error.get("message") or task_error.get("code") or "Meshy 生成失败"
+    else:
+        error = task_error or "Meshy 生成失败"
+    return {
+        "status": status,
+        "progress": body.get("progress"),
+        "completed_at": body.get("finished_at"),
+        "data": data,
+        "error": error if status == "failed" else None,
+        "result_credit_details": {"consumed_credits": body.get("consumed_credits")},
+    }
 
 
 def model_suffix(url: str, model_type: str) -> str:

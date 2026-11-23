@@ -120,7 +120,9 @@ from vercel_app.workflow import (
     model_suffix,
     normalize_image,
     query_hunyuan,
+    query_meshy,
     submit_hunyuan,
+    submit_meshy,
     view_prompt,
 )
 
@@ -182,6 +184,7 @@ IMAGE3D_VISION_MODEL = "gpt-6-luna"
 IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
 IMAGE3D_VIEW_QUALITY = "medium"
 IMAGE3D_MODEL = "hy-3d-3.1"
+MESHY_IMAGE3D_MODEL = "meshy-7.1"
 MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
 MAX_PHOTOGRAPHY_UPLOAD_BYTES = 200_000_000
 MAX_PHOTOGRAPHY_CHUNK_BYTES = 3_500_000
@@ -336,6 +339,7 @@ class ColorFrontRequest(BaseModel):
 
 
 class Generate3DRequest(BaseModel):
+    model_provider: Literal["hunyuan", "meshy"] = "meshy"
     generate_type: str = "Normal"
     enable_pbr: bool = False
     face_count: int | None = Field(default=None, ge=3000, le=1500000)
@@ -646,8 +650,8 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
         else:
             state["status"] = "VIEWS_CONFIRMED"
             state["last_error"] = {
-                "code": "HUNYUAN_SUBMIT_TIMEOUT",
-                "message": "3D 任务提交结果未能确认，已解除锁定。重新提交前请先核对腾讯混元任务，避免重复计费。",
+                "code": "MODEL_SUBMIT_TIMEOUT",
+                "message": "3D 任务提交结果未能确认，已解除锁定。重新提交前请先核对所选模型平台的任务，避免重复计费。",
             }
         version = _save(state, version)
     return state, version
@@ -679,6 +683,7 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "confirmed_at": (state.get("confirmed_snapshot") or {}).get("confirmed_at"),
         "description_confirmed_at": state.get("description_confirmed_at"),
         "assembly_plan": state.get("assembly_plan"),
+        "model_task": state.get("model_task") or state.get("hunyuan_task"),
         "hunyuan_task": state.get("hunyuan_task"),
         "last_error": state.get("last_error"),
         "created_at": state.get("created_at"),
@@ -2666,6 +2671,7 @@ def new_session(
         "description_confirmed_at": None,
         "confirmed_snapshot": None,
         "assembly_plan": None,
+        "model_task": None,
         "hunyuan_task": None,
         "last_error": None,
         "model_settings": models,
@@ -2852,6 +2858,7 @@ def upload_view(session_id: str, view: str, image: UploadFile = File(...),
     state["views_stale"] = not _views_current(state)
     state["confirmed_snapshot"] = None
     state["assembly_plan"] = None
+    state["model_task"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     _save(state, version)
@@ -3041,6 +3048,7 @@ def update_prompt(session_id: str, data: PromptUpdate,
     state["description_confirmed_at"] = None
     state["confirmed_snapshot"] = None
     state["assembly_plan"] = None
+    state["model_task"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     state["status"] = "PROMPT_REVIEW"
@@ -3079,6 +3087,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     state["status"] = "GENERATING_VIEWS"
     state["confirmed_snapshot"] = None
     state["assembly_plan"] = None
+    state["model_task"] = None
     state["hunyuan_task"] = None
     state["last_error"] = None
     version = _save(state, version)
@@ -3248,62 +3257,86 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
             "生成类型只能是 Normal 或 Geometry",
             422,
         )
-    options = data.model_dump()
-    hunyuan_model = IMAGE3D_MODEL
+    options = data.model_dump(exclude={"model_provider"})
+    provider = data.model_provider
+    provider_label = "国内模型（腾讯混元）" if provider == "hunyuan" else "国外模型（Meshy 7.1）"
+    provider_name = "腾讯混元" if provider == "hunyuan" else "Meshy"
+    provider_code = "HUNYUAN" if provider == "hunyuan" else "MESHY"
+    model = IMAGE3D_MODEL if provider == "hunyuan" else MESHY_IMAGE3D_MODEL
     snapshot = state["confirmed_snapshot"]
     if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
-            "message": "提交腾讯混元 3D 需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
+            "message": f"提交{provider_label}需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
         }
         _save(state, version)
         raise WorkflowError(
             "PUBLIC_BLOB_REQUIRED",
-            "本地图片无法被腾讯混元访问，请配置 BLOB_READ_WRITE_TOKEN 后重新创建会话",
+            f"本地图片无法被{provider_name}访问，请配置 BLOB_READ_WRITE_TOKEN 后重新创建会话",
             409,
         )
     reservation_id = reserve_usage(
-        _account_user(request), "image_to_3d", hunyuan_model, "生成 STL",
+        _account_user(request), "image_to_3d", model, f"生成 STL · {provider_label}",
     )
+    submitted_at = int(time.time())
+    pending_task = {
+        "provider": provider,
+        "provider_label": provider_label,
+        "model": model,
+        "status": "submitting",
+        "submitted_at": submitted_at,
+        "request": options,
+        "models": {},
+    }
     state["status"] = "SUBMITTING_3D"
-    state["hunyuan_task"] = None
+    state["model_task"] = pending_task
+    state["hunyuan_task"] = pending_task if provider == "hunyuan" else None
     state["last_error"] = None
     version = _save(state, version)
     try:
-        created, hunyuan_model = submit_hunyuan(
+        submit = submit_hunyuan if provider == "hunyuan" else submit_meshy
+        created, model = submit(
             snapshot["views"]["front"]["url"],
             {view: snapshot["views"][view]["url"] for view in GENERATED_VIEWS},
             options,
-            hunyuan_model,
+            model,
         )
     except (WorkflowError, UsageLimitError) as exc:
         release_usage_reservation(reservation_id)
         state["status"] = "VIEWS_CONFIRMED"
+        state["model_task"] = None
+        state["hunyuan_task"] = None
         state["last_error"] = {"code": exc.code, "message": exc.message}
         _save(state, version)
         raise
     record_usage(
-        _account_user(request), "image_to_3d", hunyuan_model, created, "生成 STL",
+        _account_user(request), "image_to_3d", model, created, f"生成 STL · {provider_label}",
         reservation_id,
     )
     task_id = str(created.get("id", ""))
     if not TASK_ID.fullmatch(task_id):
         state["status"] = "VIEWS_CONFIRMED"
+        state["model_task"] = None
+        state["hunyuan_task"] = None
         state["last_error"] = {
-            "code": "HUNYUAN_INVALID_RESPONSE",
-            "message": "腾讯混元没有返回任务编号，请检查错误信息后重试",
+            "code": f"{provider_code}_INVALID_RESPONSE",
+            "message": f"{provider_name}没有返回任务编号，请检查错误信息后重试",
         }
         _save(state, version)
-        raise WorkflowError("HUNYUAN_INVALID_RESPONSE", "腾讯混元没有返回任务编号", 502)
-    state["hunyuan_task"] = {
+        raise WorkflowError(f"{provider_code}_INVALID_RESPONSE", f"{provider_name}没有返回任务编号", 502)
+    task = {
         "id": task_id,
-        "model": hunyuan_model,
+        "provider": provider,
+        "provider_label": provider_label,
+        "model": model,
         "status": str(created.get("status", "queued")),
         "request_id": created.get("request_id"),
-        "submitted_at": int(time.time()),
+        "submitted_at": submitted_at,
         "request": options,
         "models": {},
     }
+    state["model_task"] = task
+    state["hunyuan_task"] = task if provider == "hunyuan" else None
     state["status"] = "GENERATING_3D"
     _save(state, version)
     return _response(state)
@@ -3312,10 +3345,14 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
 @app.get("/api/sessions/{session_id}/3d")
 def poll_3d(session_id: str, x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
-    task = state.get("hunyuan_task") or {}
+    task = state.get("model_task") or state.get("hunyuan_task") or {}
     if not TASK_ID.fullmatch(str(task.get("id", ""))):
         raise WorkflowError("TASK_NOT_CREATED", "3D任务尚未创建", 409)
-    result = query_hunyuan(task["id"], task["model"])
+    provider = task.get("provider", "hunyuan")
+    provider_name = "腾讯混元" if provider == "hunyuan" else "Meshy"
+    provider_code = "HUNYUAN" if provider == "hunyuan" else "MESHY"
+    query = query_hunyuan if provider == "hunyuan" else query_meshy
+    result = query(task["id"], task["model"])
     provider_status = str(result.get("status", "")).lower()
     status_map = {
         "queued": "GENERATING_3D", "pending": "GENERATING_3D",
@@ -3325,15 +3362,17 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     if provider_status not in status_map:
         state["status"] = "FAILED"
         state["last_error"] = {
-            "code": "HUNYUAN_INVALID_RESPONSE",
-            "message": f"腾讯混元返回未知任务状态：{provider_status or '空'}",
+            "code": f"{provider_code}_INVALID_RESPONSE",
+            "message": f"{provider_name}返回未知任务状态：{provider_status or '空'}",
         }
         _save(state, version)
-        raise WorkflowError("HUNYUAN_INVALID_RESPONSE", state["last_error"]["message"], 502)
+        raise WorkflowError(f"{provider_code}_INVALID_RESPONSE", state["last_error"]["message"], 502)
     task["status"] = provider_status
+    task["progress"] = result.get("progress")
     task["request_id"] = result.get("request_id", task.get("request_id"))
     task["completed_at"] = result.get("completed_at")
     task["credit_details"] = result.get("result_credit_details")
+    task.setdefault("models", {})
     if provider_status == "completed":
         blobs = PublicBlobStore()
         for item in result.get("data") or []:
@@ -3363,18 +3402,19 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
         else:
             state["status"] = "FAILED"
             state["last_error"] = {
-                "code": "HUNYUAN_STL_MISSING",
-                "message": "腾讯混元任务已完成，但没有返回可下载的 STL 文件，请重试或核对模型输出格式。",
+                "code": f"{provider_code}_STL_MISSING",
+                "message": f"{provider_name}任务已完成，但没有返回可下载的 STL 文件，请重试或核对模型输出格式。",
             }
     elif provider_status == "failed":
         state["status"] = "FAILED"
         state["last_error"] = {
-            "code": "HUNYUAN_GENERATION_FAILED",
-            "message": str(result.get("error", result.get("message", "腾讯混元生成失败")))[:500],
+            "code": f"{provider_code}_GENERATION_FAILED",
+            "message": str(result.get("error", result.get("message", f"{provider_name}生成失败")))[:500],
         }
     else:
         state["status"] = "GENERATING_3D"
-    state["hunyuan_task"] = task
+    state["model_task"] = task
+    state["hunyuan_task"] = task if provider == "hunyuan" else None
     _save(state, version)
     return _response(state)
 

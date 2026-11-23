@@ -45,6 +45,12 @@ class HunyuanSettings:
     base_url: str
 
 
+@dataclass(frozen=True)
+class MeshySettings:
+    api_key: str
+    base_url: str
+
+
 @lru_cache
 def openai_settings() -> OpenAISettings:
     return OpenAISettings(
@@ -58,4 +64,13 @@ def hunyuan_settings() -> HunyuanSettings:
     return HunyuanSettings(
         api_key=_required("HUNYUAN_API_KEY"),
         base_url=_required("HUNYUAN_BASE_URL").rstrip("/"),
+    )
+
+
+@lru_cache
+def meshy_settings() -> MeshySettings:
+    return MeshySettings(
+        api_key=_required("MESHY_API_KEY"),
+        base_url=os.getenv("MESHY_BASE_URL", "https://api.meshy.ai").strip().rstrip("/")
+        or "https://api.meshy.ai",
     )

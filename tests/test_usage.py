@@ -149,6 +149,11 @@ class UsageLedgerTests(unittest.TestCase):
         )
         self.assertEqual(normalized["cost_usd"], 0.5)
         self.assertEqual(normalized["cost_source"], "预设价格")
+        meshy = normalize_usage(
+            {"id": "task-2", "status": "queued"}, "meshy-7.1", "image_to_3d",
+        )
+        self.assertEqual(meshy["cost_usd"], 0.5)
+        self.assertEqual(meshy["cost_source"], "预设价格")
 
     def test_total_tokens_without_a_split_is_still_priced_by_tokens(self):
         normalized = normalize_usage(

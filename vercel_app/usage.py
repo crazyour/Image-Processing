@@ -131,7 +131,7 @@ def extract_cost(payload: Any) -> float | None:
 def _preset_price(model: str | None) -> tuple[float, str]:
     """Flat price used when a call reports no tokens to price."""
     name = (model or "").lower()
-    if name.startswith("hy-"):
+    if name.startswith("hy-") or name.startswith("meshy-"):
         return optional_float("USAGE_PRICE_3D_PER_TASK", 0.5), SOURCE_PRESET
     if "image" in name:
         return optional_float("USAGE_PRICE_IMAGE_PER_IMAGE", 0.14), SOURCE_PRESET

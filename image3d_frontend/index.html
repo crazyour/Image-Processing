@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=20261123-1">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -19,7 +19,7 @@
         <button id="library-toggle" class="library-toggle" type="button" aria-controls="library-panel" aria-expanded="false">作品记录</button>
         <button id="guide-toggle" class="guide-toggle" type="button" aria-controls="usage-guide" aria-expanded="false">？ 使用说明</button>
       </div>
-      <p id="workspace-eyebrow" class="eyebrow">灵界 · GPT MULTIVIEW · HY-3D</p>
+      <p id="workspace-eyebrow" class="eyebrow">灵界 · GPT MULTIVIEW · IMAGE TO 3D</p>
       <h1 id="workspace-title">图生 3D</h1>
       <p id="workspace-copy" class="hero-copy">上传多张同一个对象的参考图，先确认 AI 对主体的理解，再确认四视图并生成 STL 模型。</p>
       <div id="view-source-intro" class="view-source-intro" aria-label="四视图来源说明">
@@ -151,7 +151,26 @@
     </section>
 
     <section id="generate-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p>确认四视图后，即可提交腾讯混元 HY 3.1 生成模型。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后，选择国外或国内模型生成 STL。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <fieldset class="model-provider-options">
+        <legend>选择生成模型</legend>
+        <label class="model-provider-option">
+          <input type="radio" name="model-provider" value="hunyuan">
+          <span class="model-provider-card">
+            <span class="model-provider-top"><b>国内模型</b><small>腾讯混元</small></span>
+            <strong>Hunyuan 3D 3.1</strong>
+            <small>四视图提交至腾讯混元，适合优先使用国内服务的任务。</small>
+          </span>
+        </label>
+        <label class="model-provider-option">
+          <input type="radio" name="model-provider" value="meshy" checked>
+          <span class="model-provider-card">
+            <span class="model-provider-top"><b>国外模型</b><small>默认</small></span>
+            <strong>Meshy 7.1</strong>
+            <small>四视图提交至 Meshy 多图生 3D 接口，第一张固定作为正视图。</small>
+          </span>
+        </label>
+      </fieldset>
       <div class="options">
         <label class="generate-type-field" for="generate-type">类型
           <select id="generate-type">
@@ -163,7 +182,7 @@
       </div>
       <p id="generate-type-description" class="input-help"></p>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
-      <p class="cost-note">此操作会调用腾讯混元 HY 3.1 并产生费用。HY 3.1 不支持 LowPoly 智能拓扑；STL 只保存物体形状，不包含普通彩色纹理。</p>
+      <p id="model-provider-note" class="cost-note">此操作会将确认后的四视图发送至 Meshy，并按 Meshy 7.1 的账户规则产生费用。STL 只保存物体形状，不包含普通彩色纹理。</p>
       <div id="task-progress" class="progress hidden">
         <div class="spinner"></div>
         <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
@@ -173,7 +192,7 @@
         <div><strong>STL 已生成</strong><span id="model-meta"></span><span>拖动模型可旋转，滚轮可缩放。</span></div>
         <div class="preview-surface">
           <canvas id="stl-canvas" class="hidden" aria-label="STL 模型交互预览"></canvas>
-          <img id="model-preview-image" class="hidden" alt="腾讯混元生成的模型预览图">
+          <img id="model-preview-image" class="hidden" alt="3D 模型预览图">
         </div>
       </div>
       <div id="model-results" class="model-results"></div>
@@ -214,7 +233,7 @@
           <button id="download-resized-stl" class="primary" type="button">下载调整后的 STL</button>
         </div>
       </div>
-      <p class="cost-note">尺寸调整完全在浏览器内完成，不会上传本地 STL，也不会产生 AI 或腾讯混元费用。</p>
+      <p class="cost-note">尺寸调整完全在浏览器内完成，不会上传本地 STL，也不会产生模型平台费用。</p>
     </section>
   </main>
 
@@ -229,7 +248,7 @@
         <strong>四视图有两种来源</strong>
         <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图，约 1 元/张，四视图约 4 元/次。</p>
         <p><b>自行上传：</b>先使用豆包等网页 AI 生成四视图，再上传到本站；本站不收图片生成费。</p>
-        <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 会调用腾讯混元并产生相应费用。</small>
+        <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 会调用你选择的国内或国外模型并产生相应费用。</small>
       </section>
 
       <details open>
@@ -297,7 +316,7 @@
         <ol>
           <li>点击“提交 STL 任务”。</li>
           <li>页面会依次显示提交、排队、生成和保存状态。</li>
-          <li>页面会显示已等待时间和腾讯混元任务编号。</li>
+          <li>页面会显示已等待时间、当前模型平台和任务编号。</li>
           <li>生成过程中可以返回工作台；只要当前标签页没有关闭，页面会继续查询任务状态。</li>
         </ol>
         <p>生成时间受图片复杂度、供应商队列和网络状态影响。按钮处于“正在生成 STL”时，不要重复提交。</p>
@@ -335,16 +354,16 @@
         </ul>
         <h3>多张参考图应该怎么选？</h3>
         <p>第一张放信息最完整的主参考，其余图补充侧面、背面、底部和局部结构。不要混入不同版本或不同物体，否则 AI 会在风险提示中标记冲突。</p>
-        <h3>为什么腾讯混元提交失败？</h3>
+        <h3>为什么 3D 模型任务提交失败？</h3>
         <p>常见原因包括：</p>
         <ul>
           <li>后台生成服务暂时不可用或额度不足。</li>
-          <li>Vercel Blob 未配置，腾讯混元无法访问本地图片。</li>
+          <li>Vercel Blob 未配置，腾讯混元或 Meshy 无法访问本地图片。</li>
           <li>网络连接暂时中断。</li>
         </ul>
         <p>页面会保留错误编号和 Request ID。排查问题时请同时提供这两个信息。</p>
         <h3>为什么任务完成后没有下载按钮？</h3>
-        <p>系统只有在成功取得并保存腾讯混元返回的 STL 后才显示完成。如果没有返回文件，页面会将任务标记为失败。</p>
+        <p>系统只有在成功取得并保存所选模型平台返回的 STL 后才显示完成。如果没有返回文件，页面会将任务标记为失败。</p>
         <h3>刷新页面后任务还在吗？</h3>
         <p>当前任务保存在当前标签页的会话中：</p>
         <ul>
@@ -369,7 +388,7 @@
         </ol>
       </details>
 
-      <p class="guide-footnote">站内 AI 生成图片和腾讯混元生成 STL 都可能产生费用，请避免重复提交。</p>
+      <p class="guide-footnote">站内 AI 生成图片和 3D 模型平台生成 STL 都可能产生费用，请避免重复提交。</p>
     </div>
   </aside>
   <dialog id="save-view-dialog" class="view-dialog">
@@ -391,7 +410,7 @@
 
   <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261017-1" defer></script>
+  <script src="/static/app.js?v=20261123-1" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>
