@@ -2,7 +2,14 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from vercel_app.workflow import GENERATE_TYPES, query_meshy, submit_hunyuan, submit_meshy
+from vercel_app.workflow import (
+    GENERATE_TYPES,
+    _meshy_balance_cache,
+    query_meshy,
+    query_meshy_balance,
+    submit_hunyuan,
+    submit_meshy,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +40,10 @@ class Image3DModeTests(unittest.TestCase):
         self.assertIn('name="model-provider" value="meshy" checked', html)
         self.assertIn('model_provider: selectedModelProvider()', javascript)
         self.assertIn('state?.model_task || state?.hunyuan_task', javascript)
+        self.assertIn('id="meshy-balance"', html)
+        self.assertIn('id="task-credit-usage"', html)
+        self.assertIn('/api/meshy/balance', javascript)
+        self.assertIn('consumed_credits', javascript)
 
     def test_optional_iterative_texture_editor_is_inside_upload_step(self):
         html = (ROOT / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
@@ -136,6 +147,29 @@ class Image3DModeTests(unittest.TestCase):
             "preview_image_url": "https://assets.meshy.ai/preview.png",
         }])
         self.assertEqual(result["result_credit_details"]["consumed_credits"], 20)
+
+    @patch("vercel_app.workflow._meshy_config")
+    @patch("vercel_app.workflow.httpx.Client")
+    def test_meshy_balance_is_normalized_and_cached(self, client_class, config):
+        _meshy_balance_cache.update({"expires_at": 0.0, "value": None})
+        config.return_value = Mock(base_url="https://api.meshy.ai", api_key="test-key")
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "balance": 1000,
+            "monthly_credits": 600,
+            "permanent_credits": 400,
+            "monthly_resets_at": 1793491200000,
+        }
+        client_class.return_value.__enter__.return_value.get.return_value = response
+
+        first = query_meshy_balance()
+        second = query_meshy_balance()
+
+        self.assertEqual(first["balance"], 1000)
+        self.assertEqual(first["monthly_credits"], 600)
+        self.assertEqual(first["permanent_credits"], 400)
+        self.assertEqual(second, first)
+        client_class.return_value.__enter__.return_value.get.assert_called_once()
 
 
 if __name__ == "__main__":

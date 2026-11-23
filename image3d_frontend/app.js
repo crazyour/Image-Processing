@@ -28,6 +28,9 @@ let resizeFileName = "model-resized.stl";
 let viewFolders = [];
 let selectedColorFolderId = null;
 let colorDraft = null;
+let meshyBalanceLoadedAt = 0;
+let meshyBalanceInFlight = null;
+let lastCompletedBalanceTaskId = null;
 
 const workspaceContent = {
   "3d": {
@@ -365,6 +368,17 @@ function renderTask() {
     `<a class="model-link" href="${model.url}" download="model-${state.session_id.slice(0, 8)}.${type.toLowerCase()}"><span>${type.toUpperCase()} 模型</span><span>下载文件 ↓</span></a>`
   ).join("");
   const stl = models.stl || models.STL;
+  const rawConsumedCredits = task?.credit_details?.consumed_credits;
+  const consumedCredits = Number(rawConsumedCredits);
+  const showConsumedCredits = state?.status === "SUCCEEDED" && task?.provider === "meshy"
+    && rawConsumedCredits !== null && rawConsumedCredits !== undefined && Number.isFinite(consumedCredits);
+  const creditUsage = $("#task-credit-usage");
+  creditUsage.classList.toggle("hidden", !showConsumedCredits);
+  creditUsage.textContent = showConsumedCredits ? `本次 Meshy 生成消耗 ${consumedCredits} 积分。` : "";
+  if (showConsumedCredits && task?.id && lastCompletedBalanceTaskId !== task.id) {
+    lastCompletedBalanceTaskId = task.id;
+    loadMeshyBalance(true);
+  }
   generatedStlUrl = stl?.url || null;
   $("#use-generated-stl").disabled = !generatedStlUrl;
   $("#model-preview").classList.toggle("hidden", !stl);
@@ -719,11 +733,33 @@ function selectedModelProvider() {
   return document.querySelector('input[name="model-provider"]:checked')?.value || "meshy";
 }
 
+async function loadMeshyBalance(force = false) {
+  const balance = $("#meshy-balance");
+  if (selectedModelProvider() !== "meshy") return;
+  if (meshyBalanceInFlight) return meshyBalanceInFlight;
+  if (!force && meshyBalanceLoadedAt && Date.now() - meshyBalanceLoadedAt < 30_000) return;
+  balance.textContent = "Meshy 剩余积分：正在查询…";
+  meshyBalanceInFlight = api("/api/meshy/balance")
+    .then((result) => {
+      meshyBalanceLoadedAt = Date.now();
+      if (selectedModelProvider() !== "meshy") return;
+      balance.textContent = `Meshy 剩余积分：${result.balance}（月度 ${result.monthly_credits}，永久 ${result.permanent_credits}）`;
+    })
+    .catch((error) => {
+      if (selectedModelProvider() !== "meshy") return;
+      balance.textContent = `Meshy 剩余积分：查询失败（${error.message || "请稍后重试"}）`;
+    })
+    .finally(() => { meshyBalanceInFlight = null; });
+  return meshyBalanceInFlight;
+}
+
 function updateModelProvider() {
   const provider = selectedModelProvider();
   const details = modelProviderDetails[provider];
   $("#model-provider-heading").textContent = `确认四视图后，即可提交${details.name}生成模型。`;
   $("#model-provider-note").textContent = details.note;
+  $("#meshy-balance").classList.toggle("hidden", provider !== "meshy");
+  if (provider === "meshy") loadMeshyBalance();
   updateGenerateType();
 }
 

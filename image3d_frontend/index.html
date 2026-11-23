@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261123-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20261123-2">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -170,6 +170,7 @@
             <small>四视图提交至 Meshy 多图生 3D 接口，第一张固定作为正视图。</small>
           </span>
         </label>
+        <p id="meshy-balance" class="meshy-balance" role="status" aria-atomic="true">Meshy 剩余积分：正在查询…</p>
       </fieldset>
       <div class="options">
         <label class="generate-type-field" for="generate-type">类型
@@ -196,6 +197,7 @@
         </div>
       </div>
       <div id="model-results" class="model-results"></div>
+      <p id="task-credit-usage" class="task-credit-usage hidden" role="status" aria-atomic="true"></p>
     </section>
 
     <section id="resize-step" class="panel" data-workspace-view="3d">
@@ -410,7 +412,7 @@
 
   <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261123-1" defer></script>
+  <script src="/static/app.js?v=20261123-2" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

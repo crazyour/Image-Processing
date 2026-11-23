@@ -121,6 +121,7 @@ from vercel_app.workflow import (
     normalize_image,
     query_hunyuan,
     query_meshy,
+    query_meshy_balance,
     submit_hunyuan,
     submit_meshy,
     view_prompt,
@@ -239,7 +240,8 @@ def _required_feature(path: str) -> str | None:
         return "text_or_visual"
     if path.startswith("/api/animal-cutout"):
         return "animal_cutout"
-    if path.startswith("/api/sessions") or path.startswith("/api/view-library") or path == "/image-to-3d":
+    if (path.startswith("/api/sessions") or path.startswith("/api/view-library")
+            or path.startswith("/api/meshy") or path == "/image-to-3d"):
         return "image_to_3d"
     if path == "/text-to-image":
         return "text_or_cutout"
@@ -3417,6 +3419,11 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     state["hunyuan_task"] = task if provider == "hunyuan" else None
     _save(state, version)
     return _response(state)
+
+
+@app.get("/api/meshy/balance")
+def meshy_balance():
+    return query_meshy_balance()
 
 
 @app.get("/image-to-3d", include_in_schema=False)

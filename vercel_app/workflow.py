@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -25,6 +26,8 @@ TRIPO_FORMAT_MODEL = "tripo-3d-format"
 MAX_UPLOAD_BYTES = 4_000_000
 MAX_PIXELS = 20_000_000
 MAX_MODEL_BYTES = 250_000_000
+MESHY_BALANCE_CACHE_SECONDS = 30
+_meshy_balance_cache: dict = {"expires_at": 0.0, "value": None}
 
 ANALYSIS_SCHEMA = {
     "type": "object",
@@ -705,6 +708,40 @@ def query_meshy(task_id: str, model: str = "meshy-7.1") -> dict:
         "error": error if status == "failed" else None,
         "result_credit_details": {"consumed_credits": body.get("consumed_credits")},
     }
+
+
+def query_meshy_balance() -> dict:
+    """Return Meshy credits without exposing the provider key to the browser."""
+    now = time.monotonic()
+    cached = _meshy_balance_cache.get("value")
+    if isinstance(cached, dict) and now < float(_meshy_balance_cache.get("expires_at") or 0):
+        return dict(cached)
+    config = _meshy_config()
+    try:
+        with httpx.Client(base_url=config.base_url, timeout=30) as client:
+            response = client.get(
+                "/openapi/v1/balance",
+                headers={"Authorization": f"Bearer {config.api_key}"},
+            )
+    except httpx.RequestError as exc:
+        raise WorkflowError("MESHY_UNAVAILABLE", f"Meshy 积分查询失败：{exc}", 502) from exc
+    if response.status_code >= 400:
+        raise _provider_error("Meshy", response)
+    try:
+        body = response.json()
+    except ValueError:
+        raise WorkflowError("MESHY_INVALID_RESPONSE", "Meshy 积分返回内容无法解析", 502)
+    if not isinstance(body, dict) or not isinstance(body.get("balance"), (int, float)):
+        raise WorkflowError("MESHY_INVALID_RESPONSE", "Meshy 积分返回内容缺少余额", 502)
+    result = {
+        "balance": int(body["balance"]),
+        "monthly_credits": int(body.get("monthly_credits") or 0),
+        "permanent_credits": int(body.get("permanent_credits") or 0),
+        "monthly_resets_at": body.get("monthly_resets_at"),
+    }
+    _meshy_balance_cache["value"] = result
+    _meshy_balance_cache["expires_at"] = now + MESHY_BALANCE_CACHE_SECONDS
+    return dict(result)
 
 
 def model_suffix(url: str, model_type: str) -> str:

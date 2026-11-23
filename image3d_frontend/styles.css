@@ -139,6 +139,8 @@ button.pending:disabled { opacity: 1; color: white; background: #6f9b8c; }
 .model-provider-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .model-provider-top b { color: var(--accent-dark); font-size: 14px; }
 .model-provider-top small { padding: 4px 8px; border-radius: 999px; color: var(--accent-dark); background: #dcebe3; font-size: 11px; font-weight: 800; }
+.meshy-balance { grid-column: 1 / -1; margin: -2px 2px 0; color: #9f2d21; font-size: 12px; font-weight: 800; line-height: 1.55; }
+.task-credit-usage { margin: 12px 0 0; padding: 11px 13px; border: 1px solid #e7b8b2; border-radius: 11px; color: #8d2c22; background: #fff2f0; font-size: 13px; font-weight: 800; line-height: 1.5; }
 #generate-step .generate-type-field { min-width: 0; }
 #generate-step .generate-type-field select { min-width: 0; }
 #generate-step .check { display: flex; align-items: center; gap: 10px; min-height: 48px; padding-bottom: 1px; white-space: nowrap; }
