@@ -20,6 +20,16 @@ VIEW_TYPES = ("front", "left", "right", "back")
 GENERATED_VIEWS = ("left", "right", "back")
 AI_GENERATED_VIEWS = VIEW_TYPES
 VIEW_NAMES = {"front": "正视图", "left": "左视图", "right": "右视图", "back": "背视图"}
+VIEW_DIRECTIONS = {
+    "front": "相机位于主体正前方（0°），朝向主体正面，不得是斜前视图。",
+    "left": "相机位于主体自身左侧（相对正面90°），严格左侧面；主体的前方指向画面右侧。",
+    "right": "相机位于主体自身右侧（与左视图相反180°），严格右侧面；主体的前方指向画面左侧。",
+    "back": "相机位于主体正后方（相对正面180°），显示背部，不得重复正面或斜后视图。",
+}
+SOURCE_VIEW_NAMES = {
+    "FRONT": "正面", "FRONT_THREE_QUARTER": "斜前方", "SIDE": "侧面",
+    "BACK": "背面", "TOP": "顶部", "UNKNOWN": "不确定",
+}
 QUALITY_LEVELS = {"normal", "good"}
 TRIPO_MODEL = "tripo-3d-3.1"
 TRIPO_FORMAT_MODEL = "tripo-3d-format"
@@ -370,13 +380,19 @@ def effective_prompt(user_prompt: str) -> str:
     return f"主体要求：\n{user_prompt.strip()}\n\n跨视角固定约束：\n{CONSISTENCY_CONSTRAINT}"
 
 
-def view_prompt(user_prompt: str, view: str, refinement: str = "") -> str:
+def view_prompt(user_prompt: str, view: str, refinement: str = "", *,
+                source_view: str = "UNKNOWN", reference_count: int = 1,
+                editing_current: bool = False) -> str:
     prompt = (
-        f"请编辑参考图片，生成同一个主体的{VIEW_NAMES[view]}。\n"
+        f"生成同一主体的一张{VIEW_NAMES[view]}。{VIEW_DIRECTIONS[view]}\n"
+        "左右以主体自身为准。相机水平、无俯仰、正交投影；禁止3/4斜视、镜像翻转或拼图。"
+        "固定主体姿势和部件位置，只改变相机；目标视角优先于参考图和描述中的画面朝向。\n"
         f"{effective_prompt(user_prompt)}\n"
-        "所有参考图都是同一个主体的证据；第一张是主参考，其他图用于补充被遮挡的结构、"
-        "材质和比例。不要把不同参考图排版到输出图中。"
+        f"前{reference_count}张是原始主体证据，主图视角为{SOURCE_VIEW_NAMES.get(source_view, '不确定')}，"
+        "不默认它是正面。不可见面保守补全。"
     )
+    if editing_current:
+        prompt += f"最后一张是待修正的{VIEW_NAMES[view]}，其视角可能有误，不得照搬错误方向。"
     if refinement.strip():
         prompt += f"\n\n本次仅修改{VIEW_NAMES[view]}：\n{refinement.strip()}"
     return prompt

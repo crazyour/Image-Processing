@@ -95,6 +95,7 @@ from vercel_app.connectivity import (
     create_repair_mask,
 )
 from vercel_app.material_blob import PrivateMaterialBlobStore
+from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
 from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.usage import (
     UsageLimitError,
@@ -156,7 +157,7 @@ MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 IMAGE_QUALITIES = {"low", "medium", "high", "xhigh", "max", "auto"}
 VALID_STATES = {
     "REFERENCES_READY", "ANALYZING_REFERENCES", "PROMPT_REVIEW", "DESCRIPTION_CONFIRMED",
-    "GENERATING_VIEWS", "VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED",
+    "GENERATING_VIEWS", "REVIEWING_VIEWS", "VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED",
     "GENERATING_ASSEMBLY", "ASSEMBLY_REVIEW", "ASSEMBLY_CONFIRMED",
     "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "FAILED",
 }
@@ -167,6 +168,7 @@ ANIMAL_CUTOUT_STATES = {
 TRANSIENT_STATE_TIMEOUTS = {
     "ANALYZING_REFERENCES": 150,
     "GENERATING_VIEWS": 330,
+    "REVIEWING_VIEWS": 150,
     "SUBMITTING_3D": 150,
 }
 
@@ -639,6 +641,12 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
                 "code": "REFERENCE_ANALYSIS_TIMEOUT",
                 "message": "参考图分析等待超时，已解除锁定，可重新分析。",
             }
+        elif previous_status == "REVIEWING_VIEWS":
+            state["status"] = "VIEWS_REVIEW"
+            state["last_error"] = {
+                "code": "VIEW_REVIEW_TIMEOUT",
+                "message": "视角检查超时，图片已保留，请仅重试检查，无需重新生成。",
+            }
         elif previous_status == "GENERATING_VIEWS":
             state["status"] = (
                 "VIEWS_REVIEW" if state.get("views") else "DESCRIPTION_CONFIRMED"
@@ -665,6 +673,17 @@ def _views_current(state: dict) -> bool:
     )
 
 
+def _views_approved(state: dict) -> bool:
+    if not _views_current(state):
+        return False
+    return state.get("view_source") == "uploaded" or (current_review(state) or {}).get("status") == "passed"
+
+
+def _require_view_approval(state: dict) -> None:
+    if state.get("view_source") != "uploaded" and not _views_approved(state):
+        raise WorkflowError("VIEW_REVIEW_REQUIRED", "请先完成视角检查，并重试未通过的视图", 409)
+
+
 def _response(state: dict, *, token: str | None = None) -> dict:
     result = {
         "session_id": state["session_id"],
@@ -680,6 +699,8 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "prompt_revision": state.get("prompt_revision", 1),
         "views_stale": state.get("views_stale", True),
         "views": state.get("views", {}),
+        "view_review": current_review(state),
+        "views_approved": _views_approved(state),
         "confirmed_at": (state.get("confirmed_snapshot") or {}).get("confirmed_at"),
         "description_confirmed_at": state.get("description_confirmed_at"),
         "assembly_plan": state.get("assembly_plan"),
@@ -2888,6 +2909,7 @@ def create_view_library_folder(
     views = state.get("views") or {}
     if any(view not in views or not views[view].get("url") for view in AI_GENERATED_VIEWS):
         raise WorkflowError("VIEWS_NOT_READY", "正、左、右、背四视图齐全后才能加入四视图库", 409)
+    _require_view_approval(state)
     snapshot = {
         view: {
             "url": views[view]["url"],
@@ -3036,7 +3058,7 @@ def update_prompt(session_id: str, data: PromptUpdate,
     state, version = _load(session_id, x_session_token)
     if state.get("view_source") != "generated":
         raise WorkflowError("GENERATED_MODE_REQUIRED", "手动上传四视图无需修改 AI 描述", 409)
-    if state["status"] in {"REFERENCES_READY", "ANALYZING_REFERENCES", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"}:
+    if state["status"] in {"REFERENCES_READY", "ANALYZING_REFERENCES", "GENERATING_VIEWS", "REVIEWING_VIEWS", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"}:
         raise WorkflowError("SESSION_LOCKED", "3D任务提交后不能修改提示词", 409)
     prompt = data.prompt.strip()
     if prompt == state.get("user_prompt", ""):
@@ -3045,6 +3067,7 @@ def update_prompt(session_id: str, data: PromptUpdate,
     state["effective_prompt"] = effective_prompt(state["user_prompt"])
     state["prompt_revision"] += 1
     state["views_stale"] = True
+    state["view_review"] = None
     state["description_confirmed_at"] = None
     state["confirmed_snapshot"] = None
     state["assembly_plan"] = None
@@ -3084,7 +3107,18 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     requested = list(dict.fromkeys(data.views))
     if not requested or any(view not in AI_GENERATED_VIEWS for view in requested):
         raise WorkflowError("INVALID_VIEW", "可生成视角为 front、left、right、back", 422)
+    previous_review = current_review(state) or {}
+    corrections = {
+        view: "；".join(previous_review.get("views", {}).get(view, {}).get("issues", []))[:300]
+        for view in requested
+    }
     state["status"] = "GENERATING_VIEWS"
+    state["view_review"] = None
+    state["views_stale"] = True
+    for view in requested:
+        if view in state["views"]:
+            # A failed paid replacement must not leave its old image marked current.
+            state["views"][view]["prompt_revision"] = 0
     state["confirmed_snapshot"] = None
     state["assembly_plan"] = None
     state["model_task"] = None
@@ -3105,7 +3139,11 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
                 account, "image_to_3d", models["image_model"], "生成四视图",
                 lambda: generate_view(
                     sources,
-                    view_prompt(state["user_prompt"], view),
+                    view_prompt(
+                        state["user_prompt"], view, corrections[view],
+                        source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
+                        reference_count=len(sources),
+                    ),
                     models["image_model"],
                     models["image_quality"],
                 ),
@@ -3148,7 +3186,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
         except Exception as exc:
             failures.append(("storage", exc))
 
-    state["views_stale"] = not _views_current(state)
+    state["views_stale"] = not _views_approved(state)
     state["status"] = "VIEWS_REVIEW"
     if failures:
         failed_names = "、".join(
@@ -3179,6 +3217,67 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     return _response(state)
 
 
+@app.post("/api/sessions/{session_id}/views/review")
+def check_views(session_id: str, request: Request,
+                x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    if state.get("view_source") != "generated":
+        raise WorkflowError("GENERATED_MODE_REQUIRED", "自行上传的四视图请人工核对", 409)
+    if state["status"] not in {"VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not _views_current(state):
+        raise WorkflowError("VIEWS_NOT_READY", "当前版本的四视图齐全后才能检查", 409)
+    if current_review(state):
+        return _response(state)  # Both accepted and rejected unchanged sets are cached.
+    models = _session_model_settings(state)
+    state["status"] = "REVIEWING_VIEWS"
+    state["views_stale"] = True
+    state["confirmed_snapshot"] = None
+    state["last_error"] = None
+    version = _save(state, version)
+    try:
+        images = {view: fetch_bytes(state["views"][view]["url"], 20_000_000) for view in AI_GENERATED_VIEWS}
+        local_checks = local_view_checks(images)
+        if local_checks["exact_duplicates"]:
+            issues = {}
+            for first, second in local_checks["exact_duplicates"]:
+                issues.setdefault(second, []).append(f"与{VIEW_NAMES[first]}为相同图片，请改变相机到目标视角")
+            review = {
+                "status": "failed", "failed_views": list(issues),
+                "views": {view: {"status": "failed" if view in issues else "pending",
+                                 "issues": issues.get(view, [])} for view in AI_GENERATED_VIEWS},
+            }
+            usage = {}  # Exact duplicates need no paid visual review.
+        else:
+            references = _effective_image3d_references(state)
+            if not references:
+                raise WorkflowError("REFERENCE_IMAGE_MISSING", "缺少原始参考图，无法检查主体一致性", 409)
+            reference = fetch_bytes(references[0]["url"], 20_000_000)
+            review, usage = _metered_provider_call(
+                _account_user(request), "image_to_3d", models["vision_model"], "检查四视图",
+                lambda: review_views(images, reference, models["vision_model"], local_checks),
+            )
+        state["view_review"] = {
+            **review, "signature": review_signature(state), "local_checks": local_checks,
+            "usage": usage, "checked_at": int(time.time()),
+        }
+        state["views_stale"] = not _views_approved(state)
+        if review["status"] != "passed":
+            names = "、".join(VIEW_NAMES[view] for view in review["failed_views"])
+            state["last_error"] = {"code": "VIEW_QUALITY_FAILED", "message": f"{names}未通过检查，请仅重试这些视角。"}
+    except Exception as exc:
+        state["status"] = "VIEWS_REVIEW"
+        state["last_error"] = {
+            "code": getattr(exc, "code", "VIEW_REVIEW_FAILED"),
+            "message": "视角检查未完成，图片已保留，可仅重试检查。" + str(exc)[:300],
+        }
+        _save(state, version)
+        if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
+            raise
+        raise WorkflowError("VIEW_REVIEW_FAILED", state["last_error"]["message"], 502) from exc
+    state["status"] = "VIEWS_REVIEW"
+    _save(state, version)
+    return _response(state)
+
+
 @app.post("/api/sessions/{session_id}/views/{view}/refine")
 def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request: Request,
                 x_session_token: str | None = Header(default=None)):
@@ -3192,23 +3291,44 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
     uploaded_references = _effective_image3d_references(state)
     if not uploaded_references:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
-    references = [fetch_bytes(item["url"], 20_000_000) for item in uploaded_references[:MAX_REFERENCE_IMAGES]]
-    references.append(fetch_bytes(state["views"][view]["url"], 20_000_000))
-    references.extend(
-        fetch_bytes(state["views"][other]["url"], 20_000_000)
-        for other in AI_GENERATED_VIEWS if other != view and other in state["views"]
-    )
-    generated, usage = _metered_provider_call(
-        _account_user(request), "image_to_3d", models["image_model"], "微调视图",
-        lambda: generate_view(
-            references, view_prompt(state["user_prompt"], view, data.prompt),
-            models["image_model"], models["image_quality"],
-        ),
-    )
     revision = int(state["views"][view].get("revision", 0)) + 1
-    url = PublicBlobStore().put(
-        f"image3d/{session_id}/views/{view}-r{revision}.png", generated, "image/png",
-    )
+    corrections = "；".join((current_review(state) or {}).get("views", {}).get(view, {}).get("issues", []))[:300]
+    state["status"] = "GENERATING_VIEWS"
+    state["view_review"] = None
+    state["views_stale"] = True
+    state["views"][view]["prompt_revision"] = 0
+    state["confirmed_snapshot"] = None
+    state["assembly_plan"] = None
+    state["model_task"] = None
+    state["hunyuan_task"] = None
+    state["last_error"] = None
+    version = _save(state, version)
+    try:
+        references = [fetch_bytes(item["url"], 20_000_000) for item in uploaded_references[:MAX_REFERENCE_IMAGES]]
+        original_count = len(references)
+        references.append(fetch_bytes(state["views"][view]["url"], 20_000_000))
+        generated, usage = _metered_provider_call(
+            _account_user(request), "image_to_3d", models["image_model"], "微调视图",
+            lambda: generate_view(
+                references, view_prompt(
+                    state["user_prompt"], view, data.prompt + ("\n视角检查：" + corrections if corrections else ""),
+                    source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
+                    reference_count=original_count, editing_current=True,
+                ),
+                models["image_model"], models["image_quality"],
+            ),
+        )
+        url = PublicBlobStore().put(
+            f"image3d/{session_id}/views/{view}-r{revision}.png", generated, "image/png",
+        )
+    except Exception as exc:
+        state["status"] = "VIEWS_REVIEW"
+        state["last_error"] = {"code": getattr(exc, "code", "VIEW_REFINEMENT_FAILED"),
+                               "message": "微调未完成，原图片已保留。" + str(exc)[:300]}
+        _save(state, version)
+        if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
+            raise
+        raise WorkflowError("VIEW_REFINEMENT_FAILED", state["last_error"]["message"], 502) from exc
     state["views"][view] = {
         "url": url,
         "sha256": hashlib.sha256(generated).hexdigest(),
@@ -3218,7 +3338,8 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
         "refinement_prompt": data.prompt.strip(),
         "usage": usage,
     }
-    state["views_stale"] = not _views_current(state)
+    state["status"] = "VIEWS_REVIEW"
+    state["views_stale"] = not _views_approved(state)
     state["confirmed_snapshot"] = None
     state["assembly_plan"] = None
     state["last_error"] = None
@@ -3231,6 +3352,7 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
     state, version = _load(session_id, x_session_token)
     if state["status"] != "VIEWS_REVIEW" or not _views_current(state):
         raise WorkflowError("VIEWS_NOT_READY", "请生成并检查当前提示词版本的正、左、右、背四视图", 409)
+    _require_view_approval(state)
     state["views_stale"] = False
     state["confirmed_snapshot"] = {
         "prompt_revision": state["prompt_revision"],
@@ -3251,6 +3373,7 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     state, version = _load(session_id, x_session_token)
     if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
         raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
+    _require_view_approval(state)
     options = data.model_dump(exclude={"model_provider"})
     provider = data.model_provider
     provider_label = "国内模型（腾讯混元）" if provider == "hunyuan" else "国外模型（Meshy 7.1）"

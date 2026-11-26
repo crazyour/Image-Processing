@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261123-2">
+  <link rel="stylesheet" href="/static/styles.css?v=20261126-1">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
   <aside id="paid-feature-banner" class="paid-feature-banner" role="note" aria-label="费用提示">
     <strong>费用提示</strong>
-    <span>AI 主体分析、四视图生成和 3D 模型生成会按实际调用产生费用。自行上传四视图可免除站内图片生成费，但生成 3D 模型仍可能产生费用。</span>
+    <span>AI 主体分析、四视图生成、视角检查和 3D 模型生成会按实际调用产生费用。自行上传四视图可免除站内图片生成费，但生成 3D 模型仍可能产生费用。</span>
   </aside>
   <main class="shell">
     <header class="hero">
@@ -110,9 +110,11 @@
     <section id="views-step" class="panel" data-workspace-view="3d">
       <div class="step-title"><span>03</span><div><h2>生成并确认四视图</h2><p>描述确认后再生成，并检查正、左、右、背四张图片。</p></div><b id="views-state" class="step-state">等待生成</b></div>
       <div id="views-grid" class="views-grid"></div>
+      <p id="view-review-summary" class="empty-copy hidden" role="status" aria-live="polite" tabindex="-1"></p>
       <div class="actions">
         <button id="generate-views" class="primary" type="button">生成四视图</button>
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
+        <button id="review-views" class="secondary" type="button">检查 / 重试检查</button>
         <button id="confirm-views" class="primary" type="button">确认四个视角</button>
         <button id="save-view-folder" class="secondary" type="button">将四视图加入数据库</button>
       </div>
@@ -410,7 +412,7 @@
 
   <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261123-2" defer></script>
+  <script src="/static/app.js?v=20261126-1" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>
