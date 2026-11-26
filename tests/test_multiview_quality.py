@@ -18,7 +18,8 @@ from vercel_app.multiview import (
     current_review, local_view_checks, normalize_review, review_signature, review_views,
 )
 from vercel_app.store import load_session, save_session
-from vercel_app.workflow import VIEW_TYPES, VIEW_NAMES, WorkflowError, view_prompt
+from vercel_app.workflow import (VIEW_TYPES, VIEW_NAMES, WorkflowError, view_prompt,
+                                 CONSISTENCY_CONSTRAINT, PRINT_SCULPTURE_CONSTRAINT, effective_prompt)
 
 
 def png(index=0, *, large=False, compress_level=6):
@@ -39,6 +40,48 @@ def accepted_result():
 
 
 class MultiviewChecksTests(unittest.TestCase):
+    def test_faithful_mode_preserves_existing_prompt(self):
+        expected = f"主体要求：\n彩色角色\n\n跨视角固定约束：\n{CONSISTENCY_CONSTRAINT}"
+        self.assertEqual(effective_prompt("彩色角色"), expected)
+        self.assertEqual(effective_prompt("彩色角色", "faithful"), expected)
+
+    def test_sculpture_mode_preserves_color_and_limits_geometry_changes(self):
+        for view in VIEW_TYPES:
+            prompt = view_prompt("彩色角色", view, view_mode="print_sculpture")
+            self.assertIn(PRINT_SCULPTURE_CONSTRAINT, prompt)
+            self.assertIn("保留原图配色、材质表现", prompt)
+            self.assertIn("不额外改成黑白", prompt)
+            self.assertIn("不能粘合手指", prompt)
+            self.assertNotIn("不改变主体几何结构", prompt)
+            # Keep the added instructions short; no extra reference images.
+            self.assertLess(len(prompt) - len(view_prompt("彩色角色", view)), 160)
+
+    def test_mode_is_part_of_review_cache_identity(self):
+        state = {"prompt_revision": 1, "views": {}}
+        previous = review_signature(state)
+        state["view_mode"] = "faithful"
+        self.assertEqual(review_signature(state), previous)
+        state["view_mode"] = "print_sculpture"
+        self.assertNotEqual(review_signature(state), previous)
+
+    @patch("vercel_app.multiview._openai_config", return_value=Mock(base_url="https://example.invalid", api_key="test"))
+    @patch("vercel_app.multiview.httpx.Client")
+    def test_sculpture_review_allows_only_intended_adjustments_in_same_call(self, client, config):
+        post = client.return_value.__enter__.return_value.post
+        post.return_value = httpx.Response(200, json={"output": [{"content": [{"type": "output_text", "text": json.dumps({
+            "views": [{"view": view, **item} for view, item in accepted_result().items()],
+        })}]}]})
+        review_views({view: png(i) for i, view in enumerate(VIEW_TYPES)}, png(), "test-model",
+                     {"similar_pairs": []}, view_mode="print_sculpture")
+        post.assert_called_once()
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["max_output_tokens"], 900)
+        content = payload["input"][0]["content"]
+        self.assertEqual(len(content), 6)
+        self.assertIn("不因此判为主体漂移", content[0]["text"])
+        self.assertIn("仍须保留原配色", content[0]["text"])
+        self.assertIn("不判断真实壁厚", content[0]["text"])
+
     def test_detects_same_pixels_despite_different_png_encoding(self):
         a, b = png(compress_level=0), png(compress_level=9)
         self.assertNotEqual(a, b)
@@ -165,6 +208,87 @@ class MultiviewWorkflowTests(unittest.TestCase):
 
     def post(self, suffix, **kwargs):
         return self.client.post(self.path + suffix, headers=self.headers, **kwargs)
+
+    def change_mode(self, mode):
+        state, _ = load_session(self.session_id, self.token)
+        return self.client.patch(self.path + "/prompt", headers=self.headers,
+                                 json={"prompt": state["user_prompt"], "view_mode": mode})
+
+    def test_mode_change_invalidates_old_views_without_paid_calls(self):
+        before = self.generate()
+        self.accepted_review()
+        self.post("/confirm")
+        with patch.object(app_module, "generate_view") as generate, patch.object(app_module, "review_views") as review:
+            response = self.change_mode("print_sculpture")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["view_mode"], "print_sculpture")
+        self.assertEqual(body["status"], "PROMPT_REVIEW")
+        self.assertEqual(body["prompt_revision"], before["prompt_revision"] + 1)
+        self.assertEqual(body["views"], before["views"])
+        self.assertIsNone(body["view_review"])
+        self.assertIsNone(body["confirmed_at"])
+        self.assertFalse(body["views_approved"])
+        generate.assert_not_called()
+        review.assert_not_called()
+        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertEqual(self.post("/generate", json={"model_provider": "meshy"}).status_code, 409)
+        self.assertEqual(self.post("/views", json={"views": list(VIEW_TYPES)}).status_code, 409)
+
+    def test_sculpture_generation_refinement_and_confirmation_keep_mode(self):
+        self.change_mode("print_sculpture")
+        self.post("/description/confirm")
+        with patch.object(app_module, "generate_view", return_value=(png(4), {})) as generate:
+            response = self.post("/views", json={"views": list(VIEW_TYPES)})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(generate.call_count, 4)
+        for call in generate.call_args_list:
+            self.assertEqual(len(call.args[0]), 1)
+            self.assertIn(PRINT_SCULPTURE_CONSTRAINT, call.args[1])
+            self.assertEqual(call.args[3], "medium")
+        self.assertTrue(all(v["view_mode"] == "print_sculpture" for v in response.json()["views"].values()))
+        with patch.object(app_module, "generate_view", return_value=(png(5), {})) as refine:
+            response = self.post("/views/left/refine", json={"prompt": "减少发束交叉"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(refine.call_args.args[0]), 2)
+        self.assertIn(PRINT_SCULPTURE_CONSTRAINT, refine.call_args.args[1])
+        # Unique fixtures let the existing single batch reviewer run.
+        self.generate()
+        with patch.object(app_module, "review_views", return_value=(normalize_review(accepted_result()), {})) as review:
+            self.assertEqual(self.post("/views/review").status_code, 200)
+            self.assertEqual(review.call_args.kwargs["view_mode"], "print_sculpture")
+        self.assertEqual(self.post("/confirm").status_code, 200)
+        state, _ = load_session(self.session_id, self.token)
+        self.assertEqual(state["confirmed_snapshot"]["view_mode"], "print_sculpture")
+
+    def test_mode_noop_and_omitted_field_preserve_selection(self):
+        initial, _ = load_session(self.session_id, self.token)
+        self.assertEqual(self.change_mode("faithful").json()["prompt_revision"], initial["prompt_revision"])
+        changed = self.change_mode("print_sculpture").json()
+        self.assertEqual(self.change_mode("print_sculpture").json()["prompt_revision"], changed["prompt_revision"])
+        response = self.client.patch(self.path + "/prompt", headers=self.headers, json={"prompt": "保留红色衣服"})
+        self.assertEqual(response.json()["view_mode"], "print_sculpture")
+        self.assertIn(PRINT_SCULPTURE_CONSTRAINT, response.json()["effective_prompt"])
+
+    def test_mode_cannot_change_uploaded_or_locked_sessions(self):
+        self.assertEqual(self.change_mode("unknown-mode").status_code, 422)
+        for status in ["GENERATING_VIEWS", "REVIEWING_VIEWS", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"]:
+            state, version = load_session(self.session_id, self.token)
+            state["status"] = status
+            save_session(self.session_id, state, version)
+            self.assertEqual(self.change_mode("print_sculpture").status_code, 409, status)
+        state, version = load_session(self.session_id, self.token)
+        state.update(status="VIEWS_REVIEW", view_source="uploaded")
+        save_session(self.session_id, state, version)
+        self.assertEqual(self.change_mode("print_sculpture").status_code, 409)
+
+    def test_print_mode_cannot_accept_faithful_images_with_matching_revision(self):
+        self.generate()
+        state, version = load_session(self.session_id, self.token)
+        state["view_mode"] = "print_sculpture"
+        save_session(self.session_id, state, version)
+        self.assertFalse(app_module._views_current(state))
+        self.assertEqual(self.post("/confirm").status_code, 409)
 
     def generate(self, *, duplicate=False):
         def make_image(references, prompt, model, quality):

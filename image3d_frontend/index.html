@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261126-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20261126-3">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -101,6 +101,17 @@
         <label id="prompt-label">用于生成四视图的主体描述
           <textarea id="prompt-editor" rows="6"></textarea>
         </label>
+        <div id="view-mode-settings" class="view-mode-settings">
+          <label for="view-mode">四视图造型模式
+            <select id="view-mode" aria-describedby="view-mode-help view-mode-status" disabled>
+              <option value="faithful" selected>忠实还原（默认）</option>
+              <option value="print_sculpture">打印雕塑（保留配色）</option>
+            </select>
+          </label>
+          <p id="view-mode-help" class="input-help">打印雕塑保留原图配色、材质表现和整体风格，仅整理细碎发束、减少穿插，并适度加厚和连接薄弱细节。不额外生成预览图，也不保证可直接打印；当前 STL 输出仍不含颜色。</p>
+          <p id="view-mode-status" class="input-help" role="status" aria-live="polite">默认忠实还原。请在生成四视图前选择模式。</p>
+          <p class="input-help">已有四视图时切换模式，应用后旧图会保留但失效，需要重新生成四张并按实际调用收费；不会自动生成。</p>
+        </div>
         <div class="actions">
           <button id="confirm-description" class="primary" type="button">确认描述</button>
         </div>
@@ -201,8 +212,22 @@
       <p id="task-credit-usage" class="task-credit-usage hidden" role="status" aria-atomic="true"></p>
     </section>
 
+    <section id="mesh-quality-step" class="panel" data-workspace-view="3d" aria-labelledby="mesh-quality-heading">
+      <div class="step-title"><span>05</span><div><h2 id="mesh-quality-heading">检查 STL 结构</h2><p>生成并保存后自动检查完整网格，不调用 AI；原始文件始终保留。</p></div><b id="mesh-quality-state" class="step-state">等待文件</b></div>
+      <p id="mesh-quality-summary" role="status" aria-live="polite" tabindex="-1">等待生成 STL。</p>
+      <div id="mesh-quality-stats" class="mesh-quality-stats"></div>
+      <ul id="mesh-quality-issues" class="mesh-quality-issues"></ul>
+      <div class="actions">
+        <button id="check-stl" class="secondary" type="button" disabled>检查 STL</button>
+        <button id="repair-stl" class="secondary" type="button" disabled>生成低风险修复副本</button>
+      </div>
+      <p class="input-help">修复仅清理重复面、零面积面，并在连接关系允许时统一相邻面朝向。不补洞、不删除部件、不判断内外朝向。</p>
+      <div id="mesh-repair-result" class="mesh-repair-result hidden"></div>
+      <p class="input-help">基础检查不等于可打印认证：未检查自相交、非流形顶点、壁厚、支撑或是否符合参考图。拓扑按去除重复面与零面积面后的网格统计，顶点只按完全相同的坐标连接；多部件与开放边界可能是设计意图。STL 不含单位。检查上限为 64 MiB、100 万面，超限或超时会标记“检查未完成”。</p>
+    </section>
+
     <section id="resize-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>05</span><div><h2>调整 STL 尺寸</h2><p>载入本次生成的 STL，或选择本地 STL，调整整体大小后导出新文件。</p></div><b id="resize-state" class="step-state">等待文件</b></div>
+      <div class="step-title"><span>06</span><div><h2>调整 STL 尺寸</h2><p>载入本次生成的 STL，或选择本地 STL，调整整体大小后导出新文件。尺寸导出文件不继承原检查结果。</p></div><b id="resize-state" class="step-state">等待文件</b></div>
       <div class="stl-resize-source">
         <button id="use-generated-stl" class="secondary" type="button" disabled>使用本次生成的 STL</button>
         <label class="stl-file-button" for="resize-stl-input">选择本地 STL
@@ -412,7 +437,7 @@
 
   <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261126-1" defer></script>
+  <script src="/static/app.js?v=20261126-3" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

@@ -96,6 +96,7 @@ from vercel_app.connectivity import (
 )
 from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
+from vercel_app.mesh_quality import CHECKER_VERSION, MAX_CHECK_BYTES, incomplete_report, process_stl
 from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.usage import (
     UsageLimitError,
@@ -314,6 +315,7 @@ async def account_access(request: Request, call_next):
 
 class PromptUpdate(BaseModel):
     prompt: str = Field(min_length=1, max_length=8000)
+    view_mode: Literal["faithful", "print_sculpture"] | None = None
 
 
 class ViewGenerationRequest(BaseModel):
@@ -669,6 +671,8 @@ def _views_current(state: dict) -> bool:
     views = state.get("views", {})
     return all(
         view in views and views[view].get("prompt_revision") == state.get("prompt_revision")
+        and (state.get("view_source") == "uploaded"
+             or views[view].get("view_mode", "faithful") == state.get("view_mode", "faithful"))
         for view in AI_GENERATED_VIEWS
     )
 
@@ -710,6 +714,7 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
         "view_source": state.get("view_source", "generated"),
+        "view_mode": state.get("view_mode", "faithful"),
         "preference_prompt": state.get("preference_prompt", ""),
     }
     if token:
@@ -2697,6 +2702,7 @@ def new_session(
         "last_error": None,
         "model_settings": models,
         "view_source": view_source,
+        "view_mode": "faithful",
         "workflow": "image-to-3d",
         "preference_prompt": preference_prompt,
         "created_at": now,
@@ -2836,7 +2842,7 @@ def analyze_references(session_id: str, request: Request,
         raise WorkflowError("OPENAI_INVALID_RESPONSE", state["last_error"]["message"], 502)
     state["analysis"] = analysis
     state["user_prompt"] = user_prompt
-    state["effective_prompt"] = effective_prompt(user_prompt)
+    state["effective_prompt"] = effective_prompt(user_prompt, state.get("view_mode", "faithful"))
     state["description_confirmed_at"] = None
     state["status"] = "PROMPT_REVIEW"
     state["last_error"] = None
@@ -3061,10 +3067,14 @@ def update_prompt(session_id: str, data: PromptUpdate,
     if state["status"] in {"REFERENCES_READY", "ANALYZING_REFERENCES", "GENERATING_VIEWS", "REVIEWING_VIEWS", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"}:
         raise WorkflowError("SESSION_LOCKED", "3D任务提交后不能修改提示词", 409)
     prompt = data.prompt.strip()
-    if prompt == state.get("user_prompt", ""):
+    if not prompt:
+        raise WorkflowError("EMPTY_DESCRIPTION", "主体描述不能为空", 422)
+    view_mode = data.view_mode or state.get("view_mode", "faithful")
+    if prompt == state.get("user_prompt", "") and view_mode == state.get("view_mode", "faithful"):
         return _response(state)
     state["user_prompt"] = prompt
-    state["effective_prompt"] = effective_prompt(state["user_prompt"])
+    state["view_mode"] = view_mode
+    state["effective_prompt"] = effective_prompt(state["user_prompt"], view_mode)
     state["prompt_revision"] += 1
     state["views_stale"] = True
     state["view_review"] = None
@@ -3143,6 +3153,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
                         state["user_prompt"], view, corrections[view],
                         source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
                         reference_count=len(sources),
+                        view_mode=state.get("view_mode", "faithful"),
                     ),
                     models["image_model"],
                     models["image_quality"],
@@ -3179,6 +3190,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
                     "sha256": hashlib.sha256(generated).hexdigest(),
                     "revision": revision,
                     "prompt_revision": state["prompt_revision"],
+                    "view_mode": state.get("view_mode", "faithful"),
                     "generated": True,
                     "refinement_prompt": "",
                     "usage": usage,
@@ -3253,7 +3265,8 @@ def check_views(session_id: str, request: Request,
             reference = fetch_bytes(references[0]["url"], 20_000_000)
             review, usage = _metered_provider_call(
                 _account_user(request), "image_to_3d", models["vision_model"], "检查四视图",
-                lambda: review_views(images, reference, models["vision_model"], local_checks),
+                lambda: review_views(images, reference, models["vision_model"], local_checks,
+                                     view_mode=state.get("view_mode", "faithful")),
             )
         state["view_review"] = {
             **review, "signature": review_signature(state), "local_checks": local_checks,
@@ -3314,6 +3327,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
                     state["user_prompt"], view, data.prompt + ("\n视角检查：" + corrections if corrections else ""),
                     source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
                     reference_count=original_count, editing_current=True,
+                    view_mode=state.get("view_mode", "faithful"),
                 ),
                 models["image_model"], models["image_quality"],
             ),
@@ -3336,6 +3350,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
         "prompt_revision": state["prompt_revision"],
         "generated": True,
         "refinement_prompt": data.prompt.strip(),
+        "view_mode": state.get("view_mode", "faithful"),
         "usage": usage,
     }
     state["status"] = "VIEWS_REVIEW"
@@ -3356,6 +3371,7 @@ def confirm_views(session_id: str, x_session_token: str | None = Header(default=
     state["views_stale"] = False
     state["confirmed_snapshot"] = {
         "prompt_revision": state["prompt_revision"],
+        "view_mode": state.get("view_mode", "faithful"),
         "user_prompt": state["user_prompt"],
         "views": {view: dict(state["views"][view]) for view in AI_GENERATED_VIEWS},
         "confirmed_at": int(time.time()),
@@ -3465,6 +3481,8 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     task = state.get("model_task") or state.get("hunyuan_task") or {}
     if not TASK_ID.fullmatch(str(task.get("id", ""))):
         raise WorkflowError("TASK_NOT_CREATED", "3D任务尚未创建", 409)
+    if state["status"] == "SUCCEEDED" and task.get("models", {}).get("stl", {}).get("url"):
+        return _response(state)
     provider = task.get("provider", "hunyuan")
     provider_name = "腾讯混元" if provider == "hunyuan" else "Meshy"
     provider_code = "HUNYUAN" if provider == "hunyuan" else "MESHY"
@@ -3512,6 +3530,8 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
                 "url": url,
                 "preview_image_url": item.get("preview_image_url"),
                 "size_bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "quality": {"status": "pending"},
             }
         if task["models"].get("stl", {}).get("url"):
             state["status"] = "SUCCEEDED"
@@ -3534,6 +3554,75 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     state["hunyuan_task"] = task if provider == "hunyuan" else None
     _save(state, version)
     return _response(state)
+
+
+def _check_model_file(session_id: str, token: str | None, *, repair: bool = False):
+    state, version = _load(session_id, token)
+    task = state.get("model_task") or state.get("hunyuan_task") or {}
+    model = task.get("models", {}).get("stl", {})
+    if state["status"] != "SUCCEEDED" or not model.get("url"):
+        raise WorkflowError("STL_NOT_READY", "请先等待 STL 生成并保存完成", 409)
+    quality = model.get("quality") or {}
+    cached = (quality.get("version") == CHECKER_VERSION and model.get("sha256")
+              and quality.get("sha256") == model["sha256"])
+    if cached and quality.get("status") in {"passed", "issues", "invalid"}:
+        if not repair or model.get("repaired") or not quality.get("repairable"):
+            return _response(state)
+    job = model.get("quality_job") or {}
+    if job.get("started_at", 0) > time.time() - 180:
+        raise WorkflowError("STL_CHECK_RUNNING", "模型正在检查或修复，请稍后刷新", 409)
+    model["quality_job"] = {"started_at": int(time.time()), "operation": "repair" if repair else "check"}
+    state["model_task"] = task
+    state["hunyuan_task"] = task if task.get("provider", "hunyuan") == "hunyuan" else None
+    version = _save(state, version)  # Optimistic lock before expensive work.
+    try:
+        if model.get("size_bytes", 0) > MAX_CHECK_BYTES:
+            report = incomplete_report("文件超过 64 MiB 基础检查上限，请使用桌面网格工具检查。",
+                                       sha256=model.get("sha256"))
+            output = None
+        else:
+            raw = fetch_bytes(model["url"], limit=MAX_CHECK_BYTES, timeout=30, max_seconds=60)
+            digest = hashlib.sha256(raw).hexdigest()
+            if model.get("sha256") and model["sha256"] != digest:
+                raise WorkflowError("STL_CHANGED", "存储中的 STL 内容发生变化，已停止检查和修复", 409)
+            model["sha256"] = digest
+            report, output = process_stl(raw, repair=repair)
+        if output is not None:
+            # Content/version-addressed output cannot overwrite the original file.
+            output_hash = hashlib.sha256(output).hexdigest()
+            url = PublicBlobStore().put(
+                f"image3d/{session_id}/models/repaired-{CHECKER_VERSION}-{output_hash}.stl",
+                output, "model/stl",
+            )
+            model["repaired"] = {"url": url, "size_bytes": len(output), "sha256": output_hash,
+                                 **report["repair"]}
+        model["quality"] = report
+    except (WorkflowError, StoreError) as exc:
+        # Preserve a valid earlier diagnostic if only the repair/storage failed.
+        message = "检查或修复未完成，原文件已保留，请重试。"
+        if isinstance(exc, WorkflowError):
+            message = exc.message
+        if repair and cached:
+            model["quality"]["repair_error"] = message
+        else:
+            model["quality"] = incomplete_report(message, sha256=model.get("sha256"))
+    except Exception:
+        logging.exception("STL quality processing failed")
+        model["quality"] = incomplete_report("检查发生异常，原文件已保留，请重试。",
+                                             sha256=model.get("sha256"))
+    model.pop("quality_job", None)
+    _save(state, version)
+    return _response(state)
+
+
+@app.post("/api/sessions/{session_id}/3d/check")
+def check_model_file(session_id: str, x_session_token: str | None = Header(default=None)):
+    return _check_model_file(session_id, x_session_token)
+
+
+@app.post("/api/sessions/{session_id}/3d/repair")
+def repair_model_file(session_id: str, x_session_token: str | None = Header(default=None)):
+    return _check_model_file(session_id, x_session_token, repair=True)
 
 
 @app.get("/api/meshy/balance")

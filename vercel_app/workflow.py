@@ -68,6 +68,13 @@ CONSISTENCY_CONSTRAINT = (
     "材质、颜色、纹理、标识或磨损特征。主体完整居中，使用正交产品视图，纯白背景，"
     "均匀中性光照，不增加地面、投影、文字、水印或原图不存在的装饰。"
 )
+PRINT_SCULPTURE_CONSTRAINT = (
+    "保留原图配色、材质表现、纹理和风格，不额外改成黑白、白模或黏土效果。"
+    "主体身份、姿势、比例和主要轮廓不变；仅将细碎发丝整理为清晰连续的实体发束，"
+    "减少穿插和封闭夹缝，适度加厚薄衣摆、细饰品并可靠连接，不能粘合手指或抹成团。"
+    "四视图使用同一发束走向、部件和连接布局。完整居中、正交、白背景、中性光；"
+    "不新增底座、打印支撑、文字或装饰。"
+)
 
 
 class WorkflowError(RuntimeError):
@@ -376,18 +383,21 @@ def analyze_coloring(images: list[bytes], model: str,
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 配色分析结果格式无效", 502)
 
 
-def effective_prompt(user_prompt: str) -> str:
-    return f"主体要求：\n{user_prompt.strip()}\n\n跨视角固定约束：\n{CONSISTENCY_CONSTRAINT}"
+def effective_prompt(user_prompt: str, view_mode: str = "faithful") -> str:
+    if view_mode not in {"faithful", "print_sculpture"}:
+        raise WorkflowError("INVALID_VIEW_MODE", "四视图模式无效", 422)
+    constraint = PRINT_SCULPTURE_CONSTRAINT if view_mode == "print_sculpture" else CONSISTENCY_CONSTRAINT
+    return f"主体要求：\n{user_prompt.strip()}\n\n跨视角固定约束：\n{constraint}"
 
 
 def view_prompt(user_prompt: str, view: str, refinement: str = "", *,
                 source_view: str = "UNKNOWN", reference_count: int = 1,
-                editing_current: bool = False) -> str:
+                editing_current: bool = False, view_mode: str = "faithful") -> str:
     prompt = (
         f"生成同一主体的一张{VIEW_NAMES[view]}。{VIEW_DIRECTIONS[view]}\n"
         "左右以主体自身为准。相机水平、无俯仰、正交投影；禁止3/4斜视、镜像翻转或拼图。"
         "固定主体姿势和部件位置，只改变相机；目标视角优先于参考图和描述中的画面朝向。\n"
-        f"{effective_prompt(user_prompt)}\n"
+        f"{effective_prompt(user_prompt, view_mode)}\n"
         f"前{reference_count}张是原始主体证据，主图视角为{SOURCE_VIEW_NAMES.get(source_view, '不确定')}，"
         "不默认它是正面。不可见面保守补全。"
     )
@@ -495,7 +505,8 @@ def generate_view(reference_images: list[bytes], prompt: str, model: str, qualit
         raise WorkflowError("OPENAI_INVALID_RESPONSE", "OpenAI 未返回有效多视图图片", 502)
 
 
-def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
+def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES, *, timeout: float = 280,
+                max_seconds: float | None = None) -> bytes:
     if url.startswith("/local-blobs/"):
         from .store import local_blob_path
 
@@ -511,11 +522,14 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES) -> bytes:
 
     chunks: list[bytes] = []
     total = 0
+    started = time.monotonic()
     try:
-        with httpx.stream("GET", url, timeout=280, follow_redirects=True) as response:
+        with httpx.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
             if response.status_code >= 400:
                 raise _provider_error("远程文件", response)
             for chunk in response.iter_bytes():
+                if max_seconds is not None and time.monotonic() - started > max_seconds:
+                    raise WorkflowError("REMOTE_FILE_TIMEOUT", "文件读取超时，请重试检查", 504)
                 total += len(chunk)
                 if total > limit:
                     raise WorkflowError("REMOTE_FILE_TOO_LARGE", "远程文件超过保存限制", 502)

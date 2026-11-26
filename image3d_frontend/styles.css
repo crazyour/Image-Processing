@@ -307,5 +307,15 @@ button.pending:disabled { opacity: 1; color: white; background: #6f9b8c; }
 .dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
 .dialog-heading > div { display: grid; gap: 5px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.mesh-quality-stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0; font-size: 13px; }
+.mesh-quality-stats span { overflow-wrap: anywhere; }
+.mesh-quality-issues { padding-left: 22px; line-height: 1.7; font-size: 14px; }
+.mesh-repair-result { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; overflow-wrap: anywhere; }
+.mesh-repair-result p { line-height: 1.6; }
+#mesh-quality-summary:focus { outline: 2px solid var(--accent-dark); outline-offset: 4px; }
+#mesh-quality-step .actions { flex-wrap: wrap; }
+.view-mode-settings { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.view-mode-settings select { width: 100%; min-height: 44px; margin-top: 8px; }
+.view-mode-settings .input-help { margin: 10px 0 0; color: var(--ink); line-height: 1.6; }
 @media (max-width: 900px) { body.guide-open { padding-right: 0; } }
 @media (max-width: 720px) { .analysis-grid, .views-grid, .settings-grid, .manual-views, .model-preview, .view-source-intro, .view-source-options, .model-provider-options, .library-grid, .texture-preview-grid, .view-folder-grid, .color-analysis, #generate-step .options, .resize-controls { grid-template-columns: 1fr; } .workspace-switcher { grid-template-columns: 1fr; } .workspace-switcher button { min-height: 48px; } .reference-previews { grid-template-columns: repeat(2, minmax(0,1fr)); } .shell { padding-top: 38px; } .hero { padding-right: 0; } .hero-actions { position: static; flex-wrap: wrap; margin-bottom: 18px; } .embedded .hero { padding-top: 52px; } .step-title, .library-heading, .library-card-foot, .texture-heading, .color-view-selection, .color-actions { flex-wrap: wrap; } .library-heading { flex-direction: column; } .library-card { grid-template-columns: 96px minmax(0,1fr); } .step-state { margin-left: 56px; } .texture-heading .step-state { margin-left: 0; } .texture-image-placeholder img { height: 240px; } .progress { align-items: flex-start; flex-wrap: wrap; } .resize-output { align-items: stretch; flex-direction: column; } .guide-drawer { width: 100vw; } }

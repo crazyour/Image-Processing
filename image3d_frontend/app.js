@@ -31,6 +31,9 @@ let colorDraft = null;
 let meshyBalanceLoadedAt = 0;
 let meshyBalanceInFlight = null;
 let lastCompletedBalanceTaskId = null;
+let meshQualityInFlight = false;
+let meshQualityTimer = null;
+const attemptedMeshChecks = new Set();
 
 const workspaceContent = {
   "3d": {
@@ -275,18 +278,40 @@ function renderViews(views = {}) {
   document.querySelectorAll("[data-zoom]").forEach((image) => image.addEventListener("click", () => window.open(image.src, "_blank", "noopener")));
 }
 
+function selectedViewMode() {
+  return $("#view-mode").value === "print_sculpture" ? "print_sculpture" : "faithful";
+}
+
+function viewModeChanged() {
+  return Boolean(state) && state.view_source !== "uploaded"
+    && selectedViewMode() !== (state.view_mode || "faithful");
+}
+
 function syncControls() {
   const status = state?.status;
   const uploaded = state?.view_source === "uploaded";
+  const modeChanged = viewModeChanged();
+  const canEditMode = Boolean(state) && !uploaded
+    && ["PROMPT_REVIEW", "DESCRIPTION_CONFIRMED", "VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status);
+  $("#view-mode-settings").classList.toggle("hidden", uploaded);
+  $("#view-mode").disabled = !canEditMode || actionInFlight;
+  $("#view-mode-status").textContent = modeChanged
+    ? "模式尚未应用。点击“应用模式并确认描述”后，旧四视图和确认将失效；需重新生成并核对，不会自动扣费生成。"
+    : !state ? "默认忠实还原。完成图片分析后可选择模式。"
+    : state.view_mode === "print_sculpture" ? "当前：打印雕塑。保留原图配色，请在四视图中核对发束、饰品和局部加厚是否符合预期。"
+    : "当前：忠实还原，不启用打印造型调整。";
   const viewsReady = Boolean(state) && allViews.every((view) => state.views?.[view]?.prompt_revision === state.prompt_revision);
   const review = state?.view_review;
-  const approved = uploaded ? viewsReady : Boolean(state?.views_approved);
+  const approved = !modeChanged && (uploaded ? viewsReady : Boolean(state?.views_approved));
   const failedViews = review?.failed_views || [];
   const descriptionConfirmed = Boolean(state?.description_confirmed_at);
   const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
-  const canGenerateViews = Boolean(state) && !uploaded && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
+  const canGenerateViews = Boolean(state) && !uploaded && !modeChanged && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
   $("#prompt-editor").disabled = !canEditPrompt;
-  $("#confirm-description").disabled = !canEditPrompt || actionInFlight;
+  $("#confirm-description").disabled = !(canEditPrompt || (canEditMode && modeChanged)) || actionInFlight;
+  if (!$("#confirm-description").dataset.busy) {
+    $("#confirm-description").textContent = modeChanged ? "应用模式并确认描述" : "确认描述";
+  }
   $("#confirm-description").classList.toggle("hidden", uploaded);
   $("#generate-views").classList.toggle("hidden", uploaded);
   $("#regenerate-views").classList.toggle("hidden", uploaded);
@@ -296,15 +321,16 @@ function syncControls() {
     $("#generate-views").textContent = failedViews.length ? "重试问题视角" : "生成 / 补全四视图";
   }
   $("#regenerate-views").disabled = !canGenerateViews || !viewsReady || actionInFlight;
-  $("#review-views").disabled = !viewsReady || Boolean(review) || actionInFlight || !["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status);
+  $("#review-views").disabled = modeChanged || !viewsReady || Boolean(review) || actionInFlight || !["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status);
   $("#confirm-views").disabled = !approved || status !== "VIEWS_REVIEW" || actionInFlight;
   $("#save-view-folder").disabled = !approved || actionInFlight;
   document.querySelectorAll("[data-refine], [data-retry-view], .refine input").forEach((control) => {
-    control.disabled = actionInFlight || status !== "VIEWS_REVIEW";
+    control.disabled = modeChanged || actionInFlight || status !== "VIEWS_REVIEW";
   });
   const summary = $("#view-review-summary");
   summary.classList.toggle("hidden", uploaded || !state);
-  summary.textContent = status === "REVIEWING_VIEWS" ? "正在检查重复图片、观察方向和主体一致性…"
+  summary.textContent = modeChanged ? "造型模式尚未应用，请先应用模式并确认描述，再重新生成四视图。"
+    : status === "REVIEWING_VIEWS" ? "正在检查重复图片、观察方向和主体一致性…"
     : failedViews.length ? `${failedViews.map((view) => labels[view]).join("、")}未通过检查。可仅重试问题视角，其他图片会保留。`
     : approved ? "视角检查通过，请核对四张图后确认。"
     : viewsReady ? "四张图已保留，完成视角检查后可以确认；检查失败时可仅重试检查。"
@@ -349,7 +375,7 @@ function syncControls() {
   else if (state.confirmed_at) setStepState("#views-state", "已确认", true, false, true);
   else setStepState("#views-state", "等待确认", true, false);
 
-  if (status === "SUCCEEDED") setStepState("#generate-state", "已完成", true, false, true);
+  if (status === "SUCCEEDED") setStepState("#generate-state", "文件已生成", true, false, true);
   else if (status === "FAILED") setStepState("#generate-state", "生成失败", false, true);
   else if (running) setStepState("#generate-state", "生成中", true, false);
   else if (state?.confirmed_at) setStepState("#generate-state", "可以提交", true, false);
@@ -366,6 +392,7 @@ function setStepState(selector, text, active = false, error = false, success = f
 
 function render(next) {
   state = next;
+  $("#view-mode").value = state?.view_mode || "faithful";
   const savedProvider = (state?.model_task || state?.hunyuan_task)?.provider;
   const savedProviderInput = savedProvider && document.querySelector(`input[name="model-provider"][value="${savedProvider}"]`);
   if (savedProviderInput) savedProviderInput.checked = true;
@@ -380,6 +407,7 @@ function render(next) {
 }
 
 function renderTask() {
+  renderMeshQuality();
   const task = state?.model_task || state?.hunyuan_task;
   const providerName = task?.provider === "hunyuan" ? "腾讯混元" : "Meshy 7.1";
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(state?.status);
@@ -427,6 +455,81 @@ function renderTask() {
     if (!taskClock) taskClock = setInterval(updateElapsed, 1000);
   } else {
     stopPolling();
+  }
+}
+
+function renderMeshQuality() {
+  clearTimeout(meshQualityTimer);
+  const task = state?.model_task || state?.hunyuan_task;
+  const model = task?.models?.stl;
+  const quality = model?.quality;
+  const job = model?.quality_job;
+  const serverBusy = job?.started_at > Date.now() / 1000 - 180;
+  const busy = meshQualityInFlight || serverBusy;
+  const ready = Boolean(model?.url) && state?.status === "SUCCEEDED";
+  const titles = { passed: "基础检查通过", issues: "发现需核对项", invalid: "文件结构异常", incomplete: "检查未完成", pending: "等待检查" };
+  const status = quality?.status || "pending";
+  setStepState("#mesh-quality-state", busy ? "处理中" : !ready ? "等待文件" : titles[status] || "等待检查",
+    busy, ready && ["issues", "invalid", "incomplete"].includes(status), ready && status === "passed");
+  $("#mesh-quality-summary").textContent = busy
+    ? "正在检查或生成修复副本…原文件已保留，请勿重复提交。"
+    : !ready ? "等待生成 STL。"
+    : status === "passed" ? "基础结构检查通过；不代表形状准确或可以直接打印。"
+    : status === "issues" ? "文件已生成，以下项目需要核对。可修复项会另存副本，不覆盖原文件。"
+    : status === "invalid" ? "STL 文件结构异常，无法安全自动修复。请保留原文件并核对生成结果。"
+    : status === "incomplete" ? "检查未完成，不能判定通过。原文件仍可下载，可重试检查或使用桌面工具。"
+    : attemptedMeshChecks.has(`${session?.id}:${model?.url}`) ? "自动检查未完成，请点击“检查 STL”重试；不会重新生成模型。"
+    : "STL 已保存，即将进行结构检查；不会重新生成模型。";
+  const stats = quality?.stats || {};
+  const fields = [["faces", "原始三角形"], ["duplicate_faces", "重复面"], ["degenerate_faces", "零面积面"],
+    ["boundary_edges", "开放边界边"], ["nonmanifold_edges", "非流形边"], ["inconsistent_edges", "朝向不一致边"], ["components", "按边连接部件"]];
+  $("#mesh-quality-stats").innerHTML = fields.filter(([key]) => Number.isFinite(stats[key]))
+    .map(([key, label]) => `<span>${label}：${stats[key].toLocaleString()}</span>`).join("")
+    + (stats.dimensions?.length === 3 ? `<span>包围盒尺寸（原始单位）：${stats.dimensions.map(n => Number(n).toPrecision(5)).join(" × ")}</span>` : "");
+  $("#mesh-quality-issues").innerHTML = [...(quality?.issues || []), ...(quality?.repair_error ? [quality.repair_error] : [])]
+    .map(issue => `<li>${escapeHtml(issue)}</li>`).join("");
+  $("#check-stl").disabled = !ready || busy || ["passed", "issues", "invalid"].includes(status);
+  $("#check-stl").textContent = status === "incomplete" ? "重试检查" : "检查 STL";
+  $("#repair-stl").disabled = !ready || busy || !quality?.repairable || Boolean(model?.repaired);
+  const repaired = model?.repaired;
+  $("#mesh-repair-result").classList.toggle("hidden", !repaired);
+  $("#mesh-repair-result").innerHTML = repaired ? `<strong>修复副本已保存 · ${escapeHtml(titles[repaired.report?.status] || "需核对")}</strong>
+    <p>移除重复面 ${Number(repaired.removed_duplicate_faces)} 个、零面积面 ${Number(repaired.removed_degenerate_faces)} 个；调整面朝向 ${Number(repaired.flipped_faces)} 个。原始下载链接保持不变。</p>
+    <ul>${(repaired.report?.issues || []).map(issue => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>
+    <a class="model-link" href="${escapeHtml(repaired.url)}" download="model-repaired.stl">下载修复副本</a>` : "";
+  if (ready && serverBusy && !meshQualityInFlight) {
+    meshQualityTimer = setTimeout(() => refresh(), 5000);
+  } else if (ready && !busy && status === "pending") {
+    const key = `${session?.id}:${model.url}`;
+    if (!attemptedMeshChecks.has(key)) {
+      meshQualityTimer = setTimeout(() => runMeshQuality(false, true), 0);
+    }
+  }
+}
+
+async function runMeshQuality(repair = false, automatic = false) {
+  if (!session || meshQualityInFlight) return;
+  const sessionId = session.id;
+  const model = (state?.model_task || state?.hunyuan_task)?.models?.stl;
+  if (!model?.url || state?.status !== "SUCCEEDED") return;
+  attemptedMeshChecks.add(`${sessionId}:${model.url}`);
+  meshQualityInFlight = true;
+  renderMeshQuality();
+  try {
+    const next = await api(`/api/sessions/${sessionId}/3d/${repair ? "repair" : "check"}`, { method: "POST", timeout: 170_000 });
+    if (session?.id !== sessionId) return;
+    render(next);
+    if (repair && next.model_task?.models?.stl?.repaired) notify("修复副本已保存，原文件未修改");
+    if (!automatic) $("#mesh-quality-summary").focus();
+  } catch (error) {
+    if (session?.id === sessionId) {
+      showError(error);
+      // Refresh only the saved session, never resubmit generation or repair.
+      await refresh();
+    }
+  } finally {
+    meshQualityInFlight = false;
+    renderMeshQuality();
   }
 }
 
@@ -878,6 +981,7 @@ async function reviewCurrentViews(button) {
 
 async function generateViews(button, regenerateAll = false, requestedViews = null) {
   if (actionInFlight) return;
+  if (viewModeChanged()) return notify("请先应用模式并确认描述，再生成四视图", true);
   try {
     clearError();
     setActionInFlight(true);
@@ -905,25 +1009,29 @@ async function generateViews(button, regenerateAll = false, requestedViews = nul
   finally { setBusy(button, false); setActionInFlight(false); }
 }
 
-$("#confirm-description").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
+async function confirmDescription(button) {
+  if (actionInFlight || !state) return;
   try {
     clearError();
     setActionInFlight(true);
     setBusy(button, true, "正在确认…");
     const prompt = $("#prompt-editor").value.trim();
+    const viewMode = selectedViewMode();
     if (!prompt) throw new Error("AI 图片描述不能为空");
-    if (prompt !== state.user_prompt) {
+    if (prompt !== state.user_prompt || viewModeChanged()) {
       render(await api(`/api/sessions/${session.id}/prompt`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt, view_mode: viewMode }),
       }));
     }
     render(await api(`/api/sessions/${session.id}/description/confirm`, { method: "POST" }));
-    notify("AI 对图片的描述已确认，现在可以生成四视图");
+    notify(viewMode === "print_sculpture" ? "打印雕塑模式已确认；生成后请核对配色和局部结构" : "AI 对图片的描述已确认，现在可以生成四视图");
     $("#views-step").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
-});
+}
+
+$("#confirm-description").addEventListener("click", (event) => confirmDescription(event.currentTarget));
+$("#view-mode").addEventListener("change", syncControls);
 
 $("#generate-views").addEventListener("click", (event) => generateViews(event.currentTarget));
 $("#regenerate-views").addEventListener("click", (event) => generateViews(event.currentTarget, true));
@@ -941,6 +1049,7 @@ $("#review-views").addEventListener("click", async (event) => {
 
 async function refine(view, button) {
   if (actionInFlight) return;
+  if (viewModeChanged()) return notify("请先应用模式并确认描述，再生成四视图", true);
   const prompt = $(`#refine-${view}`).value.trim();
   if (!prompt) return notify("请输入该视图的微调要求", true);
   try {
@@ -1011,6 +1120,8 @@ $("#refresh-task").addEventListener("click", async (event) => {
 });
 
 $("#use-generated-stl").addEventListener("click", () => loadResizeStlFromUrl(generatedStlUrl, true));
+$("#check-stl").addEventListener("click", () => runMeshQuality(false));
+$("#repair-stl").addEventListener("click", () => runMeshQuality(true));
 
 $("#resize-stl-input").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
