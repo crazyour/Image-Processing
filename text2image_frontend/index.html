@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 文生图</title>
-  <link rel="stylesheet" href="/text-image-static/styles.css?v=20261119-1">
+  <link rel="stylesheet" href="/text-image-static/styles.css?v=20261127-1">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <button id="library-toggle" class="library-toggle" type="button" aria-controls="library-panel" aria-expanded="false">作品记录</button>
       <p id="page-eyebrow" class="eyebrow">LINGJIE · TEXT TO IMAGE</p>
       <h1 id="page-title">文生图</h1>
-      <p id="page-description">输入一组统一的图片要求，一次生成 1–5 张候选图。系统会按队列逐张生成，每张完成后立即保存。</p>
+      <p id="page-description">输入图片要求，生成 1–5 张候选图；也可添加最多 5 个场景，每个场景生成一张独立图片。系统会按队列逐张生成并保存。</p>
     </header>
 
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
@@ -51,29 +51,31 @@
 
     <section class="panel text-workflow">
       <div class="section-heading">
-        <div><span>01</span><div><h2 id="input-section-title">填写图片要求</h2><p id="input-section-description">填写一组统一要求，再选择这组要生成的候选图数量。</p></div></div>
+        <div><span>01</span><div><h2 id="input-section-title">填写图片要求</h2><p id="input-section-description">一个场景可生成多张候选图；添加多个场景时，每个场景各生成一张，共享下方参考图。</p></div></div>
         <b id="task-state">等待输入</b>
       </div>
       <form id="task-form">
         <div id="prompt-list" class="prompt-list"></div>
         <div class="prompt-actions">
           <div class="prompt-action-buttons">
-            <button id="add-prompt" class="secondary hidden" type="button">＋ 添加一个场景</button>
+            <button id="add-prompt" class="secondary" type="button">＋ 添加一个场景</button>
             <button id="add-product-reference" class="secondary" type="button" data-paste-for="product-reference-images">＋ 添加或拖入产品图片</button>
             <input id="product-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-paste-label="产品参考图" data-paste-anchor="#add-product-reference">
             <button id="add-example-reference" class="secondary" type="button" data-paste-for="example-reference-images">＋ 添加或拖入生成样例</button>
             <input id="example-reference-images" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-paste-label="生成样例图" data-paste-anchor="#add-example-reference">
           </div>
           <div class="generation-count-control">
-            <label for="generation-count">这组生成</label>
-            <select id="generation-count" aria-label="同一组要求生成的候选图片数量">
-              <option value="1">1 张</option>
-              <option value="2">2 张</option>
-              <option value="3">3 张</option>
-              <option value="4">4 张</option>
-              <option value="5">5 张</option>
-            </select>
-            <span id="prompt-count">同一要求生成 1 张</span>
+            <div id="generation-count-options" class="generation-count-options">
+              <label for="generation-count">这组生成</label>
+              <select id="generation-count" aria-label="同一组要求生成的候选图片数量">
+                <option value="1">1 张</option>
+                <option value="2">2 张</option>
+                <option value="3">3 张</option>
+                <option value="4">4 张</option>
+                <option value="5">5 张</option>
+              </select>
+            </div>
+            <span id="prompt-count" aria-live="polite">同一要求生成 1 张</span>
           </div>
         </div>
         <div id="reference-groups" class="reference-groups hidden">
@@ -198,7 +200,7 @@
   </main>
   <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1"></script>
-  <script src="/text-image-static/app.js?v=20261119-1"></script>
+  <script src="/text-image-static/app.js?v=20261127-1"></script>
   <script src="/assets/local-library.js?v=20261022-1"></script>
 </body>
 </html>
