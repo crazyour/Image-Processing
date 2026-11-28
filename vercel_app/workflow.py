@@ -392,7 +392,8 @@ def effective_prompt(user_prompt: str, view_mode: str = "faithful") -> str:
 
 def view_prompt(user_prompt: str, view: str, refinement: str = "", *,
                 source_view: str = "UNKNOWN", reference_count: int = 1,
-                editing_current: bool = False, view_mode: str = "faithful") -> str:
+                editing_current: bool = False, view_mode: str = "faithful",
+                prior_views: tuple[str, ...] = ()) -> str:
     prompt = (
         f"生成同一主体的一张{VIEW_NAMES[view]}。{VIEW_DIRECTIONS[view]}\n"
         "左右以主体自身为准。相机水平、无俯仰、正交投影；禁止3/4斜视、镜像翻转或拼图。"
@@ -401,6 +402,16 @@ def view_prompt(user_prompt: str, view: str, refinement: str = "", *,
         f"前{reference_count}张是原始主体证据，主图视角为{SOURCE_VIEW_NAMES.get(source_view, '不确定')}，"
         "不默认它是正面。不可见面保守补全。"
     )
+    if prior_views:
+        labels = "；".join(
+            f"第{reference_count + index + 1}张是已生成的{VIEW_NAMES[prior]}"
+            for index, prior in enumerate(prior_views)
+        )
+        prompt += (
+            f"\n{labels}。这些生成图仅作跨视角结构参考，原始证据、主体要求和造型模式优先。"
+            "沿用已确定的部件数量、形状、连接和位置关系，不照搬参考图的观察角度。"
+            "合理遮挡可以使部件不可见，但不得删除部件或为了露出部件改变主体姿势。"
+        )
     if editing_current:
         prompt += f"最后一张是待修正的{VIEW_NAMES[view]}，其视角可能有误，不得照搬错误方向。"
     if refinement.strip():

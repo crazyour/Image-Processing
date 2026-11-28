@@ -147,6 +147,15 @@ class MultiviewChecksTests(unittest.TestCase):
         self.assertIn("禁止3/4斜视", left)
         self.assertIn("最后一张是待修正", view_prompt("雕塑", "left", editing_current=True))
 
+    def test_prompt_labels_originals_previous_angles_and_refinement_target(self):
+        prompt = view_prompt("雕塑", "right", reference_count=2,
+                             prior_views=("front", "left"), editing_current=True)
+        self.assertIn("前2张是原始主体证据", prompt)
+        self.assertIn("第3张是已生成的正视图", prompt)
+        self.assertIn("第4张是已生成的左视图", prompt)
+        self.assertIn("原始证据、主体要求和造型模式优先", prompt)
+        self.assertIn("最后一张是待修正的右视图", prompt)
+
     @patch("vercel_app.multiview._openai_config", return_value=Mock(base_url="https://example.invalid", api_key="test"))
     @patch("vercel_app.multiview.httpx.Client")
     def test_review_uses_one_low_detail_thumbnail_batch_and_bounded_output(self, client, config):
@@ -242,15 +251,15 @@ class MultiviewWorkflowTests(unittest.TestCase):
             response = self.post("/views", json={"views": list(VIEW_TYPES)})
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(generate.call_count, 4)
-        for call in generate.call_args_list:
-            self.assertEqual(len(call.args[0]), 1)
+        for count, call in enumerate(generate.call_args_list, start=1):
+            self.assertEqual(len(call.args[0]), count)
             self.assertIn(PRINT_SCULPTURE_CONSTRAINT, call.args[1])
             self.assertEqual(call.args[3], "medium")
         self.assertTrue(all(v["view_mode"] == "print_sculpture" for v in response.json()["views"].values()))
         with patch.object(app_module, "generate_view", return_value=(png(5), {})) as refine:
             response = self.post("/views/left/refine", json={"prompt": "减少发束交叉"})
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(len(refine.call_args.args[0]), 2)
+        self.assertEqual(len(refine.call_args.args[0]), 3)
         self.assertIn(PRINT_SCULPTURE_CONSTRAINT, refine.call_args.args[1])
         # Unique fixtures let the existing single batch reviewer run.
         self.generate()
@@ -293,7 +302,8 @@ class MultiviewWorkflowTests(unittest.TestCase):
     def generate(self, *, duplicate=False):
         def make_image(references, prompt, model, quality):
             target = next(view for view in VIEW_TYPES if f"一张{VIEW_NAMES[view]}" in prompt)
-            self.assertEqual(len(references), 1)
+            self.assertEqual(len(references), 1 + VIEW_TYPES.index(target))
+            self.assertEqual(references[1:], [png(0 if duplicate else i) for i in range(VIEW_TYPES.index(target))])
             self.assertEqual(model, "gpt-image-2.5-flare")
             self.assertEqual(quality, "medium")
             return png(0 if duplicate else VIEW_TYPES.index(target)), {"calls": 1}
@@ -308,6 +318,122 @@ class MultiviewWorkflowTests(unittest.TestCase):
             response = self.post("/views/review")
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
+
+    def test_batch_is_ordered_and_each_result_is_saved_before_next_call(self):
+        original, _ = load_session(self.session_id, self.token)
+        source = app_module.fetch_bytes(original["reference_images"][0]["url"])
+        seen = []
+
+        def produce(references, prompt, model, quality):
+            target = next(view for view in VIEW_TYPES if f"一张{VIEW_NAMES[view]}" in prompt)
+            persisted, _ = load_session(self.session_id, self.token)
+            self.assertEqual(list(persisted["views"]), seen)
+            self.assertEqual(references, [source, *[png(VIEW_TYPES.index(view)) for view in seen]])
+            seen.append(target)
+            return png(VIEW_TYPES.index(target)), {}
+
+        with patch.object(app_module, "generate_view", side_effect=produce):
+            response = self.post("/views", json={"views": ["back", "right", "front", "left"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(seen, list(VIEW_TYPES))
+        self.assertEqual(response.json()["pending_views"], [])
+
+    def test_single_step_invalidates_remaining_old_views_and_resumes_with_new_images(self):
+        before = self.generate()["views"]
+        self.accepted_review()
+        with patch.object(app_module, "generate_view", return_value=(png(5), {})) as generate:
+            response = self.post("/views", json={"views": list(VIEW_TYPES), "single_step": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        generate.assert_called_once()
+        self.assertEqual(len(generate.call_args.args[0]), 1)
+        body = response.json()
+        self.assertEqual(body["pending_views"], ["left", "right", "back"])
+        for view in body["pending_views"]:
+            self.assertEqual(body["views"][view]["url"], before[view]["url"])
+            self.assertEqual(body["views"][view]["prompt_revision"], 0)
+        self.assertEqual(self.post("/views/review").status_code, 409)
+        with patch.object(app_module, "generate_view", return_value=(png(6), {})) as generate:
+            response = self.post("/views", json={"views": body["pending_views"], "single_step": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        generate.assert_called_once()
+        self.assertEqual(generate.call_args.args[0][1:], [png(5)])
+        self.assertEqual(response.json()["pending_views"], ["right", "back"])
+
+    def test_batch_yields_before_starting_another_long_call(self):
+        with patch.object(app_module, "time", wraps=app_module.time) as clock, \
+                patch.object(app_module, "generate_view", return_value=(png(), {})) as generate:
+            clock.monotonic.side_effect = [0, 11]
+            response = self.post("/views", json={"views": list(VIEW_TYPES)})
+        self.assertEqual(response.status_code, 200, response.text)
+        generate.assert_called_once()
+        self.assertEqual(response.json()["pending_views"], ["left", "right", "back"])
+        self.assertEqual(response.json()["status"], "VIEWS_REVIEW")
+
+    def test_single_step_chain_keeps_all_six_originals_before_previous_views(self):
+        state, version = load_session(self.session_id, self.token)
+        blobs = app_module.PublicBlobStore()
+        for index in range(5):
+            url = blobs.put(f"image3d/{self.session_id}/extra-{index}.png", png(index + 5), "image/png")
+            state["reference_images"].append({"url": url})
+        save_session(self.session_id, state, version)
+        originals = [app_module.fetch_bytes(item["url"]) for item in state["reference_images"]]
+        pending = list(VIEW_TYPES)
+        for index, view in enumerate(VIEW_TYPES):
+            with patch.object(app_module, "generate_view", return_value=(png(index), {})) as generate:
+                response = self.post("/views", json={"views": pending, "single_step": True})
+            self.assertEqual(response.status_code, 200, response.text)
+            generate.assert_called_once()
+            self.assertEqual(generate.call_args.args[0], originals + [png(i) for i in range(index)])
+            self.assertIn("前6张是原始主体证据", generate.call_args.args[1])
+            for prior_index, prior in enumerate(VIEW_TYPES[:index]):
+                self.assertIn(f"第{7 + prior_index}张是已生成的{VIEW_NAMES[prior]}", generate.call_args.args[1])
+            pending = response.json()["pending_views"]
+        self.assertEqual(pending, [])
+        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertTrue(self.accepted_review()["views_approved"])
+
+    def test_stale_and_different_mode_views_are_not_used_as_references(self):
+        self.generate()
+        state, version = load_session(self.session_id, self.token)
+        state["views"]["left"]["prompt_revision"] = 0
+        state["views"]["right"]["view_mode"] = "print_sculpture"
+        save_session(self.session_id, state, version)
+        with patch.object(app_module, "generate_view", return_value=(png(5), {})) as generate:
+            response = self.post("/views", json={"views": ["back"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(generate.call_args.args[0][1:], [png(0)])
+
+    def test_rejected_earlier_view_stays_excluded_across_serial_requests(self):
+        self.generate()
+        result = accepted_result()
+        result["front"].update(same_subject=False, issue="恢复缺失配件")
+        with patch.object(app_module, "review_views", return_value=(normalize_review(result), {})):
+            self.assertEqual(self.post("/views/review").status_code, 200)
+        with patch.object(app_module, "generate_view", return_value=(png(5), {})) as generate:
+            response = self.post("/views", json={"views": ["right"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(generate.call_args.args[0][1:], [png(1)])
+        with patch.object(app_module, "generate_view", return_value=(png(6), {})) as generate:
+            response = self.post("/views", json={"views": ["back"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(generate.call_args.args[0][1:], [png(1), png(5)])
+
+    def test_review_corrections_survive_between_single_step_retries(self):
+        self.generate()
+        result = accepted_result()
+        result["left"].update(same_subject=False, issue="恢复左侧饰品")
+        result["right"].update(same_subject=False, issue="恢复右侧口袋")
+        with patch.object(app_module, "review_views", return_value=(normalize_review(result), {})):
+            self.assertEqual(self.post("/views/review").status_code, 200)
+        with patch.object(app_module, "generate_view", return_value=(png(5), {})) as generate:
+            response = self.post("/views", json={"views": ["right", "left"], "single_step": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("恢复左侧饰品", generate.call_args.args[1])
+        with patch.object(app_module, "generate_view", return_value=(png(6), {})) as generate:
+            response = self.post("/views", json={"views": ["right"], "single_step": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("恢复右侧口袋", generate.call_args.args[1])
+        self.assertEqual(generate.call_args.args[0][1:], [png(0), png(5)])
 
     def test_exact_duplicates_block_confirmation_without_any_paid_review(self):
         self.generate(duplicate=True)
@@ -392,16 +518,18 @@ class MultiviewWorkflowTests(unittest.TestCase):
         with patch.object(app_module, "generate_view", side_effect=produce):
             self.assertEqual(self.post("/views", json={"views": list(VIEW_TYPES)}).status_code, 502)
         state, _ = load_session(self.session_id, self.token)
-        self.assertEqual(set(state["views"]), {"front", "left", "back"})
+        self.assertEqual(set(state["views"]), {"front", "left"})
         self.assertEqual(self.post("/views/review").status_code, 409)
 
-    def test_refine_uses_only_original_and_target_and_requires_new_review(self):
+    def test_refine_includes_prior_view_before_target_and_requires_new_review(self):
         self.generate()
         self.accepted_review()
         with patch.object(app_module, "generate_view", return_value=(png(5), {})) as generate:
             response = self.post("/views/left/refine", json={"prompt": "恢复左侧纹理"})
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(len(generate.call_args.args[0]), 2)
+        self.assertEqual(len(generate.call_args.args[0]), 3)
+        self.assertEqual(generate.call_args.args[0][1:], [png(0), png(1)])
+        self.assertIn("第2张是已生成的正视图", generate.call_args.args[1])
         self.assertIn("最后一张是待修正的左视图", generate.call_args.args[1])
         self.assertIsNone(response.json()["view_review"])
         self.assertEqual(self.post("/confirm").status_code, 409)

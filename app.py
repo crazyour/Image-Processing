@@ -97,6 +97,7 @@ from vercel_app.connectivity import (
 from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
 from vercel_app.mesh_quality import CHECKER_VERSION, MAX_CHECK_BYTES, incomplete_report, process_stl
+from vercel_app.mesh_smoothing import SMOOTHER_VERSION, MAX_SMOOTH_BYTES, process_smoothing
 from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.usage import (
     UsageLimitError,
@@ -320,6 +321,7 @@ class PromptUpdate(BaseModel):
 
 class ViewGenerationRequest(BaseModel):
     views: list[str] = Field(default_factory=lambda: list(AI_GENERATED_VIEWS))
+    single_step: bool = False
 
 
 class ViewRefinementRequest(BaseModel):
@@ -348,6 +350,11 @@ class Generate3DRequest(BaseModel):
     model_provider: Literal["hunyuan", "meshy"] = "meshy"
     quality: Literal["normal", "good"] = "normal"
     result_format: Literal["STL"] = "STL"
+
+
+class SmoothSTLRequest(BaseModel):
+    strength: Literal["gentle", "standard"] = "gentle"
+    subdivide: bool = False
 
 
 class TextImageTaskRequest(BaseModel):
@@ -727,6 +734,32 @@ def _effective_image3d_references(state: dict) -> list[dict]:
     if references:
         return references[:MAX_REFERENCE_IMAGES]
     return [state["reference_image"]] if state.get("reference_image") else []
+
+
+def _remember_view_issues(state: dict) -> None:
+    """Keep actionable feedback when a serial step invalidates the batch review."""
+    review = current_review(state)
+    if review is None:
+        return
+    for view, item in state.get("views", {}).items():
+        issues = review.get("views", {}).get(view, {}).get("issues", [])
+        if issues:
+            item["retry_issues"] = issues
+        else:
+            item.pop("retry_issues", None)
+
+
+def _prior_generated_views(state: dict, target: str) -> list[str]:
+    """Only earlier, current, non-rejected generated views may guide a new angle."""
+    prior = []
+    for view in AI_GENERATED_VIEWS[:AI_GENERATED_VIEWS.index(target)]:
+        item = state.get("views", {}).get(view, {})
+        if (item.get("generated") and item.get("url")
+                and item.get("prompt_revision") == state.get("prompt_revision")
+                and item.get("view_mode", "faithful") == state.get("view_mode", "faithful")
+                and not item.get("retry_issues")):
+            prior.append(view)
+    return prior
 
 
 def _save(state: dict, version: int) -> int:
@@ -3117,9 +3150,10 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     requested = list(dict.fromkeys(data.views))
     if not requested or any(view not in AI_GENERATED_VIEWS for view in requested):
         raise WorkflowError("INVALID_VIEW", "可生成视角为 front、left、right、back", 422)
-    previous_review = current_review(state) or {}
+    requested = [view for view in AI_GENERATED_VIEWS if view in requested]
+    _remember_view_issues(state)
     corrections = {
-        view: "；".join(previous_review.get("views", {}).get(view, {}).get("issues", []))[:300]
+        view: "；".join(state["views"].get(view, {}).get("retry_issues", []))[:300]
         for view in requested
     }
     state["status"] = "GENERATING_VIEWS"
@@ -3137,47 +3171,40 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
     version = _save(state, version)
     generated_views = {}
     failures: list[tuple[str, Exception]] = []
+    started_at = time.monotonic()
     try:
         references = _effective_image3d_references(state)
         if not references:
             raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
         sources = [fetch_bytes(item["url"], 20_000_000) for item in references[:MAX_REFERENCE_IMAGES]]
         account = _account_user(request)
-
-        def generate_requested_view(view: str):
-            return _metered_provider_call(
-                account, "image_to_3d", models["image_model"], "生成四视图",
-                lambda: generate_view(
-                    sources,
-                    view_prompt(
-                        state["user_prompt"], view, corrections[view],
-                        source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
-                        reference_count=len(sources),
-                        view_mode=state.get("view_mode", "faithful"),
+        blobs = PublicBlobStore()
+        for view in requested[:1] if data.single_step else requested:
+            # Leave room for a full 280s provider call plus storage within Vercel's
+            # 300s limit. Browser clients explicitly request one step at a time.
+            if generated_views and time.monotonic() - started_at > 10:
+                break
+            try:
+                prior_views = _prior_generated_views(state, view)
+                prior_images = [
+                    generated_views[prior][0] if prior in generated_views
+                    else fetch_bytes(state["views"][prior]["url"], 20_000_000)
+                    for prior in prior_views
+                ]
+                generated, usage = _metered_provider_call(
+                    account, "image_to_3d", models["image_model"], "生成四视图",
+                    lambda: generate_view(
+                        [*sources, *prior_images],
+                        view_prompt(
+                            state["user_prompt"], view, corrections[view],
+                            source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
+                            reference_count=len(sources),
+                            view_mode=state.get("view_mode", "faithful"),
+                            prior_views=tuple(prior_views),
+                        ),
+                        models["image_model"], models["image_quality"],
                     ),
-                    models["image_model"],
-                    models["image_quality"],
-                ),
-            )
-
-        with ThreadPoolExecutor(max_workers=min(4, len(requested))) as executor:
-            futures = {
-                executor.submit(generate_requested_view, view): view
-                for view in requested
-            }
-            for future in as_completed(futures):
-                view = futures[future]
-                try:
-                    generated_views[view] = future.result()
-                except Exception as exc:  # retain other paid results when one view fails
-                    failures.append((view, exc))
-    except Exception as exc:
-        failures.append(("all", exc))
-
-    if generated_views:
-        try:
-            blobs = PublicBlobStore()
-            for view, (generated, usage) in generated_views.items():
+                )
                 previous = state["views"].get(view, {})
                 revision = int(previous.get("revision", 0)) + 1
                 url = blobs.put(
@@ -3195,8 +3222,13 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
                     "refinement_prompt": "",
                     "usage": usage,
                 }
-        except Exception as exc:
-            failures.append(("storage", exc))
+                version = _save(state, version)
+                generated_views[view] = (generated, usage)
+            except Exception as exc:
+                failures.append((view, exc))
+                break  # Do not propagate an incomplete chain to later angles.
+    except Exception as exc:
+        failures.append(("all", exc))
 
     state["views_stale"] = not _views_approved(state)
     state["status"] = "VIEWS_REVIEW"
@@ -3209,7 +3241,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
             first_error, (WorkflowError, StoreError, UsageLimitError),
         ) else "多视图生成发生意外错误"
         if failed_names:
-            message = f"{failed_names}生成失败：{message}；其他已完成视图已保留"
+            message = f"{failed_names}生成失败：{message}；已完成视图已保留，可继续补全未完成视角"
         state["last_error"] = {
             "code": getattr(first_error, "code", "VIEW_GENERATION_FAILED"),
             "message": message,
@@ -3226,7 +3258,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
             state["last_error"]["message"],
             first_error.status if isinstance(first_error, (WorkflowError, UsageLimitError)) else 502,
         )
-    return _response(state)
+    return {**_response(state), "pending_views": [view for view in requested if view not in generated_views]}
 
 
 @app.post("/api/sessions/{session_id}/views/review")
@@ -3305,7 +3337,8 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
     if not uploaded_references:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
     revision = int(state["views"][view].get("revision", 0)) + 1
-    corrections = "；".join((current_review(state) or {}).get("views", {}).get(view, {}).get("issues", []))[:300]
+    _remember_view_issues(state)
+    corrections = "；".join(state["views"][view].get("retry_issues", []))[:300]
     state["status"] = "GENERATING_VIEWS"
     state["view_review"] = None
     state["views_stale"] = True
@@ -3319,6 +3352,8 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
     try:
         references = [fetch_bytes(item["url"], 20_000_000) for item in uploaded_references[:MAX_REFERENCE_IMAGES]]
         original_count = len(references)
+        prior_views = _prior_generated_views(state, view)
+        references.extend(fetch_bytes(state["views"][prior]["url"], 20_000_000) for prior in prior_views)
         references.append(fetch_bytes(state["views"][view]["url"], 20_000_000))
         generated, usage = _metered_provider_call(
             _account_user(request), "image_to_3d", models["image_model"], "微调视图",
@@ -3328,6 +3363,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
                     source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
                     reference_count=original_count, editing_current=True,
                     view_mode=state.get("view_mode", "faithful"),
+                    prior_views=tuple(prior_views),
                 ),
                 models["image_model"], models["image_quality"],
             ),
@@ -3556,6 +3592,12 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
     return _response(state)
 
 
+def _model_file_job_active(model: dict) -> bool:
+    job = model.get("quality_job") or {}
+    lifetime = 360 if job.get("operation") == "smooth" else 180
+    return job.get("started_at", 0) > time.time() - lifetime
+
+
 def _check_model_file(session_id: str, token: str | None, *, repair: bool = False):
     state, version = _load(session_id, token)
     task = state.get("model_task") or state.get("hunyuan_task") or {}
@@ -3568,9 +3610,8 @@ def _check_model_file(session_id: str, token: str | None, *, repair: bool = Fals
     if cached and quality.get("status") in {"passed", "issues", "invalid"}:
         if not repair or model.get("repaired") or not quality.get("repairable"):
             return _response(state)
-    job = model.get("quality_job") or {}
-    if job.get("started_at", 0) > time.time() - 180:
-        raise WorkflowError("STL_CHECK_RUNNING", "模型正在检查或修复，请稍后刷新", 409)
+    if _model_file_job_active(model):
+        raise WorkflowError("STL_CHECK_RUNNING", "模型正在检查、修复或平滑，请稍后刷新", 409)
     model["quality_job"] = {"started_at": int(time.time()), "operation": "repair" if repair else "check"}
     state["model_task"] = task
     state["hunyuan_task"] = task if task.get("provider", "hunyuan") == "hunyuan" else None
@@ -3595,6 +3636,7 @@ def _check_model_file(session_id: str, token: str | None, *, repair: bool = Fals
                 output, "model/stl",
             )
             model["repaired"] = {"url": url, "size_bytes": len(output), "sha256": output_hash,
+                                 "source_sha256": model["sha256"], "version": CHECKER_VERSION,
                                  **report["repair"]}
         model["quality"] = report
     except (WorkflowError, StoreError) as exc:
@@ -3623,6 +3665,102 @@ def check_model_file(session_id: str, x_session_token: str | None = Header(defau
 @app.post("/api/sessions/{session_id}/3d/repair")
 def repair_model_file(session_id: str, x_session_token: str | None = Header(default=None)):
     return _check_model_file(session_id, x_session_token, repair=True)
+
+
+def _smoothing_source(model: dict) -> tuple[dict, str]:
+    repaired = model.get("repaired") or {}
+    quality = model.get("quality") or {}
+    # Legacy repairs recorded the source association in the quality report only.
+    source_matches = bool(model.get("sha256")) and (
+        (repaired.get("source_sha256") == model["sha256"] and repaired.get("version") == CHECKER_VERSION)
+        or (quality.get("sha256") == model["sha256"] and quality.get("version") == CHECKER_VERSION
+            and ((quality.get("repair") or {}).get("report") or {}).get("sha256") == repaired.get("sha256"))
+    )
+    if (source_matches and repaired.get("url") and repaired.get("sha256")
+            and (repaired.get("report") or {}).get("sha256") == repaired["sha256"]
+            and (repaired.get("report") or {}).get("version") == CHECKER_VERSION):
+        return repaired, "repaired"
+    return model, "original"
+
+
+@app.post("/api/sessions/{session_id}/3d/smooth")
+def smooth_model_file(session_id: str, payload: SmoothSTLRequest,
+                      x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    task = state.get("model_task") or state.get("hunyuan_task") or {}
+    model = task.get("models", {}).get("stl", {})
+    if state["status"] != "SUCCEEDED" or not model.get("url"):
+        raise WorkflowError("STL_NOT_READY", "请先等待 STL 生成并保存完成", 409)
+    if _model_file_job_active(model):
+        raise WorkflowError("STL_CHECK_RUNNING", "模型正在检查、修复或平滑，请稍后刷新", 409)
+    source, source_kind = _smoothing_source(model)
+    previous = model.get("smoothed") or {}
+    if (previous.get("url") and previous.get("version") == SMOOTHER_VERSION
+            and source.get("sha256") and previous.get("source_sha256") == source["sha256"]
+            and previous.get("original_sha256", previous.get("source_sha256")) == model.get("sha256")
+            and previous.get("strength") == payload.strength
+            and previous.get("subdivide") == payload.subdivide
+            and (previous.get("report") or {}).get("status") == "smoothed"):
+        # Repeated clicks reuse the verified copy rather than smoothing it again.
+        if model.get("smoothing") != previous["report"]:
+            model["smoothing"] = previous["report"]
+            _save(state, version)
+        return _response(state)
+    model["quality_job"] = {"started_at": int(time.time()), "operation": "smooth",
+                            "job_id": secrets.token_hex(12)}
+    state["model_task"] = task
+    state["hunyuan_task"] = task if task.get("provider", "hunyuan") == "hunyuan" else None
+    version = _save(state, version)
+    started = time.monotonic()
+
+    def failed_report(message: str) -> dict:
+        return {"version": SMOOTHER_VERSION, "source_sha256": source.get("sha256"),
+                "original_sha256": model.get("sha256"), "source_kind": source_kind,
+                "strength": payload.strength, "subdivide": payload.subdivide,
+                "status": "incomplete", "message": message, "stats": {},
+                "before": {}, "after": {}, "limitations": [],
+                "elapsed_ms": round((time.monotonic() - started) * 1000)}
+
+    try:
+        if source.get("size_bytes", 0) > MAX_SMOOTH_BYTES:
+            model["smoothing"] = failed_report("文件超过 64 MiB 平滑上限，请使用桌面网格工具处理。原文件已保留。")
+        else:
+            # Never compound smoothing. A verified structural repair may precede it.
+            raw = fetch_bytes(source["url"], limit=MAX_SMOOTH_BYTES, timeout=30, max_seconds=60)
+            digest = hashlib.sha256(raw).hexdigest()
+            if source.get("sha256") and source["sha256"] != digest:
+                raise WorkflowError("STL_CHANGED", "存储中的 STL 内容发生变化，已停止平滑。原文件记录已保留。", 409)
+            source["sha256"] = digest
+            report, output = process_smoothing(raw, strength=payload.strength, subdivide=payload.subdivide)
+            report.update(original_sha256=model["sha256"], source_kind=source_kind)
+            if output is not None:
+                if (report.get("status") != "smoothed" or report.get("source_sha256") != digest
+                        or report.get("version") != SMOOTHER_VERSION):
+                    raise WorkflowError("STL_SMOOTH_UNVERIFIED", "平滑结果校验未完成，未保存副本。", 409)
+                output_hash = hashlib.sha256(output).hexdigest()
+                url = PublicBlobStore().put(
+                    f"image3d/{session_id}/models/smoothed-{SMOOTHER_VERSION}-{output_hash}.stl",
+                    output, "model/stl",
+                )
+                model["smoothed"] = {"url": url, "size_bytes": len(output), "sha256": output_hash,
+                                     "source_sha256": digest, "version": SMOOTHER_VERSION,
+                                     "original_sha256": model["sha256"], "source_kind": source_kind,
+                                     "strength": payload.strength, "subdivide": payload.subdivide,
+                                     "report": report}
+            elif report.get("status") == "smoothed":
+                raise WorkflowError("STL_SMOOTH_EMPTY", "平滑结果缺少文件，未保存副本。", 409)
+            model["smoothing"] = report
+    except WorkflowError as exc:
+        model["smoothing"] = failed_report(exc.message)
+    except StoreError:
+        model["smoothing"] = failed_report("平滑副本保存未完成，原文件和已有副本已保留，请重试。")
+    except Exception:
+        logging.exception("STL smoothing failed")
+        model["smoothing"] = failed_report("平滑发生异常，原文件和已有副本已保留，请重试。")
+    model.pop("quality_job", None)
+    # A concurrent/newer session revision must never be overwritten by this result.
+    _save(state, version)
+    return _response(state)
 
 
 @app.get("/api/meshy/balance")

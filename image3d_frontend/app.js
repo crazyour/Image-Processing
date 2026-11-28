@@ -20,6 +20,9 @@ let transientError = null;
 let dismissedErrorKey = null;
 let loadedPreviewUrl = null;
 let stlPreview = null;
+let stlPreviewVariant = "original";
+let stlPreviewSourceKey = null;
+let stlPreviewRequestId = 0;
 let generatedStlUrl = null;
 let loadedResizeUrl = null;
 let resizeMesh = null;
@@ -33,6 +36,8 @@ let meshyBalanceInFlight = null;
 let lastCompletedBalanceTaskId = null;
 let meshQualityInFlight = false;
 let meshQualityTimer = null;
+let meshSmoothingRequest = null;
+let meshSmoothingError = null;
 const attemptedMeshChecks = new Set();
 
 const workspaceContent = {
@@ -420,7 +425,7 @@ function renderTask() {
   updateElapsed();
   const models = task?.models || {};
   $("#model-results").innerHTML = Object.entries(models).filter(([type]) => ["glb", "stl"].includes(type.toLowerCase())).map(([type, model]) =>
-    `<a class="model-link" href="${model.url}" download="model-${state.session_id.slice(0, 8)}.${type.toLowerCase()}"><span>${type.toUpperCase()} 模型</span><span>下载文件 ↓</span></a>`
+    `<a class="model-link" href="${model.url}" download="model-${state.session_id.slice(0, 8)}.${type.toLowerCase()}"><span>${type.toLowerCase() === "stl" ? "原始 STL" : `${type.toUpperCase()} 模型`}</span><span>下载文件 ↓</span></a>`
   ).join("");
   const stl = models.stl || models.STL;
   const rawConsumedCredits = task?.credit_details?.consumed_credits;
@@ -437,19 +442,7 @@ function renderTask() {
   generatedStlUrl = stl?.url || null;
   $("#use-generated-stl").disabled = !generatedStlUrl;
   $("#model-preview").classList.toggle("hidden", !stl);
-  if (!stl && running) {
-    loadedPreviewUrl = null;
-    stlPreview = null;
-    $("#stl-canvas").classList.add("hidden");
-  }
-  if (stl) {
-    const size = stl.size_bytes ? formatBytes(stl.size_bytes) : "大小未知";
-    $("#model-meta").textContent = `${size} · 已保存到云端，可直接下载`;
-    const preview = $("#model-preview-image");
-    preview.classList.toggle("hidden", !stl.preview_image_url);
-    if (stl.preview_image_url) preview.src = stl.preview_image_url;
-    if (loadedPreviewUrl !== stl.url) loadStlPreview(stl.url, stl.preview_image_url);
-  }
+  renderStlPreviewSource();
   if (running) {
     schedulePoll(8000);
     if (!taskClock) taskClock = setInterval(updateElapsed, 1000);
@@ -464,7 +457,7 @@ function renderMeshQuality() {
   const model = task?.models?.stl;
   const quality = model?.quality;
   const job = model?.quality_job;
-  const serverBusy = job?.started_at > Date.now() / 1000 - 180;
+  const serverBusy = job?.started_at > Date.now() / 1000 - (job?.operation === "smooth" ? 360 : 180);
   const busy = meshQualityInFlight || serverBusy;
   const ready = Boolean(model?.url) && state?.status === "SUCCEEDED";
   const titles = { passed: "基础检查通过", issues: "发现需核对项", invalid: "文件结构异常", incomplete: "检查未完成", pending: "等待检查" };
@@ -472,7 +465,7 @@ function renderMeshQuality() {
   setStepState("#mesh-quality-state", busy ? "处理中" : !ready ? "等待文件" : titles[status] || "等待检查",
     busy, ready && ["issues", "invalid", "incomplete"].includes(status), ready && status === "passed");
   $("#mesh-quality-summary").textContent = busy
-    ? "正在检查或生成修复副本…原文件已保留，请勿重复提交。"
+    ? "正在检查或处理 STL…原文件已保留，请勿重复提交。"
     : !ready ? "等待生成 STL。"
     : status === "passed" ? "基础结构检查通过；不代表形状准确或可以直接打印。"
     : status === "issues" ? "文件已生成，以下项目需要核对。可修复项会另存副本，不覆盖原文件。"
@@ -505,6 +498,7 @@ function renderMeshQuality() {
       meshQualityTimer = setTimeout(() => runMeshQuality(false, true), 0);
     }
   }
+  if (typeof renderMeshSmoothing === "function") renderMeshSmoothing();
 }
 
 async function runMeshQuality(repair = false, automatic = false) {
@@ -512,6 +506,8 @@ async function runMeshQuality(repair = false, automatic = false) {
   const sessionId = session.id;
   const model = (state?.model_task || state?.hunyuan_task)?.models?.stl;
   if (!model?.url || state?.status !== "SUCCEEDED") return;
+  const job = model.quality_job;
+  if (job?.started_at > Date.now() / 1000 - (job?.operation === "smooth" ? 360 : 180)) return;
   attemptedMeshChecks.add(`${sessionId}:${model.url}`);
   meshQualityInFlight = true;
   renderMeshQuality();
@@ -539,26 +535,167 @@ function formatBytes(value) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function currentStlModel() {
+  const models = (state?.model_task || state?.hunyuan_task)?.models;
+  return models?.stl || models?.STL;
+}
+
+function currentSmoothedStl(model = currentStlModel()) {
+  const copy = model?.smoothed;
+  const originalHash = copy?.original_sha256 || copy?.source_sha256;
+  if (!copy?.url || (model.sha256 && originalHash && model.sha256 !== originalHash)) return null;
+  return copy;
+}
+
+function renderMeshSmoothing() {
+  const model = currentStlModel();
+  const ready = Boolean(model?.url) && state?.status === "SUCCEEDED";
+  const job = model?.quality_job;
+  const serverBusy = job?.started_at > Date.now() / 1000 - (job?.operation === "smooth" ? 360 : 180);
+  const busy = meshQualityInFlight || serverBusy;
+  const smoothing = meshSmoothingRequest?.sessionId === session?.id || (serverBusy && job.operation === "smooth");
+  const report = model?.smoothing;
+  const saved = currentSmoothedStl(model);
+  const error = meshSmoothingError?.sessionId === session?.id && meshSmoothingError?.url === model?.url
+    && meshSmoothingError.reportKey === JSON.stringify(report || null)
+    ? meshSmoothingError.message : null;
+  const titles = { smoothed: "平滑副本已保存", unchanged: "未产生有效平滑", rejected: "变化超出限制", incomplete: "平滑未完成", invalid: "无法处理此网格" };
+  const failed = Boolean(error) || ["rejected", "incomplete", "invalid"].includes(report?.status);
+  setStepState("#mesh-smoothing-state", busy ? smoothing ? "正在平滑" : "等待其他处理" : !ready ? "等待文件" : error ? "平滑未完成" : titles[report?.status] || "可生成副本",
+    busy, !busy && failed, !busy && !error && report?.status === "smoothed");
+  $("#mesh-smoothing-summary").textContent = busy
+    ? smoothing ? "正在平滑并检查网格，请稍候。原始 STL 和已有副本均已保留。" : "STL 正在检查或修复，完成后即可生成平滑副本。"
+    : !ready ? "生成 STL 后，可按需平滑实际曲面。"
+    : error ? `${error} 原始 STL 和已有副本均已保留；不会自动重试。`
+    : report ? `${report.message || titles[report.status] || "处理已结束"}${report.status !== "smoothed" && saved ? " 上次成功的平滑副本仍可下载。" : ""}`
+    : "生成独立的平滑副本；已有有效修复版时优先使用修复版，否则使用原始 STL。建议先使用轻度。";
+  $("#smooth-stl").disabled = !ready || busy;
+  $("#smooth-stl").textContent = smoothing && busy ? "正在生成平滑副本…" : "生成平滑副本";
+  $("#smoothing-strength").disabled = !ready || busy;
+  $("#smoothing-subdivide").disabled = !ready || busy;
+  const stats = report?.stats || {};
+  const fields = [["faces_before", "处理前三角面"], ["faces_after", "处理后三角面"], ["moved_vertices", "调整顶点"]];
+  const metrics = fields.filter(([key]) => Number.isFinite(stats[key]))
+    .map(([key, label]) => `<span>${label}：${stats[key].toLocaleString()}</span>`);
+  for (const [key, label] of [["max_displacement", "最大位移"], ["p95_displacement", "95% 已移动顶点位移不超过"]]) {
+    if (Number.isFinite(stats[key])) metrics.push(`<span>${label}：${Number(stats[key]).toPrecision(4)}（原始单位）</span>`);
+  }
+  const changes = Array.isArray(stats.dimension_change_ratio) ? stats.dimension_change_ratio : [stats.dimension_change_ratio];
+  if (changes.length && changes.every(Number.isFinite)) {
+    metrics.push(`<span>最大尺寸变化：${(Math.max(...changes.map(Math.abs)) * 100).toFixed(3)}%</span>`);
+  }
+  $("#mesh-smoothing-stats").innerHTML = metrics.join("");
+  $("#mesh-smoothing-limitations").innerHTML = (report?.limitations || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
+  $("#mesh-smoothing-result").classList.toggle("hidden", !saved);
+  $("#mesh-smoothing-result").innerHTML = saved
+    ? `<strong>已保存的平滑副本 · ${saved.strength === "standard" ? "标准" : "轻度"}${saved.subdivide ? " · 一级细分" : ""} · 来源：${saved.source_kind === "repaired" ? "修复版" : "原始 STL"}</strong>
+      <p>请在切片软件核对轮廓、发梢、沟槽与薄片。尺寸调整区仍使用原始 STL；调整平滑版尺寸时，请先下载并在下方选择该文件。</p>
+      <a class="model-link" href="${escapeHtml(saved.url)}" download="model-smoothed.stl"><span>平滑 STL${saved.size_bytes ? ` · ${formatBytes(saved.size_bytes)}` : ""}</span><span>下载平滑副本 ↓</span></a>` : "";
+}
+
+async function runMeshSmoothing() {
+  const model = currentStlModel();
+  const job = model?.quality_job;
+  if (!session || !model?.url || state?.status !== "SUCCEEDED" || meshQualityInFlight
+    || job?.started_at > Date.now() / 1000 - (job?.operation === "smooth" ? 360 : 180)) return;
+  const request = { sessionId: session.id, url: model.url };
+  const isCurrent = () => session?.id === request.sessionId && currentStlModel()?.url === request.url;
+  const strength = $("#smoothing-strength").value === "standard" ? "standard" : "gentle";
+  const subdivide = $("#smoothing-subdivide").checked;
+  meshQualityInFlight = true;
+  meshSmoothingRequest = request;
+  meshSmoothingError = null;
+  renderMeshQuality();
+  try {
+    const next = await api(`/api/sessions/${request.sessionId}/3d/smooth`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ strength, subdivide }), timeout: 240_000,
+    });
+    if (!isCurrent()) return;
+    render(next);
+    if (currentStlModel()?.smoothing?.status === "smoothed") notify("平滑副本已保存，可切换预览或下载对比");
+  } catch (error) {
+    if (!isCurrent()) return;
+    meshSmoothingError = { ...request, message: error.message || "平滑请求未完成。",
+      reportKey: JSON.stringify(model.smoothing || null) };
+    showError(error);
+    // Read the saved result after a timeout; never resubmit smoothing or generation.
+    try {
+      const next = await api(`/api/sessions/${request.sessionId}`);
+      if (isCurrent()) render(next);
+    } catch (_) { /* Keep the original model and any already saved copy. */ }
+  } finally {
+    if (meshSmoothingRequest === request) {
+      meshSmoothingRequest = null;
+      meshQualityInFlight = false;
+      renderMeshQuality();
+    }
+  }
+}
+
+function renderStlPreviewSource() {
+  const model = currentStlModel();
+  const key = model?.url ? `${session?.id}:${model.url}` : null;
+  if (stlPreviewSourceKey !== key) {
+    stlPreviewSourceKey = key;
+    stlPreviewVariant = "original";
+    stlPreviewRequestId += 1;
+    loadedPreviewUrl = null;
+    stlPreview = null;
+    $("#stl-canvas").classList.add("hidden");
+  }
+  const smoothed = currentSmoothedStl(model);
+  if (!smoothed) stlPreviewVariant = "original";
+  $("#preview-original-stl").disabled = !model?.url;
+  $("#preview-smoothed-stl").disabled = !smoothed;
+  $("#preview-original-stl").setAttribute("aria-pressed", String(stlPreviewVariant === "original"));
+  $("#preview-smoothed-stl").setAttribute("aria-pressed", String(stlPreviewVariant === "smoothed"));
+  if (!model?.url) return;
+  const selected = stlPreviewVariant === "smoothed" ? smoothed : model;
+  $("#model-meta").textContent = `${stlPreviewVariant === "smoothed" ? "平滑副本" : "原始 STL"} · ${selected.size_bytes ? formatBytes(selected.size_bytes) : "大小未知"}`;
+  if (loadedPreviewUrl !== selected.url) loadStlPreview(selected.url, selected.preview_image_url);
+}
+
+function selectStlPreview(variant) {
+  if (!currentStlModel()?.url || !["original", "smoothed"].includes(variant)) return;
+  if (variant === "smoothed" && !currentSmoothedStl()) return;
+  stlPreviewVariant = variant;
+  renderStlPreviewSource();
+}
+
 async function loadStlPreview(url, fallbackImage) {
   loadedPreviewUrl = url;
+  const requestId = ++stlPreviewRequestId;
+  const sourceKey = stlPreviewSourceKey;
   const canvas = $("#stl-canvas");
+  canvas.classList.add("hidden");
+  $("#model-preview-image").classList.add("hidden");
+  $("#model-preview-status").textContent = "正在载入预览…";
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error("STL 预览下载失败");
     const buffer = await response.arrayBuffer();
+    if (sourceKey !== stlPreviewSourceKey) return;
+    // Previewing a smooth copy must not silently replace the resize editor's source.
+    if (url === generatedStlUrl && resizeSourceKind !== "local" && loadedResizeUrl !== url) {
+      loadedResizeUrl = url;
+      setResizeMesh(buffer, "本次生成的原始 STL", "generated-model.stl", "generated");
+    }
+    if (requestId !== stlPreviewRequestId) return;
     const triangles = parseStl(buffer);
     if (!triangles.length) throw new Error("STL 预览格式无效");
-    if (resizeSourceKind !== "local" && loadedResizeUrl !== url) {
-      loadedResizeUrl = url;
-      setResizeMesh(buffer, "本次生成的 STL", "generated-model.stl", "generated");
-    }
-    stlPreview = { triangles, rotationX: -0.35, rotationY: 0.65, zoom: 0.9 };
+    stlPreview = { triangles, rotationX: stlPreview?.rotationX ?? -0.35,
+      rotationY: stlPreview?.rotationY ?? 0.65, zoom: stlPreview?.zoom ?? 0.9 };
     canvas.classList.remove("hidden");
     $("#model-preview-image").classList.add("hidden");
+    $("#model-preview-status").textContent = "预览为简化显示，请在切片软件核对平滑版。";
     drawStlPreview();
   } catch (_) {
+    if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId) return;
     canvas.classList.add("hidden");
+    if (fallbackImage) $("#model-preview-image").src = fallbackImage;
     $("#model-preview-image").classList.toggle("hidden", !fallbackImage);
+    $("#model-preview-status").textContent = "交互预览暂不可用，仍可下载 STL 在切片软件中核对。";
   }
 }
 
@@ -994,16 +1131,23 @@ async function generateViews(button, regenerateAll = false, requestedViews = nul
       }));
     }
     const missing = allViews.filter((view) => state?.views?.[view]?.prompt_revision !== state?.prompt_revision);
-    const views = requestedViews || (regenerateAll ? allViews : [...new Set([...missing, ...(state?.view_review?.failed_views || [])])]);
+    const requested = requestedViews || (regenerateAll ? allViews : [...missing, ...(state?.view_review?.failed_views || [])]);
+    const views = allViews.filter((view) => requested.includes(view));
     if (!views.length) {
       await reviewCurrentViews(button);
       return;
     }
-    button.textContent = views.length === 4 ? "正在生成四个视角…" : `正在重试${views.map((view) => labels[view]).join("、")}…`;
-    render(await api(`/api/sessions/${session.id}/views`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ views }), timeout: 295_000,
-    }));
+    for (let index = 0; index < views.length; index += 1) {
+      const view = views[index];
+      button.textContent = `正在生成${labels[view]}（${index + 1}/${views.length}）…`;
+      $("#view-review-summary").textContent = `按正、左、右、背顺序生成，当前为${labels[view]}；已完成的图片会逐张保存。`;
+      render(await api(`/api/sessions/${session.id}/views`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        // Invalidate the remaining replacements before starting the first one,
+        // so an interruption cannot mix old images into the new serial run.
+        body: JSON.stringify({ views: views.slice(index), single_step: true }), timeout: 295_000,
+      }));
+    }
     await reviewCurrentViews(button);
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
@@ -1122,6 +1266,9 @@ $("#refresh-task").addEventListener("click", async (event) => {
 $("#use-generated-stl").addEventListener("click", () => loadResizeStlFromUrl(generatedStlUrl, true));
 $("#check-stl").addEventListener("click", () => runMeshQuality(false));
 $("#repair-stl").addEventListener("click", () => runMeshQuality(true));
+$("#smooth-stl").addEventListener("click", runMeshSmoothing);
+$("#preview-original-stl").addEventListener("click", () => selectStlPreview("original"));
+$("#preview-smoothed-stl").addEventListener("click", () => selectStlPreview("smoothed"));
 
 $("#resize-stl-input").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];

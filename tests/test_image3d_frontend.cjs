@@ -59,7 +59,14 @@ function harness(state = completedState()) {
         next.status = "DESCRIPTION_CONFIRMED";
         next.description_confirmed_at = 1;
       } else if (path.endsWith("/views")) {
-        for (const view of JSON.parse(options.body).views) next.views[view] = { prompt_revision: next.prompt_revision, url: view };
+        const data = JSON.parse(options.body);
+        const requested = allViews.filter(view => data.views.includes(view));
+        for (const view of requested) {
+          if (next.views[view]) next.views[view].prompt_revision = 0;
+        }
+        for (const view of data.single_step ? requested.slice(0, 1) : requested) {
+          next.views[view] = { prompt_revision: next.prompt_revision, url: view };
+        }
         next.status = "VIEWS_REVIEW";
         next.view_review = null;
         next.views_approved = false;
@@ -116,7 +123,7 @@ test("a single-card retry does not reroll other failed views", async () => {
   assert.equal(calls.length, 2);
 });
 
-test("first generation requests four images and never automatically regenerates a failed review", async () => {
+test("first generation requests four serial steps and never automatically regenerates a failed review", async () => {
   const state = completedState();
   state.views = {};
   state.status = "DESCRIPTION_CONFIRMED";
@@ -132,10 +139,61 @@ test("first generation requests four images and never automatically regenerates 
     return next;
   };
   await context.generateViews($("#generate-views"));
-  assert.equal(calls.length, 2);
-  assert.deepEqual(JSON.parse(calls[0].options.body).views, allViews);
+  assert.equal(calls.length, 5);
+  for (let index = 0; index < allViews.length; index += 1) {
+    assert.deepEqual(JSON.parse(calls[index].options.body), { views: allViews.slice(index), single_step: true });
+  }
+  assert.ok(calls[4].path.endsWith("/views/review"));
   assert.equal($("#confirm-views").disabled, true);
   assert.equal($("#view-review-summary").focused, true);
+});
+
+test("later angles wait until the preceding generation request resolves", async () => {
+  const state = completedState();
+  state.views = {};
+  state.status = "DESCRIPTION_CONFIRMED";
+  const { context, $, calls } = harness(state);
+  const api = context.api;
+  let releaseFirst;
+  const firstComplete = new Promise(resolve => { releaseFirst = resolve; });
+  context.api = async (...args) => {
+    const next = await api(...args);
+    if (calls.length === 1) await firstComplete;
+    return next;
+  };
+  const running = context.generateViews($("#generate-views"));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, 1);
+  assert.equal(context.actionInFlight, true);
+  releaseFirst();
+  await running;
+  assert.equal(calls.length, 5);
+});
+
+test("interrupted regeneration keeps completed work and resumes only missing angles", async () => {
+  const { context, $, calls, errors } = harness();
+  const api = context.api;
+  context.api = async (path, options) => {
+    if (path.endsWith("/views") && JSON.parse(options.body).views[0] === "left") {
+      calls.push({ path, options });
+      throw Error("left generation failed");
+    }
+    return api(path, options);
+  };
+  await context.generateViews($("#regenerate-views"), true);
+  assert.equal(calls.length, 2);
+  assert.equal(errors.length, 1);
+  assert.equal(context.actionInFlight, false);
+  assert.equal(context.state.views.front.prompt_revision, context.state.prompt_revision);
+  for (const view of ["left", "right", "back"]) assert.equal(context.state.views[view].prompt_revision, 0);
+  assert.equal($("#confirm-views").disabled, true);
+  assert.equal($("#review-views").disabled, true);
+  context.api = api;
+  calls.length = 0;
+  await context.generateViews($("#generate-views"));
+  assert.equal(calls.length, 4);
+  assert.deepEqual(JSON.parse(calls[0].options.body).views, ["left", "right", "back"]);
+  assert.ok(calls[3].path.endsWith("/views/review"));
 });
 
 test("review outage preserves images and exposes review-only retry", async () => {
@@ -188,7 +246,7 @@ test("applying sculpture mode confirms description but does not generate images"
   assert.equal($("#confirm-views").disabled, true);
   await context.generateViews($("#generate-views"));
   assert.deepEqual(JSON.parse(calls[2].options.body).views, allViews);
-  assert.equal(calls.length, 4); // one four-view generation request + existing batch review
+  assert.equal(calls.length, 7); // four serial generation requests + existing batch review
 });
 
 test("reverting unsaved mode selection preserves approval without requests", () => {
