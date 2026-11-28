@@ -178,6 +178,7 @@ TRANSIENT_STATE_TIMEOUTS = {
     "SUBMITTING_3D": 150,
 }
 
+MIN_IMAGE3D_REFERENCE_IMAGES = 2
 MAX_REFERENCE_IMAGES = 6
 MAX_REFERENCE_UPLOAD_BYTES = 4_000_000
 MAX_AUTOMATIC_CUTOUT_REPAIRS = 2
@@ -2884,8 +2885,8 @@ def analyze_references(session_id: str, request: Request,
     if state.get("view_source") != "generated" or state["status"] != "REFERENCES_READY":
         raise WorkflowError("INVALID_SESSION_STATE", "当前状态不能分析参考图", 409)
     references = _effective_image3d_references(state)
-    if not references:
-        raise WorkflowError("REFERENCE_IMAGE_MISSING", "请至少上传一张参考图", 409)
+    if len(references) < MIN_IMAGE3D_REFERENCE_IMAGES:
+        raise WorkflowError("INSUFFICIENT_REFERENCE_IMAGES", "AI 生成四视图需至少上传 2 张参考图", 409)
     state["status"] = "ANALYZING_REFERENCES"
     state["last_error"] = None
     version = _save(state, version)

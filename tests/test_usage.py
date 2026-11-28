@@ -361,6 +361,18 @@ class UsageLedgerTests(unittest.TestCase):
             body = created.json()
             session_id = body["session_id"]
             headers = {"X-Session-Token": body["access_token"]}
+            with patch.object(app_module, "_metered_provider_call") as metered:
+                blocked = member.post(f"/api/sessions/{session_id}/analyze", headers=headers)
+            self.assertEqual(blocked.status_code, 409)
+            self.assertEqual(blocked.json()["code"], "INSUFFICIENT_REFERENCE_IMAGES")
+            metered.assert_not_called()
+            current = member.get(f"/api/sessions/{session_id}", headers=headers).json()
+            self.assertEqual(current["status"], "REFERENCES_READY")
+            supplemental = member.post(
+                f"/api/sessions/{session_id}/references", headers=headers,
+                files={"image": ("side.png", png_bytes(), "image/png")},
+            )
+            self.assertEqual(supplemental.status_code, 200)
             with patch.object(app_module, "analyze_images", return_value=(
                 {
                     "subject": "木椅", "geometry": "四腿", "materials": ["木"],
@@ -369,11 +381,12 @@ class UsageLedgerTests(unittest.TestCase):
                     "source_view": "FRONT", "warnings": [], "suggested_prompt_zh": "浅色橡木餐椅",
                 },
                 {"input_tokens": 3000, "output_tokens": 700, "total_tokens": 3700, "cost": 0.09},
-            )):
+            )) as analyze:
                 analyzed = member.post(
                     f"/api/sessions/{session_id}/analyze", headers=headers,
                 )
             self.assertEqual(analyzed.status_code, 200)
+            self.assertEqual(len(analyze.call_args.args[0]), 2)
             member.post(f"/api/sessions/{session_id}/description/confirm", headers=headers)
             with patch.object(
                 app_module, "generate_view",

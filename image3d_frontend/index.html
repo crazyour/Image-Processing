@@ -57,13 +57,13 @@
     </section>
 
     <section id="upload-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>01</span><div><h2>上传输入图片</h2><p>AI 模式可上传 1–6 张同一个对象的参考图；也可直接上传现成四视图。</p></div><b id="upload-state" class="step-state active">等待选择</b></div>
+      <div class="step-title"><span>01</span><div><h2>上传输入图片</h2><p>AI 模式可上传 2–6 张同一个对象的参考图；也可直接上传现成四视图。</p></div><b id="upload-state" class="step-state active">等待选择</b></div>
       <form id="upload-form" class="stack">
         <fieldset class="view-source-options">
           <legend>选择四视图来源</legend>
           <label class="source-option">
             <input type="radio" name="view-source" value="generated" checked>
-            <span><strong>AI 自动生成四视图</strong><small>上传 1–6 张同一个对象的不同角度或细节图，先确认 AI 描述，再生成四视图。</small></span>
+            <span><strong>AI 自动生成四视图</strong><small>上传 2–6 张同一个对象的不同角度或细节图，先确认 AI 描述，再生成四视图。</small></span>
             <b>约 ¥4/次</b>
           </label>
           <label class="source-option">
@@ -74,10 +74,10 @@
         </fieldset>
         <p class="input-help source-fee-note">站内服务会生成 4 张图，约 ¥4/次；自行上传图片不收费，主动使用 AI 局部修复另行计费。实际费用与外部平台额度以各平台账单为准。</p>
         <div id="reference-upload" class="reference-upload">
-          <p><strong>上传多张参考图</strong><span>第一张作为主参考，其余图片补充侧面、背面、底部、局部结构或材质信息。请勿混入不同物体。</span></p>
+          <p><strong>上传至少 2 张参考图</strong><span>第一张作为主参考，其余图片补充侧面、背面、底部、局部结构或材质信息。请勿混入不同物体。</span></p>
           <label class="dropzone" for="image-input">
             <input id="image-input" name="image" type="file" accept="image/png,image/jpeg,image/webp" multiple required data-paste-label="3D 参考图">
-            <span id="drop-copy">点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图</span>
+            <span id="drop-copy">点击选择或拖入 2–6 张 PNG、JPEG 或 WebP 参考图</span>
           </label>
           <div id="upload-previews" class="reference-previews"></div>
         </div>
@@ -256,10 +256,10 @@
       <button id="guide-close" type="button" aria-label="关闭使用说明">关闭 ×</button>
     </header>
     <div class="guide-content">
-      <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以上传 1–6 张同一个对象的参考图，先确认 AI 对图片的描述，再确认四视图并生成 STL。也可以自行上传现成四视图。</p>
+      <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以上传 2–6 张同一个对象的参考图，先确认 AI 对图片的描述，再确认四视图并生成 STL。也可以自行上传现成四视图。</p>
       <section class="guide-source-choice">
         <strong>四视图有两种来源</strong>
-        <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图。费用包含提示词、参考图片和生成图片，按实际调用计费；重新生成或局部修复会另计费用。</p>
+        <p><b>站内 AI 自动生成：</b>上传 2–6 张同一对象的参考图，由本站生成正、左、右、背四张图。费用包含提示词、参考图片和生成图片，按实际调用计费；重新生成或局部修复会另计费用。</p>
         <p><b>自行上传：</b>先使用豆包等网页 AI 生成四视图，再上传到本站；本站不收图片生成费。</p>
         <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 会调用你选择的国内或国外模型并产生相应费用。</small>
       </section>
@@ -279,7 +279,7 @@
         <summary>二、准备初始图片</summary>
         <p>参考图建议满足以下条件：</p>
         <ul>
-          <li>可上传 1–6 张图，但所有图片必须是同一个物体。</li>
+          <li>可上传 2–6 张图，但所有图片必须是同一个物体。</li>
           <li>物体轮廓完整，没有被大面积遮挡或裁切。</li>
           <li>尽量使用正面或斜前方视角。</li>
           <li>背景简单，主体与背景容易区分。</li>
@@ -385,7 +385,7 @@
         <summary>八、推荐的最简操作流程</summary>
         <p>如果你只想快速得到 STL：</p>
         <ol>
-          <li>上传同一产品的 1–6 张清晰参考图。</li>
+          <li>上传同一产品的 2–6 张清晰参考图。</li>
           <li>保持“AI 自动生成”。</li>
           <li>检查并确认 AI 对图片的描述。</li>
           <li>点击“生成四视图”。</li>
@@ -444,7 +444,7 @@
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
   <script src="/static/stl-download.js?v=20261128-1" defer></script>
   <script src="/static/view-mask.js?v=20261128-1" defer></script>
-  <script src="/static/app.js?v=20261128-12" defer></script>
+  <script src="/static/app.js?v=20261128-13" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

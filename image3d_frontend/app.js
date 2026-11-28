@@ -12,6 +12,7 @@ try {
   sessionStorage.removeItem("image3d-session");
 }
 let state = null;
+let pendingReferenceFiles = [];
 let pollingTimer = null;
 let pollingInFlight = false;
 let taskClock = null;
@@ -936,7 +937,8 @@ $("#image-input").addEventListener("change", (event) => {
   $("#upload-previews").innerHTML = files.map((file, index) =>
     `<article><img src="${URL.createObjectURL(file)}" alt="待上传参考图 ${index + 1}"><span>${index === 0 ? "主参考" : `补充 ${index}`}</span></article>`
   ).join("");
-  $("#drop-copy").textContent = files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 1–6 张 PNG、JPEG 或 WebP 参考图";
+  $("#drop-copy").textContent = files.length === 1 ? "已选择 1 张，请重新选择至少 2 张参考图"
+    : files.length ? `已选择 ${files.length} 张；点击或拖入可重新选择` : "点击选择或拖入 2–6 张 PNG、JPEG 或 WebP 参考图";
   syncControls();
 });
 
@@ -1003,27 +1005,37 @@ document.querySelectorAll('input[name="model-provider"]').forEach((input) => inp
 }));
 
 async function uploadSelectedReferences(button) {
-  if (session && state?.status === "REFERENCES_READY") return;
-  const referenceFiles = [...($("#image-input").files || [])];
-  if (!referenceFiles.length) throw new Error("请先选择参考图");
+  const continuing = session && state?.status === "REFERENCES_READY";
+  if (continuing && !pendingReferenceFiles.length) {
+    if ((state.reference_images?.length || 0) < 2) {
+      throw new Error("AI 生成四视图需至少上传 2 张参考图，请刷新页面后重新上传");
+    }
+    return;
+  }
+  const referenceFiles = continuing ? pendingReferenceFiles : [...($("#image-input").files || [])];
+  if (referenceFiles.length < 2) throw new Error("AI 生成四视图需至少选择 2 张参考图");
   if (referenceFiles.length > 6) throw new Error("最多上传 6 张参考图");
-  if (session || state) throw new Error("当前任务状态不能重新上传参考图，请刷新页面后重试");
+  if (!continuing) {
+    if (session || state) throw new Error("当前任务状态不能重新上传参考图，请刷新页面后重试");
 
-  button.textContent = "正在准备参考图…";
-  const form = new FormData();
-  form.set("image", await compressedFile(referenceFiles[0]));
-  form.set("prompt", "");
-  form.set("view_source", "generated");
-  const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
-  session = { id: result.session_id, token: result.access_token };
-  sessionStorage.setItem("image3d-session", JSON.stringify(session));
-  render(result);
-  for (let index = 1; index < referenceFiles.length; index += 1) {
+    button.textContent = "正在准备参考图…";
+    const form = new FormData();
+    form.set("image", await compressedFile(referenceFiles[0]));
+    form.set("prompt", "");
+    form.set("view_source", "generated");
+    const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
+    session = { id: result.session_id, token: result.access_token };
+    pendingReferenceFiles = referenceFiles;
+    sessionStorage.setItem("image3d-session", JSON.stringify(session));
+    render(result);
+  }
+  for (let index = state.reference_images.length; index < referenceFiles.length; index += 1) {
     button.textContent = `正在准备参考图 ${index + 1}/${referenceFiles.length}…`;
     const body = new FormData();
     body.set("image", await compressedFile(referenceFiles[index]));
     render(await api(`/api/sessions/${session.id}/references`, { method: "POST", body, timeout: 90_000 }));
   }
+  pendingReferenceFiles = [];
 }
 
 async function uploadManualViews(button) {

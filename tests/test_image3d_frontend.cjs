@@ -14,7 +14,7 @@ function section(start, end) {
 const workflow = [
   section("function escapeHtml(", "function selectedViewMode()"),
   section("function selectedViewMode()", "function setStepState("),
-  section("async function uploadManualViews(", '$("#upload-form").addEventListener'),
+  section("async function uploadSelectedReferences(", '$("#upload-form").addEventListener'),
   section("async function reviewCurrentViews(", '$("#confirm-description").addEventListener'),
   section("async function refine(", "async function replaceUploadedView("),
 ].join("\n");
@@ -38,7 +38,7 @@ function harness(state = completedState()) {
   }
   const context = {
     state, allViews, labels: { front: "正视图", left: "左视图", right: "右视图", back: "背视图" },
-    session: { id: "test-session" }, actionInFlight: false, $, document: { querySelectorAll: () => [] },
+    session: { id: "test-session" }, pendingReferenceFiles: [], actionInFlight: false, $, document: { querySelectorAll: () => [] },
     setStepState(selector, text) { $(selector).textContent = text; }, clearError() {}, notify() {},
     selectedModelProvider: () => "meshy",
     setActionInFlight(value) { context.actionInFlight = value; context.syncControls(); },
@@ -165,6 +165,54 @@ test("the last view and locked tasks cannot be toggled; failed saves preserve se
   assert.equal(errors.length, 1);
   assert.deepEqual(context.state.excluded_3d_views, ["left", "right", "back"]);
   assert.equal(context.actionInFlight, false);
+});
+
+test("AI reference upload rejects fewer than two or more than six before any request", async () => {
+  const { context, $, calls } = harness(null);
+  context.session = null;
+  for (const count of [0, 1, 7]) {
+    $("#image-input").files = Array(count).fill(new Blob(["image"]));
+    await assert.rejects(context.uploadSelectedReferences($("upload")), count > 6 ? /最多上传 6 张/ : /至少选择 2 张/);
+  }
+  assert.equal(calls.length, 0);
+  context.session = { id: "partial-session" };
+  context.state = { status: "REFERENCES_READY", reference_images: [{ url: "first" }] };
+  await assert.rejects(context.uploadSelectedReferences($("upload")), /至少上传 2 张/);
+  assert.equal(calls.length, 0);
+});
+
+test("AI upload accepts two to six references and resumes an interrupted upload before analysis", async () => {
+  for (const count of [2, 6]) {
+    const { context, $, calls } = harness(null);
+    context.session = null;
+    context.FormData = FormData;
+    context.sessionStorage = { setItem() {} };
+    context.compressedFile = async file => file;
+    const files = Array.from({ length: count }, (_, index) => new Blob([`image-${index}`], { type: "image/png" }));
+    $("#image-input").files = files;
+    let failOnce = true;
+    context.api = async (path, options) => {
+      calls.push({ path, options });
+      if (path === "/api/sessions") {
+        return { session_id: "reference-session", access_token: "token", status: "REFERENCES_READY",
+          view_source: "generated", reference_images: [{ url: "first" }] };
+      }
+      assert.ok(path.endsWith("/references"));
+      if (failOnce) { failOnce = false; throw Error("upload interrupted"); }
+      assert.equal(await options.body.get("image").text(), `image-${context.state.reference_images.length}`);
+      return { ...context.state, reference_images: [...context.state.reference_images, { url: "next" }] };
+    };
+    await assert.rejects(context.uploadSelectedReferences($("upload")), /upload interrupted/);
+    assert.equal(context.state.reference_images.length, 1);
+    // A retry must finish the original batch even if the file picker changed.
+    $("#image-input").files = [];
+    await context.uploadSelectedReferences($("upload"));
+    assert.equal(context.state.reference_images.length, count);
+    assert.equal(calls.filter(call => call.path === "/api/sessions").length, 1);
+    assert.equal(calls.length, count + 1);
+    await context.uploadSelectedReferences($("upload"));
+    assert.equal(calls.length, count + 1);
+  }
 });
 
 test("manual upload accepts a single side view, keeps its label and excludes missing angles", async () => {
