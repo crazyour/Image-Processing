@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261128-4">
+  <link rel="stylesheet" href="/static/styles.css?v=20261128-6">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -164,7 +164,7 @@
     </section>
 
     <section id="generate-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后生成 STL，生成后自动修复结构并优化表面。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后生成 STL；原件保留，另存保形修复后的文件。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <fieldset class="model-provider-options">
         <legend>选择生成模型</legend>
         <label class="model-provider-option">
@@ -208,12 +208,16 @@
       </div>
       <div id="model-preview" class="model-preview hidden">
         <div>
-          <strong>最终 STL</strong><span id="model-meta"></span>
-          <span id="model-preview-status">简化预览 · 拖动旋转，滚轮缩放。</span>
+          <strong id="model-preview-title">STL 预览</strong><span id="model-meta"></span>
+          <div class="stl-preview-switch" role="group" aria-label="选择 STL 预览版本">
+            <button id="preview-original-stl" class="secondary" type="button" aria-pressed="false">原始 STL</button>
+            <button id="preview-processed-stl" class="secondary" type="button" aria-pressed="false" disabled>修复后 STL</button>
+          </div>
+          <span id="model-preview-status">简化预览 · 请下载文件核对实际网格。</span>
         </div>
         <div class="preview-surface">
-          <canvas id="stl-canvas" class="hidden" aria-label="最终 STL 模型交互预览"></canvas>
-          <img id="model-preview-image" class="hidden" alt="最终 STL 模型预览图">
+          <canvas id="stl-canvas" class="hidden" aria-label="STL 模型交互预览"></canvas>
+          <img id="model-preview-image" class="hidden" alt="STL 模型预览图">
         </div>
       </div>
       <div id="model-results" class="model-results"></div>
@@ -221,9 +225,9 @@
       <details id="resize-step" class="resize-details">
         <summary>调整尺寸（可选）</summary>
         <div class="resize-details-body">
-          <div class="resize-heading"><p>默认使用最终 STL，也可选择本地文件。</p><b id="resize-state" class="step-state">等待文件</b></div>
+          <div class="resize-heading"><p id="resize-source-hint">默认使用修复后 STL；尚未修复时使用原件。</p><b id="resize-state" class="step-state">等待文件</b></div>
           <div class="stl-resize-source">
-            <button id="use-generated-stl" class="secondary" type="button" disabled>使用最终 STL</button>
+            <button id="use-generated-stl" class="secondary" type="button" disabled>使用本次 STL</button>
             <label class="stl-file-button" for="resize-stl-input">选择本地 STL
               <input id="resize-stl-input" type="file" accept=".stl,model/stl,application/sla">
             </label>
@@ -350,11 +354,11 @@
         <summary>六、预览和下载</summary>
         <p>生成成功后：</p>
         <ul>
-          <li>模型生成后会自动修复结构并处理表面，完成后显示最终 STL。</li>
+          <li>模型生成后保留原始 STL，并自动保形修复、处理表面，完成后另存修复后 STL。</li>
           <li>可以在预览区域拖动模型旋转。</li>
           <li>使用鼠标滚轮可以缩放模型。</li>
           <li>页面会显示 STL 文件大小。</li>
-          <li>点击“下载文件”保存最终 <code>.stl</code> 文件；需要修改尺寸时展开“调整尺寸（可选）”。</li>
+          <li>原始和修复后 <code>.stl</code> 均可分别下载、切换预览；需要修改尺寸时展开“调整尺寸（可选）”。</li>
         </ul>
         <p>如果交互预览加载失败，但下载按钮仍然存在，可以直接下载 STL，不影响模型文件本身。</p>
       </details>
@@ -387,7 +391,7 @@
         </ul>
         <p>页面会保留错误编号和 Request ID。排查问题时请同时提供这两个信息。</p>
         <h3>为什么任务完成后没有下载按钮？</h3>
-        <p>模型返回后还会自动修复结构并处理表面，两步完成后才提供最终 STL。若显示“暂未完成”，可以点击“重试处理”，无需重新生成模型。</p>
+        <p>原始 STL 生成后即可下载。自动处理完成后另存修复后 STL，原件仍保留；若仍有结构问题，会提示核对。处理失败可点击“重试处理”，无需重新生成模型。</p>
         <h3>刷新页面后任务还在吗？</h3>
         <p>当前任务保存在当前标签页的会话中：</p>
         <ul>
@@ -434,7 +438,7 @@
 
   <script src="/assets/reset-on-refresh.js?v=20261128-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261128-5" defer></script>
+  <script src="/static/app.js?v=20261128-6" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

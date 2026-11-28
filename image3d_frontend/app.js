@@ -20,10 +20,12 @@ let transientError = null;
 let dismissedErrorKey = null;
 let loadedPreviewUrl = null;
 let stlPreview = null;
+let stlPreviewVariant = "processed";
 let stlPreviewSourceKey = null;
 let stlPreviewRequestId = 0;
 let generatedStlUrl = null;
 let loadedResizeUrl = null;
+let loadingResizeRequest = null;
 let resizeMesh = null;
 let resizeSourceKind = null;
 let resizeFileName = "model-resized.stl";
@@ -510,6 +512,23 @@ function currentProcessedStl(model = currentStlModel()) {
   return result;
 }
 
+function currentOriginalStl() {
+  const model = currentStlModel();
+  return state?.status === "SUCCEEDED" && model?.url ? model : null;
+}
+
+function currentPreviewStl() {
+  return stlPreviewVariant === "original" ? currentOriginalStl() : currentProcessedStl() || currentOriginalStl();
+}
+
+function currentResizeStl() {
+  return currentProcessedStl() || currentOriginalStl();
+}
+
+function stlSourceLabel(model) {
+  return model?.url === currentProcessedStl()?.url ? "修复后 STL" : "原始 STL";
+}
+
 function modelFileJobActive(model = currentStlModel()) {
   const job = model?.quality_job;
   const seconds = ["process", "smooth"].includes(job?.operation) ? 360 : 180;
@@ -538,7 +557,7 @@ function renderModelProcessing() {
   $("#model-processing").classList.toggle("hidden", !ready);
   $("#model-results").setAttribute("aria-busy", String(Boolean(busy || awaitingRetry)));
   $("#model-processing-spinner").classList.toggle("hidden", !busy && !awaitingRetry);
-  $("#model-processing-summary").textContent = result ? `已完成自动修复与表面处理。${result.reconstructed ? "已使用重建修复，请核对细节。" : ""}`
+  $("#model-processing-summary").textContent = result ? result.needs_review ? "已保形处理，仍有结构问题。请核对后使用。" : "已完成保形修复与表面处理。"
     : busy ? `正在${stage}…`
     : awaitingRetry ? "正在等待继续处理…"
     : failed ? `暂未完成：${processing?.status === "failed" ? processing.message || "自动处理未能完成，请重试。" : error || "处理已中断，请重试。"}`
@@ -547,13 +566,18 @@ function renderModelProcessing() {
   const retry = ready && !result && !busy && !awaitingRetry && (failed || attempted);
   $("#retry-model-processing").classList.toggle("hidden", !retry);
   $("#retry-model-processing").disabled = !retry;
-  if (ready) setStepState("#generate-state", result ? "已完成" : busy ? `正在${stage}` : retry ? "处理未完成" : "自动处理中",
-    busy || !retry, retry, Boolean(result));
-  $("#model-results").innerHTML = result
-    ? `<a class="model-link" href="${escapeHtml(result.url)}" download="model-final.stl"><span>最终 STL${result.size_bytes ? ` · ${formatBytes(result.size_bytes)}` : ""}</span><span>下载文件 ↓</span></a>` : "";
-  generatedStlUrl = result?.url || null;
+  if (ready) setStepState("#generate-state", result ? result.needs_review ? "已处理 · 待核对" : "已完成" : busy ? `正在${stage}` : retry ? "处理未完成" : "自动处理中",
+    busy || !retry, retry, Boolean(result && !result.needs_review));
+  const original = currentOriginalStl();
+  const files = [[original, "原始 STL", "model-original.stl"], [result, "修复后 STL", "model-repaired.stl"]];
+  $("#model-results").innerHTML = files.filter(([file]) => file).map(([file, label, name]) =>
+    `<a class="model-link" href="${escapeHtml(file.url)}" download="${name}"><span>${label}${file.size_bytes ? ` · ${formatBytes(file.size_bytes)}` : ""}</span><span>下载文件 ↓</span></a>`
+  ).join("");
+  generatedStlUrl = currentResizeStl()?.url || null;
   $("#use-generated-stl").disabled = !generatedStlUrl;
-  $("#model-preview").classList.toggle("hidden", !result);
+  $("#use-generated-stl").textContent = result ? "使用修复后 STL" : "使用原始 STL";
+  $("#resize-source-hint").textContent = result ? "默认使用修复后 STL，也可选择本地文件。" : "修复尚未完成，当前默认使用原始 STL。";
+  $("#model-preview").classList.toggle("hidden", !original);
   renderStlPreviewSource();
   if (ready && busy && !modelProcessingPoll) {
     modelProcessingTimer = setTimeout(() => pollModelProcessing(), 5000);
@@ -627,9 +651,11 @@ async function runModelProcessing() {
 
 function renderStlPreviewSource() {
   const result = currentProcessedStl();
-  const key = result ? `${modelProcessingKey()}:${result.url}` : null;
+  const original = currentOriginalStl();
+  const key = original ? modelProcessingKey() : null;
   if (stlPreviewSourceKey !== key) {
     stlPreviewSourceKey = key;
+    stlPreviewVariant = "processed";
     stlPreviewRequestId += 1;
     loadedPreviewUrl = null;
     stlPreview = null;
@@ -641,17 +667,43 @@ function renderStlPreviewSource() {
       resizeMesh = null;
       resizeSourceKind = null;
       $("#stl-resize-editor").classList.add("hidden");
-      $("#resize-source-status").textContent = result ? "正在载入最终 STL…" : "等待最终 STL";
+      $("#resize-source-status").textContent = original ? `正在载入${stlSourceLabel(currentResizeStl())}…` : "等待 STL";
       setStepState("#resize-state", "等待文件");
     }
   }
-  if (!result) return;
-  $("#model-meta").textContent = result.size_bytes ? formatBytes(result.size_bytes) : "";
-  if (loadedPreviewUrl !== result.url) loadStlPreview(result.url);
+  const selected = currentPreviewStl();
+  const showingOriginal = Boolean(selected && selected === original);
+  $("#preview-original-stl").disabled = !original;
+  $("#preview-processed-stl").disabled = !result;
+  $("#preview-original-stl").setAttribute("aria-pressed", String(showingOriginal));
+  $("#preview-processed-stl").setAttribute("aria-pressed", String(Boolean(selected && !showingOriginal)));
+  if (!selected) return;
+  $("#model-preview-title").textContent = stlSourceLabel(selected);
+  $("#model-meta").textContent = selected.size_bytes ? formatBytes(selected.size_bytes) : "";
+  const resizeSource = currentResizeStl();
+  if (resizeSourceKind !== "local" && loadedResizeUrl && loadedResizeUrl !== resizeSource.url) {
+    resizeRequestId += 1;
+    loadedResizeUrl = null;
+    resizeMesh = null;
+    $("#stl-resize-editor").classList.add("hidden");
+    $("#resize-source-status").textContent = `正在载入${stlSourceLabel(resizeSource)}…`;
+  }
+  if (loadedPreviewUrl !== selected.url) loadStlPreview(selected.url);
+  // Preview choice is independent of the size tool's repaired-first default.
+  if (selected.url !== resizeSource.url && resizeSourceKind !== "local" && loadedResizeUrl !== resizeSource.url) {
+    loadResizeStlFromUrl(resizeSource.url);
+  }
+}
+
+function selectStlPreview(variant) {
+  if (!["original", "processed"].includes(variant) || !currentOriginalStl()) return;
+  if (variant === "processed" && !currentProcessedStl()) return;
+  stlPreviewVariant = variant;
+  renderStlPreviewSource();
 }
 
 async function loadStlPreview(url) {
-  if (url !== currentProcessedStl()?.url) return;
+  if (url !== currentPreviewStl()?.url) return;
   loadedPreviewUrl = url;
   const requestId = ++stlPreviewRequestId;
   const sourceKey = stlPreviewSourceKey;
@@ -664,9 +716,9 @@ async function loadStlPreview(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error("STL 预览下载失败");
     const buffer = await response.arrayBuffer();
-    if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId || url !== currentProcessedStl()?.url) return;
-    if (resizeId === resizeRequestId && resizeSourceKind !== "local" && loadedResizeUrl !== url) {
-      setResizeMesh(buffer, "最终 STL", "model-final.stl", "generated");
+    if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId || url !== currentPreviewStl()?.url) return;
+    if (url === currentResizeStl()?.url && resizeId === resizeRequestId && resizeSourceKind !== "local" && loadedResizeUrl !== url) {
+      setResizeMesh(buffer, stlSourceLabel(currentResizeStl()), currentProcessedStl() ? "model-repaired.stl" : "model-original.stl", "generated");
       loadedResizeUrl = url;
     }
     const triangles = parseStl(buffer);
@@ -674,12 +726,12 @@ async function loadStlPreview(url) {
     stlPreview = { triangles, rotationX: stlPreview?.rotationX ?? -0.35,
       rotationY: stlPreview?.rotationY ?? 0.65, zoom: stlPreview?.zoom ?? 0.9 };
     canvas.classList.remove("hidden");
-    $("#model-preview-status").textContent = "简化预览 · 拖动旋转，滚轮缩放。";
+    $("#model-preview-status").textContent = "简化预览 · 请下载文件核对实际网格。";
     drawStlPreview();
   } catch (_) {
     if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId) return;
     canvas.classList.add("hidden");
-    $("#model-preview-status").textContent = "预览暂不可用，可下载最终 STL 查看。";
+    $("#model-preview-status").textContent = "预览暂不可用，可下载对应 STL 查看。";
   }
 }
 
@@ -781,21 +833,27 @@ function setResizeMesh(buffer, sourceLabel, fileName, sourceKind) {
 }
 
 async function loadResizeStlFromUrl(url, force = false) {
-  if (!url || url !== currentProcessedStl()?.url || (!force && (resizeSourceKind === "local" || loadedResizeUrl === url))) return;
+  if (!url || url !== currentResizeStl()?.url || (!force && (resizeSourceKind === "local" || loadedResizeUrl === url))) return;
+  if (loadingResizeRequest?.url === url && loadingResizeRequest.sourceKey === stlPreviewSourceKey
+    && loadingResizeRequest.requestId === resizeRequestId) return;
   const requestId = ++resizeRequestId;
   const sourceKey = stlPreviewSourceKey;
+  const request = { url, sourceKey, requestId };
+  loadingResizeRequest = request;
   try {
-    $("#resize-source-status").textContent = "正在载入最终 STL…";
+    $("#resize-source-status").textContent = `正在载入${stlSourceLabel(currentResizeStl())}…`;
     const response = await fetch(url);
-    if (!response.ok) throw new Error("最终 STL 下载失败");
+    if (!response.ok) throw new Error("STL 下载失败");
     const buffer = await response.arrayBuffer();
-    if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey || url !== currentProcessedStl()?.url) return;
-    setResizeMesh(buffer, "最终 STL", "model-final.stl", "generated");
+    if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey || url !== currentResizeStl()?.url) return;
+    setResizeMesh(buffer, stlSourceLabel(currentResizeStl()), currentProcessedStl() ? "model-repaired.stl" : "model-original.stl", "generated");
     loadedResizeUrl = url;
   } catch (error) {
     if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey) return;
     setStepState("#resize-state", "载入失败", false, true);
     notify(error.message || "STL 载入失败", true);
+  } finally {
+    if (loadingResizeRequest === request) loadingResizeRequest = null;
   }
 }
 
@@ -1011,7 +1069,7 @@ async function loadMeshyBalance(force = false) {
 function updateModelProvider() {
   const provider = selectedModelProvider();
   const details = modelProviderDetails[provider];
-  $("#model-provider-heading").textContent = `确认四视图后，提交${details.name}生成 STL；生成后自动修复结构并优化表面。`;
+  $("#model-provider-heading").textContent = `确认四视图后，提交${details.name}生成 STL；原件保留，另存保形修复后的文件。`;
   $("#model-provider-note").textContent = details.note;
   $("#meshy-balance").classList.toggle("hidden", provider !== "meshy");
   if (provider === "meshy") loadMeshyBalance();
@@ -1253,6 +1311,8 @@ $("#refresh-task").addEventListener("click", async (event) => {
 
 $("#use-generated-stl").addEventListener("click", () => loadResizeStlFromUrl(generatedStlUrl, true));
 $("#retry-model-processing").addEventListener("click", runModelProcessing);
+$("#preview-original-stl").addEventListener("click", () => selectStlPreview("original"));
+$("#preview-processed-stl").addEventListener("click", () => selectStlPreview("processed"));
 
 $("#resize-stl-input").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];

@@ -62,6 +62,47 @@ def points(raw):
 
 
 class MeshSmoothingTests(unittest.TestCase):
+    def test_preserving_mode_smooths_sound_surface_without_erasing_a_nonmanifold_fin(self):
+        surface = sphere()
+        a, b = surface[0, :2]
+        fin = np.array([[a, b, (a + b) / 2 * 1.025]])
+        raw = binary(np.concatenate((surface, fin, tetra() * .02 + 4)))
+        before, triangles, _ = mesh._inspect(raw, time.monotonic() + 10)
+        vertices, inverse = np.unique(triangles.reshape(-1, 3), axis=0, return_inverse=True)
+        faces = inverse.reshape(-1, 3).astype(np.int32)
+        data = smoothing._edges(faces, time.monotonic() + 10)
+        bad = smoothing._vertex_fan_mask(faces, data, time.monotonic() + 10)
+        bad[data["vertices"][data["counts"] > 2].ravel()] = True
+        bad[data["vertices"][np.any(bad[data["vertices"]], axis=1)].ravel()] = True
+
+        rejected, _ = smoothing.process_smoothing(raw)
+        self.assertEqual(rejected["status"], "rejected")
+        report, output = smoothing.process_smoothing(raw, preserve_defects=True)
+        self.assertEqual(report["status"], "smoothed", report)
+        self.assertTrue(report["needs_review"])
+        self.assertEqual(report["method"], "surface_preserving")
+        self.assertTrue(report["stats"]["connectivity_preserved"])
+        self.assertGreater(report["stats"]["moved_vertices"], 0)
+        # Only the independent tetrahedron is a reliable closed volume; the
+        # sphere region touches an overused edge shared with its attached fin.
+        self.assertEqual(report["stats"]["volume_checked_components"], 1)
+        after_triangles = mesh._parse(output, time.monotonic() + 10)
+        # Exact face order/connection correspondence; defective corners never move.
+        np.testing.assert_array_equal(after_triangles[bad[faces]], triangles[bad[faces]])
+        for key in ("faces", "components", "nonmanifold_edges", "boundary_edges", "inconsistent_edges"):
+            self.assertEqual(report["after"]["stats"][key], before["stats"][key])
+
+    def test_preserving_mode_never_thickens_or_resamples_an_open_sheet(self):
+        raw = binary(patch_mesh())
+        report, output = smoothing.process_smoothing(raw, preserve_defects=True)
+        self.assertEqual(report["status"], "smoothed", report)
+        self.assertTrue(report["needs_review"])
+        self.assertEqual(report["before"]["stats"]["faces"], report["after"]["stats"]["faces"])
+        self.assertEqual(report["before"]["stats"]["boundary_edges"], report["after"]["stats"]["boundary_edges"])
+        invalid, output = smoothing.process_smoothing(raw, preserve_defects=True, subdivide=True)
+        self.assertEqual(invalid["status"], "invalid")
+        self.assertIsNone(output)
+
     def test_smoothing_changes_real_surface_and_preserves_original_and_topology(self):
         raw = binary(sphere())
         original = bytes(raw)

@@ -162,6 +162,10 @@ button.pending:disabled { opacity: 1; color: white; background: #6f9b8c; }
 .model-preview canvas, .model-preview img { width: 100%; height: 220px; object-fit: contain; display: block; background: white; }
 .model-preview canvas { cursor: grab; touch-action: none; }
 .model-preview canvas:active { cursor: grabbing; }
+.model-preview .stl-preview-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.stl-preview-switch button { min-height: 44px; padding: 9px 12px; }
+.stl-preview-switch button[aria-pressed="true"] { color: #fff; background: var(--accent); }
+.stl-preview-switch button:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 3px; }
 .stl-resize-source { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .stl-resize-source > span { color: var(--muted); font-size: 13px; }
 .stl-file-button { display: inline-flex; align-items: center; min-height: 46px; padding: 11px 17px; border-radius: 13px; color: #fff; background: var(--accent); box-shadow: 0 7px 20px rgba(47,107,87,.18); cursor: pointer; }

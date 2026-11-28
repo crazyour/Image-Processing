@@ -16,8 +16,8 @@ const workflow = section("function formatBytes(", "function parseStl(")
   + section("async function loadResizeStlFromUrl(", "function targetDimensions(");
 
 function completed(model) {
-  model.processing = { status: "completed", stage: "done", version: "pipeline-v1", source_sha256: model.sha256 };
-  model.processed = { url: "/final.stl", source_sha256: model.sha256, sha256: "final-sha", size_bytes: 1200, version: "pipeline-v1" };
+  model.processing = { status: "completed", stage: "done", version: "stl-auto-v2", source_sha256: model.sha256 };
+  model.processed = { url: "/final.stl", source_sha256: model.sha256, sha256: "final-sha", size_bytes: 1200, version: "stl-auto-v2" };
   delete model.quality_job;
   return model.processed;
 }
@@ -47,8 +47,8 @@ function harness() {
     } } } },
     modelProcessingTimer: null, modelProcessingRequest: null, modelProcessingPoll: null,
     modelProcessingError: null, attemptedModelProcessing: new Set(),
-    stlPreviewSourceKey: null, stlPreviewRequestId: 0, loadedPreviewUrl: null, stlPreview: null,
-    generatedStlUrl: null, loadedResizeUrl: null, resizeSourceKind: null, resizeMesh: null, resizeRequestId: 0,
+    stlPreviewSourceKey: null, stlPreviewRequestId: 0, loadedPreviewUrl: null, stlPreview: null, stlPreviewVariant: "processed",
+    generatedStlUrl: null, loadedResizeUrl: null, loadingResizeRequest: null, resizeSourceKind: null, resizeMesh: null, resizeRequestId: 0,
     Date, Number, Math, JSON,
     setTimeout(fn, delay) { const id = ++timerId; timers.set(id, { fn, delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
@@ -77,26 +77,29 @@ function harness() {
   return { context, $, calls, timers, resizeCalls, fetches, nextTimer };
 }
 
-test("the fourth step contains one final result and collapsed optional resizing", () => {
-  assert.doesNotMatch(html, /id="(?:mesh-quality-step|check-stl|repair-stl|smooth-stl|preview-original-stl|preview-smoothed-stl|smoothing-strength)"/);
+test("the fourth step retains both STL versions and collapsed optional resizing", () => {
+  assert.doesNotMatch(html, /id="(?:mesh-quality-step|check-stl|repair-stl|smooth-stl|preview-smoothed-stl|smoothing-strength)"/);
   assert.doesNotMatch(html, /<span>0[56]<\/span>/);
   assert.match(html, /id="model-processing-summary"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.match(html, /<details id="resize-step"[^>]*>\s*<summary>调整尺寸（可选）/);
   assert.doesNotMatch(html, /<details id="resize-step"[^>]*open/);
   assert.match(source, /\$\("#retry-model-processing"\)\.addEventListener\("click", runModelProcessing\)/);
   assert.doesNotMatch(source, /3d\/(?:check|repair|smooth)[`"']/);
+  assert.match(html, /id="preview-original-stl"[^>]*aria-pressed="false"/);
+  assert.match(html, /id="preview-processed-stl"[^>]*aria-pressed="false"[^>]*disabled/);
 });
 
-test("historical completed models process once automatically and never expose the original", async () => {
+test("historical completed models process once while retaining the original download", async () => {
   const { context, $, calls, timers, fetches, nextTimer } = harness();
   context.renderModelProcessing();
   context.renderModelProcessing();
   assert.equal(timers.size, 1);
-  assert.equal($("#model-results").innerHTML, "");
-  assert.equal($("#model-preview").classList.contains("hidden"), true);
-  assert.equal($("#use-generated-stl").disabled, true);
-  assert.equal(context.generatedStlUrl, null);
-  assert.equal(fetches.length, 0);
+  assert.match($("#model-results").innerHTML, /href="\/original.stl" download="model-original.stl"/);
+  assert.doesNotMatch($("#model-results").innerHTML, /修复后 STL/);
+  assert.equal($("#model-preview").classList.contains("hidden"), false);
+  assert.equal($("#use-generated-stl").disabled, false);
+  assert.equal(context.generatedStlUrl, "/original.stl");
+  assert.deepEqual(fetches, ["/original.stl"]);
   await nextTimer();
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "/api/sessions/session-a/3d/process");
@@ -105,20 +108,21 @@ test("historical completed models process once automatically and never expose th
   assert.ok(calls[0].options.timeout >= 300_000);
   assert.equal(context.generatedStlUrl, "/final.stl");
   assert.match($("#model-results").innerHTML, /\/final.stl/);
-  assert.doesNotMatch($("#model-results").innerHTML, /original/);
-  assert.equal($("#model-processing-summary").textContent, "已完成自动修复与表面处理。");
+  assert.match($("#model-results").innerHTML, /\/original.stl/);
+  assert.equal(($("#model-results").innerHTML.match(/<a /g) || []).length, 2);
+  assert.equal($("#model-processing-summary").textContent, "已完成保形修复与表面处理。");
   assert.equal(timers.size, 0);
 });
 
-test("repair, reconstruction and smoothing pending stages continue serially", async () => {
+test("repair and adaptive smoothing pending stages continue serially", async () => {
   const { context, calls, timers, nextTimer } = harness();
-  const steps = ["reconstruct", "smooth", "smooth_cautious", "smooth_minimal", "done"];
+  const steps = ["preserve", "smooth", "smooth_cautious", "smooth_minimal", "done"];
   context.api = async (url, options) => {
     calls.push({ url, options });
     const next = structuredClone(context.state);
     const stage = steps[calls.length - 1];
     if (stage === "done") completed(next.model_task.models.stl);
-    else next.model_task.models.stl.processing = { status: "pending", stage, version: "pipeline-v1" };
+    else next.model_task.models.stl.processing = { status: "pending", stage, version: "stl-auto-v2" };
     return next;
   };
   context.renderModelProcessing();
@@ -134,7 +138,7 @@ test("repair, reconstruction and smoothing pending stages continue serially", as
 
 test("repeated pending same-stage responses cannot cause an automatic POST loop", async () => {
   const { context, $, calls, timers, nextTimer } = harness();
-  context.currentStlModel().processing = { status: "pending", stage: "smooth", version: "pipeline-v1" };
+  context.currentStlModel().processing = { status: "pending", stage: "smooth", version: "stl-auto-v2" };
   context.api = async (url, options) => { calls.push({ url, options }); return structuredClone(context.state); };
   context.renderModelProcessing();
   await nextTimer();
@@ -148,7 +152,7 @@ test("a busy computation slot retries the same stage only after the server backo
   const { context, $, calls, timers, nextTimer } = harness();
   let now = 100_000;
   context.Date = { now: () => now };
-  context.currentStlModel().processing = { status: "pending", stage: "repair", version: "pipeline-v1" };
+  context.currentStlModel().processing = { status: "pending", stage: "repair", version: "stl-auto-v2" };
   context.api = async (url, options) => {
     calls.push({ url, options });
     const next = structuredClone(context.state);
@@ -177,7 +181,7 @@ test("a busy computation slot retries the same stage only after the server backo
 test("one backoff timestamp cannot authorize endless retries after an unchanged response", async () => {
   const { context, $, calls, timers, nextTimer } = harness();
   context.Date = { now: () => 105_000 };
-  context.currentStlModel().processing = { status: "pending", stage: "repair", version: "pipeline-v1", retry_after: 105 };
+  context.currentStlModel().processing = { status: "pending", stage: "repair", version: "stl-auto-v2", retry_after: 105 };
   context.api = async (url, options) => { calls.push({ url, options }); return structuredClone(context.state); };
   context.renderModelProcessing();
   await nextTimer();
@@ -198,7 +202,7 @@ test("changing session, source, or stage invalidates a scheduled backoff retry",
   ]) {
     const { context, calls, timers } = harness();
     context.Date = { now: () => 100_000 };
-    context.currentStlModel().processing = { status: "pending", stage: "repair", version: "pipeline-v1", retry_after: 105 };
+    context.currentStlModel().processing = { status: "pending", stage: "repair", version: "stl-auto-v2", retry_after: 105 };
     context.renderModelProcessing();
     const previousTimer = context.modelProcessingTimer;
     const callback = timers.get(previousTimer).fn;
@@ -214,7 +218,7 @@ test("changing session, source, or stage invalidates a scheduled backoff retry",
 test("a new hash at the same source URL does not reuse the previous stage attempt", async () => {
   const { context, calls, timers } = harness();
   const model = context.currentStlModel();
-  model.processing = { status: "pending", stage: "repair", version: "pipeline-v1" };
+  model.processing = { status: "pending", stage: "repair", version: "stl-auto-v2" };
   context.attemptedModelProcessing.add(context.modelProcessingAttemptKey());
   context.renderModelProcessing();
   assert.equal(timers.size, 0);
@@ -233,7 +237,7 @@ test("double clicks are suppressed while processing and status polling never pos
     calls.push({ url, options });
     if (options?.method === "POST") return new Promise(resolve => { finish = resolve; });
     const next = structuredClone(context.state);
-    next.model_task.models.stl.processing = { status: "running", stage: "smooth", version: "pipeline-v1" };
+    next.model_task.models.stl.processing = { status: "running", stage: "smooth", version: "stl-auto-v2" };
     next.model_task.models.stl.quality_job = { operation: "process", started_at: Date.now() / 1000 };
     return next;
   };
@@ -258,7 +262,7 @@ test("running server jobs are resumed with GET only and expiry offers retry", as
   for (const operation of ["process", "smooth"]) {
     const { context, $, calls, timers, nextTimer } = harness();
     const model = context.currentStlModel();
-    model.processing = { status: "running", stage: "smooth", version: "pipeline-v1" };
+    model.processing = { status: "running", stage: "smooth", version: "stl-auto-v2" };
     model.quality_job = { operation, started_at: Date.now() / 1000 - 300 };
     context.renderModelProcessing();
     await context.runModelProcessing();
@@ -278,12 +282,14 @@ test("running server jobs are resumed with GET only and expiry offers retry", as
 test("explicit failure remains honest and does not schedule an automatic retry", async () => {
   const { context, $, calls, timers } = harness();
   const model = context.currentStlModel();
-  model.processing = { status: "failed", stage: "smooth", version: "pipeline-v1", message: "<img onerror=bad> 无法完成" };
+  model.processing = { status: "failed", stage: "smooth", version: "stl-auto-v2", message: "<img onerror=bad> 无法完成" };
   model.repaired = { url: "/repaired.stl" };
   model.smoothed = { url: "/old-smooth.stl", source_sha256: model.sha256 };
+  model.previous_processed = { url: "/old-processed.stl", source_sha256: model.sha256 };
   context.renderModelProcessing();
   assert.equal(timers.size, 0);
-  assert.equal($("#model-results").innerHTML, "");
+  assert.match($("#model-results").innerHTML, /\/original.stl/);
+  assert.doesNotMatch($("#model-results").innerHTML, /old-|\/repaired.stl/);
   assert.equal($("#model-processing-summary").textContent, "暂未完成：<img onerror=bad> 无法完成");
   assert.equal($("#retry-model-processing").disabled, false);
   await context.runModelProcessing();
@@ -291,18 +297,20 @@ test("explicit failure remains honest and does not schedule an automatic retry",
   assert.equal(context.currentProcessedStl().url, "/final.stl");
 });
 
-test("adaptive smoothing stages share one simple status and reconstruction adds a short note", () => {
+test("adaptive smoothing stages share one status and residual structure issues stay visible", () => {
   const { context, $ } = harness();
   const model = context.currentStlModel();
   model.quality_job = { operation: "process", started_at: Date.now() / 1000 };
   for (const stage of ["smooth", "smooth_cautious", "smooth_minimal"]) {
-    model.processing = { status: "running", stage, version: "pipeline-v1" };
+    model.processing = { status: "running", stage, version: "stl-auto-v2" };
     context.renderModelProcessing();
     assert.equal($("#model-processing-summary").textContent, "正在优化表面…");
   }
-  completed(model).reconstructed = true;
+  completed(model).needs_review = true;
   context.renderModelProcessing();
-  assert.equal($("#model-processing-summary").textContent, "已完成自动修复与表面处理。已使用重建修复，请核对细节。");
+  assert.equal($("#model-processing-summary").textContent, "已保形处理，仍有结构问题。请核对后使用。");
+  assert.equal($("#generate-state").textContent, "已处理 · 待核对");
+  assert.match($("#model-results").innerHTML, /\/final.stl/);
 });
 
 test("network failure reads saved state once without resubmission", async () => {
@@ -316,7 +324,8 @@ test("network failure reads saved state once without resubmission", async () => 
   assert.deepEqual(calls.map(call => call.url), ["/api/sessions/session-a/3d/process", "/api/sessions/session-a"]);
   assert.equal(timers.size, 0);
   assert.equal($("#retry-model-processing").disabled, false);
-  assert.equal($("#model-results").innerHTML, "");
+  assert.match($("#model-results").innerHTML, /\/original.stl/);
+  assert.doesNotMatch($("#model-results").innerHTML, /修复后 STL/);
 });
 
 test("a completed result recovered after a timeout supersedes the request error", async () => {
@@ -331,7 +340,7 @@ test("a completed result recovered after a timeout supersedes the request error"
   await context.runModelProcessing();
   assert.equal(calls.length, 2);
   assert.equal(timers.size, 0);
-  assert.equal($("#model-processing-summary").textContent, "已完成自动修复与表面处理。");
+  assert.equal($("#model-processing-summary").textContent, "已完成保形修复与表面处理。");
   assert.match($("#model-results").innerHTML, /\/final.stl/);
 });
 
@@ -372,7 +381,7 @@ test("stale responses cannot replace another session or source", async () => {
   }
 });
 
-test("download, preview and resize require a completed result matching the original hash and processing version", () => {
+test("invalid repaired copies never replace the original download, preview or resize source", () => {
   for (const invalidate of [
     model => { model.processing.status = "pending"; },
     model => { model.processed.source_sha256 = "another-source"; },
@@ -388,14 +397,15 @@ test("download, preview and resize require a completed result matching the origi
     invalidate(model);
     context.renderModelProcessing();
     assert.equal(context.currentProcessedStl(), null);
-    assert.equal($("#model-results").innerHTML, "");
-    assert.equal(context.generatedStlUrl, null);
-    assert.equal($("#model-preview").classList.contains("hidden"), true);
-    assert.equal(fetches.length, 0);
+    assert.match($("#model-results").innerHTML, /\/original.stl/);
+    assert.doesNotMatch($("#model-results").innerHTML, /\/final.stl/);
+    assert.equal(context.generatedStlUrl, "/original.stl");
+    assert.equal($("#model-preview").classList.contains("hidden"), false);
+    assert.deepEqual(fetches, ["/original.stl"]);
   }
 });
 
-test("only the final file is fetched for preview and default resizing", async () => {
+test("the repaired file is the default preview and resize source when available", async () => {
   const { context, fetches, resizeCalls } = harness();
   completed(context.currentStlModel());
   context.renderModelProcessing();
@@ -403,11 +413,92 @@ test("only the final file is fetched for preview and default resizing", async ()
   assert.deepEqual(fetches, ["/final.stl"]);
   assert.equal(resizeCalls.length, 1);
   assert.equal(resizeCalls[0][0].url, "/final.stl");
-  assert.equal(resizeCalls[0][1], "最终 STL");
+  assert.equal(resizeCalls[0][1], "修复后 STL");
   assert.equal(context.loadedResizeUrl, "/final.stl");
   await context.loadStlPreview("/original.stl");
   await context.loadResizeStlFromUrl("/original.stl", true);
   assert.deepEqual(fetches, ["/final.stl"]);
+});
+
+test("the default preview changes from original to repaired while preserving its camera", async () => {
+  const { context, $, resizeCalls } = harness();
+  context.renderModelProcessing();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(context.stlPreview.triangles, ["/original.stl"]);
+  assert.equal($("#model-preview-title").textContent, "原始 STL");
+  assert.equal($("#preview-processed-stl").disabled, true);
+  assert.match($("#resize-source-hint").textContent, /原始 STL/);
+  context.stlPreview.rotationX = 1.2;
+  completed(context.currentStlModel());
+  context.renderModelProcessing();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(context.stlPreview.triangles, ["/final.stl"]);
+  assert.equal(context.stlPreview.rotationX, 1.2);
+  assert.equal($("#model-preview-title").textContent, "修复后 STL");
+  assert.equal($("#preview-processed-stl").attributes["aria-pressed"], "true");
+  assert.equal(resizeCalls.at(-1)[0].url, "/final.stl");
+});
+
+test("an explicit original preview survives processing and the size tool still defaults to repaired", async () => {
+  const { context, $, fetches, resizeCalls } = harness();
+  context.renderModelProcessing();
+  await new Promise(resolve => setImmediate(resolve));
+  context.selectStlPreview("original");
+  let finishResize;
+  context.fetch = async url => {
+    fetches.push(url);
+    return new Promise(resolve => { finishResize = resolve; });
+  };
+  completed(context.currentStlModel());
+  context.renderModelProcessing();
+  context.renderModelProcessing();
+  assert.deepEqual(fetches, ["/original.stl", "/final.stl"], "repeated renders reuse the pending size download");
+  assert.equal($("#model-preview-title").textContent, "原始 STL");
+  assert.equal($("#preview-original-stl").attributes["aria-pressed"], "true");
+  assert.deepEqual(context.stlPreview.triangles, ["/original.stl"]);
+  finishResize({ ok: true, async arrayBuffer() { return { url: "/final.stl" }; } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(resizeCalls.at(-1)[0].url, "/final.stl");
+  assert.equal(resizeCalls.at(-1)[1], "修复后 STL");
+  assert.equal(context.generatedStlUrl, "/final.stl");
+  context.fetch = async url => ({ ok: true, async arrayBuffer() { return { url }; } });
+  context.selectStlPreview("processed");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(context.stlPreview.triangles, ["/final.stl"]);
+});
+
+test("late preview switches cannot replace the chosen version or its independent resize source", async () => {
+  const { context, resizeCalls } = harness();
+  completed(context.currentStlModel());
+  context.renderModelProcessing();
+  await new Promise(resolve => setImmediate(resolve));
+  let finishOriginal;
+  context.fetch = url => url === "/original.stl"
+    ? new Promise(resolve => { finishOriginal = resolve; })
+    : Promise.resolve({ ok: true, async arrayBuffer() { return { url }; } });
+  context.selectStlPreview("original");
+  context.selectStlPreview("processed");
+  await new Promise(resolve => setImmediate(resolve));
+  finishOriginal({ ok: true, async arrayBuffer() { return { url: "/original.stl" }; } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(context.stlPreview.triangles, ["/final.stl"]);
+  assert.equal(resizeCalls.length, 1);
+  assert.equal(context.loadedResizeUrl, "/final.stl");
+});
+
+test("an invalidated historical repair stays hidden while its original is reprocessed", async () => {
+  const { context, $, fetches, nextTimer } = harness();
+  const model = context.currentStlModel();
+  model.previous_processed = { url: "/unsafe-v1.stl", version: "stl-auto-v1", source_sha256: model.sha256 };
+  model.processing = { status: "pending", stage: "repair", version: "stl-auto-v2" };
+  context.renderModelProcessing();
+  assert.match($("#model-results").innerHTML, /\/original.stl/);
+  assert.doesNotMatch($("#model-results").innerHTML, /unsafe-v1/);
+  assert.equal(context.currentProcessedStl(), null);
+  await nextTimer();
+  assert.match($("#model-results").innerHTML, /\/final.stl/);
+  assert.doesNotMatch($("#model-results").innerHTML, /unsafe-v1/);
+  assert.ok(!fetches.includes("/unsafe-v1.stl"));
 });
 
 test("a local resize source survives automatic final-file preview", async () => {

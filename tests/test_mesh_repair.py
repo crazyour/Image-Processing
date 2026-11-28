@@ -187,5 +187,109 @@ class MeshRepairTests(unittest.TestCase):
         self.assert_verified(*repair.process_repair(binary(tetra())))
 
 
+class PreservingRepairTests(unittest.TestCase):
+    def check_preservation(self, raw, report, output):
+        self.assertIn(report["status"], ("repaired", "unchanged", "partial"), report)
+        self.assertEqual(report["method"], "surface_preserving")
+        self.assertIsNotNone(output)
+        self.assertEqual(report["source_sha256"], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(report["after"]["sha256"], hashlib.sha256(output).hexdigest())
+        self.assertEqual(report["stats"]["max_vertex_displacement"], 0)
+        before_points = set(map(tuple, mesh._parse(raw, time.monotonic() + 10).reshape(-1, 3)))
+        after_points = set(map(tuple, mesh._parse(output, time.monotonic() + 10).reshape(-1, 3)))
+        self.assertTrue(after_points <= before_points)
+        self.assertEqual(report["after"]["stats"]["components"], report["before"]["stats"]["components"])
+        for key in ("boundary_edges", "nonmanifold_edges", "inconsistent_edges", "duplicate_faces", "degenerate_faces", "nonmanifold_vertices"):
+            self.assertLessEqual(report["after"]["stats"][key], report["before"]["stats"][key], key)
+
+    def test_isolated_triangle_is_retained_and_never_claimed_closed(self):
+        raw = binary(tetra()[:1])
+        report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(report["status"], "partial")
+        self.assertTrue(report["needs_review"])
+        self.assertEqual(output, raw)
+        self.assertEqual(report["after"]["stats"]["boundary_edges"], 3)
+        self.assertFalse(report["after"]["stats"]["edge_closed"])
+
+    def test_small_hole_repaired_while_independent_open_triangle_is_preserved(self):
+        isolated = tetra()[:1] * .01 + 4
+        raw = binary(np.concatenate((sphere(levels=5)[1:], isolated)))
+        report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["stats"]["filled_holes"], 1)
+        self.assertEqual(report["after"]["stats"]["boundary_edges"], 3)
+        self.assertEqual(report["after"]["stats"]["components"], 2)
+        actual = mesh._parse(output, time.monotonic() + 10)
+        self.assertTrue(any(np.array_equal(item, isolated[0].astype(np.float32)) for item in actual))
+
+    def test_local_winding_is_fixed_even_with_independent_nonmanifold_region(self):
+        body = tetra()
+        body[0] = body[0, [0, 2, 1]]
+        fan = np.array([[[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+                        [[0, 0, 0], [1, 0, 0], [0, 0, 1]],
+                        [[0, 0, 0], [1, 0, 0], [0, -1, 0]]], dtype=float) + 4
+        raw = binary(np.concatenate((body, fan)))
+        report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["after"]["stats"]["inconsistent_edges"], 0)
+        self.assertEqual(report["after"]["stats"]["nonmanifold_edges"], 1)
+        self.assertGreater(report["stats"]["flipped_faces"], 0)
+
+    def test_small_conflicting_fin_removed_without_resampling(self):
+        fin = np.array([[[0, 0, 0], [1, 0, 0], [.5, -.001, 0]]])
+        raw = binary(np.concatenate((tetra(), fin)))
+        report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(report["status"], "repaired")
+        self.assertEqual(report["stats"]["removed_conflict_faces"], 1)
+        self.assertFalse(report["needs_review"])
+        self.assertEqual(report["after"]["stats"]["faces"], 4)
+
+    def test_cleanup_continues_without_forcing_large_hole_closed(self):
+        open_body = tetra()[:-1]
+        raw = binary(np.concatenate((open_body, open_body[:1], np.zeros((1, 3, 3)))))
+        report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["stats"]["removed_duplicate_faces"], 1)
+        self.assertEqual(report["stats"]["removed_degenerate_faces"], 1)
+        self.assertEqual(report["after"]["stats"]["faces"], 3)
+        self.assertEqual(report["after"]["stats"]["boundary_edges"], 3)
+
+    def test_candidate_that_disconnects_a_part_restores_junction_faces(self):
+        base = tetra()
+        base[:, :, 0] *= .001
+        other = base.copy()
+        other[:, :, 1:] *= -1
+        raw = binary(np.concatenate((base, other)))
+        report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(report["before"]["stats"]["components"], 1)
+        self.assertEqual(report["after"]["stats"]["components"], 1)
+        self.assertGreaterEqual(report["after"]["stats"]["faces"], 4)
+
+    def test_corrupt_encoder_cannot_deliver_different_geometry(self):
+        original = tetra()[:-1]
+        raw = binary(np.concatenate((original, original[:1])))
+        with patch.object(mesh, "_encode", return_value=binary(original + 10)):
+            report, output = repair.process_preserving_repair(raw)
+        self.check_preservation(raw, report, output)
+        self.assertEqual(output, raw)
+        self.assertEqual(report["status"], "partial")
+        self.assertFalse(report["stats"]["geometry_changed"])
+
+    def test_shared_slot_and_invalid_input(self):
+        with mesh._SLOT:
+            report, output = repair.process_preserving_repair(binary(tetra()))
+        self.assertEqual(report["code"], "MESH_BUSY")
+        self.assertIsNone(output)
+        report, output = repair.process_preserving_repair(b"broken")
+        self.assertEqual(report["status"], "invalid")
+        self.assertIsNone(output)
+
+
 if __name__ == "__main__":
     unittest.main()

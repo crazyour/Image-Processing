@@ -8,7 +8,6 @@ from unittest.mock import patch
 import app as app_module
 from vercel_app.mesh_processing import PROCESSOR_VERSION
 from vercel_app import mesh_quality as mesh
-from vercel_app import mesh_reconstruction as reconstruction
 from vercel_app.store import PublicBlobStore, StoreError, load_session
 import test_mesh_smoothing_workflow as smoothing_tests
 from test_mesh_reconstruction import binary, cube
@@ -44,40 +43,41 @@ class ProcessingWorkflowTests(unittest.TestCase):
             self.assertEqual(self.model(self.post())["processed"], final["processed"])
             process.assert_not_called()
 
-    def test_unrepairable_mesh_automatically_advances_to_reconstruction(self):
+    def test_unrepairable_mesh_uses_preservation_instead_of_voxel_reconstruction(self):
         def step(raw, stage):
             if stage == "repair":
-                return self.stage_report(raw, stage, "rejected"), None, "reconstruct"
-            if stage == "reconstruct":
-                return self.stage_report(raw, stage, method="voxel_reconstruction"), self.output, "smooth"
+                return self.stage_report(raw, stage, "rejected"), None, "preserve"
+            if stage == "preserve":
+                return self.stage_report(raw, stage, "partial", method="surface_preserving", needs_review=True), self.output, "smooth"
             self.assertEqual(raw, self.output)
             return self.stage_report(raw, stage, "unchanged"), raw, "done"
 
         with patch.object(app_module, "process_stage", side_effect=step) as process, \
                 patch.object(app_module, "submit_meshy") as paid:
             first = self.model(self.post())
-            self.assertEqual(first["processing"]["stage"], "reconstruct")
+            self.assertEqual(first["processing"]["stage"], "preserve")
             self.assertNotIn("processed", first)
             second = self.model(self.post())
             self.assertEqual(second["processing"]["stage"], "smooth")
             self.assertNotIn("processed", second)
             final = self.model(self.post())
-            self.assertTrue(final["processed"]["reconstructed"])
+            self.assertFalse(final["processed"]["reconstructed"])
+            self.assertTrue(final["processed"]["needs_review"])
             self.assertEqual(len(final["processing"]["attempts"]), 3)
-            self.assertIn("重建", final["processing"]["message"])
+            self.assertIn("仍有结构问题", final["processing"]["message"])
             self.assertEqual(process.call_count, 3)
             paid.assert_not_called()
 
-    def test_real_open_surface_advances_through_reconstruction_and_smoothing(self):
+    def test_real_open_surface_is_preserved_and_reported_without_thickening(self):
         # An open sheet is outside the local hole-filling budget.
         raw = binary(cube()[:2])
         digest = hashlib.sha256(raw).hexdigest()
         url = PublicBlobStore().put(f"image3d/{self.sid}/models/open.stl", raw, "model/stl")
         self.update(lambda state: state["model_task"]["models"].update(
             stl={"url": url, "sha256": digest, "size_bytes": len(raw)}))
-        with patch.object(reconstruction, "ATTEMPT_SETTINGS", ((16, 0), (12, 1), (8, 2))):
+        with patch("vercel_app.mesh_reconstruction.process_reconstruction") as voxel:
             first = self.model(self.post())
-            self.assertEqual(first["processing"]["stage"], "reconstruct", first["processing"])
+            self.assertEqual(first["processing"]["stage"], "preserve", first["processing"])
             second = self.model(self.post())
             self.assertEqual(second["processing"]["stage"], "smooth", second["processing"])
             final = self.model(self.post())
@@ -85,14 +85,39 @@ class ProcessingWorkflowTests(unittest.TestCase):
                 if final["processing"]["status"] != "pending":
                     break
                 final = self.model(self.post())
+            voxel.assert_not_called()
         self.assertEqual(final["processing"]["status"], "completed", final["processing"])
-        self.assertTrue(final["processed"]["reconstructed"])
+        self.assertFalse(final["processed"]["reconstructed"])
+        self.assertTrue(final["processed"]["needs_review"])
         self.assertEqual(final["processed"]["source_sha256"], digest)
-        self.assertNotEqual(app_module.fetch_bytes(final["processed"]["url"]), raw)
+        self.assertEqual(app_module.fetch_bytes(final["processed"]["url"]), raw)
+        self.assertNotEqual(final["processed"]["url"], url)
         self.assertEqual(app_module.fetch_bytes(url), raw)
-        self.assertIn("smooth_cautious", [item["stage"] for item in final["processing"]["attempts"]])
-        stats = final["processed"]["report"]["smoothing"]["after"]["stats"]
-        self.assertTrue(stats["edge_closed"])
+        report = final["processed"]["report"]["smoothing"]
+        stats = (report["after"] or report["before"])["stats"]
+        self.assertFalse(stats["edge_closed"])
+        self.assertEqual(stats["dimensions"], [1., 1., 0.])
+
+    def test_read_retires_v1_output_and_new_processing_restarts_from_original(self):
+        old = {"url": "https://example.invalid/old-voxel.stl", "version": "stl-auto-v1",
+               "source_sha256": self.digest, "reconstructed": True}
+        self.update(lambda state: state["model_task"]["models"]["stl"].update(
+            processed=old, processing={"version": "stl-auto-v1", "status": "completed", "stage": "done",
+                                       "source_sha256": self.digest}))
+        response = self.client.get(f"/api/sessions/{self.sid}", headers=self.headers)
+        visible = self.model(response)
+        self.assertEqual(visible["url"], self.url)
+        self.assertEqual(visible["previous_processed"], old)
+        self.assertNotIn("processed", visible)
+        self.assertEqual(visible["processing"]["version"], PROCESSOR_VERSION)
+        self.assertEqual(visible["processing"]["stage"], "repair")
+        state, _ = load_session(self.sid, self.token)
+        self.assertEqual(state["model_task"]["models"]["stl"]["processed"], old)  # GET is read only.
+        with patch.object(app_module, "process_stage", return_value=(self.stage_report(self.raw, "repair"), self.raw, "smooth")) as process:
+            model = self.model(self.post())
+        process.assert_called_once_with(self.raw, "repair")
+        self.assertEqual(model["previous_processed"], old)
+        self.assertNotIn("processed", model)
 
     def test_busy_worker_waits_without_consuming_repair_options(self):
         with mesh._SLOT:

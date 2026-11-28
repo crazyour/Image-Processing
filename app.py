@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import logging
 import mimetypes
@@ -98,7 +99,7 @@ from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
 from vercel_app.mesh_quality import CHECKER_VERSION, MAX_CHECK_BYTES, incomplete_report, process_stl
 from vercel_app.mesh_smoothing import SMOOTHER_VERSION, MAX_SMOOTH_BYTES, process_smoothing
-from vercel_app.mesh_processing import PROCESSOR_VERSION, MAX_PROCESS_BYTES, STAGES, process_stage
+from vercel_app.mesh_processing import PROCESSOR_VERSION, MAX_PROCESS_BYTES, STAGES, process_stage, reset_outdated_processing
 from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.usage import (
     UsageLimitError,
@@ -698,6 +699,13 @@ def _require_view_approval(state: dict) -> None:
 
 
 def _response(state: dict, *, token: str | None = None) -> dict:
+    # Project migration into GET responses too: otherwise a v1/v1 result would
+    # keep looking complete in the browser and never request the new processor.
+    task = copy.deepcopy(state.get("model_task") or state.get("hunyuan_task"))
+    if task and state.get("status") == "SUCCEEDED":
+        model = (task.get("models") or {}).get("stl")
+        if model:
+            reset_outdated_processing(model)
     result = {
         "session_id": state["session_id"],
         "status": state["status"],
@@ -717,8 +725,8 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "confirmed_at": (state.get("confirmed_snapshot") or {}).get("confirmed_at"),
         "description_confirmed_at": state.get("description_confirmed_at"),
         "assembly_plan": state.get("assembly_plan"),
-        "model_task": state.get("model_task") or state.get("hunyuan_task"),
-        "hunyuan_task": state.get("hunyuan_task"),
+        "model_task": task,
+        "hunyuan_task": task if state.get("hunyuan_task") else None,
         "last_error": None if (state.get("last_error") or {}).get("code") == "VIEW_QUALITY_FAILED"
             else state.get("last_error"),
         "created_at": state.get("created_at"),
@@ -3778,6 +3786,7 @@ def process_model_file(session_id: str, x_session_token: str | None = Header(def
         raise WorkflowError("STL_NOT_READY", "请先等待模型生成完成", 409)
     if _model_file_job_active(model):
         raise WorkflowError("STL_CHECK_RUNNING", "模型正在处理，请稍候", 409)
+    reset_outdated_processing(model)
     processing = model.get("processing") or {}
     matches = (processing.get("version") == PROCESSOR_VERSION
                and processing.get("source_sha256") == model.get("sha256"))
@@ -3829,13 +3838,13 @@ def process_model_file(session_id: str, x_session_token: str | None = Header(def
                     output, "model/stl",
                 )
                 repair_report = processing.get("repair_report") or {}
-                rebuilt = repair_report.get("method") == "voxel_reconstruction"
+                needs_review = bool(repair_report.get("needs_review") or report.get("needs_review"))
                 model["processed"] = {"url": url, "size_bytes": len(output), "sha256": output_hash,
                                       "source_sha256": model["sha256"], "version": PROCESSOR_VERSION,
-                                      "reconstructed": rebuilt,
+                                      "reconstructed": False, "needs_review": needs_review,
                                       "report": {"repair": repair_report, "smoothing": report}}
                 processing.update(status="completed", stage="done", completed_at=int(time.time()),
-                                  message="已完成自动修复与表面处理" + ("；已使用重建修复，请核对细节" if rebuilt else ""))
+                                  message="已保形处理，仍有结构问题" if needs_review else "已完成修复与表面处理")
                 processing.pop("working_file", None)
             else:
                 url = source["url"] if output == raw else PublicBlobStore().put(

@@ -61,7 +61,7 @@ class MeshProcessingTests(unittest.TestCase):
                 _, output, stage = process_stage(raw, stage)
                 self.assertIsNone(output)
                 self.assertEqual(stage, next_stage)
-                smooth.assert_called_with(raw, strength=strength, subdivide=False)
+                smooth.assert_called_with(raw, strength=strength, subdivide=False, preserve_defects=True)
 
     def test_unverified_output_is_discarded_before_fallback(self):
         raw = binary(tetra())

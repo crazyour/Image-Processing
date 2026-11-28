@@ -79,8 +79,8 @@ def _edges(faces: np.ndarray, deadline: float) -> dict:
             "shared_ids": np.flatnonzero(counts == 2).astype(np.int32)}
 
 
-def _validate_vertex_fans(faces: np.ndarray, data: dict, deadline: float) -> None:
-    """Reject bow-tie/pinched vertices, including closed shells sharing a point."""
+def _vertex_fan_mask(faces: np.ndarray, data: dict, deadline: float) -> np.ndarray:
+    """Identify disconnected vertex fans without altering the input surface."""
     occurrences = data["occurrences"]
     low = np.where(data["forward"][occurrences], occurrences,
                    occurrences // 3 * 3 + (occurrences + 1) % 3)
@@ -93,7 +93,12 @@ def _validate_vertex_fans(faces: np.ndarray, data: dict, deadline: float) -> Non
     largest = np.zeros(vertex_count, dtype=np.int32)
     np.minimum.at(smallest, faces.ravel(), labels)
     np.maximum.at(largest, faces.ravel(), labels)
-    if np.any(smallest != largest):
+    return smallest != largest
+
+
+def _validate_vertex_fans(faces: np.ndarray, data: dict, deadline: float) -> None:
+    """Reject bow-tie/pinched vertices, including closed shells sharing a point."""
+    if np.any(_vertex_fan_mask(faces, data, deadline)):
         raise _Rejected("检测到非流形顶点（同一点连接多个不连续面扇），请先修复网格。")
 
 
@@ -170,18 +175,22 @@ def _volume_ratios(before: np.ndarray, after: np.ndarray, faces: np.ndarray,
     return float(np.max(np.abs(new_volumes - volumes) / np.abs(volumes)))
 
 
-def process_smoothing(raw: bytes, *, strength: str = "gentle", subdivide: bool = False) -> tuple[dict, bytes | None]:
+def process_smoothing(raw: bytes, *, strength: str = "gentle", subdivide: bool = False,
+                      preserve_defects: bool = False) -> tuple[dict, bytes | None]:
     """Return a JSON report and only a geometrically verified separate STL copy."""
     start = time.monotonic()
     report = {"version": SMOOTHER_VERSION, "source_sha256": hashlib.sha256(raw).hexdigest(),
               "strength": strength, "subdivide": subdivide, "status": "incomplete", "message": "",
               "stats": {}, "before": None, "after": None, "limitations": list(LIMITATIONS), "elapsed_ms": 0}
+    if preserve_defects:
+        report.update(method="surface_preserving", preserve_defects=True)
 
     def finish(status, message, output=None):
         report.update(status=status, message=message, elapsed_ms=round((time.monotonic() - start) * 1000))
         return report, output
 
-    if not isinstance(strength, str) or strength not in _SETTINGS or not isinstance(subdivide, bool):
+    if (not isinstance(strength, str) or strength not in _SETTINGS or not isinstance(subdivide, bool)
+            or not isinstance(preserve_defects, bool) or (preserve_defects and subdivide)):
         return finish("invalid", "平滑参数无效；强度仅支持 gentle / standard，细分必须为布尔值。")
     if len(raw) > MAX_SMOOTH_BYTES:
         return finish("incomplete", "文件超过 64 MiB 平滑上限，请使用桌面网格工具；原文件已保留。")
@@ -203,7 +212,9 @@ def process_smoothing(raw: bytes, *, strength: str = "gentle", subdivide: bool =
         count = len(triangles) * (4 if subdivide else 1)
         if count > MAX_SMOOTH_FACES or 84 + count * 50 > MAX_SMOOTH_BYTES:
             raise mesh.CheckLimit("输入或细分后将超过平滑文件或 100 万面上限；未减面、未生成副本。")
-        if any(before["stats"][key] for key in ("degenerate_faces", "duplicate_faces", "nonmanifold_edges", "inconsistent_edges")):
+        forbidden = ("degenerate_faces", "duplicate_faces") if preserve_defects else (
+            "degenerate_faces", "duplicate_faces", "nonmanifold_edges", "inconsistent_edges")
+        if any(before["stats"][key] for key in forbidden):
             raise _Rejected("网格含零面积面、重复面、非流形边或朝向不一致，请先使用修复或桌面网格工具处理。")
         vertices, inverse = np.unique(triangles.reshape(-1, 3), axis=0, return_inverse=True)
         faces = inverse.reshape(-1, 3).astype(np.int32)
@@ -215,15 +226,33 @@ def process_smoothing(raw: bytes, *, strength: str = "gentle", subdivide: bool =
             raise ValueError("模型尺寸无效，无法平滑。")
         origin = vertices.min(axis=0) + dimensions / 2
         data = _edges(faces, deadline)
-        _validate_vertex_fans(faces, data, deadline)
+        problem_vertices = _vertex_fan_mask(faces, data, deadline)
+        if not preserve_defects and problem_vertices.any():
+            raise _Rejected("检测到非流形顶点（同一点连接多个不连续面扇），请先修复网格。")
+        if preserve_defects:
+            bad_edges = data["counts"] > 2
+            pairs = data["occurrences"]
+            inconsistent = data["forward"][pairs[:, 0]] == data["forward"][pairs[:, 1]]
+            bad_edges[data["shared_ids"][inconsistent]] = True
+            problem_vertices[data["vertices"][bad_edges].ravel()] = True
+            # Freeze the damaged region and its immediate neighbours; only the
+            # untouched manifold surface is eligible for bounded smoothing.
+            ring = np.any(problem_vertices[data["vertices"]], axis=1)
+            problem_vertices[data["vertices"][ring].ravel()] = True
+            report["needs_review"] = bool(problem_vertices.any() or before["stats"]["boundary_edges"])
+            stats["defect_protected_vertices"] = int(problem_vertices.sum())
         face_labels = _labels(len(faces), data["occurrences"] // 3, deadline)
-        # A separate open sheet must not exempt closed components from volume
-        # checks. Identify closure per connected component before subdivision.
-        boundary_faces = np.any(data["counts"][data["inverse"]] == 1, axis=1)
-        open_labels = np.unique(face_labels[boundary_faces])
+        # Check volume only for closed, consistently oriented regions. An
+        # overused edge also leaves these manifold adjacency regions open.
+        unreliable_faces = np.any(data["counts"][data["inverse"]] != 2, axis=1)
+        if preserve_defects:
+            unreliable_faces[pairs[inconsistent].ravel() // 3] = True
+        open_labels = np.unique(face_labels[unreliable_faces])
         closed_faces = ~np.isin(face_labels, open_labels)
         stats["volume_checked_components"] = len(np.unique(face_labels[closed_faces]))
         protected, protected_edges = _protection((vertices - origin) / scale, faces, data)
+        if preserve_defects:
+            protected |= problem_vertices
         if subdivide:
             vertices, faces, protected = _subdivide(vertices, faces, data, protected, protected_edges)
             face_labels = np.repeat(face_labels, 4)
@@ -304,13 +333,16 @@ def process_smoothing(raw: bytes, *, strength: str = "gentle", subdivide: bool =
         after["sha256"] = hashlib.sha256(output).hexdigest()
         report["after"] = after
         after_stats = after["stats"]
-        if (any(after_stats[key] for key in ("degenerate_faces", "duplicate_faces", "nonmanifold_edges", "inconsistent_edges"))
+        problems = ("degenerate_faces", "duplicate_faces", "nonmanifold_edges", "inconsistent_edges")
+        if (any(after_stats[key] > (before["stats"][key] if preserve_defects else 0) for key in problems)
                 or after_stats["faces"] != len(faces)
                 or after_stats["components"] != before["stats"]["components"]
                 or after_stats["boundary_edges"] != before["stats"]["boundary_edges"] * (2 if subdivide else 1)
                 or not np.array_equal(checked_triangles, exported[faces])
                 or len(np.unique(exported, axis=0)) != len(vertices)):
             raise _Rejected("实际导出的 STL 未通过拓扑复检，可能出现破面、顶点合并或部件连接变化；未交付副本。")
+        if preserve_defects:
+            stats["connectivity_preserved"] = True
         mesh._tick(deadline)
         return finish("smoothed", "已生成并复检独立平滑副本；请对比细节和尺寸，原始 STL 保持不变。", output)
     except _Rejected as exc:
