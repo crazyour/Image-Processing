@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261128-2">
+  <link rel="stylesheet" href="/static/styles.css?v=20261128-4">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -164,7 +164,7 @@
     </section>
 
     <section id="generate-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后，选择国外或国内模型生成 STL。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后生成 STL，生成后自动修复结构并优化表面。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <fieldset class="model-provider-options">
         <legend>选择生成模型</legend>
         <label class="model-provider-option">
@@ -201,99 +201,63 @@
         <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
         <button id="refresh-task" class="secondary" type="button">立即刷新</button>
       </div>
+      <div id="model-processing" class="model-processing hidden">
+        <span id="model-processing-spinner" class="spinner hidden" aria-hidden="true"></span>
+        <p id="model-processing-summary" role="status" aria-live="polite" aria-atomic="true">正在准备自动修复与表面处理…</p>
+        <button id="retry-model-processing" class="secondary hidden" type="button" disabled>重试处理</button>
+      </div>
       <div id="model-preview" class="model-preview hidden">
         <div>
-          <strong>STL 已生成</strong><span id="model-meta"></span><span>拖动模型可旋转，滚轮可缩放。</span>
-          <div class="stl-preview-switch" role="group" aria-label="选择预览版本">
-            <button id="preview-original-stl" class="secondary" type="button" aria-pressed="true">原始 STL</button>
-            <button id="preview-smoothed-stl" class="secondary" type="button" aria-pressed="false" disabled>平滑副本</button>
-          </div>
-          <span id="model-preview-status" role="status" aria-live="polite" aria-atomic="true">预览为简化显示，请在切片软件核对平滑版。</span>
+          <strong>最终 STL</strong><span id="model-meta"></span>
+          <span id="model-preview-status">简化预览 · 拖动旋转，滚轮缩放。</span>
         </div>
         <div class="preview-surface">
-          <canvas id="stl-canvas" class="hidden" aria-label="STL 模型交互预览"></canvas>
-          <img id="model-preview-image" class="hidden" alt="3D 模型预览图">
+          <canvas id="stl-canvas" class="hidden" aria-label="最终 STL 模型交互预览"></canvas>
+          <img id="model-preview-image" class="hidden" alt="最终 STL 模型预览图">
         </div>
       </div>
       <div id="model-results" class="model-results"></div>
       <p id="task-credit-usage" class="task-credit-usage hidden" role="status" aria-atomic="true"></p>
-    </section>
-
-    <section id="mesh-quality-step" class="panel" data-workspace-view="3d" aria-labelledby="mesh-quality-heading">
-      <div class="step-title"><span>05</span><div><h2 id="mesh-quality-heading">检查 STL 结构</h2><p>生成并保存后自动检查完整网格，不调用 AI；原始文件始终保留。</p></div><b id="mesh-quality-state" class="step-state">等待文件</b></div>
-      <p id="mesh-quality-summary" role="status" aria-live="polite" tabindex="-1">等待生成 STL。</p>
-      <div id="mesh-quality-stats" class="mesh-quality-stats"></div>
-      <ul id="mesh-quality-issues" class="mesh-quality-issues"></ul>
-      <div class="actions">
-        <button id="check-stl" class="secondary" type="button" disabled>检查 STL</button>
-        <button id="repair-stl" class="secondary" type="button" disabled>生成低风险修复副本</button>
-      </div>
-      <p class="input-help">修复仅清理重复面、零面积面，并在连接关系允许时统一相邻面朝向。不补洞、不删除部件、不判断内外朝向。</p>
-      <div id="mesh-repair-result" class="mesh-repair-result hidden"></div>
-      <p class="input-help">基础检查不等于可打印认证：未检查自相交、非流形顶点、壁厚、支撑或是否符合参考图。拓扑按去除重复面与零面积面后的网格统计，顶点只按完全相同的坐标连接；多部件与开放边界可能是设计意图。STL 不含单位。检查上限为 64 MiB、100 万面，超限或超时会标记“检查未完成”。</p>
-      <section class="mesh-smoothing" aria-labelledby="mesh-smoothing-heading">
-        <div class="mesh-smoothing-heading">
-          <h3 id="mesh-smoothing-heading">表面平滑</h3>
-          <b id="mesh-smoothing-state" class="step-state">等待文件</b>
+      <details id="resize-step" class="resize-details">
+        <summary>调整尺寸（可选）</summary>
+        <div class="resize-details-body">
+          <div class="resize-heading"><p>默认使用最终 STL，也可选择本地文件。</p><b id="resize-state" class="step-state">等待文件</b></div>
+          <div class="stl-resize-source">
+            <button id="use-generated-stl" class="secondary" type="button" disabled>使用最终 STL</button>
+            <label class="stl-file-button" for="resize-stl-input">选择本地 STL
+              <input id="resize-stl-input" type="file" accept=".stl,model/stl,application/sla">
+            </label>
+            <span id="resize-source-status">尚未载入 STL</span>
+          </div>
+          <div id="stl-resize-editor" class="stl-resize-editor hidden">
+            <div class="dimension-summary">
+              <strong>原始尺寸</strong>
+              <span id="original-dimensions">X — · Y — · Z —</span>
+              <small>STL 不记录单位，以下数值按毫米（mm）解释。</small>
+            </div>
+            <div class="resize-controls">
+              <label for="scale-percent">整体比例（%）
+                <input id="scale-percent" type="number" min="0.01" max="100000" step="0.01" value="100" inputmode="decimal">
+              </label>
+              <label for="target-x">目标 X（mm）
+                <input id="target-x" data-dimension="0" type="number" min="0.0001" step="0.01" inputmode="decimal">
+              </label>
+              <label for="target-y">目标 Y（mm）
+                <input id="target-y" data-dimension="1" type="number" min="0.0001" step="0.01" inputmode="decimal">
+              </label>
+              <label for="target-z">目标 Z（mm）
+                <input id="target-z" data-dimension="2" type="number" min="0.0001" step="0.01" inputmode="decimal">
+              </label>
+            </div>
+            <label class="resize-lock" for="lock-proportions"><input id="lock-proportions" type="checkbox" checked> <span>锁定比例，修改任一尺寸时同步缩放其他方向</span></label>
+            <div class="resize-output">
+              <span id="resize-result-summary">输出尺寸：—</span>
+              <button id="download-resized-stl" class="primary" type="button">下载调整后的 STL</button>
+            </div>
+          </div>
+          <p class="cost-note">尺寸调整在浏览器内完成，不上传文件，不产生模型平台费用。</p>
         </div>
-        <p class="input-help">调整实际曲面并保存独立副本，不重新生成模型。已有有效修复版时优先使用修复版，否则使用原始 STL，不对平滑副本反复叠加处理。平滑可能减弱发丝、沟槽和薄片细节，建议先使用轻度。</p>
-        <div class="mesh-smoothing-options">
-          <label for="smoothing-strength">平滑强度
-            <select id="smoothing-strength" aria-describedby="smoothing-strength-help" disabled>
-              <option value="gentle" selected>轻度（推荐先试）</option>
-              <option value="standard">标准</option>
-            </select>
-            <small id="smoothing-strength-help">标准处理幅度更大，请仔细核对细节。</small>
-          </label>
-          <label class="smoothing-subdivide-option" for="smoothing-subdivide">
-            <input id="smoothing-subdivide" type="checkbox" aria-describedby="smoothing-subdivide-help" disabled>
-            <span>先做一级细分<small id="smoothing-subdivide-help">适合面片较粗的模型，再进行平滑。三角面约增加至 4 倍，文件和处理时间也会增加。</small></span>
-          </label>
-        </div>
-        <div class="actions"><button id="smooth-stl" class="secondary" type="button" disabled>生成平滑副本</button></div>
-        <p id="mesh-smoothing-summary" role="status" aria-live="polite" aria-atomic="true">生成 STL 后，可按需平滑实际曲面。</p>
-        <div id="mesh-smoothing-stats" class="mesh-quality-stats"></div>
-        <ul id="mesh-smoothing-limitations" class="mesh-quality-issues"></ul>
-        <div id="mesh-smoothing-result" class="mesh-repair-result hidden"></div>
-      </section>
-    </section>
-
-    <section id="resize-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>06</span><div><h2>调整 STL 尺寸</h2><p>默认载入本次生成的原始 STL，预览切换不会更换此处的文件。调整平滑版时，请下载后选择该本地 STL。尺寸导出文件不继承原检查结果。</p></div><b id="resize-state" class="step-state">等待文件</b></div>
-      <div class="stl-resize-source">
-        <button id="use-generated-stl" class="secondary" type="button" disabled>使用本次生成的原始 STL</button>
-        <label class="stl-file-button" for="resize-stl-input">选择本地 STL
-          <input id="resize-stl-input" type="file" accept=".stl,model/stl,application/sla">
-        </label>
-        <span id="resize-source-status">尚未载入 STL</span>
-      </div>
-      <div id="stl-resize-editor" class="stl-resize-editor hidden">
-        <div class="dimension-summary">
-          <strong>原始尺寸</strong>
-          <span id="original-dimensions">X — · Y — · Z —</span>
-          <small>STL 不记录单位，以下数值按毫米（mm）解释。</small>
-        </div>
-        <div class="resize-controls">
-          <label for="scale-percent">整体比例（%）
-            <input id="scale-percent" type="number" min="0.01" max="100000" step="0.01" value="100" inputmode="decimal">
-          </label>
-          <label for="target-x">目标 X（mm）
-            <input id="target-x" data-dimension="0" type="number" min="0.0001" step="0.01" inputmode="decimal">
-          </label>
-          <label for="target-y">目标 Y（mm）
-            <input id="target-y" data-dimension="1" type="number" min="0.0001" step="0.01" inputmode="decimal">
-          </label>
-          <label for="target-z">目标 Z（mm）
-            <input id="target-z" data-dimension="2" type="number" min="0.0001" step="0.01" inputmode="decimal">
-          </label>
-        </div>
-        <label class="resize-lock" for="lock-proportions"><input id="lock-proportions" type="checkbox" checked> <span>锁定比例，修改任一尺寸时同步缩放其他方向</span></label>
-        <div class="resize-output">
-          <span id="resize-result-summary">输出尺寸：—</span>
-          <button id="download-resized-stl" class="primary" type="button">下载调整后的 STL</button>
-        </div>
-      </div>
-      <p class="cost-note">尺寸调整完全在浏览器内完成，不会上传本地 STL，也不会产生模型平台费用。</p>
+      </details>
     </section>
   </main>
 
@@ -386,11 +350,11 @@
         <summary>六、预览和下载</summary>
         <p>生成成功后：</p>
         <ul>
-          <li>页面显示“STL 已生成”。</li>
+          <li>模型生成后会自动修复结构并处理表面，完成后显示最终 STL。</li>
           <li>可以在预览区域拖动模型旋转。</li>
           <li>使用鼠标滚轮可以缩放模型。</li>
           <li>页面会显示 STL 文件大小。</li>
-          <li>点击“下载文件”保存 <code>.stl</code> 文件。</li>
+          <li>点击“下载文件”保存最终 <code>.stl</code> 文件；需要修改尺寸时展开“调整尺寸（可选）”。</li>
         </ul>
         <p>如果交互预览加载失败，但下载按钮仍然存在，可以直接下载 STL，不影响模型文件本身。</p>
       </details>
@@ -423,7 +387,7 @@
         </ul>
         <p>页面会保留错误编号和 Request ID。排查问题时请同时提供这两个信息。</p>
         <h3>为什么任务完成后没有下载按钮？</h3>
-        <p>系统只有在成功取得并保存所选模型平台返回的 STL 后才显示完成。如果没有返回文件，页面会将任务标记为失败。</p>
+        <p>模型返回后还会自动修复结构并处理表面，两步完成后才提供最终 STL。若显示“暂未完成”，可以点击“重试处理”，无需重新生成模型。</p>
         <h3>刷新页面后任务还在吗？</h3>
         <p>当前任务保存在当前标签页的会话中：</p>
         <ul>
@@ -468,9 +432,9 @@
     <div id="choose-view-grid" class="view-folder-grid"></div>
   </dialog>
 
-  <script src="/assets/reset-on-refresh.js?v=20261119-1"></script>
+  <script src="/assets/reset-on-refresh.js?v=20261128-1"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261128-3" defer></script>
+  <script src="/static/app.js?v=20261128-5" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

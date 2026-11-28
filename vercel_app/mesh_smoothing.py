@@ -24,6 +24,12 @@ _SETTINGS = {
                "dimension_limit": .01, "volume_limit": .025},
     "standard": {"iterations": 12, "global_cap": .005, "local_cap": .25,
                  "dimension_limit": .02, "volume_limit": .05},
+    # Internal automatic-processing fallbacks; public manual controls keep their
+    # existing two settings. All attempts start from the repaired input.
+    "cautious": {"iterations": 3, "global_cap": .0005, "local_cap": .06,
+                 "dimension_limit": .01, "volume_limit": .025},
+    "minimal": {"iterations": 1, "global_cap": .0001, "local_cap": .015,
+                "dimension_limit": .01, "volume_limit": .025},
 }
 LIMITATIONS = [
     "仅按网格几何保护开放边界和明显尖锐边，不能自动识别皮肤、头发、五官或设计细节；请对比原版。",
@@ -180,6 +186,7 @@ def process_smoothing(raw: bytes, *, strength: str = "gentle", subdivide: bool =
     if len(raw) > MAX_SMOOTH_BYTES:
         return finish("incomplete", "文件超过 64 MiB 平滑上限，请使用桌面网格工具；原文件已保留。")
     if not mesh._SLOT.acquire(blocking=False):
+        report["code"] = "MESH_BUSY"
         return finish("incomplete", "当前实例正在处理其他模型，请稍后重试；原文件已保留。")
     deadline = start + SMOOTH_SECONDS
     try:
