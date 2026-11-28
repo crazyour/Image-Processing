@@ -190,8 +190,8 @@ TEXT_IMAGE_MODEL = "gpt-image-2.5-flare"
 TEXT_IMAGE_QUALITY = "medium"
 TEXT_IMAGE_SIZE = "1024x1024"
 IMAGE3D_VISION_MODEL = "gpt-6-luna"
-IMAGE3D_VIEW_MODEL = "gpt-image-2.6-sunburst"
-IMAGE3D_VIEW_QUALITY = "high"
+IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
+IMAGE3D_VIEW_QUALITY = "medium"
 IMAGE3D_MATERIAL_MODEL = "gpt-image-2.5-flare"
 IMAGE3D_MATERIAL_QUALITY = "medium"
 IMAGE3D_MODEL = "hy-3d-3.1"
@@ -1554,6 +1554,14 @@ def _session_model_settings(state: dict) -> dict[str, str]:
     models = state.get("model_settings")
     if not isinstance(models, dict):
         raise WorkflowError("MODEL_SETTINGS_MISSING", "旧会话没有模型设置，请重新上传图片", 409)
+    return models
+
+
+def _session_view_model_settings(state: dict) -> dict[str, str]:
+    """Roll back the 2.6 trial when the user next generates or edits a view."""
+    models = dict(_session_model_settings(state))
+    if models.get("image_model") == "gpt-image-2.6-sunburst":
+        models.update(image_model=IMAGE3D_VIEW_MODEL, image_quality=IMAGE3D_VIEW_QUALITY)
     return models
 
 
@@ -3180,7 +3188,7 @@ def confirm_description(session_id: str, x_session_token: str | None = Header(de
 def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
                  x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
-    models = _session_model_settings(state)
+    models = _session_view_model_settings(state)
     if state.get("view_source") != "generated":
         raise WorkflowError("GENERATED_MODE_REQUIRED", "当前会话使用手动上传视图", 409)
     if state["status"] not in {"DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"}:
@@ -3196,6 +3204,7 @@ def create_views(session_id: str, data: ViewGenerationRequest, request: Request,
         view: "；".join(state["views"].get(view, {}).get("retry_issues", []))[:300]
         for view in requested
     }
+    state["model_settings"] = models
     state["status"] = "GENERATING_VIEWS"
     state["view_review"] = None
     state["views_stale"] = True
@@ -3378,7 +3387,7 @@ def view_edit_image(session_id: str, view: str, revision: int,
 def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request: Request,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
-    models = _session_model_settings(state)
+    models = _session_view_model_settings(state)
     uploaded = state.get("view_source") == "uploaded"
     editable_statuses = {"VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} if data.mask_data_url is not None else {"VIEWS_REVIEW"}
     if state["status"] not in editable_statuses:
@@ -3411,6 +3420,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
     revision = int(state["views"][view].get("revision", 0)) + 1
     _remember_view_issues(state)
     corrections = "；".join(state["views"][view].get("retry_issues", []))[:300]
+    state["model_settings"] = models
     state["status"] = "GENERATING_VIEWS"
     state["view_review"] = None
     state["views_stale"] = True

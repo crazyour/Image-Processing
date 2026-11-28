@@ -198,7 +198,7 @@ REFERENCE_IMAGE_TOKENS = 4700
 # Legacy rough output allowance; actual billing always uses response usage.
 GENERATION_OUTPUT_TOKENS = 1100
 # Official image-generation calculator: 1024x1024, high, GPT Image 2.6.
-# Reserve for the current default; older medium sessions still bill actual usage.
+# Retained allowance for 2.6 high calls; actual billing uses response usage.
 # https://developers.openai.com/api/docs/guides/image-generation#calculating-costs
 GENERATION_OUTPUT_TOKENS_2_6 = 1756
 

@@ -143,6 +143,7 @@ class Image3DModeTests(unittest.TestCase):
         ])
         self.assertEqual(payload["ai_model"], "meshy-7.1")
         self.assertEqual(payload["geometry_resolution"], "2k")
+        self.assertFalse(payload["image_enhancement"])
         self.assertEqual(payload["target_formats"], ["stl"])
         self.assertFalse(payload["should_texture"])
         self.assertFalse(payload["enable_pbr"])
@@ -168,6 +169,7 @@ class Image3DModeTests(unittest.TestCase):
                 )
                 payload = client_class.return_value.__enter__.return_value.post.call_args.kwargs["json"]
                 self.assertEqual(payload["geometry_resolution"], "2k")
+                self.assertFalse(payload["image_enhancement"])
                 self.assertFalse(payload["should_remesh"])
                 self.assertNotIn("topology", payload)
                 self.assertNotIn("target_polycount", payload)

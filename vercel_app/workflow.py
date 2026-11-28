@@ -615,6 +615,9 @@ def submit_meshy(front_url: str, view_urls: dict[str, str], options: dict,
         "image_urls": [front_url, *[view_urls[view] for view in GENERATED_VIEWS if view_urls.get(view)]],
         "ai_model": model,
         "geometry_resolution": "2k",
+        # Use the views the user approved. Meshy's default enhancement redraws
+        # the inputs and can change details before geometry generation.
+        "image_enhancement": False,
         "should_texture": False,
         "enable_pbr": False,
         "should_remesh": False,

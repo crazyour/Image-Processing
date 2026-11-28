@@ -87,12 +87,12 @@ class ViewMaskTests(unittest.TestCase):
             response = client.return_value.__enter__.return_value.post.return_value
             response.status_code = 200
             response.json.return_value = {"data": [{"b64_json": base64.b64encode(source).decode()}]}
-            workflow.generate_view([source, multiview_tests.png(1)], "局部修复", "gpt-image-2.6-sunburst", "high", mask=mask)
+            workflow.generate_view([source, multiview_tests.png(1)], "局部修复", "gpt-image-2.5-flare", "medium", mask=mask)
             payload = client.return_value.__enter__.return_value.post.call_args.kwargs["json"]
         self.assertEqual(base64.b64decode(payload["images"][0]["image_url"].split(",")[1]), source)
         self.assertEqual(base64.b64decode(payload["mask"]["image_url"].split(",")[1]), mask)
-        self.assertEqual(payload["model"], "gpt-image-2.6-sunburst")
-        self.assertEqual(payload["quality"], "high")
+        self.assertEqual(payload["model"], "gpt-image-2.5-flare")
+        self.assertEqual(payload["quality"], "medium")
         self.assertEqual(payload["size"], "1024x1024")
 
 
@@ -125,7 +125,7 @@ class ViewMaskWorkflowTests(unittest.TestCase):
                     response = self.post("/views/left/refine", json=self.request_data(before, mask_data_url=mask_url((256, 128))))
                 self.assertEqual(response.status_code, 200, response.text)
                 args = provider.call_args.args
-                self.assertEqual(args[2:4], ("gpt-image-2.6-sunburst", "high"))
+                self.assertEqual(args[2:4], ("gpt-image-2.5-flare", "medium"))
                 self.assertEqual(len(args[0]), 1)  # No AI analysis or unrelated original/other-angle references.
                 self.assertEqual(Image.open(io.BytesIO(args[0][0])).size, (256, 256))
                 after = response.json()
@@ -196,6 +196,7 @@ class ViewMaskWorkflowTests(unittest.TestCase):
     def test_only_target_changes_and_exclusion_is_preserved(self):
         before = self.generate()
         state, version = load_session(self.session_id, self.token)
+        state["model_settings"].update(image_model="gpt-image-2.6-sunburst", image_quality="high")
         state["excluded_3d_views"] = ["left"]
         state["confirmed_snapshot"] = {"old": True}
         save_session(self.session_id, state, version)
@@ -204,7 +205,7 @@ class ViewMaskWorkflowTests(unittest.TestCase):
             response = self.post("/views/left/refine", json=self.request_data(before))
         self.assertEqual(response.status_code, 200, response.text)
         args, kwargs = provider.call_args
-        self.assertEqual(args[2:4], ("gpt-image-2.6-sunburst", "high"))
+        self.assertEqual(args[2:4], ("gpt-image-2.5-flare", "medium"))
         self.assertEqual(args[0][0], multiview_tests.png(1))
         self.assertEqual(args[0][-1], multiview_tests.png(0))
         self.assertIn("第一张图片（当前左视图）", args[1])
@@ -213,6 +214,9 @@ class ViewMaskWorkflowTests(unittest.TestCase):
         self.assertIsNotNone(kwargs["mask"])
         after = response.json()
         self.assertEqual(after["excluded_3d_views"], ["left"])
+        stored, _ = load_session(self.session_id, self.token)
+        self.assertEqual(stored["model_settings"]["image_model"], "gpt-image-2.5-flare")
+        self.assertEqual(stored["model_settings"]["image_quality"], "medium")
         for view in ["front", "right", "back"]:
             self.assertEqual(after["views"][view], before["views"][view])
         self.assertEqual(after["views"]["left"]["revision"], before["views"]["left"]["revision"] + 1)

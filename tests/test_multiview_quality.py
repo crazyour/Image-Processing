@@ -254,7 +254,7 @@ class MultiviewWorkflowTests(unittest.TestCase):
         for count, call in enumerate(generate.call_args_list, start=1):
             self.assertEqual(len(call.args[0]), count)
             self.assertIn(PRINT_SCULPTURE_CONSTRAINT, call.args[1])
-            self.assertEqual(call.args[3], "high")
+            self.assertEqual(call.args[3], "medium")
         self.assertTrue(all(v["view_mode"] == "print_sculpture" for v in response.json()["views"].values()))
         with patch.object(app_module, "generate_view", return_value=(png(5), {})) as refine:
             response = self.post("/views/left/refine", json={"prompt": "减少发束交叉"})
@@ -308,13 +308,28 @@ class MultiviewWorkflowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(provider.call_args.args[2:4], ("gpt-image-2.5-flare", "medium"))
 
+    def test_existing_sunburst_sessions_roll_back_on_regeneration(self):
+        for quality in ("medium", "high"):
+            with self.subTest(quality=quality):
+                state, version = load_session(self.session_id, self.token)
+                state["model_settings"].update(image_model="gpt-image-2.6-sunburst", image_quality=quality)
+                previous_settings = dict(state["model_settings"])
+                save_session(self.session_id, state, version)
+                self.generate()  # Verifies all four provider requests use Flare / medium.
+                stored, _ = load_session(self.session_id, self.token)
+                self.assertEqual(stored["model_settings"], {
+                    **previous_settings,
+                    "image_model": "gpt-image-2.5-flare",
+                    "image_quality": "medium",
+                })
+
     def generate(self, *, duplicate=False):
         def make_image(references, prompt, model, quality):
             target = next(view for view in VIEW_TYPES if f"一张{VIEW_NAMES[view]}" in prompt)
             self.assertEqual(len(references), 1 + VIEW_TYPES.index(target))
             self.assertEqual(references[1:], [png(0 if duplicate else i) for i in range(VIEW_TYPES.index(target))])
-            self.assertEqual(model, "gpt-image-2.6-sunburst")
-            self.assertEqual(quality, "high")
+            self.assertEqual(model, "gpt-image-2.5-flare")
+            self.assertEqual(quality, "medium")
             return png(0 if duplicate else VIEW_TYPES.index(target)), {"calls": 1}
         with patch.object(app_module, "generate_view", side_effect=make_image) as generate:
             response = self.post("/views", json={"views": list(VIEW_TYPES)})
