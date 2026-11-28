@@ -267,6 +267,41 @@ test("uploaded image cards expose local repair even after confirmation, without 
   assert.equal(context.canEditViewMask("left"), false);
 });
 
+test("enhancement is Meshy-only and locks to the submitted choice while generating", () => {
+  const { context, $ } = harness();
+  let hidden;
+  $("#meshy-image-enhancement-option").classList.toggle = (name, value) => { hidden = value; };
+  const checkbox = $("#meshy-image-enhancement");
+  checkbox.checked = true;
+  context.syncControls();
+  assert.equal(hidden, false);
+  assert.equal(checkbox.disabled, false);
+  context.selectedModelProvider = () => "hunyuan";
+  context.syncControls();
+  assert.equal(hidden, true);
+  assert.equal(checkbox.disabled, true);
+  context.selectedModelProvider = () => "meshy";
+  context.setActionInFlight(true);
+  assert.equal(checkbox.disabled, true);
+  context.setActionInFlight(false);
+  for (const status of ["SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"]) {
+    for (const enabled of [false, true]) {
+      context.state.status = status;
+      context.state.model_task = { provider: "meshy", request: { image_enhancement: enabled } };
+      checkbox.checked = !enabled;
+      context.syncControls();
+      assert.equal(checkbox.disabled, true);
+      assert.equal(checkbox.checked, enabled);
+    }
+  }
+  context.state.status = "FAILED";
+  context.syncControls();
+  assert.equal(checkbox.disabled, false);
+  checkbox.checked = false;
+  context.syncControls();
+  assert.equal(checkbox.checked, false);
+});
+
 test("missing state cannot enable confirmation or archive", () => {
   const { context, $ } = harness(null);
   context.syncControls();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261128-11">
+  <link rel="stylesheet" href="/static/styles.css?v=20261128-12">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -187,6 +187,13 @@
         <p id="meshy-balance" class="meshy-balance" role="status" aria-atomic="true">Meshy 剩余积分：正在查询…</p>
       </fieldset>
       <p id="model-input-summary" class="input-help" role="status" aria-live="polite">请先选择并确认参与 3D 的视图。</p>
+      <div id="meshy-image-enhancement-option" class="model-enhancement-option">
+        <label for="meshy-image-enhancement">
+          <input id="meshy-image-enhancement" type="checkbox" aria-describedby="meshy-image-enhancement-help">
+          <span>图像增强（可选，默认关闭）</span>
+        </label>
+        <p id="meshy-image-enhancement-help">勾选后，Meshy 会在生成 3D 前优化参考图，适合背景杂乱或光照不均的图片。可能改变头发、耳朵等细节，并增加生成时间；图片已清晰且细节已确认时，建议保持关闭。</p>
+      </div>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
       <p id="model-provider-note" class="cost-note">只提交已确认的 1–4 张视图，模型生成按实际调用收费。</p>
       <div id="task-progress" class="progress hidden">
@@ -444,7 +451,7 @@
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
   <script src="/static/stl-download.js?v=20261128-1" defer></script>
   <script src="/static/view-mask.js?v=20261128-1" defer></script>
-  <script src="/static/app.js?v=20261128-13" defer></script>
+  <script src="/static/app.js?v=20261128-14" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

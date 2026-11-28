@@ -267,9 +267,12 @@ class FixedQualityGenerationTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 200, response.text)
                     task = response.json()["model_task"]
                     self.assertEqual(task["provider"], provider)
-                    self.assertEqual(task["request"], {"quality": "good", "result_format": "STL"})
+                    expected = {"quality": "good", "result_format": "STL"}
+                    if provider == "meshy":
+                        expected["image_enhancement"] = False
+                    self.assertEqual(task["request"], expected)
                     submit.assert_called_once()
-                    self.assertEqual(submit.call_args.args[2], {"quality": "good", "result_format": "STL"})
+                    self.assertEqual(submit.call_args.args[2], expected)
                     self.assertEqual(submit.call_args.args[3], model_name)
                     usage.assert_called_once()
                     repair.assert_not_called()

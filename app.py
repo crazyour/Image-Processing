@@ -364,6 +364,7 @@ class Generate3DRequest(BaseModel):
     model_provider: Literal["hunyuan", "meshy"] = "meshy"
     quality: Literal["normal", "good"] = "good"
     result_format: Literal["STL"] = "STL"
+    image_enhancement: bool = False
 
 
 class SmoothSTLRequest(BaseModel):
@@ -3565,6 +3566,8 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     # fixed detailed geometry settings and record those actual settings.
     options["quality"] = "good"
     provider = data.model_provider
+    if provider != "meshy":
+        options.pop("image_enhancement", None)
     provider_label = "国内模型（腾讯混元）" if provider == "hunyuan" else "国外模型（Meshy 7.1）"
     provider_name = "腾讯混元" if provider == "hunyuan" else "Meshy"
     provider_code = "HUNYUAN" if provider == "hunyuan" else "MESHY"

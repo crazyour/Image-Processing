@@ -69,7 +69,10 @@ function harness() {
 }
 
 test("the result UI has one original STL and no postprocessing controls, calls or recovery marker", () => {
-  assert.doesNotMatch(html + css, /model-processing|stl-preview-switch|retry-model-processing|preview-processed-stl|修复后|自动修复|自动平滑/);
+  assert.doesNotMatch(html + css, /model-processing|stl-preview-switch|retry-model-processing|preview-processed-stl/);
+  // Image-mask repair instructions elsewhere on the page are not STL processing.
+  const resultSection = html.match(/<section id="generate-step"[\s\S]*?<\/section>/)[0];
+  assert.doesNotMatch(resultSection, /修复后|自动修复|自动平滑/);
   assert.doesNotMatch(source, /3d\/(?:process|check|repair|smooth)|image3d-processing-resume|[Mm]odelProcessing|currentProcessedStl|\.processed\b/);
   assert.doesNotMatch(html, /<span>0[56]<\/span>/);
   assert.match(html, /<details id="resize-step"[^>]*>\s*<summary>调整尺寸（可选）/);
@@ -250,13 +253,17 @@ test("generation always submits good quality for either provider without display
   assert.doesNotMatch(html + source, /generation-quality|quality-description|普通效果|好效果|所选效果|生成效果/);
   const handler = section('$("#generate-3d").addEventListener(', '$("#dismiss-error").addEventListener(');
   for (const provider of ["meshy", "hunyuan"]) {
-    const { context, $, calls } = harness();
-    Object.assign(context, { clearError() {}, setActionInFlight() {}, setBusy() {}, selectedModelProvider: () => provider, showError: assert.fail, refresh: assert.fail });
-    vm.runInContext(handler, context);
-    await $("#generate-3d").listeners.click({ currentTarget: $("#generate-3d") });
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0][0], "/api/sessions/session-a/generate");
-    assert.equal(JSON.parse(calls[0][1].body).quality, "good");
-    assert.equal(JSON.parse(calls[0][1].body).model_provider, provider);
+    for (const checked of [false, true]) {
+      const { context, $, calls } = harness();
+      Object.assign(context, { clearError() {}, setActionInFlight() {}, setBusy() {}, selectedModelProvider: () => provider, showError: assert.fail, refresh: assert.fail });
+      $("#meshy-image-enhancement").checked = checked;
+      vm.runInContext(handler, context);
+      await $("#generate-3d").listeners.click({ currentTarget: $("#generate-3d") });
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0][0], "/api/sessions/session-a/generate");
+      assert.equal(JSON.parse(calls[0][1].body).quality, "good");
+      assert.equal(JSON.parse(calls[0][1].body).model_provider, provider);
+      assert.equal(JSON.parse(calls[0][1].body).image_enhancement, provider === "meshy" && checked);
+    }
   }
 });

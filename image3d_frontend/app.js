@@ -432,6 +432,12 @@ function syncControls() {
   document.querySelectorAll('input[name="model-provider"]').forEach((input) => {
     input.disabled = running || actionInFlight;
   });
+  const meshySelected = selectedModelProvider() === "meshy";
+  $("#meshy-image-enhancement-option").classList.toggle("hidden", !meshySelected);
+  $("#meshy-image-enhancement").disabled = !meshySelected || running || actionInFlight || status === "SUCCEEDED";
+  if (running || status === "SUCCEEDED") {
+    $("#meshy-image-enhancement").checked = state?.model_task?.request?.image_enhancement === true;
+  }
   generateButton.classList.toggle("pending", running);
   if (!generateButton.dataset.busy) {
     generateButton.textContent = running ? "正在生成 STL…" : status === "FAILED" ? "重新生成 STL" : "提交 STL 任务";
@@ -1378,7 +1384,10 @@ $("#generate-3d").addEventListener("click", async (event) => {
     setBusy(button, true, "正在提交…");
     render(await api(`/api/sessions/${session.id}/generate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model_provider: selectedModelProvider(), quality: "good", result_format: "STL" }),
+      body: JSON.stringify({
+        model_provider: selectedModelProvider(), quality: "good", result_format: "STL",
+        image_enhancement: selectedModelProvider() === "meshy" && Boolean($("#meshy-image-enhancement").checked),
+      }),
       timeout: 140_000,
     }));
   } catch (error) { showError(error); await refresh(); }

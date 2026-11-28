@@ -32,8 +32,31 @@ class ModelViewSelectionTests(unittest.TestCase):
     def confirm(self):
         return self.client.post(self.base + "/confirm", headers=self.headers)
 
-    def generate(self, provider="meshy"):
-        return self.client.post(self.base + "/generate", headers=self.headers, json={"model_provider": provider})
+    def generate(self, provider="meshy", **options):
+        return self.client.post(self.base + "/generate", headers=self.headers, json={"model_provider": provider, **options})
+
+    def test_meshy_enhancement_choice_reaches_provider_and_is_saved_with_task(self):
+        for options in ({}, {"image_enhancement": False}, {"image_enhancement": True}):
+            with self.subTest(options=options):
+                self.ready()
+                self.assertEqual(self.confirm().status_code, 200)
+                with patch("vercel_app.workflow._meshy_config", return_value=Mock(base_url="https://example.invalid", api_key="fake")), \
+                        patch("vercel_app.workflow.httpx.Client") as client, \
+                        patch.object(app_module, "reserve_usage", return_value="reserved"), \
+                        patch.object(app_module, "record_usage"):
+                    post = client.return_value.__enter__.return_value.post
+                    post.return_value = Mock(status_code=202)
+                    post.return_value.json.return_value = {"result": "enhancement-task"}
+                    response = self.generate(**options)
+                self.assertEqual(response.status_code, 200, response.text)
+                expected = options.get("image_enhancement", False)
+                payload = post.call_args.kwargs["json"]
+                self.assertEqual(payload["image_enhancement"], expected)
+                self.assertEqual(payload["geometry_resolution"], "2k")
+                self.assertFalse(payload["should_remesh"])
+                self.assertEqual(response.json()["model_task"]["request"]["image_enhancement"], expected)
+                saved, _ = load_session(self.sid, self.token)
+                self.assertEqual(saved["model_task"]["request"]["image_enhancement"], expected)
 
     def test_every_nonempty_subset_is_confirmed_and_only_selected_urls_are_submitted(self):
         for count in range(1, 5):
@@ -115,9 +138,11 @@ class ModelViewSelectionTests(unittest.TestCase):
         self.confirm()
         with patch.object(app_module, "reserve_usage", return_value="reserved"), patch.object(app_module, "record_usage"), \
                 patch.object(app_module, "submit_hunyuan", return_value=({"id": "selected-task"}, "hy-3d-3.1")) as submit:
-            response = self.generate("hunyuan")
+            response = self.generate("hunyuan", image_enhancement=True)
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(submit.call_args.args[1], {})
+        self.assertNotIn("image_enhancement", submit.call_args.args[2])
+        self.assertNotIn("image_enhancement", response.json()["model_task"]["request"])
 
     def test_stale_confirmation_cannot_reintroduce_an_excluded_view(self):
         self.ready()
