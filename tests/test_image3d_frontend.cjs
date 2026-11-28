@@ -37,7 +37,7 @@ function harness(state = completedState()) {
   const context = {
     state, allViews, labels: { front: "正视图", left: "左视图", right: "右视图", back: "背视图" },
     session: { id: "test-session" }, actionInFlight: false, $, document: { querySelectorAll: () => [] },
-    setStepState() {}, clearError() {}, notify() {},
+    setStepState(selector, text) { $(selector).textContent = text; }, clearError() {}, notify() {},
     setActionInFlight(value) { context.actionInFlight = value; context.syncControls(); },
     setBusy(button, busy) { button.disabled = busy; },
     render(next) { context.state = next; $("#view-mode").value = next?.view_mode || "faithful"; context.syncControls(); },
@@ -65,7 +65,7 @@ function harness(state = completedState()) {
           if (next.views[view]) next.views[view].prompt_revision = 0;
         }
         for (const view of data.single_step ? requested.slice(0, 1) : requested) {
-          next.views[view] = { prompt_revision: next.prompt_revision, url: view };
+          next.views[view] = { prompt_revision: next.prompt_revision, view_mode: next.view_mode || "faithful", url: view };
         }
         next.status = "VIEWS_REVIEW";
         next.view_review = null;
@@ -91,16 +91,73 @@ test("missing state cannot enable confirmation or archive", () => {
   assert.equal($("#review-views").disabled, true);
 });
 
-test("complete but unchecked views offer review, not another paid generation", async () => {
+test("complete but unchecked views allow confirmation and archive with an optional review", async () => {
   const { context, $, calls } = harness();
   context.syncControls();
   assert.equal($("#generate-views").disabled, true);
   assert.equal($("#review-views").disabled, false);
-  assert.equal($("#confirm-views").disabled, true);
+  assert.equal($("#confirm-views").disabled, false);
+  assert.equal($("#save-view-folder").disabled, false);
+  assert.match($("#view-review-summary").textContent, /可以直接确认/);
+  assert.doesNotMatch($("#view-review-summary").textContent, /检查通过/);
   await context.generateViews($("#generate-views"));
   assert.equal(calls.length, 1);
   assert.ok(calls[0].path.endsWith("/views/review"));
   assert.equal($("#confirm-views").disabled, false);
+});
+
+test("failed review remains visible but allows confirmation, archive, and confirmed 3D submission", () => {
+  const state = completedState();
+  state.view_review = { status: "failed", failed_views: ["right"] };
+  const { context, $, calls } = harness(state);
+  context.syncControls();
+  assert.equal($("#confirm-views").disabled, false);
+  assert.equal($("#save-view-folder").disabled, false);
+  assert.equal($("#generate-3d").disabled, true);
+  assert.equal($("#generate-views").disabled, false);
+  assert.match($("#view-review-summary").textContent, /右视图.*仅供参考/);
+  assert.doesNotMatch($("#view-review-summary").textContent, /检查通过/);
+  assert.equal($("#views-state").textContent, "等待确认（有提示）");
+  state.status = "VIEWS_CONFIRMED";
+  state.confirmed_at = 1;
+  context.syncControls();
+  assert.equal($("#generate-3d").disabled, false);
+  assert.equal($("#views-state").textContent, "已确认");
+  assert.equal(state.view_review.status, "failed");
+  assert.equal(calls.length, 0);
+});
+
+test("missing or outdated views remain blocked even with a previous approval", () => {
+  for (const change of [
+    state => { delete state.views.back; },
+    state => { delete state.views.back.url; },
+    state => { state.views.back.prompt_revision = 0; },
+    state => { state.views.back.view_mode = "print_sculpture"; },
+  ]) {
+    const state = completedState();
+    state.views_approved = true;
+    state.confirmed_at = 1;
+    change(state);
+    const { context, $ } = harness(state);
+    context.syncControls();
+    assert.equal($("#confirm-views").disabled, true);
+    assert.equal($("#save-view-folder").disabled, true);
+    state.status = "VIEWS_CONFIRMED";
+    context.syncControls();
+    assert.equal($("#generate-3d").disabled, true);
+  }
+});
+
+test("active view generation or review keeps confirmation and archive disabled after reload", () => {
+  for (const status of ["GENERATING_VIEWS", "REVIEWING_VIEWS"]) {
+    const state = completedState();
+    state.status = status;
+    state.views_approved = true;
+    const { context, $ } = harness(state);
+    context.syncControls();
+    assert.equal($("#confirm-views").disabled, true, status);
+    assert.equal($("#save-view-folder").disabled, true, status);
+  }
 });
 
 test("retry only requests the failed angle, followed by one batch check", async () => {
@@ -144,7 +201,9 @@ test("first generation requests four serial steps and never automatically regene
     assert.deepEqual(JSON.parse(calls[index].options.body), { views: allViews.slice(index), single_step: true });
   }
   assert.ok(calls[4].path.endsWith("/views/review"));
-  assert.equal($("#confirm-views").disabled, true);
+  assert.equal($("#confirm-views").disabled, false);
+  assert.equal($("#save-view-folder").disabled, false);
+  assert.equal(context.state.view_review.status, "failed");
   assert.equal($("#view-review-summary").focused, true);
 });
 
@@ -196,7 +255,7 @@ test("interrupted regeneration keeps completed work and resumes only missing ang
   assert.ok(calls[3].path.endsWith("/views/review"));
 });
 
-test("review outage preserves images and exposes review-only retry", async () => {
+test("review outage preserves images and allows confirmation alongside review-only retry", async () => {
   const { context, $, calls, errors } = harness();
   const originalViews = structuredClone(context.state.views);
   context.api = async (path, options) => { calls.push({ path, options }); throw Error("review unavailable"); };
@@ -207,6 +266,8 @@ test("review outage preserves images and exposes review-only retry", async () =>
   assert.equal(context.actionInFlight, false);
   context.syncControls();
   assert.equal($("#review-views").disabled, false);
+  assert.equal($("#confirm-views").disabled, false);
+  assert.equal($("#save-view-folder").disabled, false);
 });
 
 test("busy state suppresses duplicate paid generation calls", async () => {

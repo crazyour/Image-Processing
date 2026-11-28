@@ -178,7 +178,7 @@ def review_views(images: dict[str, bytes], reference: bytes, model: str,
         with httpx.Client(base_url=config.base_url, timeout=90) as client:
             response = client.post("/responses", headers={"Authorization": f"Bearer {config.api_key}"}, json=payload)
     except httpx.RequestError as exc:
-        raise WorkflowError("VIEW_REVIEW_UNAVAILABLE", "视角检查暂时不可用，图片已保留，请仅重试检查", 502) from exc
+        raise WorkflowError("VIEW_REVIEW_UNAVAILABLE", "视角检查暂时不可用，图片已保留；可直接确认继续，也可重试检查", 502) from exc
     if response.status_code >= 400:
         raise _provider_error("OpenAI", response)
     try:
@@ -196,4 +196,4 @@ def review_views(images: dict[str, bytes], reference: bytes, model: str,
         result = normalize_review(by_view)
         return result, usage_payload(body)
     except (ValueError, TypeError, KeyError, AttributeError) as exc:
-        raise WorkflowError("VIEW_REVIEW_INVALID_RESPONSE", "视角检查结果不完整，图片已保留，请仅重试检查", 502) from exc
+        raise WorkflowError("VIEW_REVIEW_INVALID_RESPONSE", "视角检查结果不完整，图片已保留；可直接确认继续，也可重试检查", 502) from exc

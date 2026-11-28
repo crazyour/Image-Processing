@@ -651,10 +651,10 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
                 "message": "参考图分析等待超时，已解除锁定，可重新分析。",
             }
         elif previous_status == "REVIEWING_VIEWS":
-            state["status"] = "VIEWS_REVIEW"
+            state["status"] = "VIEWS_CONFIRMED" if state.get("confirmed_snapshot") else "VIEWS_REVIEW"
             state["last_error"] = {
                 "code": "VIEW_REVIEW_TIMEOUT",
-                "message": "视角检查超时，图片已保留，请仅重试检查，无需重新生成。",
+                "message": "视角检查超时，图片已保留；可继续确认并生成 3D，也可只重试检查。",
             }
         elif previous_status == "GENERATING_VIEWS":
             state["status"] = (
@@ -677,7 +677,8 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
 def _views_current(state: dict) -> bool:
     views = state.get("views", {})
     return all(
-        view in views and views[view].get("prompt_revision") == state.get("prompt_revision")
+        view in views and bool(views[view].get("url"))
+        and views[view].get("prompt_revision") == state.get("prompt_revision")
         and (state.get("view_source") == "uploaded"
              or views[view].get("view_mode", "faithful") == state.get("view_mode", "faithful"))
         for view in AI_GENERATED_VIEWS
@@ -685,14 +686,14 @@ def _views_current(state: dict) -> bool:
 
 
 def _views_approved(state: dict) -> bool:
-    if not _views_current(state):
-        return False
-    return state.get("view_source") == "uploaded" or (current_review(state) or {}).get("status") == "passed"
+    # Compatibility field: eligibility to continue, not an AI quality verdict.
+    # Review findings stay visible but no longer veto the user's confirmation.
+    return _views_current(state)
 
 
 def _require_view_approval(state: dict) -> None:
-    if state.get("view_source") != "uploaded" and not _views_approved(state):
-        raise WorkflowError("VIEW_REVIEW_REQUIRED", "请先完成视角检查，并重试未通过的视图", 409)
+    if not _views_approved(state):
+        raise WorkflowError("VIEWS_NOT_READY", "请先补全当前描述和造型模式对应的正、左、右、背四视图", 409)
 
 
 def _response(state: dict, *, token: str | None = None) -> dict:
@@ -708,7 +709,7 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "user_prompt": state.get("user_prompt", ""),
         "effective_prompt": state.get("effective_prompt", ""),
         "prompt_revision": state.get("prompt_revision", 1),
-        "views_stale": state.get("views_stale", True),
+        "views_stale": not _views_current(state),
         "views": state.get("views", {}),
         "view_review": current_review(state),
         "views_approved": _views_approved(state),
@@ -717,7 +718,8 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "assembly_plan": state.get("assembly_plan"),
         "model_task": state.get("model_task") or state.get("hunyuan_task"),
         "hunyuan_task": state.get("hunyuan_task"),
-        "last_error": state.get("last_error"),
+        "last_error": None if (state.get("last_error") or {}).get("code") == "VIEW_QUALITY_FAILED"
+            else state.get("last_error"),
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
         "view_source": state.get("view_source", "generated"),
@@ -2945,6 +2947,8 @@ def create_view_library_folder(
     name = data.name.strip()
     if not name:
         raise WorkflowError("INVALID_FOLDER_NAME", "请输入四视图文件夹名称", 422)
+    if state["status"] in {"GENERATING_VIEWS", "REVIEWING_VIEWS"}:
+        raise WorkflowError("VIEWS_BUSY", "四视图正在生成或检查，请完成后再保存", 409)
     views = state.get("views") or {}
     if any(view not in views or not views[view].get("url") for view in AI_GENERATED_VIEWS):
         raise WorkflowError("VIEWS_NOT_READY", "正、左、右、背四视图齐全后才能加入四视图库", 409)
@@ -3272,9 +3276,9 @@ def check_views(session_id: str, request: Request,
     if current_review(state):
         return _response(state)  # Both accepted and rejected unchanged sets are cached.
     models = _session_model_settings(state)
+    previous_status = state["status"]
     state["status"] = "REVIEWING_VIEWS"
-    state["views_stale"] = True
-    state["confirmed_snapshot"] = None
+    state["views_stale"] = not _views_current(state)
     state["last_error"] = None
     version = _save(state, version)
     try:
@@ -3305,20 +3309,17 @@ def check_views(session_id: str, request: Request,
             "usage": usage, "checked_at": int(time.time()),
         }
         state["views_stale"] = not _views_approved(state)
-        if review["status"] != "passed":
-            names = "、".join(VIEW_NAMES[view] for view in review["failed_views"])
-            state["last_error"] = {"code": "VIEW_QUALITY_FAILED", "message": f"{names}未通过检查，请仅重试这些视角。"}
     except Exception as exc:
-        state["status"] = "VIEWS_REVIEW"
+        state["status"] = previous_status
         state["last_error"] = {
             "code": getattr(exc, "code", "VIEW_REVIEW_FAILED"),
-            "message": "视角检查未完成，图片已保留，可仅重试检查。" + str(exc)[:300],
+            "message": "视角检查未完成，图片已保留；可继续确认并生成 3D，也可只重试检查。" + str(exc)[:300],
         }
         _save(state, version)
         if isinstance(exc, (WorkflowError, StoreError, UsageLimitError)):
             raise
         raise WorkflowError("VIEW_REVIEW_FAILED", state["last_error"]["message"], 502) from exc
-    state["status"] = "VIEWS_REVIEW"
+    state["status"] = previous_status
     _save(state, version)
     return _response(state)
 
@@ -3402,7 +3403,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
 def confirm_views(session_id: str, x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     if state["status"] != "VIEWS_REVIEW" or not _views_current(state):
-        raise WorkflowError("VIEWS_NOT_READY", "请生成并检查当前提示词版本的正、左、右、背四视图", 409)
+        raise WorkflowError("VIEWS_NOT_READY", "请补全当前描述和造型模式对应的正、左、右、背四视图", 409)
     _require_view_approval(state)
     state["views_stale"] = False
     state["confirmed_snapshot"] = {

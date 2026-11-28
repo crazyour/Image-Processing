@@ -319,6 +319,20 @@ class MultiviewWorkflowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def assert_can_submit_3d(self):
+        state, version = load_session(self.session_id, self.token)
+        for view in VIEW_TYPES:
+            state["confirmed_snapshot"]["views"][view]["url"] = f"https://example.invalid/{view}.png"
+        save_session(self.session_id, state, version)
+        with patch.object(app_module, "submit_meshy", return_value=({"id": "test-model-task", "status": "queued"}, "meshy-7.1")) as submit, \
+                patch.object(app_module, "reserve_usage", return_value="test-reservation"), \
+                patch.object(app_module, "record_usage"), patch.object(app_module, "review_views") as review:
+            response = self.post("/generate", json={"model_provider": "meshy"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "GENERATING_3D")
+        submit.assert_called_once()
+        review.assert_not_called()
+
     def test_batch_is_ordered_and_each_result_is_saved_before_next_call(self):
         original, _ = load_session(self.session_id, self.token)
         source = app_module.fetch_bytes(original["reference_images"][0]["url"])
@@ -389,7 +403,7 @@ class MultiviewWorkflowTests(unittest.TestCase):
                 self.assertIn(f"第{7 + prior_index}张是已生成的{VIEW_NAMES[prior]}", generate.call_args.args[1])
             pending = response.json()["pending_views"]
         self.assertEqual(pending, [])
-        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertEqual(self.post("/confirm").status_code, 200)
         self.assertTrue(self.accepted_review()["views_approved"])
 
     def test_stale_and_different_mode_views_are_not_used_as_references(self):
@@ -435,24 +449,30 @@ class MultiviewWorkflowTests(unittest.TestCase):
         self.assertIn("恢复右侧口袋", generate.call_args.args[1])
         self.assertEqual(generate.call_args.args[0][1:], [png(0), png(5)])
 
-    def test_exact_duplicates_block_confirmation_without_any_paid_review(self):
+    def test_exact_duplicates_remain_warnings_and_allow_confirmation_and_3d(self):
         self.generate(duplicate=True)
         with patch.object(app_module, "review_views") as review:
             response = self.post("/views/review")
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["view_review"]["failed_views"], ["left", "right", "back"])
+            self.assertEqual(response.json()["view_review"]["status"], "failed")
+            self.assertTrue(response.json()["views_approved"])
+            self.assertFalse(response.json()["views_stale"])
+            self.assertIsNone(response.json()["last_error"])
             review.assert_not_called()
-        self.assertEqual(self.post("/confirm").status_code, 409)
-        self.assertEqual(self.post("/generate", json={}).status_code, 409)
+        self.assertEqual(self.post("/confirm").status_code, 200)
+        self.assert_can_submit_3d()
 
-    def test_review_is_required_cached_and_invalidated_after_single_retry(self):
+    def test_optional_review_is_cached_and_invalidated_after_single_retry(self):
         self.generate()
-        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertEqual(self.post("/confirm").status_code, 200)
         review_result = normalize_review(accepted_result())
         with patch.object(app_module, "review_views", return_value=(review_result, {})) as reviewer:
             self.assertTrue(self.post("/views/review").json()["views_approved"])
             self.assertTrue(self.post("/views/review").json()["views_approved"])
-            self.assertEqual(self.post("/confirm").status_code, 200)
+            state, _ = load_session(self.session_id, self.token)
+            self.assertEqual(state["status"], "VIEWS_CONFIRMED")
+            self.assertIsNotNone(state["confirmed_snapshot"])
             self.assertEqual(self.post("/views/review").status_code, 200)
             reviewer.assert_called_once()
         # Return to review, as when a user chooses to correct a generated set.
@@ -466,11 +486,11 @@ class MultiviewWorkflowTests(unittest.TestCase):
         generate.assert_called_once()
         body = retried.json()
         self.assertIsNone(body["view_review"])
-        self.assertFalse(body["views_approved"])
+        self.assertTrue(body["views_approved"])
         self.assertIsNone(body["confirmed_at"])
         for view in ("front", "right", "back"):
             self.assertEqual(body["views"][view], previous[view])
-        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertEqual(self.post("/confirm").status_code, 200)
 
     def test_semantic_failure_provides_feedback_to_targeted_retry(self):
         self.generate()
@@ -494,7 +514,8 @@ class MultiviewWorkflowTests(unittest.TestCase):
         state, _ = load_session(self.session_id, self.token)
         self.assertEqual(state["status"], "VIEWS_REVIEW")
         self.assertEqual(state["views"], original)
-        self.assertFalse(app_module._views_approved(state))
+        self.assertTrue(app_module._views_approved(state))
+        self.assertFalse(state["views_stale"])
         with patch.object(app_module, "generate_view") as generate:
             self.assertTrue(self.accepted_review()["views_approved"])
             generate.assert_not_called()
@@ -521,7 +542,7 @@ class MultiviewWorkflowTests(unittest.TestCase):
         self.assertEqual(set(state["views"]), {"front", "left"})
         self.assertEqual(self.post("/views/review").status_code, 409)
 
-    def test_refine_includes_prior_view_before_target_and_requires_new_review(self):
+    def test_refine_includes_prior_view_before_target_and_allows_confirmation_without_review(self):
         self.generate()
         self.accepted_review()
         with patch.object(app_module, "generate_view", return_value=(png(5), {})) as generate:
@@ -532,7 +553,7 @@ class MultiviewWorkflowTests(unittest.TestCase):
         self.assertIn("第2张是已生成的正视图", generate.call_args.args[1])
         self.assertIn("最后一张是待修正的左视图", generate.call_args.args[1])
         self.assertIsNone(response.json()["view_review"])
-        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertEqual(self.post("/confirm").status_code, 200)
 
     def test_refine_failure_unlocks_session_and_preserves_original(self):
         before = self.generate()["views"]["left"]["url"]
@@ -551,6 +572,9 @@ class MultiviewWorkflowTests(unittest.TestCase):
         save_session(self.session_id, state, version)
         self.assertEqual(self.post("/views/review").status_code, 409)
         self.assertEqual(self.post("/views", json={"views": ["left"]}).status_code, 409)
+        self.assertEqual(self.post("/confirm").status_code, 409)
+        self.assertEqual(self.client.post("/api/view-library/folders", headers=self.headers,
+                         json={"session_id": self.session_id, "name": "busy views"}).status_code, 409)
         self.assertEqual(self.client.patch(self.path + "/prompt", headers=self.headers, json={"prompt": "new"}).status_code, 409)
         state, version = load_session(self.session_id, self.token)
         state["updated_at"] = 1
@@ -559,18 +583,79 @@ class MultiviewWorkflowTests(unittest.TestCase):
             self.assertTrue(self.accepted_review()["views_approved"])
             generate.assert_not_called()
 
-    def test_legacy_confirmation_cannot_bypass_review_or_library_gate(self):
+    def test_legacy_confirmation_without_review_allows_library_and_3d(self):
         self.generate()
         state, version = load_session(self.session_id, self.token)
         state["status"] = "CONFIRMED"
         state["confirmed_snapshot"] = {"views": copy.deepcopy(state["views"]), "confirmed_at": 1}
         save_session(self.session_id, state, version)
-        self.assertEqual(self.post("/generate", json={}).json()["code"], "VIEW_REVIEW_REQUIRED")
         saved = self.client.post("/api/view-library/folders", headers=self.headers,
-                                 json={"session_id": self.session_id, "name": "wrong views"})
-        self.assertEqual(saved.status_code, 409)
-        self.assertTrue(self.accepted_review()["views_approved"])
+                                 json={"session_id": self.session_id, "name": "unchecked views"})
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assert_can_submit_3d()
+
+    def test_semantic_warnings_allow_library_confirmation_and_3d(self):
+        self.generate()
+        result = accepted_result()
+        result["right"].update(actual_view="left", duplicate_of="left", issue="右视图方向不符合")
+        with patch.object(app_module, "review_views", return_value=(normalize_review(result), {})):
+            body = self.post("/views/review").json()
+        self.assertEqual(body["view_review"]["status"], "failed")
+        saved = self.client.post("/api/view-library/folders", headers=self.headers,
+                                 json={"session_id": self.session_id, "name": "warned views"})
+        self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(self.post("/confirm").status_code, 200)
+        self.assert_can_submit_3d()
+
+    def test_review_outage_does_not_block_confirmation_or_3d(self):
+        self.generate()
+        with patch.object(app_module, "review_views", side_effect=WorkflowError("VIEW_REVIEW_UNAVAILABLE", "timeout", 502)):
+            self.assertEqual(self.post("/views/review").status_code, 502)
+        self.assertEqual(self.post("/confirm").status_code, 200)
+        self.assert_can_submit_3d()
+
+    def test_legacy_failed_review_is_advisory_on_reload(self):
+        self.generate(duplicate=True)
+        self.post("/views/review")
+        state, version = load_session(self.session_id, self.token)
+        state["views_stale"] = True
+        state["last_error"] = {"code": "VIEW_QUALITY_FAILED", "message": "请重试未通过视角"}
+        save_session(self.session_id, state, version)
+        response = self.client.get(self.path, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body["views_approved"])
+        self.assertFalse(body["views_stale"])
+        self.assertEqual(body["view_review"]["status"], "failed")
+        self.assertIsNone(body["last_error"])
+        self.assertEqual(self.post("/confirm").status_code, 200)
+
+    def test_missing_image_url_still_blocks_confirmation_library_and_submission(self):
+        self.generate()
+        self.post("/confirm")
+        state, version = load_session(self.session_id, self.token)
+        state["views"]["right"]["url"] = ""
+        save_session(self.session_id, state, version)
+        self.assertEqual(self.post("/generate", json={}).status_code, 409)
+        self.assertEqual(self.client.post("/api/view-library/folders", headers=self.headers,
+                         json={"session_id": self.session_id, "name": "missing image"}).status_code, 409)
+        state, version = load_session(self.session_id, self.token)
+        state["status"] = "VIEWS_REVIEW"
+        save_session(self.session_id, state, version)
+        self.assertEqual(self.post("/confirm").status_code, 409)
+
+    def test_optional_review_timeout_preserves_existing_confirmation(self):
+        self.generate()
+        self.post("/confirm")
+        state, version = load_session(self.session_id, self.token)
+        snapshot = copy.deepcopy(state["confirmed_snapshot"])
+        state.update(status="REVIEWING_VIEWS", updated_at=1)
+        save_session(self.session_id, state, version)
+        response = self.client.get(self.path, headers=self.headers)
+        self.assertEqual(response.json()["status"], "VIEWS_CONFIRMED")
+        state, _ = load_session(self.session_id, self.token)
+        self.assertEqual(state["confirmed_snapshot"], snapshot)
+        self.assert_can_submit_3d()
 
     def test_manual_upload_keeps_existing_confirmation_flow(self):
         response = self.client.post("/api/sessions", files={"image": ("front.png", png(), "image/png")},

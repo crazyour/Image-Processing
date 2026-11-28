@@ -271,9 +271,9 @@ function renderViews(views = {}) {
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
     const titleNote = view === "front" ? (uploaded ? "<small>自行上传</small>" : "<small>AI 生成</small>") : "";
     const check = state?.view_review?.views?.[view];
-    const checkText = item.prompt_revision !== state?.prompt_revision ? "等待重新生成"
+    const checkText = !isCurrentView(view) ? "等待重新生成"
       : check?.status === "passed" ? "视角检查通过，请再核对细节"
-      : check?.issues?.length ? check.issues.join("；") : "等待视角检查";
+      : check?.issues?.length ? check.issues.join("；") : "尚未检查，可直接确认";
     const feedback = uploaded ? "" : `<p class="view-check ${check?.status === "failed" ? "view-check-failed" : ""}">${escapeHtml(checkText)}</p>`;
     return `<article class="view-card"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${feedback}${refinement}${replacement}</article>`;
   }).join("");
@@ -292,6 +292,16 @@ function viewModeChanged() {
     && selectedViewMode() !== (state.view_mode || "faithful");
 }
 
+function isCurrentView(view) {
+  const item = state?.views?.[view];
+  return Boolean(item?.url) && item.prompt_revision === state?.prompt_revision
+    && (state?.view_source === "uploaded" || (item.view_mode || "faithful") === (state?.view_mode || "faithful"));
+}
+
+function currentViewsReady() {
+  return Boolean(state) && allViews.every(isCurrentView);
+}
+
 function syncControls() {
   const status = state?.status;
   const uploaded = state?.view_source === "uploaded";
@@ -305,10 +315,13 @@ function syncControls() {
     : !state ? "默认忠实还原。完成图片分析后可选择模式。"
     : state.view_mode === "print_sculpture" ? "当前：打印雕塑。保留原图配色，请在四视图中核对发束、饰品和局部加厚是否符合预期。"
     : "当前：忠实还原，不启用打印造型调整。";
-  const viewsReady = Boolean(state) && allViews.every((view) => state.views?.[view]?.prompt_revision === state.prompt_revision);
+  const viewsReady = currentViewsReady();
   const review = state?.view_review;
-  const approved = !modeChanged && (uploaded ? viewsReady : Boolean(state?.views_approved));
+  // Review findings are advisory; only missing or outdated images block continuing.
+  const approved = !modeChanged && viewsReady;
+  const viewsBusy = ["GENERATING_VIEWS", "REVIEWING_VIEWS"].includes(status);
   const failedViews = review?.failed_views || [];
+  const reviewFailed = review?.status === "failed" || failedViews.length > 0;
   const descriptionConfirmed = Boolean(state?.description_confirmed_at);
   const canEditPrompt = Boolean(state) && !uploaded && status === "PROMPT_REVIEW";
   const canGenerateViews = Boolean(state) && !uploaded && !modeChanged && descriptionConfirmed && ["DESCRIPTION_CONFIRMED", "VIEWS_REVIEW"].includes(status);
@@ -328,7 +341,7 @@ function syncControls() {
   $("#regenerate-views").disabled = !canGenerateViews || !viewsReady || actionInFlight;
   $("#review-views").disabled = modeChanged || !viewsReady || Boolean(review) || actionInFlight || !["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status);
   $("#confirm-views").disabled = !approved || status !== "VIEWS_REVIEW" || actionInFlight;
-  $("#save-view-folder").disabled = !approved || actionInFlight;
+  $("#save-view-folder").disabled = !approved || viewsBusy || actionInFlight;
   document.querySelectorAll("[data-refine], [data-retry-view], .refine input").forEach((control) => {
     control.disabled = modeChanged || actionInFlight || status !== "VIEWS_REVIEW";
   });
@@ -336,10 +349,10 @@ function syncControls() {
   summary.classList.toggle("hidden", uploaded || !state);
   summary.textContent = modeChanged ? "造型模式尚未应用，请先应用模式并确认描述，再重新生成四视图。"
     : status === "REVIEWING_VIEWS" ? "正在检查重复图片、观察方向和主体一致性…"
-    : failedViews.length ? `${failedViews.map((view) => labels[view]).join("、")}未通过检查。可仅重试问题视角，其他图片会保留。`
-    : approved ? "视角检查通过，请核对四张图后确认。"
-    : viewsReady ? "四张图已保留，完成视角检查后可以确认；检查失败时可仅重试检查。"
-    : "生成完成后会检查四个视角；不会自动追加图片生成。";
+    : !viewsReady ? "请先生成或补全当前描述和模式的四张图，再确认；不会自动追加图片生成。"
+    : reviewFailed ? `${failedViews.length ? failedViews.map((view) => labels[view]).join("、") + "未通过检查" : "检查发现问题"}。结果仅供参考，不影响确认和生成 STL；也可选择重试问题视角。`
+    : review?.status === "passed" ? "视角检查通过，请核对四张图后确认。"
+    : "四张图已齐全，视角检查尚未完成。可以直接确认并继续，也可选择检查。";
   if (!$("#confirm-views").dataset.busy) {
     $("#confirm-views").textContent = state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
   }
@@ -374,10 +387,10 @@ function syncControls() {
   else if (status === "GENERATING_VIEWS") setStepState("#views-state", "正在生成", true, false);
   else if (status === "REVIEWING_VIEWS") setStepState("#views-state", "正在检查", true, false);
   else if (status === "DESCRIPTION_CONFIRMED") setStepState("#views-state", "可以生成", true, false);
-  else if (failedViews.length) setStepState("#views-state", "需要修正", false, true);
   else if (!viewsReady) setStepState("#views-state", "尚未完成", false, Boolean(state.last_error));
-  else if (!approved) setStepState("#views-state", "等待检查", false, Boolean(state.last_error));
+  else if (modeChanged) setStepState("#views-state", "等待应用模式", false, false);
   else if (state.confirmed_at) setStepState("#views-state", "已确认", true, false, true);
+  else if (reviewFailed) setStepState("#views-state", "等待确认（有提示）", true, false);
   else setStepState("#views-state", "等待确认", true, false);
 
   if (status === "SUCCEEDED") setStepState("#generate-state", "文件已生成", true, false, true);
@@ -1109,7 +1122,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
 });
 
 async function reviewCurrentViews(button) {
-  if (!state || state.view_source === "uploaded" || !allViews.every((view) => state.views?.[view]?.prompt_revision === state.prompt_revision)) return;
+  if (!state || state.view_source === "uploaded" || !currentViewsReady()) return;
   button.textContent = "正在检查四个视角…";
   $("#view-review-summary").textContent = "正在检查重复图片、观察方向和主体一致性…";
   render(await api(`/api/sessions/${session.id}/views/review`, { method: "POST", timeout: 120_000 }));
@@ -1130,7 +1143,7 @@ async function generateViews(button, regenerateAll = false, requestedViews = nul
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }),
       }));
     }
-    const missing = allViews.filter((view) => state?.views?.[view]?.prompt_revision !== state?.prompt_revision);
+    const missing = allViews.filter((view) => !isCurrentView(view));
     const requested = requestedViews || (regenerateAll ? allViews : [...missing, ...(state?.view_review?.failed_views || [])]);
     const views = allViews.filter((view) => requested.includes(view));
     if (!views.length) {
@@ -1522,7 +1535,8 @@ async function loadViewLibrary() {
 }
 
 $("#save-view-folder").addEventListener("click", () => {
-  if (!session || !allViews.every((view) => state?.views?.[view]?.url)) return notify("请先完成四视图", true);
+  if (actionInFlight || ["GENERATING_VIEWS", "REVIEWING_VIEWS"].includes(state?.status)) return;
+  if (!session || viewModeChanged() || !currentViewsReady()) return notify("请先完成当前描述和模式的四视图", true);
   $("#save-view-form").reset();
   $("#save-view-dialog").showModal();
   $("#view-folder-name").focus();
