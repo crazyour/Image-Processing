@@ -10,7 +10,7 @@
 <body>
   <aside id="paid-feature-banner" class="paid-feature-banner" role="note" aria-label="费用提示">
     <strong>费用提示</strong>
-    <span>AI 主体分析、四视图生成、视角检查和 3D 模型生成会按实际调用产生费用。自行上传四视图可免除站内图片生成费，但生成 3D 模型仍可能产生费用。</span>
+    <span>AI 主体分析、图片生成、局部修复、视角检查和 3D 生成会按实际调用产生费用。自行上传图片不收费；主动使用 AI 局部修复或生成 3D 时另行计费。</span>
   </aside>
   <main class="shell">
     <header class="hero">
@@ -72,7 +72,7 @@
             <b>本站免费</b>
           </label>
         </fieldset>
-        <p class="input-help source-fee-note">站内服务会生成 4 张图，约 ¥4/次；自行上传不产生站内图片生成费用。实际费用与外部平台额度以各平台账单为准。</p>
+        <p class="input-help source-fee-note">站内服务会生成 4 张图，约 ¥4/次；自行上传图片不收费，主动使用 AI 局部修复另行计费。实际费用与外部平台额度以各平台账单为准。</p>
         <div id="reference-upload" class="reference-upload">
           <p><strong>上传多张参考图</strong><span>第一张作为主参考，其余图片补充侧面、背面、底部、局部结构或材质信息。请勿混入不同物体。</span></p>
           <label class="dropzone" for="image-input">
@@ -259,7 +259,7 @@
       <p class="guide-lead">“图生 3D”用于根据产品图片生成 STL 三维模型。你可以上传 1–6 张同一个对象的参考图，先确认 AI 对图片的描述，再确认四视图并生成 STL。也可以自行上传现成四视图。</p>
       <section class="guide-source-choice">
         <strong>四视图有两种来源</strong>
-        <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图，约 1 元/张，四视图约 4 元/次。</p>
+        <p><b>站内 AI 自动生成：</b>上传 1–6 张同一对象的参考图，由本站生成正、左、右、背四张图。费用包含提示词、参考图片和生成图片，按实际调用计费；重新生成或局部修复会另计费用。</p>
         <p><b>自行上传：</b>先使用豆包等网页 AI 生成四视图，再上传到本站；本站不收图片生成费。</p>
         <small>以上价格为估算。实际费用以及豆包等外部平台的免费额度，以各平台账单和规则为准。后续生成 STL 会调用你选择的国内或国外模型并产生相应费用。</small>
       </section>
@@ -314,7 +314,7 @@
           <li>视角检查仅提供建议。不可信的图片可点击“排除此视图”，也可单独重试。生成 STL 只使用所选图片；保存到四视图库仍需四张当前版本图片齐全。</li>
         </ul>
         <h3>手动上传结果需要调整</h3>
-        <p>点击对应图片下方的“替换左视图”“替换右视图”或“替换背视图”，只需重新上传该视图。</p>
+        <p>自行上传的正、左、右、背视图也可点击“涂抹局部修复”，涂选区域并填写修改要求；AI 修复按实际调用收费，修复后需重新确认。也可点击对应图片下方的“替换”按钮重新上传。</p>
         <p>排除有问题的图片后，点击“确认所选视图”。至少保留一张；腾讯混元需要保留正视图。更改选择会撤销旧确认，需要再次确认；不会自动调用模型。</p>
       </details>
 
@@ -418,7 +418,7 @@
       </div>
       <p id="mask-keyboard-help" class="input-help">可用鼠标、触控笔或手指涂抹。键盘聚焦画布后，用方向键移动圆圈，空格或回车涂一笔。</p>
       <label for="view-mask-prompt">局部修改要求<textarea id="view-mask-prompt" rows="3" maxlength="4000" placeholder="例如：移除选中区域多余的装饰，补成与周围一致的表面"></textarea></label>
-      <p class="input-help">局部修复按一次图片编辑调用收费，不会自动生成 3D。若整体视角错误，请关闭并使用“仅重试此视图”。</p>
+      <p id="view-mask-scope-help" class="input-help">局部修复按一次图片编辑调用收费，不会自动生成 3D。</p>
       <button id="submit-view-mask" class="primary" type="button">按选区修复</button>
     </fieldset>
     <p id="view-mask-error" class="mask-error hidden" role="alert"></p>
@@ -444,7 +444,7 @@
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
   <script src="/static/stl-download.js?v=20261128-1" defer></script>
   <script src="/static/view-mask.js?v=20261128-1" defer></script>
-  <script src="/static/app.js?v=20261128-11" defer></script>
+  <script src="/static/app.js?v=20261128-12" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

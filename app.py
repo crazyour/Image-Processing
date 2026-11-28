@@ -97,7 +97,9 @@ from vercel_app.connectivity import (
 )
 from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
-from vercel_app.view_mask import MAX_MASK_DATA_URL, validate_view_mask, composite_view_edit, masked_view_prompt
+from vercel_app.view_mask import (
+    MAX_MASK_DATA_URL, validate_view_mask, prepare_masked_view, composite_view_edit, masked_view_prompt,
+)
 from vercel_app.mesh_quality import CHECKER_VERSION, MAX_CHECK_BYTES, incomplete_report, process_stl
 from vercel_app.mesh_smoothing import SMOOTHER_VERSION, MAX_SMOOTH_BYTES, process_smoothing
 from vercel_app.similarity_api import router as similarity_search_router
@@ -188,8 +190,10 @@ TEXT_IMAGE_MODEL = "gpt-image-2.5-flare"
 TEXT_IMAGE_QUALITY = "medium"
 TEXT_IMAGE_SIZE = "1024x1024"
 IMAGE3D_VISION_MODEL = "gpt-6-luna"
-IMAGE3D_VIEW_MODEL = "gpt-image-2.5-flare"
-IMAGE3D_VIEW_QUALITY = "medium"
+IMAGE3D_VIEW_MODEL = "gpt-image-2.6-sunburst"
+IMAGE3D_VIEW_QUALITY = "high"
+IMAGE3D_MATERIAL_MODEL = "gpt-image-2.5-flare"
+IMAGE3D_MATERIAL_QUALITY = "medium"
 IMAGE3D_MODEL = "hy-3d-3.1"
 MESHY_IMAGE3D_MODEL = "meshy-7.1"
 MAX_DELIVERABLE_UPLOAD_BYTES = 4_000_000
@@ -2712,6 +2716,8 @@ def new_session(
     models = _model_settings(
         IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
     )
+    models["texture_model"] = IMAGE3D_MATERIAL_MODEL
+    models["texture_quality"] = IMAGE3D_MATERIAL_QUALITY
     normalized, image_info = normalize_image(image.file.read(), image.content_type)
     preference_prompt = _active_preference_prompt(use_preferences)
     base_prompt = prompt.strip()
@@ -2810,6 +2816,8 @@ def edit_reference_texture(session_id: str, data: TextureEditRequest, request: R
                            x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
+    texture_model = models.get("texture_model", models["image_model"])
+    texture_quality = models.get("texture_quality", models["image_quality"])
     if state.get("view_source") != "generated" or state["status"] != "REFERENCES_READY":
         raise WorkflowError("INVALID_SESSION_STATE", "只能在分析参考图前修改纹理", 409)
     source = state.get("active_texture_image") or state.get("reference_image")
@@ -2825,9 +2833,9 @@ def edit_reference_texture(session_id: str, data: TextureEditRequest, request: R
     try:
         source_bytes = fetch_bytes(source["url"], 20_000_000)
         generated, usage = _metered_provider_call(
-            _account_user(request), "image_to_3d", models["image_model"], "修改参考图纹理",
+            _account_user(request), "image_to_3d", texture_model, "修改参考图纹理",
             lambda: generate_view(
-                [source_bytes], instruction, models["image_model"], models["image_quality"],
+                [source_bytes], instruction, texture_model, texture_quality,
             ),
         )
         revision = len(state.get("texture_edits") or []) + 1
@@ -3016,7 +3024,7 @@ def generate_color_front(folder_id: str, request: Request, data: ColorFrontReque
     if not folder:
         raise HTTPException(status_code=404, detail="四视图文件夹不存在")
     models = _model_settings(
-        IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
+        IMAGE3D_VISION_MODEL, IMAGE3D_MATERIAL_MODEL, IMAGE3D_MATERIAL_QUALITY, IMAGE3D_MODEL,
     )
     source_images = [fetch_bytes(folder["views"][view]["url"], 20_000_000) for view in AI_GENERATED_VIEWS]
     account = _account_user(request)
@@ -3061,7 +3069,7 @@ def complete_color_draft(draft_id: str, request: Request):
     if not folder or not draft.get("views", {}).get("front", {}).get("url"):
         raise WorkflowError("COLOR_DRAFT_INCOMPLETE", "配色草稿缺少原始四视图或正视图", 409)
     models = _model_settings(
-        IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
+        IMAGE3D_VISION_MODEL, IMAGE3D_MATERIAL_MODEL, IMAGE3D_MATERIAL_QUALITY, IMAGE3D_MODEL,
     )
     colored_front = fetch_bytes(draft["views"]["front"]["url"], 20_000_000)
     account = _account_user(request)
@@ -3371,26 +3379,34 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     models = _session_model_settings(state)
-    if state["status"] != "VIEWS_REVIEW":
+    uploaded = state.get("view_source") == "uploaded"
+    editable_statuses = {"VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} if data.mask_data_url is not None else {"VIEWS_REVIEW"}
+    if state["status"] not in editable_statuses:
         raise WorkflowError("INVALID_SESSION_STATE", "只有待确认图片可以微调", 409)
-    if (state.get("view_source") != "generated" or view not in AI_GENERATED_VIEWS
+    if (state.get("view_source") not in {"generated", "uploaded"} or view not in AI_GENERATED_VIEWS
             or view not in state.get("views", {})):
-        raise WorkflowError("INVALID_VIEW", "只能微调已由 AI 生成的正、左、右或背视图", 422)
+        raise WorkflowError("INVALID_VIEW", "只能修改已存在的正、左、右或背视图", 422)
+    if uploaded and data.mask_data_url is None:
+        raise WorkflowError("VIEW_MASK_REQUIRED", "自行上传的视图请使用提示词和涂抹选区进行局部修复", 422)
     if not data.prompt.strip():
         raise WorkflowError("EMPTY_REFINEMENT", "请输入需要修改的内容", 422)
     mask = None
     original = None
+    edit_image = edit_mask = None
     previous_view = dict(state["views"][view])
     if data.mask_data_url is not None:
         if (data.source_revision != previous_view.get("revision")
                 or not data.source_sha256 or data.source_sha256 != previous_view.get("sha256")
                 or previous_view.get("prompt_revision") != state["prompt_revision"]
-                or previous_view.get("view_mode", "faithful") != state.get("view_mode", "faithful")):
-            raise WorkflowError("VIEW_EDIT_STALE", "视图或描述已更新，请重新生成视图后打开局部修复", 409)
+                or (not uploaded and previous_view.get("view_mode", "faithful") != state.get("view_mode", "faithful"))):
+            raise WorkflowError("VIEW_EDIT_STALE", "视图或描述已更新，请重新打开当前图片的局部修复", 409)
         original = fetch_bytes(previous_view["url"], 20_000_000)
         mask = validate_view_mask(data.mask_data_url, original)
-    uploaded_references = _effective_image3d_references(state)
-    if not uploaded_references:
+        edit_image, edit_mask = prepare_masked_view(original, mask)
+    # Manual sessions may start with any angle and later replace it. Their
+    # historical reference_image must not compete with the current edit target.
+    uploaded_references = [] if uploaded else _effective_image3d_references(state)
+    if not uploaded and not uploaded_references:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
     revision = int(state["views"][view].get("revision", 0)) + 1
     _remember_view_issues(state)
@@ -3408,12 +3424,12 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
     try:
         references = [fetch_bytes(item["url"], 20_000_000) for item in uploaded_references[:MAX_REFERENCE_IMAGES]]
         original_count = len(references)
-        prior_views = _prior_generated_views(state, view)
+        prior_views = [] if uploaded else _prior_generated_views(state, view)
         references.extend(fetch_bytes(state["views"][prior]["url"], 20_000_000) for prior in prior_views)
         if mask is not None:
             # The edit mask belongs to the FIRST image, never an original
             # reference or one of the other camera angles.
-            references.insert(0, original)
+            references.insert(0, edit_image)
             prompt = masked_view_prompt(state["user_prompt"], view, data.prompt,
                                         original_count, prior_views, state.get("view_mode", "faithful"))
         else:
@@ -3429,11 +3445,11 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
             lambda: generate_view(
                 references, prompt,
                 models["image_model"], models["image_quality"],
-                **({"mask": mask} if mask is not None else {}),
+                **({"mask": edit_mask} if mask is not None else {}),
             ),
         )
         if mask is not None:
-            generated = composite_view_edit(original, generated, mask)
+            generated = composite_view_edit(original, generated, mask, padded=True)
         url = PublicBlobStore().put(
             f"image3d/{session_id}/views/{view}-r{revision}.png", generated, "image/png",
         )
@@ -3456,6 +3472,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
         "generated": True,
         "refinement_prompt": data.prompt.strip(),
         "refinement_kind": "masked" if mask is not None else "prompt",
+        **({"uploaded": True} if uploaded else {}),
         "view_mode": state.get("view_mode", "faithful"),
         "usage": usage,
     }

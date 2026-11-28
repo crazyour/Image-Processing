@@ -254,7 +254,7 @@ class MultiviewWorkflowTests(unittest.TestCase):
         for count, call in enumerate(generate.call_args_list, start=1):
             self.assertEqual(len(call.args[0]), count)
             self.assertIn(PRINT_SCULPTURE_CONSTRAINT, call.args[1])
-            self.assertEqual(call.args[3], "medium")
+            self.assertEqual(call.args[3], "high")
         self.assertTrue(all(v["view_mode"] == "print_sculpture" for v in response.json()["views"].values()))
         with patch.object(app_module, "generate_view", return_value=(png(5), {})) as refine:
             response = self.post("/views/left/refine", json={"prompt": "减少发束交叉"})
@@ -299,13 +299,22 @@ class MultiviewWorkflowTests(unittest.TestCase):
         self.assertFalse(app_module._views_current(state))
         self.assertEqual(self.post("/confirm").status_code, 409)
 
+    def test_reference_texture_keeps_its_separate_model(self):
+        state, version = load_session(self.session_id, self.token)
+        state["status"] = "REFERENCES_READY"
+        save_session(self.session_id, state, version)
+        with patch.object(app_module, "generate_view", return_value=(png(), {})) as provider:
+            response = self.post("/texture", json={"prompt": "改成金属表面"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(provider.call_args.args[2:4], ("gpt-image-2.5-flare", "medium"))
+
     def generate(self, *, duplicate=False):
         def make_image(references, prompt, model, quality):
             target = next(view for view in VIEW_TYPES if f"一张{VIEW_NAMES[view]}" in prompt)
             self.assertEqual(len(references), 1 + VIEW_TYPES.index(target))
             self.assertEqual(references[1:], [png(0 if duplicate else i) for i in range(VIEW_TYPES.index(target))])
-            self.assertEqual(model, "gpt-image-2.5-flare")
-            self.assertEqual(quality, "medium")
+            self.assertEqual(model, "gpt-image-2.6-sunburst")
+            self.assertEqual(quality, "high")
             return png(0 if duplicate else VIEW_TYPES.index(target)), {"calls": 1}
         with patch.object(app_module, "generate_view", side_effect=make_image) as generate:
             response = self.post("/views", json={"views": list(VIEW_TYPES)})

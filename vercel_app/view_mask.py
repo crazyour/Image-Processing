@@ -45,8 +45,36 @@ def validate_view_mask(data_url: str, source: bytes) -> bytes:
         raise WorkflowError("INVALID_VIEW_MASK", "遮罩图片无效，请重新涂抹", 422) from exc
 
 
-def composite_view_edit(source: bytes, generated: bytes, mask: bytes) -> bytes:
+def prepare_masked_view(source: bytes, mask: bytes) -> tuple[bytes, bytes]:
+    """Pad rectangular uploads and masks identically for the square edit API."""
+    original = _image(source)
+    if original.width == original.height:
+        return source, mask
+    edge = max(original.size)
+    offset = ((edge - original.width) // 2, (edge - original.height) // 2)
+    square = Image.new("RGBA", (edge, edge), (255, 255, 255, 255))
+    square.paste(original, offset)
+    selection = Image.new("RGBA", (edge, edge), (0, 0, 0, 255))
+    with Image.open(io.BytesIO(mask)) as image:
+        selection.paste(image, offset)
+    outputs = []
+    for image in (square, selection):
+        output = io.BytesIO()
+        image.save(output, "PNG")
+        outputs.append(output.getvalue())
+    return outputs[0], outputs[1]
+
+
+def composite_view_edit(source: bytes, generated: bytes, mask: bytes, *, padded: bool = False) -> bytes:
     original, edited = _image(source), _image(generated)
+    if padded and original.width != original.height:
+        if edited.width != edited.height:
+            raise WorkflowError("EDIT_SIZE_MISMATCH", "修复结果画幅异常，原图已保留", 502)
+        edge = max(original.size)
+        left, top = (edge - original.width) // 2, (edge - original.height) // 2
+        if edited.size != (edge, edge):
+            edited = edited.resize((edge, edge), Image.Resampling.LANCZOS)
+        edited = edited.crop((left, top, left + original.width, top + original.height))
     if edited.size != original.size:
         # Same-aspect output may use a different provider resolution. Never
         # stretch an unexpected aspect ratio into the original view.

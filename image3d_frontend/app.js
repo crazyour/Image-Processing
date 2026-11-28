@@ -75,7 +75,7 @@ function setWorkspace(name, updateUrl = true) {
   $("#paid-feature-banner").classList.toggle("hidden", workspace === "library");
   $("#paid-feature-banner span").textContent = workspace === "color"
     ? "AI 图像识别和每张上色图都会按实际调用产生费用。请先确认正视图，满意后再生成其余三张，可避免无效费用。"
-    : "AI 主体分析、四视图生成、视角检查和 3D 模型生成会按实际调用产生费用。自行上传四视图可免除站内图片生成费，但生成 3D 模型仍可能产生费用。";
+    : "AI 主体分析、图片生成、局部修复、视角检查和 3D 生成会按实际调用产生费用。自行上传图片不收费；主动使用 AI 局部修复或生成 3D 时另行计费。";
   $("#library-toggle").classList.toggle("hidden", workspace !== "3d");
   if (workspace !== "3d") {
     $("#library-panel").classList.add("hidden");
@@ -223,7 +223,7 @@ function renderAnalysis(analysis = {}) {
   const available = Boolean(analysis.subject || analysis.geometry);
   const empty = $("#analysis-empty");
   empty.textContent = state?.view_source === "uploaded"
-    ? "手动上传模式不进行 AI 分析，也不会产生站内图片生成费用。"
+    ? "手动上传模式不进行 AI 分析。上传图片不收费；如使用 AI 局部修复，将按实际调用计费。"
     : "上传参考图后，AI 会综合多张图片显示识别结果。";
   empty.classList.toggle("hidden", available);
   $("#analysis").classList.toggle("hidden", !available);
@@ -268,7 +268,9 @@ function renderViews(views = {}) {
       return `<article class="${cardClass}"><div class="view-card-heading"><h3>${labels[view]}</h3>${toggle}</div>${selection}<p>${uploaded ? "尚未上传" : "尚未生成"}</p>${upload}</article>`;
     }
     const refinement = !uploaded && state?.status === "VIEWS_REVIEW"
-      ? `<div class="refine"><input id="refine-${view}" aria-label="${labels[view]}微调要求" type="text" maxlength="4000" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div><div class="view-edit-actions"><button type="button" class="secondary" data-mask-view="${view}">涂抹局部修复</button><button type="button" class="secondary" data-retry-view="${view}">仅重试${labels[view]}</button></div>` : "";
+      ? `<div class="refine"><input id="refine-${view}" aria-label="${labels[view]}微调要求" type="text" maxlength="4000" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div><div class="view-edit-actions"><button type="button" class="secondary" data-retry-view="${view}">仅重试${labels[view]}</button></div>` : "";
+    const maskedEdit = ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(state?.status)
+      ? `<div class="view-edit-actions"><button type="button" class="secondary" data-mask-view="${view}">涂抹局部修复</button></div>` : "";
     const replacement = uploaded && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(state?.status)
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
     const titleNote = view === "front" ? (uploaded ? "<small>自行上传</small>" : "<small>AI 生成</small>") : "";
@@ -277,7 +279,7 @@ function renderViews(views = {}) {
       : check?.status === "passed" ? "视角检查通过，请再核对细节"
       : check?.issues?.length ? check.issues.join("；") : "尚未检查，可直接确认";
     const feedback = uploaded ? "" : `<p class="view-check ${check?.status === "failed" ? "view-check-failed" : ""}">${escapeHtml(checkText)}</p>`;
-    return `<article class="${cardClass}"><div class="view-card-heading"><h3>${labels[view]}${titleNote}</h3>${toggle}</div>${selection}<img data-zoom src="${item.url}" alt="${labels[view]}">${feedback}${refinement}${replacement}</article>`;
+    return `<article class="${cardClass}"><div class="view-card-heading"><h3>${labels[view]}${titleNote}</h3>${toggle}</div>${selection}<img data-zoom src="${item.url}" alt="${labels[view]}">${feedback}${refinement}${maskedEdit}${replacement}</article>`;
   }).join("");
   document.querySelectorAll("[data-toggle-model-view]").forEach((button) => button.addEventListener("click", () => toggleModelView(button.dataset.toggleModelView)));
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
@@ -300,6 +302,12 @@ function isCurrentView(view) {
   const item = state?.views?.[view];
   return Boolean(item?.url) && item.prompt_revision === state?.prompt_revision
     && (state?.view_source === "uploaded" || (item.view_mode || "faithful") === (state?.view_mode || "faithful"));
+}
+
+function canEditViewMask(view) {
+  return !actionInFlight && ["generated", "uploaded"].includes(state?.view_source)
+    && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(state?.status)
+    && !viewModeChanged() && isCurrentView(view);
 }
 
 function currentViewsReady() {
@@ -398,7 +406,7 @@ function syncControls() {
     control.disabled = modeChanged || actionInFlight || status !== "VIEWS_REVIEW";
   });
   document.querySelectorAll("[data-mask-view]").forEach((control) => {
-    control.disabled = modeChanged || actionInFlight || status !== "VIEWS_REVIEW" || !isCurrentView(control.dataset.maskView);
+    control.disabled = !canEditViewMask(control.dataset.maskView);
   });
   const summary = $("#view-review-summary");
   summary.classList.toggle("hidden", uploaded || !state);
@@ -1174,12 +1182,14 @@ function syncViewMaskPainter() {
 }
 
 async function openViewMask(view) {
-  if (actionInFlight || state?.status !== "VIEWS_REVIEW" || state?.view_source !== "generated") return;
-  if (viewModeChanged() || !isCurrentView(view)) return notify("请先生成当前描述下的视图，再进行局部修复", true);
+  if (!canEditViewMask(view)) return;
   const item = state.views[view], loadId = ++viewMaskLoadId;
   viewMaskEditor = { view, sessionId: session.id, revision: item.revision, sha256: item.sha256, ready: false, saving: false };
   const dialog = $("#view-mask-dialog");
   $("#view-mask-title").textContent = `${labels[view]} · 局部修复`;
+  $("#view-mask-scope-help").textContent = state.view_source === "uploaded"
+    ? "局部修复按一次图片编辑调用收费，不会自动生成 3D。若整体视角错误，可关闭并替换上传该视图。"
+    : "局部修复按一次图片编辑调用收费，不会自动生成 3D。若整体视角错误，请关闭并使用单张重试。";
   $("#view-mask-prompt").value = $(`#refine-${view}`)?.value || "";
   $("#view-mask-status").textContent = "正在载入原图…";
   $("#view-mask-controls").disabled = true;
@@ -1228,7 +1238,7 @@ async function submitViewMask() {
   const editor = viewMaskEditor;
   if (!editor?.ready || editor.saving || actionInFlight) return;
   const item = state?.views?.[editor.view];
-  if (session?.id !== editor.sessionId || state?.status !== "VIEWS_REVIEW"
+  if (session?.id !== editor.sessionId || !canEditViewMask(editor.view)
       || item?.revision !== editor.revision || item?.sha256 !== editor.sha256 || viewModeChanged()) {
     return showViewMaskError("视图已更新，请关闭后重新打开局部修复");
   }

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 from vercel_app.auth import database_connection
+from vercel_app.pricing import estimated_call_cost
 from vercel_app.usage import extract_cost, find_cost, normalize_usage, record_usage, usage_report
 
 
@@ -123,15 +124,22 @@ class UsageLedgerTests(unittest.TestCase):
         self.assertEqual(normalized["cost_source"], "Token 单价估算")
 
     def test_reference_images_are_priced_at_the_image_input_rate(self):
-        normalized = normalize_usage({
-            "input_tokens": 28_400,
-            "output_tokens": 1_056,
-            "total_tokens": 29_456,
-            "input_tokens_details": {"text_tokens": 40, "image_tokens": 28_360},
-        }, "gpt-image-2.5-flare", "image_to_3d")
-        # 40 text tokens at $5/1M, 28360 image tokens at $8/1M, 1056 output at $30/1M.
-        self.assertEqual(normalized["cost_usd"], 0.25876)
-        self.assertEqual(normalized["cost_source"], "Token 单价估算")
+        for model in ("gpt-image-2.5-flare", "gpt-image-2.6-sunburst"):
+            with self.subTest(model=model):
+                normalized = normalize_usage({
+                    "input_tokens": 28_400,
+                    "output_tokens": 1_056,
+                    "total_tokens": 29_456,
+                    "input_tokens_details": {"text_tokens": 40, "image_tokens": 28_360},
+                }, model, "image_to_3d")
+                # Billing uses actual tokens, even when the reserve estimate differs.
+                self.assertEqual(normalized["cost_usd"], 0.25876)
+                self.assertEqual(normalized["cost_source"], "Token 单价估算")
+
+    def test_sunburst_reservation_accounts_for_high_quality_output_tokens(self):
+        # Six estimated reference images plus 1756 output tokens at published rates.
+        self.assertEqual(estimated_call_cost("gpt-image-2.6-sunburst", 6), 0.27828)
+        self.assertEqual(estimated_call_cost("gpt-image-2.5-flare", 6), 0.2586)
 
     def test_vision_model_uses_the_published_rates(self):
         normalized = normalize_usage({

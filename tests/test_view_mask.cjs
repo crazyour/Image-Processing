@@ -66,7 +66,8 @@ test("keyboard can paint without dragging and disabled editing cannot add a stro
 });
 
 const source = readFileSync(join(__dirname, "../image3d_frontend/app.js"), "utf8");
-const editorSource = source.slice(source.indexOf("let viewMaskEditor ="), source.indexOf("async function refine("));
+const editorSource = source.slice(source.indexOf("function canEditViewMask("), source.indexOf("function currentViewsReady("))
+  + source.slice(source.indexOf("let viewMaskEditor ="), source.indexOf("async function refine("));
 function editorHarness() {
   const elements = new Map(), calls = [];
   function $(selector) {
@@ -150,4 +151,36 @@ test("source loading failure disables painting and displays an actionable error"
   assert.equal($("#view-mask-controls").disabled, true);
   assert.equal($("#close-view-mask").disabled, false);
   assert.match($("#view-mask-error").textContent, /offline/);
+});
+
+test("uploaded views can open and submit a mask from review or confirmation without AI analysis", async () => {
+  for (const status of ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"]) {
+    const { context, $, calls } = editorHarness();
+    context.state.view_source = "uploaded";
+    context.state.status = status;
+    await context.submitViewMask();
+    assert.equal(calls.length, 1, status);
+    let fetched = false;
+    context.fetch = async () => { fetched = true; throw Error("test offline"); };
+    await context.openViewMask("left");
+    assert.equal(fetched, true, status);
+    assert.match($("#view-mask-scope-help").textContent, /替换上传/);
+    assert.doesNotMatch($("#view-mask-scope-help").textContent, /单张重试/);
+  }
+});
+
+test("uploaded missing views and active or completed tasks cannot open or submit mask edits", async () => {
+  for (const status of ["GENERATING_VIEWS", "REVIEWING_VIEWS", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED", "VIEWS_REVIEW"]) {
+    const { context, $, calls } = editorHarness();
+    context.state.view_source = "uploaded";
+    context.state.status = status;
+    if (status === "VIEWS_REVIEW") context.isCurrentView = () => false;
+    let fetched = false;
+    context.fetch = async () => { fetched = true; throw Error("unexpected fetch"); };
+    await context.openViewMask("left");
+    await context.submitViewMask();
+    assert.equal(fetched, false);
+    assert.equal(calls.length, 0);
+    assert.equal($("#view-mask-dialog").open, undefined);
+  }
 });

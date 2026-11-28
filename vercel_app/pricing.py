@@ -31,6 +31,7 @@ class ModelRates:
 # GPT Image bills reference images at the image rate and prompts at the text rate;
 # text and vision models bill every input token at the model input rate.
 MODEL_RATES: dict[str, ModelRates] = {
+    "gpt-image-2.6": ModelRates(5.0, 8.0, 2.0, 30.0, "image"),
     "gpt-image-2.5": ModelRates(5.0, 8.0, 2.0, 30.0, "image"),
     "gpt-image-2": ModelRates(5.0, 8.0, 2.0, 30.0, "image"),
     "gpt-image-1.5": ModelRates(5.0, 8.0, 2.0, 32.0, "image"),
@@ -194,8 +195,12 @@ def pricing_signature() -> str:
 # Rough token counts used before a call is made and its tokens are known.
 # A 1024x1024 reference image that GPT Image keeps at high fidelity.
 REFERENCE_IMAGE_TOKENS = 4700
-# The output tokens of a 1024x1024 medium quality image.
+# Legacy rough output allowance; actual billing always uses response usage.
 GENERATION_OUTPUT_TOKENS = 1100
+# Official image-generation calculator: 1024x1024, high, GPT Image 2.6.
+# Reserve for the current default; older medium sessions still bill actual usage.
+# https://developers.openai.com/api/docs/guides/image-generation#calculating-costs
+GENERATION_OUTPUT_TOKENS_2_6 = 1756
 
 
 def estimated_call_cost(model: str | None, reference_images: int = 1) -> float | None:
@@ -204,8 +209,14 @@ def estimated_call_cost(model: str | None, reference_images: int = 1) -> float |
     if rates is None or not rates.is_image:
         return None
     input_tokens = max(reference_images, 0) * REFERENCE_IMAGE_TOKENS
+    name = (model or "").strip().lower()
+    output_tokens = (
+        GENERATION_OUTPUT_TOKENS_2_6
+        if name == "gpt-image-2.6" or name.startswith("gpt-image-2.6-")
+        else GENERATION_OUTPUT_TOKENS
+    )
     cost = (
         input_tokens * rates.image_input
-        + GENERATION_OUTPUT_TOKENS * rates.output
+        + output_tokens * rates.output
     ) / 1_000_000
     return round(cost, 6)

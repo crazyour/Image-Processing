@@ -96,6 +96,8 @@ class ColorWorkflowTests(unittest.TestCase):
         parent = next(item for item in folders if item["id"] == self.folder["id"])
         self.assertEqual(parent["color_schemes"][0]["name"], "海蓝木趣")
         self.assertEqual(generate.call_count, 5)
+        for call in generate.call_args_list:
+            self.assertEqual(call.args[2:4], ("gpt-image-2.5-flare", "medium"))
 
     def test_frontend_exposes_staged_coloring_actions(self):
         html = (app_module.ROOT / "image3d_frontend" / "index.html").read_text()

@@ -197,6 +197,28 @@ test("manual upload accepts a single side view, keeps its label and excludes mis
   assert.equal(calls.length, 2);
 });
 
+test("uploaded image cards expose local repair even after confirmation, without generation buttons", () => {
+  const state = completedState();
+  state.view_source = "uploaded";
+  delete state.views.right;
+  const { context, $ } = harness(state);
+  for (const status of ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"]) {
+    state.status = status;
+    context.renderViews(state.views);
+    const html = $("#views-grid").innerHTML;
+    for (const view of ["front", "left", "back"]) {
+      assert.match(html, new RegExp(`data-mask-view="${view}"`));
+      assert.equal(context.canEditViewMask(view), true);
+    }
+    assert.doesNotMatch(html, /data-mask-view="right"|data-refine=|data-retry-view=/);
+    assert.equal(context.canEditViewMask("right"), false);
+  }
+  state.status = "GENERATING_3D";
+  context.renderViews(state.views);
+  assert.doesNotMatch($("#views-grid").innerHTML, /data-mask-view=/);
+  assert.equal(context.canEditViewMask("left"), false);
+});
+
 test("missing state cannot enable confirmation or archive", () => {
   const { context, $ } = harness(null);
   context.syncControls();
