@@ -1,10 +1,46 @@
 from __future__ import annotations
 
 import unittest
+import gzip
+from unittest.mock import patch
 
 import httpx
 
-from vercel_app.workflow import _provider_error
+from vercel_app.workflow import WorkflowError, _provider_error, fetch_bytes
+
+
+class RemoteFileIntegrityTests(unittest.TestCase):
+    def download(self, response):
+        with patch("vercel_app.workflow.httpx.stream") as stream:
+            stream.return_value.__enter__.return_value = response
+            return fetch_bytes("https://example.invalid/model.stl")
+
+    def test_partial_response_is_not_saved_as_a_complete_original(self):
+        response = httpx.Response(206, content=b"partial", headers={"Content-Range": "bytes 0-6/190000000"})
+        with self.assertRaises(WorkflowError) as caught:
+            self.download(response)
+        self.assertEqual(caught.exception.code, "REMOTE_FILE_INCOMPLETE")
+
+    def test_cleanly_ended_but_short_response_is_rejected(self):
+        response = httpx.Response(200, content=b"short", headers={"Content-Length": "190000000"})
+        with self.assertRaises(WorkflowError) as caught:
+            self.download(response)
+        self.assertEqual(caught.exception.code, "REMOTE_FILE_INCOMPLETE")
+
+    def test_empty_response_is_rejected(self):
+        with self.assertRaises(WorkflowError) as caught:
+            self.download(httpx.Response(200, content=b""))
+        self.assertEqual(caught.exception.code, "REMOTE_FILE_INCOMPLETE")
+
+    def test_exact_response_keeps_all_original_bytes(self):
+        raw = b"original STL bytes" * 100
+        self.assertEqual(self.download(httpx.Response(200, content=raw)), raw)
+
+    def test_http_compression_is_not_mistaken_for_truncation(self):
+        raw = b"original STL bytes" * 100
+        encoded = gzip.compress(raw)
+        response = httpx.Response(200, content=encoded, headers={"Content-Encoding": "gzip", "Content-Length": str(len(encoded))})
+        self.assertEqual(self.download(response), raw)
 
 
 class ProviderErrorTests(unittest.TestCase):

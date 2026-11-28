@@ -538,6 +538,14 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES, *, timeout: float = 280,
         with httpx.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
             if response.status_code >= 400:
                 raise _provider_error("远程文件", response)
+            if response.status_code != 200 or response.headers.get("Content-Range"):
+                raise WorkflowError("REMOTE_FILE_INCOMPLETE", "远程服务器只返回了部分文件，已停止保存，请重试", 502)
+            # iter_bytes decodes compression, while Content-Length describes
+            # encoded bytes. Compare lengths only for identity responses.
+            content_length = response.headers.get("Content-Length", "")
+            expected = int(content_length) if content_length.isdecimal() and not response.headers.get("Content-Encoding") else None
+            if expected is not None and expected > limit:
+                raise WorkflowError("REMOTE_FILE_TOO_LARGE", "远程文件超过保存限制", 502)
             for chunk in response.iter_bytes():
                 if max_seconds is not None and time.monotonic() - started > max_seconds:
                     raise WorkflowError("REMOTE_FILE_TIMEOUT", "文件读取超时，请重试检查", 504)
@@ -545,6 +553,8 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES, *, timeout: float = 280,
                 if total > limit:
                     raise WorkflowError("REMOTE_FILE_TOO_LARGE", "远程文件超过保存限制", 502)
                 chunks.append(chunk)
+            if not total or (expected is not None and total != expected):
+                raise WorkflowError("REMOTE_FILE_INCOMPLETE", "远程文件下载不完整，已停止保存，请重试", 502)
     except httpx.RequestError as exc:
         raise WorkflowError("REMOTE_FILE_UNAVAILABLE", f"远程文件下载失败：{exc}", 502) from exc
     return b"".join(chunks)

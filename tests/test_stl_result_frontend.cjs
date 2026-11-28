@@ -42,12 +42,18 @@ function harness() {
     stlPreviewSourceKey: null, stlPreviewRequestId: 0, loadedPreviewUrl: null, stlPreview: null,
     generatedStlUrl: null, loadedResizeUrl: null, loadingResizeRequest: null,
     resizeSourceKind: null, resizeMesh: null, resizeRequestId: 0,
+    originalDownloadInFlight: false,
     taskClock: null, lastCompletedBalanceTaskId: null,
     escapeHtml(value) { return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"); },
     setStepState(selector, title) { $(selector).textContent = title; }, notify() {},
     render(next) { context.state = next; context.renderTask(); },
     async api(...args) { calls.push(args); return context.state; },
     async fetch(url) { fetches.push(url); return { ok: true, async arrayBuffer() { return { url }; } }; },
+    async readOriginalStl(model) {
+      const response = await context.fetch(model.url);
+      if (!response.ok) throw Error("STL 下载失败");
+      return response.arrayBuffer();
+    },
     parseStl(buffer) { return [buffer.url]; },
     setResizeMesh(...args) { resizeCalls.push(args); context.resizeSourceKind = args[3]; },
     drawStlPreview() {}, updateElapsed() {},
@@ -195,6 +201,49 @@ test("preview failure leaves the original download available", async () => {
   await settled();
   assert.match($("#model-results").innerHTML, /\/original.stl/);
   assert.match($("#model-preview-status").textContent, /预览暂不可用/);
+});
+
+test("optional resize failure cannot suppress a verified original preview", async () => {
+  const { context, $ } = harness();
+  context.setResizeMesh = () => { throw Error("STL 文件不能超过 100 MB"); };
+  context.renderStlResult();
+  await settled();
+  assert.equal($("#stl-canvas").classList.contains("hidden"), false);
+  assert.deepEqual(context.stlPreview.triangles, ["/original.stl"]);
+  assert.match($("#resize-source-status").textContent, /100 MB/);
+});
+
+test("the download button only saves verified original bytes, never preview triangles", async () => {
+  const { context, $ } = harness();
+  const buffer = new ArrayBuffer(284), saves = [];
+  context.Blob = Blob;
+  context.URL = { createObjectURL(blob) { saves.push(blob); return "blob:verified"; }, revokeObjectURL() {} };
+  const link = { click() { saves.push(this.download); }, remove() {} };
+  context.document = { createElement: () => link, body: { appendChild() {} } };
+  context.setTimeout = () => {};
+  context.readOriginalStl = async () => buffer;
+  await context.downloadOriginalStl();
+  assert.equal(saves[0].size, buffer.byteLength);
+  assert.equal(saves[1], "model-original.stl");
+  assert.equal(link.href, "blob:verified");
+  assert.match($("#model-download-status").textContent, /已校验/);
+
+  context.readOriginalStl = async () => { throw Error("STL 下载不完整"); };
+  await context.downloadOriginalStl();
+  assert.equal(saves.length, 2);
+  assert.match($("#model-download-status").textContent, /下载不完整/);
+  assert.equal(context.originalDownloadInFlight, false);
+});
+
+test("a download finishing after switching sessions does not save the old file", async () => {
+  const { context } = harness();
+  let finish;
+  context.readOriginalStl = () => new Promise(resolve => { finish = resolve; });
+  const pending = context.downloadOriginalStl();
+  context.session.id = "new-session";
+  finish(new ArrayBuffer(284));
+  await pending;
+  assert.equal(context.originalDownloadInFlight, false);
 });
 
 test("generation always submits good quality for either provider without displaying a quality option", async () => {

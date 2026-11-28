@@ -29,6 +29,8 @@ let resizeMesh = null;
 let resizeSourceKind = null;
 let resizeFileName = "model-resized.stl";
 let resizeRequestId = 0;
+const readOriginalStl = StlDownload.createLoader();
+let originalDownloadInFlight = false;
 let viewFolders = [];
 let selectedColorFolderId = null;
 let colorDraft = null;
@@ -481,6 +483,42 @@ function renderStlResult() {
   renderStlPreviewSource();
 }
 
+function stlDownloadProgress(received, total, phase) {
+  if (phase === "verifying") return "正在校验原始 STL 完整性…";
+  const progress = `${formatBytes(received)}${total ? ` / ${formatBytes(total)}` : ""}`;
+  return `${phase === "retrying" ? "连接中断，正在重试当前分段" : "正在下载原始 STL"} · ${progress}`;
+}
+
+async function downloadOriginalStl() {
+  const model = currentOriginalStl();
+  if (!model || originalDownloadInFlight) return;
+  const key = originalStlKey(model);
+  originalDownloadInFlight = true;
+  $("#model-download-status").classList.remove("hidden");
+  $("#model-download-status").textContent = "正在准备下载原始 STL…";
+  try {
+    const buffer = await readOriginalStl(model, (...progress) => {
+      if (key === originalStlKey()) $("#model-download-status").textContent = stlDownloadProgress(...progress);
+    });
+    if (key !== originalStlKey()) return;
+    const url = URL.createObjectURL(new Blob([buffer], { type: "model/stl" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "model-original.stl";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    $("#model-download-status").textContent = `原始 STL 已校验，开始保存 · ${formatBytes(buffer.byteLength)}`;
+  } catch (error) {
+    if (key !== originalStlKey()) return;
+    $("#model-download-status").textContent = error.message || "STL 下载失败，请重试";
+    notify(error.message || "STL 下载失败，请重试", true);
+  } finally {
+    originalDownloadInFlight = false;
+  }
+}
+
 function renderStlPreviewSource() {
   const model = currentOriginalStl();
   const key = originalStlKey(model);
@@ -489,6 +527,8 @@ function renderStlPreviewSource() {
     stlPreviewRequestId += 1;
     loadedPreviewUrl = null;
     stlPreview = null;
+    $("#model-download-status").textContent = "";
+    $("#model-download-status").classList.add("hidden");
     $("#stl-canvas").classList.add("hidden");
     $("#model-preview-image").classList.add("hidden");
     if (resizeSourceKind !== "local") {
@@ -517,13 +557,22 @@ async function loadStlPreview(url) {
   $("#model-preview-image").classList.add("hidden");
   $("#model-preview-status").textContent = "正在载入预览…";
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("STL 预览下载失败");
-    const buffer = await response.arrayBuffer();
+    const buffer = await readOriginalStl(currentOriginalStl(), (...progress) => {
+      if (sourceKey === stlPreviewSourceKey && requestId === stlPreviewRequestId) {
+        $("#model-preview-status").textContent = stlDownloadProgress(...progress);
+      }
+    });
     if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId || url !== currentOriginalStl()?.url) return;
     if (url === currentOriginalStl()?.url && resizeId === resizeRequestId && resizeSourceKind !== "local" && loadedResizeUrl !== url) {
-      setResizeMesh(buffer, "原始 STL", "model-original.stl", "generated");
-      loadedResizeUrl = url;
+      // The optional editor has a smaller memory budget than the downloader.
+      // Its limit must never prevent previewing or downloading a large model.
+      try {
+        setResizeMesh(buffer, "原始 STL", "model-original.stl", "generated");
+        loadedResizeUrl = url;
+      } catch (error) {
+        $("#resize-source-status").textContent = error.message;
+        setStepState("#resize-state", "暂不可调整", false, true);
+      }
     }
     const triangles = parseStl(buffer);
     if (!triangles.length) throw new Error("STL 预览格式无效");
@@ -532,10 +581,10 @@ async function loadStlPreview(url) {
     canvas.classList.remove("hidden");
     $("#model-preview-status").textContent = "简化预览 · 请下载文件核对实际网格。";
     drawStlPreview();
-  } catch (_) {
+  } catch (error) {
     if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId) return;
     canvas.classList.add("hidden");
-    $("#model-preview-status").textContent = "预览暂不可用，可下载对应 STL 查看。";
+    $("#model-preview-status").textContent = `预览暂不可用：${error.message || "载入失败"}。可点击下载文件重试。`;
   }
 }
 
@@ -646,9 +695,7 @@ async function loadResizeStlFromUrl(url, force = false) {
   loadingResizeRequest = request;
   try {
     $("#resize-source-status").textContent = "正在载入原始 STL…";
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("STL 下载失败");
-    const buffer = await response.arrayBuffer();
+    const buffer = await readOriginalStl(currentOriginalStl());
     if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey || url !== currentOriginalStl()?.url) return;
     setResizeMesh(buffer, "原始 STL", "model-original.stl", "generated");
     loadedResizeUrl = url;
@@ -1105,6 +1152,12 @@ $("#refresh-task").addEventListener("click", async (event) => {
 });
 
 $("#use-generated-stl").addEventListener("click", () => loadResizeStlFromUrl(generatedStlUrl, true));
+
+$("#model-results").addEventListener("click", (event) => {
+  if (!event.target.closest("a.model-link")) return;
+  event.preventDefault();
+  downloadOriginalStl();
+});
 
 $("#resize-stl-input").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
