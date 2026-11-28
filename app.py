@@ -99,7 +99,6 @@ from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
 from vercel_app.mesh_quality import CHECKER_VERSION, MAX_CHECK_BYTES, incomplete_report, process_stl
 from vercel_app.mesh_smoothing import SMOOTHER_VERSION, MAX_SMOOTH_BYTES, process_smoothing
-from vercel_app.mesh_processing import PROCESSOR_VERSION, MAX_PROCESS_BYTES, STAGES, process_stage, reset_outdated_processing
 from vercel_app.similarity_api import router as similarity_search_router
 from vercel_app.usage import (
     UsageLimitError,
@@ -350,7 +349,7 @@ class ColorFrontRequest(BaseModel):
 
 class Generate3DRequest(BaseModel):
     model_provider: Literal["hunyuan", "meshy"] = "meshy"
-    quality: Literal["normal", "good"] = "normal"
+    quality: Literal["normal", "good"] = "good"
     result_format: Literal["STL"] = "STL"
 
 
@@ -699,13 +698,7 @@ def _require_view_approval(state: dict) -> None:
 
 
 def _response(state: dict, *, token: str | None = None) -> dict:
-    # Project migration into GET responses too: otherwise a v1/v1 result would
-    # keep looking complete in the browser and never request the new processor.
     task = copy.deepcopy(state.get("model_task") or state.get("hunyuan_task"))
-    if task and state.get("status") == "SUCCEEDED":
-        model = (task.get("models") or {}).get("stl")
-        if model:
-            reset_outdated_processing(model)
     result = {
         "session_id": state["session_id"],
         "status": state["status"],
@@ -3437,6 +3430,9 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
         raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
     _require_view_approval(state)
     options = data.model_dump(exclude={"model_provider"})
+    # Older cached clients may still submit normal; all new 3D tasks use the
+    # fixed detailed geometry settings and record those actual settings.
+    options["quality"] = "good"
     provider = data.model_provider
     provider_label = "国内模型（腾讯混元）" if provider == "hunyuan" else "国外模型（Meshy 7.1）"
     provider_name = "腾讯混元" if provider == "hunyuan" else "Meshy"
@@ -3577,10 +3573,6 @@ def poll_3d(session_id: str, x_session_token: str | None = Header(default=None))
                 "preview_image_url": item.get("preview_image_url"),
                 "size_bytes": len(raw),
                 "sha256": hashlib.sha256(raw).hexdigest(),
-                "quality": {"status": "pending"},
-                "processing": {"version": PROCESSOR_VERSION, "status": "pending", "stage": "repair",
-                               "source_sha256": hashlib.sha256(raw).hexdigest(),
-                               "message": "正在准备自动处理…"},
             }
         if task["models"].get("stl", {}).get("url"):
             state["status"] = "SUCCEEDED"
@@ -3778,101 +3770,10 @@ def smooth_model_file(session_id: str, payload: SmoothSTLRequest,
 
 @app.post("/api/sessions/{session_id}/3d/process")
 def process_model_file(session_id: str, x_session_token: str | None = Header(default=None)):
-    """Advance one durable stage; the page automatically requests pending stages."""
-    state, version = _load(session_id, x_session_token)
-    task = state.get("model_task") or state.get("hunyuan_task") or {}
-    model = task.get("models", {}).get("stl", {})
-    if state["status"] != "SUCCEEDED" or not model.get("url"):
-        raise WorkflowError("STL_NOT_READY", "请先等待模型生成完成", 409)
-    if _model_file_job_active(model):
-        raise WorkflowError("STL_CHECK_RUNNING", "模型正在处理，请稍候", 409)
-    reset_outdated_processing(model)
-    processing = model.get("processing") or {}
-    matches = (processing.get("version") == PROCESSOR_VERSION
-               and processing.get("source_sha256") == model.get("sha256"))
-    final = model.get("processed") or {}
-    if (matches and model.get("sha256") and processing.get("status") == "completed"
-            and final.get("url") and final.get("source_sha256") == model["sha256"]
-            and final.get("version") == PROCESSOR_VERSION):
-        return _response(state)
-    resumable = processing.get("status") in {"pending", "running"} or (
-        processing.get("status") == "failed" and processing.get("retryable") is True)
-    if (not matches or not resumable
-            or processing.get("stage") not in STAGES):
-        processing = {"version": PROCESSOR_VERSION, "source_sha256": model.get("sha256"),
-                      "stage": "repair", "attempts": []}
-    stage = processing["stage"]
-    working = processing.get("working_file") or {}
-    if stage.startswith("smooth") and not working.get("url"):
-        stage = processing["stage"] = "repair"
-    source = working if stage.startswith("smooth") else model
-    for field in ("retry_after", "retryable", "detail"):
-        processing.pop(field, None)
-    processing.update(status="running", started_at=int(time.time()),
-                      message="正在优化表面…" if stage.startswith("smooth") else "正在自动修复模型…")
-    model["processing"] = processing
-    model["quality_job"] = {"started_at": int(time.time()), "operation": "process",
-                            "job_id": secrets.token_hex(12)}
-    state["model_task"] = task
-    state["hunyuan_task"] = task if task.get("provider", "hunyuan") == "hunyuan" else None
-    version = _save(state, version)
-    try:
-        if source.get("size_bytes", 0) > MAX_PROCESS_BYTES:
-            raise WorkflowError("STL_TOO_LARGE", "模型文件超出自动处理容量", 413)
-        raw = fetch_bytes(source["url"], limit=MAX_PROCESS_BYTES, timeout=30, max_seconds=60)
-        digest = hashlib.sha256(raw).hexdigest()
-        if source.get("sha256") and source["sha256"] != digest:
-            raise WorkflowError("STL_CHANGED", "模型文件发生变化，请重新载入", 409)
-        source["sha256"] = digest
-        processing["source_sha256"] = model["sha256"]
-        report, output, next_stage = process_stage(raw, stage)
-        if report.get("code") == "MESH_BUSY":
-            processing.update(status="pending", stage=stage, retry_after=int(time.time()) + 5,
-                              message="正在等待处理…")
-        elif output is not None:
-            processing.setdefault("attempts", []).append(report)
-            output_hash = hashlib.sha256(output).hexdigest()
-            if next_stage == "done":
-                url = PublicBlobStore().put(
-                    f"image3d/{session_id}/models/processed-{PROCESSOR_VERSION}-{output_hash}.stl",
-                    output, "model/stl",
-                )
-                repair_report = processing.get("repair_report") or {}
-                needs_review = bool(repair_report.get("needs_review") or report.get("needs_review"))
-                model["processed"] = {"url": url, "size_bytes": len(output), "sha256": output_hash,
-                                      "source_sha256": model["sha256"], "version": PROCESSOR_VERSION,
-                                      "reconstructed": False, "needs_review": needs_review,
-                                      "report": {"repair": repair_report, "smoothing": report}}
-                processing.update(status="completed", stage="done", completed_at=int(time.time()),
-                                  message="已保形处理，仍有结构问题" if needs_review else "已完成修复与表面处理")
-                processing.pop("working_file", None)
-            else:
-                url = source["url"] if output == raw else PublicBlobStore().put(
-                    f"image3d/{session_id}/models/working-{PROCESSOR_VERSION}-{output_hash}.stl",
-                    output, "model/stl",
-                )
-                processing["working_file"] = {"url": url, "size_bytes": len(output), "sha256": output_hash}
-                processing["repair_report"] = report
-                processing.update(status="pending", stage=next_stage, message="正在优化表面…")
-        elif next_stage:
-            processing.setdefault("attempts", []).append(report)
-            processing.update(status="pending", stage=next_stage,
-                              message="正在调整平滑方式…" if next_stage.startswith("smooth") else "正在升级修复方式…")
-        else:
-            processing.setdefault("attempts", []).append(report)
-            processing.update(status="failed", message="自动处理暂未通过复检，请重试。",
-                              detail=report.get("message", ""))
-    except WorkflowError as exc:
-        processing.update(status="failed", message=exc.message,
-                          retryable=exc.code not in {"STL_TOO_LARGE", "STL_CHANGED", "REMOTE_FILE_TOO_LARGE"})
-    except StoreError:
-        processing.update(status="failed", retryable=True, message="处理文件保存未完成，请重试。")
-    except Exception:
-        logging.exception("Automatic STL processing failed at %s", stage)
-        processing.update(status="failed", message="模型处理未完成，请重试。")
-    model.pop("quality_job", None)
-    _save(state, version)
-    return _response(state)
+    """Retire automatic finishing, including requests from cached older pages."""
+    # Authenticate without _load's unrelated legacy-state recovery writes.
+    load_session(session_id, _require_token(x_session_token))
+    raise WorkflowError("STL_PROCESSING_DISABLED", "自动后处理已停用，请下载原始 STL。", 410)
 
 
 @app.get("/api/meshy/balance")

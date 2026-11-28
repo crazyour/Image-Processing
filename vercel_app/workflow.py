@@ -30,7 +30,7 @@ SOURCE_VIEW_NAMES = {
     "FRONT": "正面", "FRONT_THREE_QUARTER": "斜前方", "SIDE": "侧面",
     "BACK": "背面", "TOP": "顶部", "UNKNOWN": "不确定",
 }
-QUALITY_LEVELS = {"normal", "good"}
+QUALITY_LEVELS = {"good"}
 TRIPO_MODEL = "tripo-3d-3.1"
 TRIPO_FORMAT_MODEL = "tripo-3d-format"
 MAX_UPLOAD_BYTES = 4_000_000
@@ -550,11 +550,19 @@ def fetch_bytes(url: str, limit: int = MAX_MODEL_BYTES, *, timeout: float = 280,
     return b"".join(chunks)
 
 
+def _require_fixed_model_quality(options: dict) -> None:
+    # Accept the old value only as an input alias; it cannot downgrade provider
+    # settings. Missing quality uses the same fixed geometry settings.
+    quality = options.get("quality", "good")
+    if quality == "normal":
+        quality = "good"
+    if not isinstance(quality, str) or quality not in QUALITY_LEVELS:
+        raise WorkflowError("INVALID_OPTION", "3D 生成参数无效", 422)
+
+
 def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, model: str) -> tuple[dict, str]:
+    _require_fixed_model_quality(options)
     config = _hunyuan_config()
-    quality = str(options.get("quality", "normal"))
-    if quality not in QUALITY_LEVELS:
-        raise WorkflowError("INVALID_OPTION", "生成效果只能选择普通效果或好效果", 422)
     payload = {
         "model": model,
         "image_url": front_url,
@@ -564,9 +572,8 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
         ],
         "generate_type": "Geometry",
         "enable_pbr": False,
+        "face_count": 1_000_000,
     }
-    if quality == "good":
-        payload["face_count"] = 1_000_000
     if options.get("result_format"):
         payload["result_format"] = options["result_format"]
     try:
@@ -590,23 +597,17 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
 def submit_meshy(front_url: str, view_urls: dict[str, str], options: dict,
                  model: str = "meshy-7.1") -> tuple[dict, str]:
     """Submit the confirmed four views to Meshy's native multi-image endpoint."""
+    _require_fixed_model_quality(options)
     config = _meshy_config()
-    quality = str(options.get("quality", "normal"))
-    if quality not in QUALITY_LEVELS:
-        raise WorkflowError("INVALID_OPTION", "生成效果只能选择普通效果或好效果", 422)
-    good_quality = quality == "good"
     payload: dict = {
         "image_urls": [front_url, *[view_urls[view] for view in GENERATED_VIEWS]],
         "ai_model": model,
-        "geometry_resolution": "2k" if good_quality else "standard",
+        "geometry_resolution": "2k",
         "should_texture": False,
         "enable_pbr": False,
-        "should_remesh": not good_quality,
+        "should_remesh": False,
         "target_formats": ["stl"],
     }
-    if not good_quality:
-        payload["topology"] = "triangle"
-        payload["target_polycount"] = 200_000
     try:
         with httpx.Client(base_url=config.base_url, timeout=120) as client:
             response = client.post("/openapi/v1/multi-image-to-3d", headers={

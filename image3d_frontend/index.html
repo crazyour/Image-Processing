@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261128-6">
+  <link rel="stylesheet" href="/static/styles.css?v=20261128-8">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -164,7 +164,7 @@
     </section>
 
     <section id="generate-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后生成 STL；原件保留，另存保形修复后的文件。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后生成 STL，完成后可直接下载。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <fieldset class="model-provider-options">
         <legend>选择生成模型</legend>
         <label class="model-provider-option">
@@ -185,34 +185,16 @@
         </label>
         <p id="meshy-balance" class="meshy-balance" role="status" aria-atomic="true">Meshy 剩余积分：正在查询…</p>
       </fieldset>
-      <div class="options">
-        <label class="quality-field" for="generation-quality">生成效果
-          <select id="generation-quality">
-            <option value="normal" selected>普通效果（默认）</option>
-            <option value="good">好效果（细节更多）</option>
-          </select>
-        </label>
-      </div>
-      <p id="quality-description" class="input-help"></p>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
-      <p id="model-provider-note" class="cost-note">确认后会把四张图片发送给 Meshy，并按所选效果收费。</p>
+      <p id="model-provider-note" class="cost-note">确认后会把四张图片发送给 Meshy，模型生成按实际调用收费。</p>
       <div id="task-progress" class="progress hidden">
         <div class="spinner"></div>
         <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
         <button id="refresh-task" class="secondary" type="button">立即刷新</button>
       </div>
-      <div id="model-processing" class="model-processing hidden">
-        <span id="model-processing-spinner" class="spinner hidden" aria-hidden="true"></span>
-        <p id="model-processing-summary" role="status" aria-live="polite" aria-atomic="true">正在准备自动修复与表面处理…</p>
-        <button id="retry-model-processing" class="secondary hidden" type="button" disabled>重试处理</button>
-      </div>
       <div id="model-preview" class="model-preview hidden">
         <div>
-          <strong id="model-preview-title">STL 预览</strong><span id="model-meta"></span>
-          <div class="stl-preview-switch" role="group" aria-label="选择 STL 预览版本">
-            <button id="preview-original-stl" class="secondary" type="button" aria-pressed="false">原始 STL</button>
-            <button id="preview-processed-stl" class="secondary" type="button" aria-pressed="false" disabled>修复后 STL</button>
-          </div>
+          <strong>原始 STL</strong><span id="model-meta"></span>
           <span id="model-preview-status">简化预览 · 请下载文件核对实际网格。</span>
         </div>
         <div class="preview-surface">
@@ -225,9 +207,9 @@
       <details id="resize-step" class="resize-details">
         <summary>调整尺寸（可选）</summary>
         <div class="resize-details-body">
-          <div class="resize-heading"><p id="resize-source-hint">默认使用修复后 STL；尚未修复时使用原件。</p><b id="resize-state" class="step-state">等待文件</b></div>
+          <div class="resize-heading"><p>默认使用生成的原始 STL，也可选择本地文件。</p><b id="resize-state" class="step-state">等待文件</b></div>
           <div class="stl-resize-source">
-            <button id="use-generated-stl" class="secondary" type="button" disabled>使用本次 STL</button>
+            <button id="use-generated-stl" class="secondary" type="button" disabled>使用原始 STL</button>
             <label class="stl-file-button" for="resize-stl-input">选择本地 STL
               <input id="resize-stl-input" type="file" accept=".stl,model/stl,application/sla">
             </label>
@@ -334,14 +316,8 @@
 
       <details>
         <summary>五、生成 STL</summary>
-        <h3>1. 选择生成效果</h3>
-        <ul>
-          <li><b>普通效果：</b>生成更快、花费较少，适合大多数模型。</li>
-          <li><b>好效果：</b>细节更多，适合对外形要求较高的模型。</li>
-        </ul>
-        <p>不确定怎么选时，保持默认的“普通效果”即可。</p>
-        <h3>2. 提交任务</h3>
         <ol>
+          <li>选择生成模型。</li>
           <li>点击“提交 STL 任务”。</li>
           <li>页面会依次显示提交、排队、生成和保存状态。</li>
           <li>页面会显示已等待时间、当前模型平台和任务编号。</li>
@@ -354,11 +330,11 @@
         <summary>六、预览和下载</summary>
         <p>生成成功后：</p>
         <ul>
-          <li>模型生成后保留原始 STL，并自动保形修复、处理表面，完成后另存修复后 STL。</li>
+          <li>模型生成后直接提供原始 STL，可立即预览和下载。</li>
           <li>可以在预览区域拖动模型旋转。</li>
           <li>使用鼠标滚轮可以缩放模型。</li>
           <li>页面会显示 STL 文件大小。</li>
-          <li>原始和修复后 <code>.stl</code> 均可分别下载、切换预览；需要修改尺寸时展开“调整尺寸（可选）”。</li>
+          <li>点击“下载文件”保存 <code>.stl</code>；需要修改尺寸时展开“调整尺寸（可选）”。</li>
         </ul>
         <p>如果交互预览加载失败，但下载按钮仍然存在，可以直接下载 STL，不影响模型文件本身。</p>
       </details>
@@ -391,11 +367,11 @@
         </ul>
         <p>页面会保留错误编号和 Request ID。排查问题时请同时提供这两个信息。</p>
         <h3>为什么任务完成后没有下载按钮？</h3>
-        <p>原始 STL 生成后即可下载。自动处理完成后另存修复后 STL，原件仍保留；若仍有结构问题，会提示核对。处理失败可点击“重试处理”，无需重新生成模型。</p>
+        <p>STL 保存完成后即可下载。如果页面仍在生成或保存状态，可以点击“立即刷新”查询任务；若显示失败，请查看错误信息。</p>
         <h3>刷新页面后任务还在吗？</h3>
         <p>当前任务保存在当前标签页的会话中：</p>
         <ul>
-          <li>在同一个标签页刷新页面，可以继续当前任务。</li>
+          <li>刷新页面会重置当前任务，完成后请先下载 STL。</li>
           <li>关闭标签页后，不会自动恢复上一次任务。</li>
           <li>页面不会自动加载其他任务的图片和内容。</li>
         </ul>
@@ -410,7 +386,6 @@
           <li>检查并确认 AI 对图片的描述。</li>
           <li>点击“生成四视图”。</li>
           <li>检查正、左、右、背视图并点击“确认四个视角”。</li>
-          <li>保持“普通效果”。</li>
           <li>点击“提交 STL 任务”。</li>
           <li>等待完成后预览并下载 STL。</li>
         </ol>
@@ -436,9 +411,9 @@
     <div id="choose-view-grid" class="view-folder-grid"></div>
   </dialog>
 
-  <script src="/assets/reset-on-refresh.js?v=20261128-1"></script>
+  <script src="/assets/reset-on-refresh.js?v=20261128-2"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
-  <script src="/static/app.js?v=20261128-6" defer></script>
+  <script src="/static/app.js?v=20261128-8" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

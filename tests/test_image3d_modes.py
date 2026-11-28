@@ -1,9 +1,15 @@
 from pathlib import Path
+import copy
 import unittest
 from unittest.mock import Mock, patch
 
+import app as app_module
+import test_mesh_smoothing_workflow as smoothing_tests
+from vercel_app.store import load_session
+
 from vercel_app.workflow import (
     QUALITY_LEVELS,
+    WorkflowError,
     _meshy_balance_cache,
     query_meshy,
     query_meshy_balance,
@@ -16,22 +22,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Image3DModeTests(unittest.TestCase):
-    def test_backend_accepts_normal_and_good_quality_levels(self):
-        self.assertEqual(QUALITY_LEVELS, {"normal", "good"})
+    def test_backend_defaults_to_fixed_detailed_geometry(self):
+        self.assertEqual(QUALITY_LEVELS, {"good"})
+        self.assertEqual(app_module.Generate3DRequest().quality, "good")
 
-    def test_frontend_offers_two_plain_language_quality_levels(self):
+    def test_frontend_does_not_offer_or_describe_quality_levels(self):
         html = (ROOT / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
         javascript = (ROOT / "image3d_frontend" / "app.js").read_text(encoding="utf-8")
 
-        for quality in QUALITY_LEVELS:
-            self.assertIn(f'value="{quality}"', html)
-        self.assertIn('id="generation-quality"', html)
+        self.assertNotIn('id="generation-quality"', html)
         self.assertNotIn('id="generate-type"', html)
         self.assertNotIn('id="enable-pbr"', html)
-        self.assertIn('quality: $("#generation-quality").value', javascript)
-        self.assertIn("生成更快、花费较少", javascript)
-        self.assertIn("细节更多", javascript)
-        self.assertIn("腾讯混元 HY 3.1", javascript)
+        self.assertNotIn('$("#generation-quality")', javascript)
+        for label in ("普通效果", "好效果", "生成更快、花费较少"):
+            self.assertNotIn(label, html + javascript)
 
     def test_frontend_defaults_to_meshy_and_sends_selected_provider(self):
         html = (ROOT / "image3d_frontend" / "index.html").read_text(encoding="utf-8")
@@ -91,27 +95,24 @@ class Image3DModeTests(unittest.TestCase):
 
     @patch("vercel_app.workflow._hunyuan_config")
     @patch("vercel_app.workflow.httpx.Client")
-    def test_hunyuan_normal_quality_uses_provider_default_face_count(self, client_class, config):
+    def test_hunyuan_legacy_and_omitted_quality_keep_million_face_mapping(self, client_class, config):
         config.return_value = Mock(base_url="https://example.invalid", api_key="test-key")
         response = Mock(status_code=200)
         response.json.return_value = {"id": "123", "status": "queued"}
         client_class.return_value.__enter__.return_value.post.return_value = response
 
-        submit_hunyuan(
-            "https://example.com/front.png",
-            {
-                "left": "https://example.com/left.png",
-                "right": "https://example.com/right.png",
-                "back": "https://example.com/back.png",
-            },
-            {"quality": "normal", "result_format": "STL"},
-            "hy-3d-3.1",
-        )
-
-        payload = client_class.return_value.__enter__.return_value.post.call_args.kwargs["json"]
-        self.assertEqual(payload["generate_type"], "Geometry")
-        self.assertFalse(payload["enable_pbr"])
-        self.assertNotIn("face_count", payload)
+        for quality in ({}, {"quality": "normal"}, {"quality": "good"}):
+            with self.subTest(quality=quality):
+                submit_hunyuan(
+                    "https://example.com/front.png",
+                    {view: f"https://example.com/{view}.png" for view in ("left", "right", "back")},
+                    {**quality, "result_format": "STL"}, "hy-3d-3.1",
+                )
+                payload = client_class.return_value.__enter__.return_value.post.call_args.kwargs["json"]
+                self.assertEqual(payload["generate_type"], "Geometry")
+                self.assertFalse(payload["enable_pbr"])
+                self.assertEqual(payload["face_count"], 1_000_000)
+                self.assertEqual(payload["result_format"], "STL")
 
     @patch("vercel_app.workflow._meshy_config")
     @patch("vercel_app.workflow.httpx.Client")
@@ -152,27 +153,37 @@ class Image3DModeTests(unittest.TestCase):
 
     @patch("vercel_app.workflow._meshy_config")
     @patch("vercel_app.workflow.httpx.Client")
-    def test_meshy_normal_quality_uses_smaller_print_friendly_mesh(self, client_class, config):
+    def test_meshy_legacy_and_omitted_quality_keep_2k_without_remeshing(self, client_class, config):
         config.return_value = Mock(base_url="https://api.meshy.ai", api_key="test-key")
         response = Mock(status_code=202)
         response.json.return_value = {"result": "018a210d-8ba4-705c-b111-1f1776f7f578"}
         client_class.return_value.__enter__.return_value.post.return_value = response
 
-        submit_meshy(
-            "https://example.com/front.png",
-            {
-                "left": "https://example.com/left.png",
-                "right": "https://example.com/right.png",
-                "back": "https://example.com/back.png",
-            },
-            {"quality": "normal", "result_format": "STL"},
-        )
+        for quality in ({}, {"quality": "normal"}, {"quality": "good"}):
+            with self.subTest(quality=quality):
+                submit_meshy(
+                    "https://example.com/front.png",
+                    {view: f"https://example.com/{view}.png" for view in ("left", "right", "back")},
+                    {**quality, "result_format": "STL"},
+                )
+                payload = client_class.return_value.__enter__.return_value.post.call_args.kwargs["json"]
+                self.assertEqual(payload["geometry_resolution"], "2k")
+                self.assertFalse(payload["should_remesh"])
+                self.assertNotIn("topology", payload)
+                self.assertNotIn("target_polycount", payload)
+                self.assertEqual(payload["target_formats"], ["stl"])
 
-        payload = client_class.return_value.__enter__.return_value.post.call_args.kwargs["json"]
-        self.assertEqual(payload["geometry_resolution"], "standard")
-        self.assertTrue(payload["should_remesh"])
-        self.assertEqual(payload["topology"], "triangle")
-        self.assertEqual(payload["target_polycount"], 200_000)
+    @patch("vercel_app.workflow.httpx.Client")
+    def test_invalid_quality_is_rejected_before_any_provider_request(self, client):
+        views = {view: f"https://example.com/{view}.png" for view in ("left", "right", "back")}
+        for submit, model in ((submit_meshy, "meshy-7.1"), (submit_hunyuan, "hy-3d-3.1")):
+            for quality in ("invalid", "standard", "NORMAL", "", None, [], {}, 1, True):
+                with self.subTest(provider=submit.__name__, quality=quality):
+                    with self.assertRaises(WorkflowError) as caught:
+                        submit("https://example.com/front.png", views, {"quality": quality}, model)
+                    self.assertEqual(caught.exception.status, 422)
+                    self.assertEqual(caught.exception.code, "INVALID_OPTION")
+        client.assert_not_called()
 
     @patch("vercel_app.workflow._meshy_config")
     @patch("vercel_app.workflow.httpx.Client")
@@ -223,6 +234,61 @@ class Image3DModeTests(unittest.TestCase):
         self.assertEqual(first["permanent_credits"], 400)
         self.assertEqual(second, first)
         client_class.return_value.__enter__.return_value.get.assert_called_once()
+
+
+class FixedQualityGenerationTests(unittest.TestCase):
+    setUp = smoothing_tests.SmoothingWorkflowTests.setUp
+    update = smoothing_tests.SmoothingWorkflowTests.update
+
+    def ready(self):
+        views = {view: {"url": f"https://example.invalid/{view}.png", "prompt_revision": 1}
+                 for view in ("front", "left", "right", "back")}
+        self.update(lambda state: state.update(
+            status="VIEWS_CONFIRMED", prompt_revision=1, view_source="uploaded",
+            views=views, confirmed_snapshot={"views": copy.deepcopy(views)},
+            model_task=None, hunyuan_task=None))
+
+    def test_new_explicit_and_legacy_requests_always_record_and_submit_good(self):
+        for provider in ("meshy", "hunyuan"):
+            for quality in ({}, {"quality": "good"}, {"quality": "normal"}):
+                with self.subTest(provider=provider, quality=quality):
+                    self.ready()
+                    model_name = app_module.MESHY_IMAGE3D_MODEL if provider == "meshy" else app_module.IMAGE3D_MODEL
+                    with patch.object(app_module, f"submit_{provider}", return_value=(
+                            {"id": "fixed-quality-task", "status": "queued"}, model_name)) as submit, \
+                            patch.object(app_module, "reserve_usage", return_value="test-reservation"), \
+                            patch.object(app_module, "record_usage") as usage, \
+                            patch.object(app_module, "process_stl") as repair, \
+                            patch.object(app_module, "process_smoothing") as smooth:
+                        response = self.client.post(f"/api/sessions/{self.sid}/generate", headers=self.headers,
+                                                    json={"model_provider": provider, **quality})
+                    self.assertEqual(response.status_code, 200, response.text)
+                    task = response.json()["model_task"]
+                    self.assertEqual(task["provider"], provider)
+                    self.assertEqual(task["request"], {"quality": "good", "result_format": "STL"})
+                    submit.assert_called_once()
+                    self.assertEqual(submit.call_args.args[2], {"quality": "good", "result_format": "STL"})
+                    self.assertEqual(submit.call_args.args[3], model_name)
+                    usage.assert_called_once()
+                    repair.assert_not_called()
+                    smooth.assert_not_called()
+                    saved, _ = load_session(self.sid, self.token)
+                    self.assertEqual(saved["model_task"]["request"]["quality"], "good")
+
+    def test_invalid_request_quality_never_submits_or_reserves_usage(self):
+        self.ready()
+        before = load_session(self.sid, self.token)
+        with patch.object(app_module, "submit_meshy") as meshy, \
+                patch.object(app_module, "submit_hunyuan") as hunyuan, \
+                patch.object(app_module, "reserve_usage") as reserve:
+            for quality in ("standard", "invalid", "", None, [], 1):
+                response = self.client.post(f"/api/sessions/{self.sid}/generate", headers=self.headers,
+                                            json={"quality": quality})
+                self.assertEqual(response.status_code, 422, response.text)
+            meshy.assert_not_called()
+            hunyuan.assert_not_called()
+            reserve.assert_not_called()
+        self.assertEqual(load_session(self.sid, self.token), before)
 
 
 if __name__ == "__main__":

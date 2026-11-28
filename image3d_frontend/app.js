@@ -20,7 +20,6 @@ let transientError = null;
 let dismissedErrorKey = null;
 let loadedPreviewUrl = null;
 let stlPreview = null;
-let stlPreviewVariant = "processed";
 let stlPreviewSourceKey = null;
 let stlPreviewRequestId = 0;
 let generatedStlUrl = null;
@@ -36,11 +35,6 @@ let colorDraft = null;
 let meshyBalanceLoadedAt = 0;
 let meshyBalanceInFlight = null;
 let lastCompletedBalanceTaskId = null;
-let modelProcessingTimer = null;
-let modelProcessingRequest = null;
-let modelProcessingPoll = null;
-let modelProcessingError = null;
-const attemptedModelProcessing = new Set();
 
 const workspaceContent = {
   "3d": {
@@ -448,7 +442,7 @@ function renderTask() {
     lastCompletedBalanceTaskId = task.id;
     loadMeshyBalance(true);
   }
-  renderModelProcessing();
+  renderStlResult();
   if (running) {
     schedulePoll(8000);
     if (!taskClock) taskClock = setInterval(updateElapsed, 1000);
@@ -468,194 +462,30 @@ function currentStlModel() {
   return models?.stl || models?.STL;
 }
 
-function syncModelProcessingResume() {
-  try {
-    const marker = JSON.parse(sessionStorage.getItem("image3d-processing-resume") || "null");
-    if (!session?.id || !session?.token || (marker && (marker.id !== session.id || marker.token !== session.token))) {
-      sessionStorage.removeItem("image3d-processing-resume");
-    }
-    // The initial empty render precedes the authenticated session read.
-    if (!state) return;
-    const model = currentStlModel();
-    const status = model?.processing?.status || "pending";
-    if (session?.id && session?.token && state.session_id === session.id && state.status === "SUCCEEDED"
-      && model?.url && !currentProcessedStl(model) && ["pending", "running", "failed", "completed"].includes(status)) {
-      sessionStorage.setItem("image3d-processing-resume", JSON.stringify({
-        id: session.id, token: session.token, source_url: model.url,
-        status: status === "completed" ? "failed" : status,
-      }));
-    } else {
-      sessionStorage.removeItem("image3d-processing-resume");
-    }
-  } catch (_) { /* Unavailable session storage must not prevent processing. */ }
-}
-
-function modelProcessingKey(model = currentStlModel()) {
-  return session?.id && model?.url ? `${session.id}:${model.url}:${model.sha256 || ""}` : null;
-}
-
-function modelProcessingAttemptKey(model = currentStlModel()) {
-  return `${modelProcessingKey(model)}:${model?.processing?.version || "initial"}:${model?.processing?.stage || "repair"}`;
-}
-
-function modelProcessingRetryKey(model = currentStlModel()) {
-  const retryAt = Number(model?.processing?.retry_after);
-  return model?.processing?.status === "pending" && Number.isFinite(retryAt) && retryAt > 0
-    ? `retry:${modelProcessingAttemptKey(model)}:${retryAt}` : null;
-}
-
-function currentProcessedStl(model = currentStlModel()) {
-  const result = model?.processed;
-  if (state?.status !== "SUCCEEDED" || model?.processing?.status !== "completed"
-    || !result?.url || !result.version || result.version !== model.processing.version
-    || !model.sha256 || result.source_sha256 !== model.sha256) return null;
-  return result;
-}
-
 function currentOriginalStl() {
   const model = currentStlModel();
   return state?.status === "SUCCEEDED" && model?.url ? model : null;
 }
 
-function currentPreviewStl() {
-  return stlPreviewVariant === "original" ? currentOriginalStl() : currentProcessedStl() || currentOriginalStl();
+function originalStlKey(model = currentOriginalStl()) {
+  return session?.id && model?.url ? `${session.id}:${model.url}:${model.sha256 || ""}` : null;
 }
 
-function currentResizeStl() {
-  return currentProcessedStl() || currentOriginalStl();
-}
-
-function stlSourceLabel(model) {
-  return model?.url === currentProcessedStl()?.url ? "修复后 STL" : "原始 STL";
-}
-
-function modelFileJobActive(model = currentStlModel()) {
-  const job = model?.quality_job;
-  const seconds = ["process", "smooth"].includes(job?.operation) ? 360 : 180;
-  return Boolean(job?.started_at > Date.now() / 1000 - seconds);
-}
-
-function renderModelProcessing() {
-  clearTimeout(modelProcessingTimer);
-  syncModelProcessingResume();
-  const model = currentStlModel();
-  const key = modelProcessingKey(model);
-  const ready = Boolean(key) && state?.status === "SUCCEEDED";
-  const result = currentProcessedStl(model);
-  const processing = model?.processing;
-  const localBusy = Boolean(key && modelProcessingRequest?.key === key);
-  const busy = ready && !result && (localBusy || modelFileJobActive(model));
-  const error = modelProcessingError?.key === key
-    && modelProcessingError.reportKey === JSON.stringify(processing || null) ? modelProcessingError.message : null;
-  const failed = processing?.status === "failed" || Boolean(error)
-    || (processing?.status === "running" && !busy)
-    || (processing?.status === "completed" && !result);
-  const attempted = attemptedModelProcessing.has(modelProcessingAttemptKey(model));
-  const retryKey = modelProcessingRetryKey(model);
-  const awaitingRetry = ready && !result && !busy && !failed && retryKey && !attemptedModelProcessing.has(retryKey);
-  const stage = processing?.stage?.startsWith("smooth") || model?.quality_job?.operation === "smooth" ? "优化表面" : "修复结构";
-  $("#model-processing").classList.toggle("hidden", !ready);
-  $("#model-results").setAttribute("aria-busy", String(Boolean(busy || awaitingRetry)));
-  $("#model-processing-spinner").classList.toggle("hidden", !busy && !awaitingRetry);
-  $("#model-processing-summary").textContent = result ? result.needs_review ? "已保形处理，仍有结构问题。请核对后使用。" : "已完成保形修复与表面处理。"
-    : busy ? `正在${stage}…`
-    : awaitingRetry ? "正在等待继续处理…"
-    : failed ? `暂未完成：${processing?.status === "failed" ? processing.message || "自动处理未能完成，请重试。" : error || "处理已中断，请重试。"}`
-    : attempted ? "处理结果尚未确认，请重试处理。"
-    : "正在准备自动修复与表面处理…";
-  const retry = ready && !result && !busy && !awaitingRetry && (failed || attempted);
-  $("#retry-model-processing").classList.toggle("hidden", !retry);
-  $("#retry-model-processing").disabled = !retry;
-  if (ready) setStepState("#generate-state", result ? result.needs_review ? "已处理 · 待核对" : "已完成" : busy ? `正在${stage}` : retry ? "处理未完成" : "自动处理中",
-    busy || !retry, retry, Boolean(result && !result.needs_review));
-  const original = currentOriginalStl();
-  const files = [[original, "原始 STL", "model-original.stl"], [result, "修复后 STL", "model-repaired.stl"]];
-  $("#model-results").innerHTML = files.filter(([file]) => file).map(([file, label, name]) =>
-    `<a class="model-link" href="${escapeHtml(file.url)}" download="${name}"><span>${label}${file.size_bytes ? ` · ${formatBytes(file.size_bytes)}` : ""}</span><span>下载文件 ↓</span></a>`
-  ).join("");
-  generatedStlUrl = currentResizeStl()?.url || null;
+function renderStlResult() {
+  const model = currentOriginalStl();
+  $("#model-results").innerHTML = model
+    ? `<a class="model-link" href="${escapeHtml(model.url)}" download="model-original.stl"><span>原始 STL${model.size_bytes ? ` · ${formatBytes(model.size_bytes)}` : ""}</span><span>下载文件 ↓</span></a>` : "";
+  generatedStlUrl = model?.url || null;
   $("#use-generated-stl").disabled = !generatedStlUrl;
-  $("#use-generated-stl").textContent = result ? "使用修复后 STL" : "使用原始 STL";
-  $("#resize-source-hint").textContent = result ? "默认使用修复后 STL，也可选择本地文件。" : "修复尚未完成，当前默认使用原始 STL。";
-  $("#model-preview").classList.toggle("hidden", !original);
+  $("#model-preview").classList.toggle("hidden", !model);
   renderStlPreviewSource();
-  if (ready && busy && !modelProcessingPoll) {
-    modelProcessingTimer = setTimeout(() => pollModelProcessing(), 5000);
-  } else if (awaitingRetry) {
-    const attemptKey = modelProcessingAttemptKey(model);
-    modelProcessingTimer = setTimeout(() => {
-      if (modelProcessingKey() !== key || modelProcessingRetryKey() !== retryKey) return;
-      if (Number(currentStlModel().processing.retry_after) * 1000 > Date.now()) return renderModelProcessing();
-      // Each server backoff timestamp authorizes one same-stage retry, not a request loop.
-      attemptedModelProcessing.add(retryKey);
-      attemptedModelProcessing.delete(attemptKey);
-      return runModelProcessing();
-    }, Math.max(0, Math.ceil(Number(processing.retry_after) * 1000 - Date.now())));
-  } else if (ready && !result && !busy && !failed && !attempted
-    && (!processing || processing.status === "pending")) {
-    modelProcessingTimer = setTimeout(() => runModelProcessing(), 0);
-  }
-}
-
-async function pollModelProcessing() {
-  const key = modelProcessingKey();
-  if (!key || modelProcessingPoll) return;
-  const poll = { key, request: modelProcessingRequest, sessionId: session.id };
-  modelProcessingPoll = poll;
-  try {
-    const next = await api(`/api/sessions/${poll.sessionId}`);
-    // A late status read must not replace the final POST response or a new session.
-    if (modelProcessingKey() !== key || modelProcessingRequest !== poll.request || currentProcessedStl()) return;
-    render(next);
-  } catch (_) { /* Keep polling an active server job without resubmitting it. */ }
-  finally {
-    if (modelProcessingPoll === poll) {
-      modelProcessingPoll = null;
-      renderModelProcessing();
-    }
-  }
-}
-
-async function runModelProcessing() {
-  const model = currentStlModel();
-  const key = modelProcessingKey(model);
-  if (!key || state?.status !== "SUCCEEDED" || modelProcessingRequest || modelFileJobActive(model) || currentProcessedStl(model)) return;
-  const retryKey = modelProcessingRetryKey(model);
-  if (retryKey && Number(model.processing.retry_after) * 1000 > Date.now()) return;
-  const request = { key, sessionId: session.id, sourceHash: model.sha256 };
-  const isCurrent = () => modelProcessingKey() === key
-    && (!request.sourceHash || currentStlModel()?.sha256 === request.sourceHash);
-  attemptedModelProcessing.add(modelProcessingAttemptKey(model));
-  if (retryKey) attemptedModelProcessing.add(retryKey);
-  modelProcessingRequest = request;
-  modelProcessingError = null;
-  renderModelProcessing();
-  try {
-    const next = await api(`/api/sessions/${request.sessionId}/3d/process`, { method: "POST", timeout: 350_000 });
-    if (isCurrent()) render(next);
-  } catch (error) {
-    if (!isCurrent()) return;
-    modelProcessingError = { key, message: error.message || "处理请求未完成。", reportKey: JSON.stringify(model.processing || null) };
-    // Recover the saved result after a timeout. Never regenerate or repeat the POST automatically.
-    try {
-      const next = await api(`/api/sessions/${request.sessionId}`);
-      if (isCurrent()) render(next);
-    } catch (_) { /* Leave a single retry action if the status cannot be read. */ }
-  } finally {
-    if (modelProcessingRequest === request) {
-      modelProcessingRequest = null;
-      renderModelProcessing();
-    }
-  }
 }
 
 function renderStlPreviewSource() {
-  const result = currentProcessedStl();
-  const original = currentOriginalStl();
-  const key = original ? modelProcessingKey() : null;
+  const model = currentOriginalStl();
+  const key = originalStlKey(model);
   if (stlPreviewSourceKey !== key) {
     stlPreviewSourceKey = key;
-    stlPreviewVariant = "processed";
     stlPreviewRequestId += 1;
     loadedPreviewUrl = null;
     stlPreview = null;
@@ -667,43 +497,17 @@ function renderStlPreviewSource() {
       resizeMesh = null;
       resizeSourceKind = null;
       $("#stl-resize-editor").classList.add("hidden");
-      $("#resize-source-status").textContent = original ? `正在载入${stlSourceLabel(currentResizeStl())}…` : "等待 STL";
+      $("#resize-source-status").textContent = model ? "正在载入原始 STL…" : "等待 STL";
       setStepState("#resize-state", "等待文件");
     }
   }
-  const selected = currentPreviewStl();
-  const showingOriginal = Boolean(selected && selected === original);
-  $("#preview-original-stl").disabled = !original;
-  $("#preview-processed-stl").disabled = !result;
-  $("#preview-original-stl").setAttribute("aria-pressed", String(showingOriginal));
-  $("#preview-processed-stl").setAttribute("aria-pressed", String(Boolean(selected && !showingOriginal)));
-  if (!selected) return;
-  $("#model-preview-title").textContent = stlSourceLabel(selected);
-  $("#model-meta").textContent = selected.size_bytes ? formatBytes(selected.size_bytes) : "";
-  const resizeSource = currentResizeStl();
-  if (resizeSourceKind !== "local" && loadedResizeUrl && loadedResizeUrl !== resizeSource.url) {
-    resizeRequestId += 1;
-    loadedResizeUrl = null;
-    resizeMesh = null;
-    $("#stl-resize-editor").classList.add("hidden");
-    $("#resize-source-status").textContent = `正在载入${stlSourceLabel(resizeSource)}…`;
-  }
-  if (loadedPreviewUrl !== selected.url) loadStlPreview(selected.url);
-  // Preview choice is independent of the size tool's repaired-first default.
-  if (selected.url !== resizeSource.url && resizeSourceKind !== "local" && loadedResizeUrl !== resizeSource.url) {
-    loadResizeStlFromUrl(resizeSource.url);
-  }
-}
-
-function selectStlPreview(variant) {
-  if (!["original", "processed"].includes(variant) || !currentOriginalStl()) return;
-  if (variant === "processed" && !currentProcessedStl()) return;
-  stlPreviewVariant = variant;
-  renderStlPreviewSource();
+  if (!model) return;
+  $("#model-meta").textContent = model.size_bytes ? formatBytes(model.size_bytes) : "";
+  if (loadedPreviewUrl !== model.url) loadStlPreview(model.url);
 }
 
 async function loadStlPreview(url) {
-  if (url !== currentPreviewStl()?.url) return;
+  if (url !== currentOriginalStl()?.url) return;
   loadedPreviewUrl = url;
   const requestId = ++stlPreviewRequestId;
   const sourceKey = stlPreviewSourceKey;
@@ -716,9 +520,9 @@ async function loadStlPreview(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error("STL 预览下载失败");
     const buffer = await response.arrayBuffer();
-    if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId || url !== currentPreviewStl()?.url) return;
-    if (url === currentResizeStl()?.url && resizeId === resizeRequestId && resizeSourceKind !== "local" && loadedResizeUrl !== url) {
-      setResizeMesh(buffer, stlSourceLabel(currentResizeStl()), currentProcessedStl() ? "model-repaired.stl" : "model-original.stl", "generated");
+    if (sourceKey !== stlPreviewSourceKey || requestId !== stlPreviewRequestId || url !== currentOriginalStl()?.url) return;
+    if (url === currentOriginalStl()?.url && resizeId === resizeRequestId && resizeSourceKind !== "local" && loadedResizeUrl !== url) {
+      setResizeMesh(buffer, "原始 STL", "model-original.stl", "generated");
       loadedResizeUrl = url;
     }
     const triangles = parseStl(buffer);
@@ -833,7 +637,7 @@ function setResizeMesh(buffer, sourceLabel, fileName, sourceKind) {
 }
 
 async function loadResizeStlFromUrl(url, force = false) {
-  if (!url || url !== currentResizeStl()?.url || (!force && (resizeSourceKind === "local" || loadedResizeUrl === url))) return;
+  if (!url || url !== currentOriginalStl()?.url || (!force && (resizeSourceKind === "local" || loadedResizeUrl === url))) return;
   if (loadingResizeRequest?.url === url && loadingResizeRequest.sourceKey === stlPreviewSourceKey
     && loadingResizeRequest.requestId === resizeRequestId) return;
   const requestId = ++resizeRequestId;
@@ -841,12 +645,12 @@ async function loadResizeStlFromUrl(url, force = false) {
   const request = { url, sourceKey, requestId };
   loadingResizeRequest = request;
   try {
-    $("#resize-source-status").textContent = `正在载入${stlSourceLabel(currentResizeStl())}…`;
+    $("#resize-source-status").textContent = "正在载入原始 STL…";
     const response = await fetch(url);
     if (!response.ok) throw new Error("STL 下载失败");
     const buffer = await response.arrayBuffer();
-    if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey || url !== currentResizeStl()?.url) return;
-    setResizeMesh(buffer, stlSourceLabel(currentResizeStl()), currentProcessedStl() ? "model-repaired.stl" : "model-original.stl", "generated");
+    if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey || url !== currentOriginalStl()?.url) return;
+    setResizeMesh(buffer, "原始 STL", "model-original.stl", "generated");
     loadedResizeUrl = url;
   } catch (error) {
     if (requestId !== resizeRequestId || sourceKey !== stlPreviewSourceKey) return;
@@ -994,7 +798,7 @@ async function refreshTask() {
   try {
     const path = state.status === "SUBMITTING_3D" ? `/api/sessions/${session.id}` : `/api/sessions/${session.id}/3d`;
     render(await api(path, { timeout: 140_000 }));
-    if (state.status === "SUCCEEDED") notify("模型已返回，正在自动处理 STL");
+    if (state.status === "SUCCEEDED") notify("STL 已生成，可以预览和下载");
     if (state.status === "FAILED") showError(state.last_error || new Error("3D 生成失败"));
   } catch (error) {
     showError(error);
@@ -1034,11 +838,11 @@ document.querySelectorAll('input[name="view-source"]').forEach((input) => input.
 const modelProviderDetails = {
   hunyuan: {
     name: "腾讯混元 HY 3.1",
-    note: "确认后会把四张图片发送给腾讯混元，并按所选效果收费。",
+    note: "确认后会把四张图片发送给腾讯混元，模型生成按实际调用收费。",
   },
   meshy: {
     name: "Meshy 7.1",
-    note: "确认后会把四张图片发送给 Meshy，并按所选效果收费。",
+    note: "确认后会把四张图片发送给 Meshy，模型生成按实际调用收费。",
   },
 };
 
@@ -1069,21 +873,12 @@ async function loadMeshyBalance(force = false) {
 function updateModelProvider() {
   const provider = selectedModelProvider();
   const details = modelProviderDetails[provider];
-  $("#model-provider-heading").textContent = `确认四视图后，提交${details.name}生成 STL；原件保留，另存保形修复后的文件。`;
+  $("#model-provider-heading").textContent = `确认四视图后，提交${details.name}生成 STL，完成后可直接下载。`;
   $("#model-provider-note").textContent = details.note;
   $("#meshy-balance").classList.toggle("hidden", provider !== "meshy");
   if (provider === "meshy") loadMeshyBalance();
-  updateGenerationQuality();
 }
 
-function updateGenerationQuality() {
-  const goodQuality = $("#generation-quality").value === "good";
-  $("#quality-description").textContent = goodQuality
-    ? "细节更多，适合对外形要求较高的模型；生成会更慢、花费更多。"
-    : "生成更快、花费较少，适合大多数模型。";
-}
-
-$("#generation-quality").addEventListener("change", updateGenerationQuality);
 document.querySelectorAll('input[name="model-provider"]').forEach((input) => input.addEventListener("change", updateModelProvider));
 
 async function uploadSelectedReferences(button) {
@@ -1294,7 +1089,7 @@ $("#generate-3d").addEventListener("click", async (event) => {
     setBusy(button, true, "正在提交…");
     render(await api(`/api/sessions/${session.id}/generate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model_provider: selectedModelProvider(), quality: $("#generation-quality").value, result_format: "STL" }),
+      body: JSON.stringify({ model_provider: selectedModelProvider(), quality: "good", result_format: "STL" }),
       timeout: 140_000,
     }));
   } catch (error) { showError(error); await refresh(); }
@@ -1310,9 +1105,6 @@ $("#refresh-task").addEventListener("click", async (event) => {
 });
 
 $("#use-generated-stl").addEventListener("click", () => loadResizeStlFromUrl(generatedStlUrl, true));
-$("#retry-model-processing").addEventListener("click", runModelProcessing);
-$("#preview-original-stl").addEventListener("click", () => selectStlPreview("original"));
-$("#preview-processed-stl").addEventListener("click", () => selectStlPreview("processed"));
 
 $("#resize-stl-input").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];

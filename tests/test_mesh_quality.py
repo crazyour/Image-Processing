@@ -263,12 +263,13 @@ class MeshWorkflowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         query.assert_not_called()
 
-    def test_generation_saves_original_and_marks_pending_before_check(self):
+    def test_generation_saves_original_without_scheduling_check(self):
         self.update(lambda state: (state.update(status="GENERATING_3D"), state["model_task"].update(models={})))
         with patch.object(app_module, "query_meshy", return_value={"status": "completed", "data": [{"type": "stl", "url": "https://example.invalid/model.stl"}]}), \
                 patch.object(app_module, "fetch_bytes", return_value=self.raw), patch.object(app_module, "process_stl") as process:
             model = self.model(self.client.get(self.path, headers=self.headers))
-        self.assertEqual(model["quality"]["status"], "pending")
+        self.assertNotIn("quality", model)
+        self.assertNotIn("processing", model)
         self.assertEqual(model["sha256"], hashlib.sha256(self.raw).hexdigest())
         process.assert_not_called()
 
