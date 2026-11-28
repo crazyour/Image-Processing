@@ -323,6 +323,7 @@ class MultiviewWorkflowTests(unittest.TestCase):
         state, version = load_session(self.session_id, self.token)
         for view in VIEW_TYPES:
             state["confirmed_snapshot"]["views"][view]["url"] = f"https://example.invalid/{view}.png"
+            state["views"][view]["url"] = f"https://example.invalid/{view}.png"
         save_session(self.session_id, state, version)
         with patch.object(app_module, "submit_meshy", return_value=({"id": "test-model-task", "status": "queued"}, "meshy-7.1")) as submit, \
                 patch.object(app_module, "reserve_usage", return_value="test-reservation"), \

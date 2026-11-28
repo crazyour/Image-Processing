@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>灵界 · 图生 3D</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261128-8">
+  <link rel="stylesheet" href="/static/styles.css?v=20261128-11">
   <link rel="stylesheet" href="/assets/fee-banner.css">
 </head>
 <body>
@@ -68,7 +68,7 @@
           </label>
           <label class="source-option">
             <input type="radio" name="view-source" value="uploaded">
-            <span><strong>用户上传四视图</strong><small>在豆包等网页 AI 生成后，分别上传正、左、右、背四张图。</small></span>
+            <span><strong>用户上传视图</strong><small>上传同一对象的 1–4 张图片，按正、左、右、背放入对应位置。</small></span>
             <b>本站免费</b>
           </label>
         </fieldset>
@@ -82,7 +82,7 @@
           <div id="upload-previews" class="reference-previews"></div>
         </div>
         <div id="manual-views" class="manual-views hidden">
-          <p><strong>分别上传完整四视图</strong><span>这里的四张图片会直接提交，不再使用上方参考图，也不会调用 GPT 分析或生成图片。</span></p>
+          <p><strong>上传 1–4 张视图</strong><span>至少选择一张。腾讯混元需保留正视图；Meshy 可选任意视图。上传后可排除有问题的图片，再确认提交。</span></p>
           <label>正视图（可拖入）<input id="front-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="正视图"></label>
           <label>左视图（可拖入）<input id="left-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="左视图"></label>
           <label>右视图（可拖入）<input id="right-input" type="file" accept="image/png,image/jpeg,image/webp" data-paste-label="右视图"></label>
@@ -119,14 +119,15 @@
     </section>
 
     <section id="views-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>03</span><div><h2>生成并确认四视图</h2><p>按正、左、右、背顺序逐张生成，后续视角参考前面已生成的图片，再统一检查。检查结果仅供参考，不影响确认和生成 STL。</p></div><b id="views-state" class="step-state">等待生成</b></div>
+      <div class="step-title"><span>03</span><div><h2>选择并确认生成视图</h2><p>可点击“排除此视图”关闭不可信的角度，图片仍保留并可恢复。只将确认选中的图片提交给 3D 模型。</p></div><b id="views-state" class="step-state">等待生成</b></div>
       <div id="views-grid" class="views-grid"></div>
+      <p id="model-view-selection-summary" class="input-help hidden" role="status" aria-live="polite"></p>
       <p id="view-review-summary" class="empty-copy hidden" role="status" aria-live="polite" tabindex="-1"></p>
       <div class="actions">
         <button id="generate-views" class="primary" type="button">生成四视图</button>
         <button id="regenerate-views" class="secondary" type="button">重新生成全部</button>
         <button id="review-views" class="secondary" type="button">检查 / 重试检查</button>
-        <button id="confirm-views" class="primary" type="button">确认四个视角</button>
+        <button id="confirm-views" class="primary" type="button">确认所选视图</button>
         <button id="save-view-folder" class="secondary" type="button">将四视图加入数据库</button>
       </div>
     </section>
@@ -164,7 +165,7 @@
     </section>
 
     <section id="generate-step" class="panel" data-workspace-view="3d">
-      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认四视图后生成 STL，完成后可直接下载。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
+      <div class="step-title"><span>04</span><div><h2>生成 STL</h2><p id="model-provider-heading">确认所选视图后生成 STL，完成后可直接下载。</p></div><b id="generate-state" class="step-state">等待确认</b></div>
       <fieldset class="model-provider-options">
         <legend>选择生成模型</legend>
         <label class="model-provider-option">
@@ -172,7 +173,7 @@
           <span class="model-provider-card">
             <span class="model-provider-top"><b>国内模型</b><small>腾讯混元</small></span>
             <strong>Hunyuan 3D 3.1</strong>
-            <small>四视图提交至腾讯混元，适合优先使用国内服务的任务。</small>
+            <small>保留正视图，其他视角可选，适合优先使用国内服务的任务。</small>
           </span>
         </label>
         <label class="model-provider-option">
@@ -180,13 +181,14 @@
           <span class="model-provider-card">
             <span class="model-provider-top"><b>国外模型</b><small>默认</small></span>
             <strong>Meshy 7.1</strong>
-            <small>四视图提交至 Meshy 多图生 3D 接口，第一张固定作为正视图。</small>
+            <small>支持 1–4 张图片，按正、左、右、背顺序选出的第一张作为主参考。</small>
           </span>
         </label>
         <p id="meshy-balance" class="meshy-balance" role="status" aria-atomic="true">Meshy 剩余积分：正在查询…</p>
       </fieldset>
+      <p id="model-input-summary" class="input-help" role="status" aria-live="polite">请先选择并确认参与 3D 的视图。</p>
       <button id="generate-3d" class="primary" type="button">提交 3D 任务</button>
-      <p id="model-provider-note" class="cost-note">确认后会把四张图片发送给 Meshy，模型生成按实际调用收费。</p>
+      <p id="model-provider-note" class="cost-note">只提交已确认的 1–4 张视图，模型生成按实际调用收费。</p>
       <div id="task-progress" class="progress hidden">
         <div class="spinner"></div>
         <div><strong id="task-stage"></strong><span id="task-elapsed"></span><code id="task-id"></code></div>
@@ -304,15 +306,16 @@
         <ul><li>正视图</li><li>左视图</li><li>右视图</li><li>背视图</li></ul>
         <h3>网站 AI 生成结果需要调整</h3>
         <ul>
-          <li>在对应视图下输入修改要求，然后点击“微调”。</li>
+          <li>局部问题可点击“涂抹局部修复”，涂选要修改的部分并填写要求；未涂区域保留原图。支持擦除、撤销和调整画笔。</li>
+          <li>需要整图调整时，在对应视图下输入修改要求后点击“微调”；整体方向错误可使用单张重试。</li>
           <li>先检查“AI 对图片的描述”，必要时直接修改，确认后才能生成四视图。</li>
           <li>点击“重新生成全部”会重新调用四个视角，可能再次产生费用。</li>
           <li>如果只有一张生成失败，系统会保留已经成功的图片；再次操作时只重试未完成视图。</li>
-          <li>视角检查仅提供建议。四张图齐全且对应当前描述和模式时，即使检查未通过或未完成，也可以确认、保存到数据库并继续生成 STL；重试问题视角由你选择。</li>
+          <li>视角检查仅提供建议。不可信的图片可点击“排除此视图”，也可单独重试。生成 STL 只使用所选图片；保存到四视图库仍需四张当前版本图片齐全。</li>
         </ul>
         <h3>手动上传结果需要调整</h3>
         <p>点击对应图片下方的“替换左视图”“替换右视图”或“替换背视图”，只需重新上传该视图。</p>
-        <p>确认图片没有明显问题后，点击“确认四个视角”。按钮会变成“已确认 ✓”，随后可以提交 STL 任务。</p>
+        <p>排除有问题的图片后，点击“确认所选视图”。至少保留一张；腾讯混元需要保留正视图。更改选择会撤销旧确认，需要再次确认；不会自动调用模型。</p>
       </details>
 
       <details>
@@ -350,9 +353,9 @@
           <li>网络中断后可以点击“立即刷新”。</li>
           <li>超过系统等待时间的任务会自动解除按钮锁定，并提示是否可以重试。</li>
         </ul>
-        <h3>为什么不能确认四个视角？</h3>
+        <h3>为什么不能确认所选视图？</h3>
         <ul>
-          <li>正、左、右、背四张图片还没有全部生成或上传。</li>
+          <li>所选图片尚未生成或上传；可补全图片，或排除不使用的视角。至少保留一张。</li>
           <li>修改了主体描述，但还没有重新生成视图。</li>
           <li>某一张视图生成失败，需要单独重试。</li>
           <li>当前正在进行另一个生成或上传操作。</li>
@@ -386,7 +389,7 @@
           <li>保持“AI 自动生成”。</li>
           <li>检查并确认 AI 对图片的描述。</li>
           <li>点击“生成四视图”。</li>
-          <li>检查正、左、右、背视图并点击“确认四个视角”。</li>
+          <li>检查各视图，排除有问题的图片，再点击“确认所选视图”。</li>
           <li>点击“提交 STL 任务”。</li>
           <li>等待完成后预览并下载 STL。</li>
         </ol>
@@ -395,6 +398,31 @@
       <p class="guide-footnote">站内 AI 生成图片和 3D 模型平台生成 STL 都可能产生费用，请避免重复提交。</p>
     </div>
   </aside>
+  <dialog id="view-mask-dialog" class="view-dialog mask-dialog" aria-labelledby="view-mask-title" aria-describedby="view-mask-help">
+    <div class="dialog-heading"><h2 id="view-mask-title">局部修复</h2><button id="close-view-mask" class="secondary" type="button">关闭</button></div>
+    <p id="view-mask-help" class="input-help">涂抹需要修改的区域，再描述如何修改。粉色覆盖处会被修复，未涂区域保留原图。删除部件时请覆盖整个部件及周围少量背景。</p>
+    <p id="view-mask-status" class="input-help" role="status" aria-live="polite"></p>
+    <fieldset id="view-mask-controls" disabled>
+      <legend class="visually-hidden">选择修复范围和填写要求</legend>
+      <div class="mask-toolbar">
+        <button id="mask-paint" class="secondary" type="button" aria-pressed="true">涂抹</button>
+        <button id="mask-erase" class="secondary" type="button" aria-pressed="false">擦除</button>
+        <label for="mask-brush-size">画笔大小 <output id="mask-brush-value" for="mask-brush-size">40</output><input id="mask-brush-size" type="range" min="4" max="200" value="40"></label>
+        <button id="mask-undo" class="secondary" type="button">撤销一笔</button>
+        <button id="mask-clear" class="secondary" type="button">清空选区</button>
+      </div>
+      <div id="mask-stage" class="mask-stage hidden">
+        <img id="mask-source-image" alt="待局部修复的视图">
+        <canvas id="view-mask-canvas" tabindex="0" aria-label="修复区域画布" aria-describedby="mask-keyboard-help"></canvas>
+        <span id="mask-keyboard-cursor" class="mask-keyboard-cursor" aria-hidden="true"></span>
+      </div>
+      <p id="mask-keyboard-help" class="input-help">可用鼠标、触控笔或手指涂抹。键盘聚焦画布后，用方向键移动圆圈，空格或回车涂一笔。</p>
+      <label for="view-mask-prompt">局部修改要求<textarea id="view-mask-prompt" rows="3" maxlength="4000" placeholder="例如：移除选中区域多余的装饰，补成与周围一致的表面"></textarea></label>
+      <p class="input-help">局部修复按一次图片编辑调用收费，不会自动生成 3D。若整体视角错误，请关闭并使用“仅重试此视图”。</p>
+      <button id="submit-view-mask" class="primary" type="button">按选区修复</button>
+    </fieldset>
+    <p id="view-mask-error" class="mask-error hidden" role="alert"></p>
+  </dialog>
   <dialog id="save-view-dialog" class="view-dialog">
     <form id="save-view-form" method="dialog">
       <h2>保存四视图</h2>
@@ -415,7 +443,8 @@
   <script src="/assets/reset-on-refresh.js?v=20261128-2"></script>
   <script src="/assets/paste-upload.js?v=20261109-1" defer></script>
   <script src="/static/stl-download.js?v=20261128-1" defer></script>
-  <script src="/static/app.js?v=20261128-9" defer></script>
+  <script src="/static/view-mask.js?v=20261128-1" defer></script>
+  <script src="/static/app.js?v=20261128-11" defer></script>
   <script src="/assets/local-library.js?v=20261017-1" defer></script>
 </body>
 </html>

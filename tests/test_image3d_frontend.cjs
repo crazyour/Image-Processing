@@ -12,7 +12,9 @@ function section(start, end) {
   return source.slice(a, b);
 }
 const workflow = [
+  section("function escapeHtml(", "function selectedViewMode()"),
   section("function selectedViewMode()", "function setStepState("),
+  section("async function uploadManualViews(", '$("#upload-form").addEventListener'),
   section("async function reviewCurrentViews(", '$("#confirm-description").addEventListener'),
   section("async function refine(", "async function replaceUploadedView("),
 ].join("\n");
@@ -38,6 +40,7 @@ function harness(state = completedState()) {
     state, allViews, labels: { front: "正视图", left: "左视图", right: "右视图", back: "背视图" },
     session: { id: "test-session" }, actionInFlight: false, $, document: { querySelectorAll: () => [] },
     setStepState(selector, text) { $(selector).textContent = text; }, clearError() {}, notify() {},
+    selectedModelProvider: () => "meshy",
     setActionInFlight(value) { context.actionInFlight = value; context.syncControls(); },
     setBusy(button, busy) { button.disabled = busy; },
     render(next) { context.state = next; $("#view-mode").value = next?.view_mode || "faithful"; context.syncControls(); },
@@ -55,6 +58,10 @@ function harness(state = completedState()) {
         next.confirmed_at = null;
         next.views_approved = false;
         next.view_review = null;
+      } else if (path.endsWith("/model-views")) {
+        next.excluded_3d_views = JSON.parse(options.body).excluded_views;
+        next.confirmed_at = null;
+        next.status = "VIEWS_REVIEW";
       } else if (path.endsWith("/description/confirm")) {
         next.status = "DESCRIPTION_CONFIRMED";
         next.description_confirmed_at = 1;
@@ -82,6 +89,113 @@ function harness(state = completedState()) {
   $("#view-mode").value = state?.view_mode || "faithful";
   return { context, $, calls, errors };
 }
+
+test("excluding and restoring a view preserves its image and requires a fresh confirmation", async () => {
+  const state = completedState();
+  state.status = "VIEWS_CONFIRMED";
+  state.confirmed_at = 1;
+  const { context, $, calls } = harness(state);
+  const views = structuredClone(state.views);
+  await context.toggleModelView("right");
+  assert.deepEqual(JSON.parse(calls[0].options.body), { excluded_views: ["right"] });
+  assert.equal(context.state.confirmed_at, null);
+  assert.equal($("#generate-3d").disabled, true);
+  assert.equal($("#confirm-views").disabled, false);
+  assert.match($("#confirm-views").textContent, /3 张/);
+  assert.deepEqual(context.state.views, views);
+  context.renderViews(context.state.views);
+  assert.match($("#views-grid").innerHTML, /view-excluded/);
+  assert.match($("#views-grid").innerHTML, /data-toggle-model-view="right"[^>]+aria-pressed="false"/);
+  assert.match($("#views-grid").innerHTML, /已排除 · 不参与 3D 生成/);
+  assert.match($("#views-grid").innerHTML, /src="right"/);
+  await context.toggleModelView("right");
+  assert.deepEqual(JSON.parse(calls[1].options.body), { excluded_views: [] });
+  assert.deepEqual(context.state.views, views);
+  assert.equal(calls.length, 2);
+});
+
+test("one or two selected views can be confirmed while archiving still requires all four", () => {
+  for (const selected of [["front"], ["front", "back"]]) {
+    const state = completedState();
+    state.excluded_3d_views = allViews.filter(view => !selected.includes(view));
+    state.views = Object.fromEntries(Object.entries(state.views).filter(([view]) => selected.includes(view)));
+    const { context, $ } = harness(state);
+    context.syncControls();
+    assert.equal($("#confirm-views").disabled, false);
+    assert.equal($("#save-view-folder").disabled, true);
+    state.status = "VIEWS_CONFIRMED";
+    state.confirmed_at = 1;
+    context.syncControls();
+    assert.equal($("#generate-3d").disabled, false);
+    state.views.front.prompt_revision = 0;
+    context.syncControls();
+    assert.equal($("#generate-3d").disabled, true);
+  }
+});
+
+test("excluding the front is supported by Meshy and explicitly blocks Hunyuan", () => {
+  const state = completedState();
+  state.excluded_3d_views = ["front", "right"];
+  state.status = "VIEWS_CONFIRMED";
+  state.confirmed_at = 1;
+  const { context, $ } = harness(state);
+  context.syncControls();
+  assert.equal($("#generate-3d").disabled, false);
+  assert.match($("#model-input-summary").textContent, /主参考：左视图/);
+  context.selectedModelProvider = () => "hunyuan";
+  context.syncControls();
+  assert.equal($("#generate-3d").disabled, true);
+  assert.match($("#model-input-summary").textContent, /需要正视图/);
+});
+
+test("the last view and locked tasks cannot be toggled; failed saves preserve selection", async () => {
+  const { context, calls, errors } = harness();
+  context.state.excluded_3d_views = ["left", "right", "back"];
+  await context.toggleModelView("front");
+  assert.equal(calls.length, 0);
+  assert.equal(context.state.excluded_3d_views.length, 3);
+  for (const status of ["GENERATING_VIEWS", "REVIEWING_VIEWS", "SUBMITTING_3D", "GENERATING_3D", "SUCCEEDED"]) {
+    context.state.status = status;
+    await context.toggleModelView("left");
+  }
+  assert.equal(calls.length, 0);
+  context.state.status = "VIEWS_REVIEW";
+  context.api = async () => { throw Error("offline"); };
+  await context.toggleModelView("left");
+  assert.equal(errors.length, 1);
+  assert.deepEqual(context.state.excluded_3d_views, ["left", "right", "back"]);
+  assert.equal(context.actionInFlight, false);
+});
+
+test("manual upload accepts a single side view, keeps its label and excludes missing angles", async () => {
+  const { context, $, calls } = harness(null);
+  context.FormData = FormData;
+  context.sessionStorage = { setItem() {} };
+  context.compressedFile = async file => file;
+  const file = new Blob(["image"], { type: "image/png" });
+  $("#left-input").files = [file];
+  const api = context.api;
+  context.api = async (path, options) => {
+    if (path === "/api/sessions") {
+      calls.push({ path, options });
+      const initial = options.body.get("initial_view");
+      assert.equal(initial, "left");
+      const next = completedState();
+      next.view_source = "uploaded";
+      next.views = { [initial]: next.views[initial] };
+      return { ...next, session_id: "uploaded-session", access_token: "test-token" };
+    }
+    return api(path, options);
+  };
+  await context.uploadManualViews($("upload"));
+  assert.equal(calls.length, 2);
+  assert.deepEqual(context.state.excluded_3d_views, ["front", "right", "back"]);
+  assert.equal($("#confirm-views").disabled, false);
+  assert.equal(context.state.views.front, undefined);
+  $("#left-input").files = [];
+  await assert.rejects(context.uploadManualViews($("upload")), /至少选择一张/);
+  assert.equal(calls.length, 2);
+});
 
 test("missing state cannot enable confirmation or archive", () => {
   const { context, $ } = harness(null);

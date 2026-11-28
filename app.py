@@ -97,6 +97,7 @@ from vercel_app.connectivity import (
 )
 from vercel_app.material_blob import PrivateMaterialBlobStore
 from vercel_app.multiview import current_review, local_view_checks, review_signature, review_views
+from vercel_app.view_mask import MAX_MASK_DATA_URL, validate_view_mask, composite_view_edit, masked_view_prompt
 from vercel_app.mesh_quality import CHECKER_VERSION, MAX_CHECK_BYTES, incomplete_report, process_stl
 from vercel_app.mesh_smoothing import SMOOTHER_VERSION, MAX_SMOOTH_BYTES, process_smoothing
 from vercel_app.similarity_api import router as similarity_search_router
@@ -327,6 +328,13 @@ class ViewGenerationRequest(BaseModel):
 
 class ViewRefinementRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
+    mask_data_url: str | None = Field(default=None, max_length=MAX_MASK_DATA_URL)
+    source_revision: int | None = Field(default=None, ge=1)
+    source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class ModelViewSelection(BaseModel):
+    excluded_views: list[Literal["front", "left", "right", "back"]] = Field(max_length=3)
 
 
 class TextureEditRequest(BaseModel):
@@ -675,15 +683,30 @@ def _load(session_id: str, token: str | None) -> tuple[dict, int]:
     return state, version
 
 
-def _views_current(state: dict) -> bool:
+def _views_current(state: dict, selected_views=None) -> bool:
     views = state.get("views", {})
     return all(
         view in views and bool(views[view].get("url"))
         and views[view].get("prompt_revision") == state.get("prompt_revision")
         and (state.get("view_source") == "uploaded"
              or views[view].get("view_mode", "faithful") == state.get("view_mode", "faithful"))
-        for view in AI_GENERATED_VIEWS
+        for view in (AI_GENERATED_VIEWS if selected_views is None else selected_views)
     )
+
+
+def _selected_model_views(state: dict) -> list[str]:
+    excluded = state.get("excluded_3d_views") or []
+    return [view for view in AI_GENERATED_VIEWS if view not in excluded]
+
+
+def _model_views_ready(state: dict) -> bool:
+    selected = _selected_model_views(state)
+    return bool(selected) and _views_current(state, selected)
+
+
+def _require_model_views(state: dict) -> None:
+    if not _model_views_ready(state):
+        raise WorkflowError("VIEWS_NOT_READY", "请至少保留一张视图，并补全所选视图的当前版本；不使用的视角可点击排除", 409)
 
 
 def _views_approved(state: dict) -> bool:
@@ -715,6 +738,8 @@ def _response(state: dict, *, token: str | None = None) -> dict:
         "views": state.get("views", {}),
         "view_review": current_review(state),
         "views_approved": _views_approved(state),
+        "excluded_3d_views": state.get("excluded_3d_views", []),
+        "model_views_ready": _model_views_ready(state),
         "confirmed_at": (state.get("confirmed_snapshot") or {}).get("confirmed_at"),
         "description_confirmed_at": state.get("description_confirmed_at"),
         "assembly_plan": state.get("assembly_plan"),
@@ -2682,6 +2707,7 @@ def new_session(
     prompt: str = Form("", max_length=4000),
     view_source: Literal["generated", "uploaded"] = Form("generated"),
     use_preferences: bool = Form(True),
+    initial_view: Literal["front", "left", "right", "back"] = Form("front"),
 ):
     models = _model_settings(
         IMAGE3D_VISION_MODEL, IMAGE3D_VIEW_MODEL, IMAGE3D_VIEW_QUALITY, IMAGE3D_MODEL,
@@ -2707,7 +2733,7 @@ def new_session(
     }
     initial_views = {}
     if view_source == "uploaded":
-        initial_views["front"] = {
+        initial_views[initial_view] = {
             "url": reference_url,
             "sha256": hashlib.sha256(normalized).hexdigest(),
             "revision": 1,
@@ -3326,6 +3352,20 @@ def check_views(session_id: str, request: Request,
     return _response(state)
 
 
+@app.get("/api/sessions/{session_id}/views/{view}/edit-image")
+def view_edit_image(session_id: str, view: str, revision: int,
+                    x_session_token: str | None = Header(default=None)):
+    state, _ = _load(session_id, x_session_token)
+    item = state.get("views", {}).get(view)
+    if view not in AI_GENERATED_VIEWS or not item:
+        raise WorkflowError("INVALID_VIEW", "视图不存在", 404)
+    if item.get("revision") != revision:
+        raise WorkflowError("VIEW_EDIT_STALE", "视图已更新，请重新打开局部修复", 409)
+    # Same-origin, session-authenticated bytes avoid canvas CORS restrictions.
+    return Response(fetch_bytes(item["url"], 20_000_000), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.post("/api/sessions/{session_id}/views/{view}/refine")
 def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request: Request,
                 x_session_token: str | None = Header(default=None)):
@@ -3336,6 +3376,19 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
     if (state.get("view_source") != "generated" or view not in AI_GENERATED_VIEWS
             or view not in state.get("views", {})):
         raise WorkflowError("INVALID_VIEW", "只能微调已由 AI 生成的正、左、右或背视图", 422)
+    if not data.prompt.strip():
+        raise WorkflowError("EMPTY_REFINEMENT", "请输入需要修改的内容", 422)
+    mask = None
+    original = None
+    previous_view = dict(state["views"][view])
+    if data.mask_data_url is not None:
+        if (data.source_revision != previous_view.get("revision")
+                or not data.source_sha256 or data.source_sha256 != previous_view.get("sha256")
+                or previous_view.get("prompt_revision") != state["prompt_revision"]
+                or previous_view.get("view_mode", "faithful") != state.get("view_mode", "faithful")):
+            raise WorkflowError("VIEW_EDIT_STALE", "视图或描述已更新，请重新生成视图后打开局部修复", 409)
+        original = fetch_bytes(previous_view["url"], 20_000_000)
+        mask = validate_view_mask(data.mask_data_url, original)
     uploaded_references = _effective_image3d_references(state)
     if not uploaded_references:
         raise WorkflowError("REFERENCE_IMAGE_MISSING", "原始参考图不存在，请重新上传", 409)
@@ -3357,25 +3410,38 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
         original_count = len(references)
         prior_views = _prior_generated_views(state, view)
         references.extend(fetch_bytes(state["views"][prior]["url"], 20_000_000) for prior in prior_views)
-        references.append(fetch_bytes(state["views"][view]["url"], 20_000_000))
+        if mask is not None:
+            # The edit mask belongs to the FIRST image, never an original
+            # reference or one of the other camera angles.
+            references.insert(0, original)
+            prompt = masked_view_prompt(state["user_prompt"], view, data.prompt,
+                                        original_count, prior_views, state.get("view_mode", "faithful"))
+        else:
+            references.append(fetch_bytes(state["views"][view]["url"], 20_000_000))
+            prompt = view_prompt(
+                state["user_prompt"], view, data.prompt + ("\n视角检查：" + corrections if corrections else ""),
+                source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
+                reference_count=original_count, editing_current=True,
+                view_mode=state.get("view_mode", "faithful"), prior_views=tuple(prior_views),
+            )
         generated, usage = _metered_provider_call(
-            _account_user(request), "image_to_3d", models["image_model"], "微调视图",
+            _account_user(request), "image_to_3d", models["image_model"], "遮罩局部修复" if mask is not None else "微调视图",
             lambda: generate_view(
-                references, view_prompt(
-                    state["user_prompt"], view, data.prompt + ("\n视角检查：" + corrections if corrections else ""),
-                    source_view=(state.get("analysis") or {}).get("source_view", "UNKNOWN"),
-                    reference_count=original_count, editing_current=True,
-                    view_mode=state.get("view_mode", "faithful"),
-                    prior_views=tuple(prior_views),
-                ),
+                references, prompt,
                 models["image_model"], models["image_quality"],
+                **({"mask": mask} if mask is not None else {}),
             ),
         )
+        if mask is not None:
+            generated = composite_view_edit(original, generated, mask)
         url = PublicBlobStore().put(
             f"image3d/{session_id}/views/{view}-r{revision}.png", generated, "image/png",
         )
     except Exception as exc:
         state["status"] = "VIEWS_REVIEW"
+        if mask is not None:
+            state["views"][view] = previous_view
+            state["views_stale"] = not _views_approved(state)
         state["last_error"] = {"code": getattr(exc, "code", "VIEW_REFINEMENT_FAILED"),
                                "message": "微调未完成，原图片已保留。" + str(exc)[:300]}
         _save(state, version)
@@ -3389,6 +3455,7 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
         "prompt_revision": state["prompt_revision"],
         "generated": True,
         "refinement_prompt": data.prompt.strip(),
+        "refinement_kind": "masked" if mask is not None else "prompt",
         "view_mode": state.get("view_mode", "faithful"),
         "usage": usage,
     }
@@ -3404,19 +3471,43 @@ def refine_view(session_id: str, view: str, data: ViewRefinementRequest, request
 @app.post("/api/sessions/{session_id}/confirm")
 def confirm_views(session_id: str, x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
-    if state["status"] != "VIEWS_REVIEW" or not _views_current(state):
-        raise WorkflowError("VIEWS_NOT_READY", "请补全当前描述和造型模式对应的正、左、右、背四视图", 409)
-    _require_view_approval(state)
-    state["views_stale"] = False
+    if state["status"] != "VIEWS_REVIEW":
+        raise WorkflowError("VIEWS_NOT_READY", "请在视图检查阶段确认要用于 3D 的图片", 409)
+    _require_model_views(state)
+    selected = _selected_model_views(state)
+    state["views_stale"] = not _views_current(state)
     state["confirmed_snapshot"] = {
         "prompt_revision": state["prompt_revision"],
         "view_mode": state.get("view_mode", "faithful"),
         "user_prompt": state["user_prompt"],
-        "views": {view: dict(state["views"][view]) for view in AI_GENERATED_VIEWS},
+        "views": {view: dict(state["views"][view]) for view in selected},
+        "selected_views": selected,
         "confirmed_at": int(time.time()),
     }
     state["status"] = "VIEWS_CONFIRMED"
     state["assembly_plan"] = None
+    state["last_error"] = None
+    _save(state, version)
+    return _response(state)
+
+
+@app.patch("/api/sessions/{session_id}/model-views")
+def select_model_views(session_id: str, data: ModelViewSelection,
+                       x_session_token: str | None = Header(default=None)):
+    state, version = _load(session_id, x_session_token)
+    if state["status"] not in {"VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"}:
+        raise WorkflowError("VIEWS_SELECTION_LOCKED", "当前任务正在处理或已经完成，不能更改提交视图", 409)
+    if len(set(data.excluded_views)) != len(data.excluded_views):
+        raise WorkflowError("INVALID_VIEW_SELECTION", "排除视图不能重复", 422)
+    excluded = [view for view in AI_GENERATED_VIEWS if view in data.excluded_views]
+    if excluded == state.get("excluded_3d_views", []):
+        return _response(state)
+    state["excluded_3d_views"] = excluded
+    state["confirmed_snapshot"] = None
+    state["assembly_plan"] = None
+    state["model_task"] = None
+    state["hunyuan_task"] = None
+    state["status"] = "VIEWS_REVIEW"
     state["last_error"] = None
     _save(state, version)
     return _response(state)
@@ -3427,8 +3518,20 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
                 x_session_token: str | None = Header(default=None)):
     state, version = _load(session_id, x_session_token)
     if state["status"] not in {"VIEWS_CONFIRMED", "CONFIRMED", "FAILED"} or not state.get("confirmed_snapshot"):
-        raise WorkflowError("NOT_CONFIRMED", "请先确认正、左、右、背四视图", 409)
-    _require_view_approval(state)
+        raise WorkflowError("NOT_CONFIRMED", "请先确认要用于 3D 的视图", 409)
+    _require_model_views(state)
+    selected = _selected_model_views(state)
+    snapshot = state["confirmed_snapshot"]
+    saved_views = snapshot.get("views", {})
+    # Validate on the server too: cached clients cannot submit an old selection.
+    if set(saved_views) != set(selected) or any(
+        any(saved_views[view].get(field) != state["views"][view].get(field)
+            for field in ("url", "sha256", "revision", "prompt_revision", "view_mode"))
+        for view in selected
+    ):
+        raise WorkflowError("NOT_CONFIRMED", "视图或参与范围已变化，请重新确认", 409)
+    if data.model_provider == "hunyuan" and "front" not in selected:
+        raise WorkflowError("FRONT_VIEW_REQUIRED", "腾讯混元需要正视图，请恢复正视图或切换到 Meshy", 409)
     options = data.model_dump(exclude={"model_provider"})
     # Older cached clients may still submit normal; all new 3D tasks use the
     # fixed detailed geometry settings and record those actual settings.
@@ -3438,8 +3541,8 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     provider_name = "腾讯混元" if provider == "hunyuan" else "Meshy"
     provider_code = "HUNYUAN" if provider == "hunyuan" else "MESHY"
     model = IMAGE3D_MODEL if provider == "hunyuan" else MESHY_IMAGE3D_MODEL
-    snapshot = state["confirmed_snapshot"]
-    if snapshot["views"]["front"]["url"].startswith("/local-blobs/"):
+    primary = selected[0]
+    if any(snapshot["views"][view]["url"].startswith("/local-blobs/") for view in selected):
         state["last_error"] = {
             "code": "PUBLIC_BLOB_REQUIRED",
             "message": f"提交{provider_label}需要公网图片地址，请先配置 BLOB_READ_WRITE_TOKEN",
@@ -3461,6 +3564,8 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
         "status": "submitting",
         "submitted_at": submitted_at,
         "request": options,
+        "input_views": selected,
+        "primary_view": primary,
         "models": {},
     }
     state["status"] = "SUBMITTING_3D"
@@ -3471,8 +3576,8 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
     try:
         submit = submit_hunyuan if provider == "hunyuan" else submit_meshy
         created, model = submit(
-            snapshot["views"]["front"]["url"],
-            {view: snapshot["views"][view]["url"] for view in GENERATED_VIEWS},
+            snapshot["views"][primary]["url"],
+            {view: snapshot["views"][view]["url"] for view in selected[1:]},
             options,
             model,
         )
@@ -3508,6 +3613,8 @@ def generate_3d(session_id: str, data: Generate3DRequest, request: Request,
         "request_id": created.get("request_id"),
         "submitted_at": submitted_at,
         "request": options,
+        "input_views": selected,
+        "primary_view": primary,
         "models": {},
     }
     state["model_task"] = task

@@ -578,12 +578,14 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
         "image_url": front_url,
         "multi_view_images": [
             {"view_type": view, "view_image_url": view_urls[view]}
-            for view in GENERATED_VIEWS
+            for view in GENERATED_VIEWS if view_urls.get(view)
         ],
         "generate_type": "Geometry",
         "enable_pbr": False,
         "face_count": 1_000_000,
     }
+    if not payload["multi_view_images"]:
+        payload.pop("multi_view_images")
     if options.get("result_format"):
         payload["result_format"] = options["result_format"]
     try:
@@ -606,11 +608,11 @@ def submit_hunyuan(front_url: str, view_urls: dict[str, str], options: dict, mod
 
 def submit_meshy(front_url: str, view_urls: dict[str, str], options: dict,
                  model: str = "meshy-7.1") -> tuple[dict, str]:
-    """Submit the confirmed four views to Meshy's native multi-image endpoint."""
+    """Submit the selected one to four views, with the primary image first."""
     _require_fixed_model_quality(options)
     config = _meshy_config()
     payload: dict = {
-        "image_urls": [front_url, *[view_urls[view] for view in GENERATED_VIEWS]],
+        "image_urls": [front_url, *[view_urls[view] for view in GENERATED_VIEWS if view_urls.get(view)]],
         "ai_model": model,
         "geometry_resolution": "2k",
         "should_texture": False,

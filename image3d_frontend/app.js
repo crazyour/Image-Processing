@@ -258,13 +258,17 @@ function renderViews(views = {}) {
   const uploaded = state?.view_source === "uploaded";
   $("#views-grid").innerHTML = allViews.map((view) => {
     const item = views[view];
+    const excluded = (state?.excluded_3d_views || []).includes(view);
+    const toggle = `<button type="button" class="view-use-toggle" data-toggle-model-view="${view}" aria-label="${labels[view]}参与 3D 生成" aria-pressed="${!excluded}">${excluded ? "+ 恢复参与" : "× 排除此视图"}</button>`;
+    const selection = `<p class="view-use-state">${excluded ? "已排除 · 不参与 3D 生成" : "参与 3D 生成"}</p>`;
+    const cardClass = `view-card${excluded ? " view-excluded" : ""}`;
     if (!item) {
       const upload = uploaded
         ? `<label class="replace-view">上传${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
-      return `<article class="view-card"><h3>${labels[view]}</h3><p>尚未生成</p>${upload}</article>`;
+      return `<article class="${cardClass}"><div class="view-card-heading"><h3>${labels[view]}</h3>${toggle}</div>${selection}<p>${uploaded ? "尚未上传" : "尚未生成"}</p>${upload}</article>`;
     }
     const refinement = !uploaded && state?.status === "VIEWS_REVIEW"
-      ? `<div class="refine"><input id="refine-${view}" aria-label="${labels[view]}微调要求" type="text" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div><button type="button" class="secondary" data-retry-view="${view}">仅重试${labels[view]}</button>` : "";
+      ? `<div class="refine"><input id="refine-${view}" aria-label="${labels[view]}微调要求" type="text" maxlength="4000" placeholder="例如：不要增加装饰"><button data-refine="${view}">微调</button></div><div class="view-edit-actions"><button type="button" class="secondary" data-mask-view="${view}">涂抹局部修复</button><button type="button" class="secondary" data-retry-view="${view}">仅重试${labels[view]}</button></div>` : "";
     const replacement = uploaded && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(state?.status)
       ? `<label class="replace-view">替换${labels[view]}<input data-replace-view="${view}" type="file" accept="image/png,image/jpeg,image/webp"></label>` : "";
     const titleNote = view === "front" ? (uploaded ? "<small>自行上传</small>" : "<small>AI 生成</small>") : "";
@@ -273,9 +277,11 @@ function renderViews(views = {}) {
       : check?.status === "passed" ? "视角检查通过，请再核对细节"
       : check?.issues?.length ? check.issues.join("；") : "尚未检查，可直接确认";
     const feedback = uploaded ? "" : `<p class="view-check ${check?.status === "failed" ? "view-check-failed" : ""}">${escapeHtml(checkText)}</p>`;
-    return `<article class="view-card"><h3>${labels[view]}${titleNote}</h3><img data-zoom src="${item.url}" alt="${labels[view]}">${feedback}${refinement}${replacement}</article>`;
+    return `<article class="${cardClass}"><div class="view-card-heading"><h3>${labels[view]}${titleNote}</h3>${toggle}</div>${selection}<img data-zoom src="${item.url}" alt="${labels[view]}">${feedback}${refinement}${replacement}</article>`;
   }).join("");
+  document.querySelectorAll("[data-toggle-model-view]").forEach((button) => button.addEventListener("click", () => toggleModelView(button.dataset.toggleModelView)));
   document.querySelectorAll("[data-refine]").forEach((button) => button.addEventListener("click", () => refine(button.dataset.refine, button)));
+  document.querySelectorAll("[data-mask-view]").forEach((button) => button.addEventListener("click", () => openViewMask(button.dataset.maskView)));
   document.querySelectorAll("[data-retry-view]").forEach((button) => button.addEventListener("click", () => generateViews(button, false, [button.dataset.retryView])));
   document.querySelectorAll("[data-replace-view]").forEach((input) => input.addEventListener("change", () => replaceUploadedView(input.dataset.replaceView, input)));
   document.querySelectorAll("[data-zoom]").forEach((image) => image.addEventListener("click", () => window.open(image.src, "_blank", "noopener")));
@@ -300,6 +306,41 @@ function currentViewsReady() {
   return Boolean(state) && allViews.every(isCurrentView);
 }
 
+function selectedModelViews() {
+  return allViews.filter(view => !(state?.excluded_3d_views || []).includes(view));
+}
+
+function modelViewsReady() {
+  const selected = selectedModelViews();
+  return Boolean(state) && selected.length > 0 && selected.every(isCurrentView);
+}
+
+function canSelectModelViews() {
+  return Boolean(state) && !actionInFlight && !viewModeChanged()
+    && ["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(state.status);
+}
+
+async function toggleModelView(view) {
+  if (!allViews.includes(view) || !canSelectModelViews()) return;
+  const excluded = new Set(state.excluded_3d_views || []);
+  if (excluded.has(view)) excluded.delete(view);
+  else excluded.add(view);
+  if (excluded.size === allViews.length) return notify("至少保留一张视图参与 3D 生成", true);
+  try {
+    clearError();
+    setActionInFlight(true);
+    render(await api(`/api/sessions/${session.id}/model-views`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ excluded_views: allViews.filter(name => excluded.has(name)) }),
+    }));
+    notify(excluded.has(view) ? `${labels[view]}已排除，请重新确认所选视图` : `${labels[view]}已恢复参与，请重新确认所选视图`);
+  } catch (error) { showError(error); await refresh(); }
+  finally {
+    setActionInFlight(false);
+    $(`[data-toggle-model-view="${view}"]`)?.focus();
+  }
+}
+
 function syncControls() {
   const status = state?.status;
   const uploaded = state?.view_source === "uploaded";
@@ -314,9 +355,11 @@ function syncControls() {
     : state.view_mode === "print_sculpture" ? "当前：打印雕塑。保留原图配色，请在四视图中核对发束、饰品和局部加厚是否符合预期。"
     : "当前：忠实还原，不启用打印造型调整。";
   const viewsReady = currentViewsReady();
+  const selected = selectedModelViews();
+  const selectedReady = modelViewsReady();
   const review = state?.view_review;
   // Review findings are advisory; only missing or outdated images block continuing.
-  const approved = !modeChanged && viewsReady;
+  const approved = !modeChanged && selectedReady;
   const viewsBusy = ["GENERATING_VIEWS", "REVIEWING_VIEWS"].includes(status);
   const failedViews = review?.failed_views || [];
   const reviewFailed = review?.status === "failed" || failedViews.length > 0;
@@ -339,24 +382,43 @@ function syncControls() {
   $("#regenerate-views").disabled = !canGenerateViews || !viewsReady || actionInFlight;
   $("#review-views").disabled = modeChanged || !viewsReady || Boolean(review) || actionInFlight || !["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status);
   $("#confirm-views").disabled = !approved || status !== "VIEWS_REVIEW" || actionInFlight;
-  $("#save-view-folder").disabled = !approved || viewsBusy || actionInFlight;
+  $("#save-view-folder").disabled = modeChanged || !viewsReady || viewsBusy || actionInFlight;
+  document.querySelectorAll("[data-toggle-model-view]").forEach((button) => {
+    button.disabled = !canSelectModelViews();
+  });
+  document.querySelectorAll("[data-replace-view]").forEach((input) => {
+    input.disabled = actionInFlight || !["VIEWS_REVIEW", "VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status);
+  });
+  const selectionSummary = $("#model-view-selection-summary");
+  selectionSummary.classList.toggle("hidden", !state);
+  selectionSummary.textContent = `${state?.confirmed_at ? "已确认" : "已选择"} ${selected.length} 张参与 3D：${selected.map(view => labels[view]).join("、")}。`
+    + (selectedReady ? "排除的图片仍保留，提交前可恢复；更改后需重新确认。" : "请补全所选视图，或排除不使用的视角。")
+    + (selected.length < 4 ? "缺少的角度由模型推测，请核对结果。" : "");
   document.querySelectorAll("[data-refine], [data-retry-view], .refine input").forEach((control) => {
     control.disabled = modeChanged || actionInFlight || status !== "VIEWS_REVIEW";
+  });
+  document.querySelectorAll("[data-mask-view]").forEach((control) => {
+    control.disabled = modeChanged || actionInFlight || status !== "VIEWS_REVIEW" || !isCurrentView(control.dataset.maskView);
   });
   const summary = $("#view-review-summary");
   summary.classList.toggle("hidden", uploaded || !state);
   summary.textContent = modeChanged ? "造型模式尚未应用，请先应用模式并确认描述，再重新生成四视图。"
     : status === "REVIEWING_VIEWS" ? "正在检查重复图片、观察方向和主体一致性…"
-    : !viewsReady ? "请先生成或补全当前描述和模式的四张图，再确认；不会自动追加图片生成。"
-    : reviewFailed ? `${failedViews.length ? failedViews.map((view) => labels[view]).join("、") + "未通过检查" : "检查发现问题"}。结果仅供参考，不影响确认和生成 STL；也可选择重试问题视角。`
-    : review?.status === "passed" ? "视角检查通过，请核对四张图后确认。"
-    : "四张图已齐全，视角检查尚未完成。可以直接确认并继续，也可选择检查。";
+    : !viewsReady ? "整套视角检查需要四张当前图片；生成 3D 只需补全并确认所选的视图。"
+    : reviewFailed ? `${failedViews.length ? failedViews.map((view) => labels[view]).join("、") + "未通过检查" : "检查发现问题"}。检查结果仅供参考，可排除不可信的视图或单独重试，也可人工确认后继续。`
+    : review?.status === "passed" ? "视角检查通过，请核对所选图片后确认。"
+    : "四张图已齐全，视角检查尚未完成。可以直接确认所选图片，也可选择检查。";
   if (!$("#confirm-views").dataset.busy) {
-    $("#confirm-views").textContent = state?.confirmed_at ? "已确认 ✓" : "确认四个视角";
+    $("#confirm-views").textContent = state?.confirmed_at ? `已确认 ${selected.length} 张 ✓` : `确认所选 ${selected.length} 张视图`;
   }
   const generateButton = $("#generate-3d");
   const running = ["SUBMITTING_3D", "GENERATING_3D"].includes(status);
-  const canSubmit3d = approved && ["VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status) && Boolean(state?.confirmed_at);
+  const frontRequired = selectedModelProvider() === "hunyuan" && !selected.includes("front");
+  $("#model-input-summary").textContent = !state ? "请先选择并确认参与 3D 的视图。"
+    : frontRequired ? "腾讯混元需要正视图：请恢复正视图或切换到 Meshy。"
+    : `本次提交 ${selected.length} 张：${selected.map(view => labels[view]).join("、")}。主参考：${labels[selected[0]] || "无"}。`
+      + (selected[0] !== "front" && selected.length ? "Meshy 将把这张主参考作为模型正面方向。" : "");
+  const canSubmit3d = approved && !frontRequired && ["VIEWS_CONFIRMED", "CONFIRMED", "FAILED"].includes(status) && Boolean(state?.confirmed_at);
   generateButton.disabled = !canSubmit3d || actionInFlight;
   document.querySelectorAll('input[name="model-provider"]').forEach((input) => {
     input.disabled = running || actionInFlight;
@@ -370,11 +432,11 @@ function syncControls() {
   if (state && !uploaded) $("#image-input").required = false;
   if (!uploadButton.dataset.busy) {
     uploadButton.textContent = uploaded
-      ? "上传正、左、右、背四视图"
+      ? "上传所选视图"
       : status === "REFERENCES_READY" ? "确认当前图片并分析参考图" : "上传并分析参考图";
   }
 
-  setStepState("#upload-state", !state ? "等待上传" : uploaded ? "四视图已上传" : `${state.reference_images?.length || 1} 张已上传`, Boolean(state), false, Boolean(state));
+  setStepState("#upload-state", !state ? "等待上传" : uploaded ? `${Object.keys(state.views || {}).length} 张已上传` : `${state.reference_images?.length || 1} 张已上传`, Boolean(state), false, Boolean(state));
   if (!state) setStepState("#description-state", "等待分析", false, false);
   else if (uploaded) setStepState("#description-state", "无需分析", false, false, true);
   else if (status === "ANALYZING_REFERENCES") setStepState("#description-state", "正在分析", true, false);
@@ -385,7 +447,7 @@ function syncControls() {
   else if (status === "GENERATING_VIEWS") setStepState("#views-state", "正在生成", true, false);
   else if (status === "REVIEWING_VIEWS") setStepState("#views-state", "正在检查", true, false);
   else if (status === "DESCRIPTION_CONFIRMED") setStepState("#views-state", "可以生成", true, false);
-  else if (!viewsReady) setStepState("#views-state", "尚未完成", false, Boolean(state.last_error));
+  else if (!selectedReady) setStepState("#views-state", "尚未完成", false, Boolean(state.last_error));
   else if (modeChanged) setStepState("#views-state", "等待应用模式", false, false);
   else if (state.confirmed_at) setStepState("#views-state", "已确认", true, false, true);
   else if (reviewFailed) setStepState("#views-state", "等待确认（有提示）", true, false);
@@ -394,6 +456,7 @@ function syncControls() {
   if (status === "SUCCEEDED") setStepState("#generate-state", "文件已生成", true, false, true);
   else if (status === "FAILED") setStepState("#generate-state", "生成失败", false, true);
   else if (running) setStepState("#generate-state", "生成中", true, false);
+  else if (frontRequired && state?.confirmed_at) setStepState("#generate-state", "需要正视图", false, true);
   else if (state?.confirmed_at) setStepState("#generate-state", "可以提交", true, false);
   else setStepState("#generate-state", "等待确认", false, false);
 }
@@ -876,8 +939,8 @@ function updateViewSource() {
   $("#reference-upload").classList.toggle("hidden", uploaded);
   $("#manual-views").classList.toggle("hidden", !uploaded);
   $("#image-input").required = !uploaded;
-  allViews.forEach((view) => { $(`#${view}-input`).required = uploaded; });
-  $("#upload-submit").textContent = uploaded ? "上传正、左、右、背四视图" : "上传并分析参考图";
+  allViews.forEach((view) => { $(`#${view}-input`).required = false; });
+  $("#upload-submit").textContent = uploaded ? "上传所选视图" : "上传并分析参考图";
 }
 
 document.querySelectorAll('input[name="view-source"]').forEach((input) => input.addEventListener("change", updateViewSource));
@@ -885,11 +948,11 @@ document.querySelectorAll('input[name="view-source"]').forEach((input) => input.
 const modelProviderDetails = {
   hunyuan: {
     name: "腾讯混元 HY 3.1",
-    note: "确认后会把四张图片发送给腾讯混元，模型生成按实际调用收费。",
+    note: "只提交已确认的视图；正视图必须保留，左、右、背可选，支持只用正视图。模型生成按实际调用收费。",
   },
   meshy: {
     name: "Meshy 7.1",
-    note: "确认后会把四张图片发送给 Meshy，模型生成按实际调用收费。",
+    note: "只提交已确认的 1–4 张视图，第一张作为主参考。模型生成按实际调用收费。",
   },
 };
 
@@ -920,13 +983,16 @@ async function loadMeshyBalance(force = false) {
 function updateModelProvider() {
   const provider = selectedModelProvider();
   const details = modelProviderDetails[provider];
-  $("#model-provider-heading").textContent = `确认四视图后，提交${details.name}生成 STL，完成后可直接下载。`;
+  $("#model-provider-heading").textContent = `确认所选视图后，提交${details.name}生成 STL，完成后可直接下载。`;
   $("#model-provider-note").textContent = details.note;
   $("#meshy-balance").classList.toggle("hidden", provider !== "meshy");
   if (provider === "meshy") loadMeshyBalance();
 }
 
-document.querySelectorAll('input[name="model-provider"]').forEach((input) => input.addEventListener("change", updateModelProvider));
+document.querySelectorAll('input[name="model-provider"]').forEach((input) => input.addEventListener("change", () => {
+  updateModelProvider();
+  syncControls();
+}));
 
 async function uploadSelectedReferences(button) {
   if (session && state?.status === "REFERENCES_READY") return;
@@ -952,6 +1018,34 @@ async function uploadSelectedReferences(button) {
   }
 }
 
+async function uploadManualViews(button) {
+  const files = Object.fromEntries(allViews.map(view => [view, $(`#${view}-input`).files?.[0]]));
+  const selected = allViews.filter(view => files[view]);
+  if (!selected.length) throw new Error("请至少选择一张视图");
+  setBusy(button, true, "正在上传视图…");
+  const primary = selected[0];
+  const form = new FormData();
+  form.set("image", await compressedFile(files[primary]));
+  form.set("prompt", "");
+  form.set("view_source", "uploaded");
+  form.set("initial_view", primary);
+  const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
+  session = { id: result.session_id, token: result.access_token };
+  sessionStorage.setItem("image3d-session", JSON.stringify(session));
+  render(result);
+  for (const view of selected.slice(1)) {
+    button.textContent = `正在上传${labels[view]}…`;
+    const body = new FormData();
+    body.set("image", await compressedFile(files[view]));
+    render(await api(`/api/sessions/${session.id}/views/${view}/upload`, { method: "POST", body, timeout: 90_000 }));
+  }
+  render(await api(`/api/sessions/${session.id}/model-views`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ excluded_views: allViews.filter(view => !selected.includes(view)) }),
+  }));
+  notify(`${selected.length} 张视图已上传，请核对并确认参与 3D 的图片`);
+}
+
 $("#upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.submitter;
@@ -967,31 +1061,7 @@ $("#upload-form").addEventListener("submit", async (event) => {
       $("#prompt-step").scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    const uploadedViews = Object.fromEntries(allViews.map((view) => [view, $(`#${view}-input`).files?.[0]]));
-    if (viewSource === "uploaded" && Object.values(uploadedViews).some((file) => !file)) {
-      throw new Error("请分别选择正视图、左视图、右视图和背视图");
-    }
-    setBusy(button, true, viewSource === "uploaded" ? "正在上传四视图…" : "正在上传参考图…");
-    const source = uploadedViews.front;
-    if (!source) throw new Error("请选择图片");
-    const file = await compressedFile(source);
-    const form = new FormData();
-    form.set("image", file);
-    form.set("prompt", "");
-    form.set("view_source", viewSource);
-    const result = await api("/api/sessions", { method: "POST", body: form, timeout: 120_000 });
-    session = { id: result.session_id, token: result.access_token };
-    sessionStorage.setItem("image3d-session", JSON.stringify(session));
-    render(result);
-    if (viewSource === "uploaded") {
-      for (const view of ["left", "right", "back"]) {
-        button.textContent = `正在上传${labels[view]}…`;
-        const body = new FormData();
-        body.set("image", await compressedFile(uploadedViews[view]));
-        render(await api(`/api/sessions/${session.id}/views/${view}/upload`, { method: "POST", body, timeout: 90_000 }));
-      }
-      notify("正、左、右、背四视图已上传");
-    }
+    await uploadManualViews(button);
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
 });
@@ -1079,6 +1149,156 @@ $("#review-views").addEventListener("click", async (event) => {
   finally { setBusy(button, false); setActionInFlight(false); }
 });
 
+let viewMaskEditor = null;
+let viewMaskPainter = null;
+let viewMaskLoadId = 0;
+let viewMaskObjectUrl = null;
+
+function showViewMaskError(message = "") {
+  $("#view-mask-error").textContent = message;
+  $("#view-mask-error").classList.toggle("hidden", !message);
+}
+
+function syncViewMaskPainter() {
+  if (!viewMaskPainter) return;
+  const painter = viewMaskPainter, cursor = $("#mask-keyboard-cursor");
+  $("#mask-undo").disabled = !painter.strokes.length;
+  $("#mask-clear").disabled = !painter.strokes.length;
+  $("#mask-paint").setAttribute("aria-pressed", String(painter.tool === "paint"));
+  $("#mask-erase").setAttribute("aria-pressed", String(painter.tool === "erase"));
+  $("#mask-brush-value").textContent = `${painter.size} px`;
+  cursor.style.left = `${painter.keyboardPoint.x / painter.canvas.width * 100}%`;
+  cursor.style.top = `${painter.keyboardPoint.y / painter.canvas.height * 100}%`;
+  cursor.style.width = `${painter.size / painter.canvas.width * 100}%`;
+  cursor.style.height = `${painter.size / painter.canvas.height * 100}%`;
+}
+
+async function openViewMask(view) {
+  if (actionInFlight || state?.status !== "VIEWS_REVIEW" || state?.view_source !== "generated") return;
+  if (viewModeChanged() || !isCurrentView(view)) return notify("请先生成当前描述下的视图，再进行局部修复", true);
+  const item = state.views[view], loadId = ++viewMaskLoadId;
+  viewMaskEditor = { view, sessionId: session.id, revision: item.revision, sha256: item.sha256, ready: false, saving: false };
+  const dialog = $("#view-mask-dialog");
+  $("#view-mask-title").textContent = `${labels[view]} · 局部修复`;
+  $("#view-mask-prompt").value = $(`#refine-${view}`)?.value || "";
+  $("#view-mask-status").textContent = "正在载入原图…";
+  $("#view-mask-controls").disabled = true;
+  $("#close-view-mask").disabled = false;
+  $("#mask-stage").classList.add("hidden");
+  showViewMaskError();
+  dialog.showModal();
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 45_000);
+  viewMaskEditor.controller = controller;
+  try {
+    const response = await fetch(`/api/sessions/${session.id}/views/${view}/edit-image?revision=${item.revision}`, {
+      headers: { "X-Session-Token": session.token }, signal: controller.signal,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.message || "原图载入失败，请关闭后重新打开");
+    }
+    const blob = await response.blob();
+    if (loadId !== viewMaskLoadId) return;
+    viewMaskObjectUrl = URL.createObjectURL(blob);
+    const image = $("#mask-source-image");
+    image.src = viewMaskObjectUrl;
+    await image.decode();
+    if (loadId !== viewMaskLoadId) return;
+    if (!viewMaskPainter) viewMaskPainter = new ViewMask.Painter($("#view-mask-canvas"), syncViewMaskPainter);
+    viewMaskPainter.reset(image.naturalWidth, image.naturalHeight);
+    viewMaskPainter.tool = "paint";
+    viewMaskPainter.size = 40;
+    viewMaskPainter.enabled = true;
+    $("#mask-brush-size").value = "40";
+    syncViewMaskPainter();
+    viewMaskEditor.ready = true;
+    $("#mask-stage").classList.remove("hidden");
+    $("#view-mask-controls").disabled = false;
+    $("#view-mask-status").textContent = "粉色区域 = 将要修改的范围。请为新部件预留空间，并覆盖要删除的整个部件。";
+    $("#mask-paint").focus();
+  } catch (error) {
+    if (loadId === viewMaskLoadId) {
+      $("#view-mask-status").textContent = "原图未载入";
+      showViewMaskError(error.name === "AbortError" ? "载入超时，请关闭后重新打开" : error.message);
+    }
+  } finally { clearTimeout(timer); }
+}
+
+async function submitViewMask() {
+  const editor = viewMaskEditor;
+  if (!editor?.ready || editor.saving || actionInFlight) return;
+  const item = state?.views?.[editor.view];
+  if (session?.id !== editor.sessionId || state?.status !== "VIEWS_REVIEW"
+      || item?.revision !== editor.revision || item?.sha256 !== editor.sha256 || viewModeChanged()) {
+    return showViewMaskError("视图已更新，请关闭后重新打开局部修复");
+  }
+  const prompt = $("#view-mask-prompt").value.trim();
+  if (!prompt) {
+    showViewMaskError("请输入选区需要如何修改");
+    $("#view-mask-prompt").focus();
+    return;
+  }
+  let mask;
+  try { mask = viewMaskPainter.exportMask(); }
+  catch (error) { return showViewMaskError(error.message); }
+  editor.saving = true;
+  viewMaskPainter.enabled = false;
+  $("#view-mask-controls").disabled = true;
+  $("#close-view-mask").disabled = true;
+  $("#view-mask-status").textContent = "正在修复选区，通常需要等待一段时间，请勿重复提交…";
+  showViewMaskError();
+  setActionInFlight(true);
+  try {
+    const result = await api(`/api/sessions/${editor.sessionId}/views/${editor.view}/refine`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, mask_data_url: mask, source_revision: editor.revision, source_sha256: editor.sha256 }),
+      timeout: 295_000,
+    });
+    render(result);
+    editor.saving = false;
+    $("#view-mask-dialog").close();
+    clearError();
+    notify(`${labels[editor.view]}局部修复完成，请核对并重新确认所选视图`);
+  } catch (error) {
+    showViewMaskError(error.message || "局部修复未完成，请重试");
+    $("#view-mask-status").textContent = "选区和修改要求已保留。请先确认任务状态，再决定是否重试。";
+    await refresh();
+  } finally {
+    editor.saving = false;
+    viewMaskPainter.enabled = true;
+    $("#view-mask-controls").disabled = false;
+    $("#close-view-mask").disabled = false;
+    setActionInFlight(false);
+  }
+}
+
+function initializeViewMask() {
+  const dialog = $("#view-mask-dialog");
+  $("#close-view-mask").addEventListener("click", () => { if (!viewMaskEditor?.saving) dialog.close(); });
+  dialog.addEventListener("cancel", event => { if (viewMaskEditor?.saving) event.preventDefault(); });
+  dialog.addEventListener("close", () => {
+    const view = viewMaskEditor?.view;
+    viewMaskLoadId += 1;
+    viewMaskEditor?.controller?.abort();
+    if (viewMaskObjectUrl) URL.revokeObjectURL(viewMaskObjectUrl);
+    viewMaskObjectUrl = null;
+    viewMaskEditor = null;
+    $("#mask-source-image").removeAttribute("src");
+    if (viewMaskPainter) viewMaskPainter.clear();
+    document.querySelector(`[data-mask-view="${view}"]`)?.focus();
+  });
+  for (const tool of ["paint", "erase"]) $("#mask-" + tool).addEventListener("click", () => {
+    if (viewMaskPainter) { viewMaskPainter.tool = tool; syncViewMaskPainter(); }
+  });
+  $("#mask-brush-size").addEventListener("input", event => {
+    if (viewMaskPainter) { viewMaskPainter.size = Number(event.target.value); syncViewMaskPainter(); }
+  });
+  $("#mask-undo").addEventListener("click", () => viewMaskPainter?.undo());
+  $("#mask-clear").addEventListener("click", () => viewMaskPainter?.clear());
+  $("#submit-view-mask").addEventListener("click", submitViewMask);
+}
+initializeViewMask();
+
 async function refine(view, button) {
   if (actionInFlight) return;
   if (viewModeChanged()) return notify("请先应用模式并确认描述，再生成四视图", true);
@@ -1122,7 +1342,7 @@ $("#confirm-views").addEventListener("click", async (event) => {
     setActionInFlight(true);
     setBusy(button, true);
     render(await api(`/api/sessions/${session.id}/confirm`, { method: "POST" }));
-    notify("正、左、右、背四个视角已确认，现在可以生成 STL");
+    notify(`所选 ${selectedModelViews().length} 张视图已确认，现在可以生成 STL`);
     $("#generate-step").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { showError(error); await refresh(); }
   finally { setBusy(button, false); setActionInFlight(false); }
